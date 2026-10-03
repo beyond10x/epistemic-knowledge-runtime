@@ -32,7 +32,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 14
+revision: 17
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -85,3 +85,40 @@ contract_digest=2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
 The existing retention conformance selection was rerun at this specification digest on both providers, with fresh actual report/2 evidence imported. The new B obligations remain unexecuted end to end. CLI help omissions from A and the documented ring dependency guard were corrected without weakening assertions. The generated release pin remains blocked; no final task check or independent review is claimed.
 
 Two unpublished AEP imports initially recorded absolute input paths. Their exact files were quarantined outside the public repository and the same reports were re-imported through AEP with relative inputs; no published history was edited.
+
+## Authority transition implementation
+
+Implemented the explicit canonical authority boundary in the serialized disputes unit. It preserves the original seed authority, activates a separately retained exact knowledge profile, marks both sides of deterministic conflicts disputed, keeps original validation attribution, and moves old pending validations back to Proposed while retaining their receipt bytes. Generated transition/preview contracts and the version-three event bridge were validated before implementation. Proof, public policy, statement, host binding and profile objects are staged with the transition in one provider publication; native provider tenant identity must match the independently provisioned review audience.
+
+The adversarial race case first failed with PublicationInputConflict: one preparation slot for the lineage prevented a fresh review after a lost compare-and-swap. The corrected version-four recovery carrier keys attempts to the exact reviewed stream predecessor. Its failing test output is retained, and the corrected provider test passes. Fresh-process before-write/after-write port faults resume the original receipt. These are port-level uncertainty tests, not claims of a native mid-transaction crash.
+
+Root-local review also checked modified transition roots, operator attribution, previews, missing retained objects, duplicate/unknown fields and noncanonical bytes. The initial implementation was written before the new provider test, so this increment does not claim a red-first implementation cycle; the later race regression was written and observed red before its correction. No independent reviewer or human approval is claimed. The source-level no-authority guard was made whitespace-insensitive after rustfmt split its previously matched expression; the actual refusal and admission-order requirements remain intact.
+
+This remains active implementation. Attention projection and CLI/SDK/viewer delivery, the named B conformance scenarios, native crash/concurrency coverage, final released ESS adoption and the complete task check remain outstanding. The PR completion objective includes C-F and the end-to-end demonstrations; this increment does not narrow it. Final measured test output and specification digests will be recorded in .engineering/reviews/knowledge-authority-upgrade/ before publication.
+
+## Authority transition verification and resource handoff
+
+The final frozen kernel run exited successfully. The following are measured executions, including child-process retries, rather than distinct test counts:
+
+kernel: passed=582 failed=0 ignored=6 result_groups=83
+spec_digest=890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+contract_digest=281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
+
+Sanitized logs and review limits are retained in .engineering/reviews/knowledge-authority-upgrade/. Fresh synthesis matches both generated trees; ESS validation and member-only formatting passed. The intermediate cross-crate failure is retained and its corrected guard still requires a rerun. Final Clippy, new graph bridge coverage, authored B conformance, native crash coverage and the full task check are not claimed.
+
+At the release coordinator request, the completed owned target was cleaned after raw evidence was retained outside it. No additional build lane was started and no other session output was touched. B remains active; attention and CLI/SDK/viewer work and C-F are still required for PR completion.
+
+## Attention read-surface checkpoint
+
+The bot-authored unit checkpoint is 3ef10aa5a8f246ba9b3415f68cdee5a896dd6c00
+
+The generated ListAttention/ShowAttention handlers now project real retained state. Typed CLI and SDK/session reads and a Rust-rendered GET-only inbox are implemented. The provider tests preserve review digests across unrelated commits and change them for competing claims or changed support links. A support-link regression was observed red before its correction. The blocker page was inspected from an actual HTTP capture in Firefox; public CLI upgrade/dispute rendering is not yet verified.
+
+attention-provider-final: passed=12 failed=0 ignored=0 groups=2
+attention-surface-final: passed=75 failed=0 ignored=0 groups=5
+attention-contract-tests-final: passed=61 failed=0 ignored=0 groups=10
+attention-ui-final: passed=74 failed=0 ignored=0 groups=3
+
+Counts overlap and are not distinct cases. Detailed limits, raw-command copies, hashes and the screenshot are retained under .engineering/reviews/knowledge-attention/. Workspace Clippy, generated byte drift, member-only formatting and ESS validation passed. The graph bridge uses a test-only serde_json dependency; carrier inventories and the structural YAML field scanner were corrected without dropping obligations.
+
+Still required for B: trusted CLI review provisioning, upgrade preview/apply transport and reopening upgraded stores, public dispute-page inspection, named ESS conformance, native crash coverage and final released-generator checks. C-F and both demonstrations remain required for PR completion. No full task check, independent review, human approval or delivery completion is claimed. Source publication uses the existing PR only.

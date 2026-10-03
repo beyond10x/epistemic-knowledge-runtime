@@ -1,0 +1,22 @@
+   Compiling ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 1.87s
+     Running tests/authority_upgrade.rs (target/debug/deps/authority_upgrade-9a644cbd383ea536)
+
+running 1 test
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... FAILED
+
+failures:
+
+---- a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation stdout ----
+
+thread 'a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation' (2315996) panicked at crates/ekr-kernel/tests/authority_upgrade.rs:749:139:
+a lost CAS must allow a newly reviewed preview: Store(PublicationInputConflict)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p ekr-kernel --test authority_upgrade`

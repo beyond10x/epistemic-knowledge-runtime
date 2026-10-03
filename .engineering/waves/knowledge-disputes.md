@@ -13,3 +13,23 @@ Each build uses this unit's own target with two jobs, incremental compilation of
 Unit commit `9a98c9d9f8580fe051ef61748f5303b82ffd2b9f` supplies conflict analysis, generated-model human-proof verification and canonical decoding, proof-object reopen checks, and the explicit distinction between review digests and StoredObject addresses. The actual checks and remaining limits are in `../reviews/knowledge-disputes/README.md`. The unit also repairs the retained-knowledge CLI help inventory omission discovered by cross-crate tests. Fresh A conformance reports were imported at the corrected specification digest; these do not establish B conformance.
 
 The next implementation work is atomic authority-transition publication/recovery, preserving historical replay profiles and invalidating pending old-profile validations, then assessments and attention CLI/SDK/viewer surfaces. No B acceptance state changes at this checkpoint. ESS adoption still waits on the release integrator's approved publication-identity and delivery-ancestry resolution.
+
+## Authority and attention checkpoint
+
+`3ef10aa5a8f246ba9b3415f68cdee5a896dd6c00` implements the explicit authority transition,
+native-provider replay/retry admission, invalidation of old pending validations, disputed
+assessments, generated attention handlers, typed CLI/SDK/session reads and the Rust-rendered
+GET-only `/inbox` page. Evidence and root-local findings are retained in
+`../reviews/knowledge-authority-upgrade/` and `../reviews/knowledge-attention/`.
+
+The previous full-kernel result predates the attention increment; current focused checks and
+workspace Clippy are recorded separately. The support-link digest regression was observed red
+before correction. The visually inspected HTTP page contains retained blockers; a public CLI
+upgrade/dispute demonstration is still pending. These are development results, not independent
+review or a final delivery gate.
+
+Next: connect independently provisioned reviewer trust to CLI/store opening, expose upgrade
+preview/apply through CLI and typed SDK sessions, exercise disputed claims in the public viewer,
+and author/execute the named B conformance scenarios. Native crash tests, released ESS adoption
+and the combined gate remain required. Continue C-F under the original release plan; keep the
+single existing PR and the ESS release ownership boundaries.

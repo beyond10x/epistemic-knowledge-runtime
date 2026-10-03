@@ -5569,3 +5569,95 @@ corrections, a mismatched approve-versus-reject operation, stale predecessor, pr
 rejection, missing independent enrollment, and cold/full replay from retained public proof bytes.
 These are deterministic verifier and atomic publication obligations; ESS validation and suite
 synthesis alone do not demonstrate them.
+
+### 105.7 Canonical authority-transition occurrence (2026-10-03)
+
+The first knowledge-authority activation is one `AuthorityUpgraded` occurrence in the existing
+canonical revision stream, with native schema version 3 and `ekr.revision-event/3`. Its metadata
+uses index 6, after the unchanged historical indices 0–5. Historical occurrences keep version 2,
+including ordinary transactions after activation; a transition in a version-2 envelope is refused.
+The complete generated `AuthorityTransitionRecord` retains the exact preview, resulting root,
+human decision and StoredObject addresses for the separately retained host binding and target
+profile. The target profile's value-domain digest and its payload-domain object address remain
+separate. The event cannot activate a profile just by naming it: replay independently verifies the
+host binding, public policy, signature, current preview, exact supported target profile and graph.
+
+The preview binds the canonical head and also the revision stream's position and prefix digest.
+Its digest is bare SHA-256 over compact generated JSON: struct keys in ascending wire-name order,
+no insignificant whitespace, exact generated integer/string scalars, and arrays in their specified
+deterministic order. During hashing only `preview_digest` is fixed to SHA-256 of the empty byte
+string. The retained transition record uses the same compact generated serialization; replay
+refuses noncanonical bytes. The signed intent covers this preview digest and the policy digest.
+A proposal or validation arriving after review therefore makes an upgrade stale even when the
+canonical graph head did not move. Ordinary attention answers retain the different revalidation
+rule in §105.6, under which unrelated changes do not require renewed review.
+
+The only transition currently admitted is from an original P1/P2/P3 seed authority to
+`ekr.knowledge-deterministic/1` plus `ekr.knowledge-apply/1`. It preserves the original host registry
+and validator. The seed authority cannot name the new profile directly. Activation advances the
+canonical revision, recomputes both sides of declared-One conflicts, and retains original accepted
+validator attribution for subsequent recomputation. Every earlier revision remains under its
+original rules. Historical node/edge identities are reconstructed from admitted revisions, even
+when the old profile allowed their reuse. Pending old-profile validations become proposed again;
+their original receipt bytes remain retained, and new validation uses a distinct publication slot
+bound to the transition occurrence. An old prepared commit cannot silently cross that boundary.
+
+The transition, its proof, public policy, human statement, host binding and target-profile bytes
+are one ordinary provider atomic publication. The private UpgradeAuthority preparation slot
+resumes those exact bytes after interruption. It never rebuilds an approval after head contention.
+The existing revision-stream compare-and-swap elects the boundary, so a concurrent write either
+precedes it and makes the preview stale, or follows it under the new authority.
+
+The initial implementation uses verified replay after the transition rather than extending the
+old checkpoint format with unbound authority fields. It still accepts verified historical
+checkpoints before the boundary; an old-format checkpoint covering a transition is refused as
+cache data and full replay supplies the answer. This is a performance limitation of the new
+profile, not a weakening of replay admission. `authority_upgrade.rs` executes upgrade, stale and
+forged-proof refusal, pending-validation revalidation, original seed preservation and reopen/full
+replay on both providers. Recovery and further adversarial cases must be recorded separately;
+these checks do not establish the entire inbox milestone's conformance.
+
+Upgrade recovery uses `ekr.publication-preparation/4`. Its command key includes the last reviewed
+stream occurrence id and record hash, with no transaction id. It binds that predecessor to the
+exact expected stream version. The race regression
+`a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation` showed that one
+lineage-wide slot permanently blocked a new review after a lost compare-and-swap; distinct
+reviewed prefixes now elect distinct attempts, while an exact retry still resumes its original
+bytes. The old `/1`, `/2` and `/3` preparation encodings are unchanged and cannot carry an
+UpgradeAuthority command. The store additionally compares the independent review binding's tenant
+with its own tenant before admitting reads or publications; a correct signature for a matching
+seed copied into another tenant does not cross that audience boundary.
+
+### 105.8 Attention reads and review material (2026-10-03)
+
+The inbox projects retained state without allocating a separate queue. Disputed active claims
+form connected components of their symmetric competing-assertion references. The component's
+least existing assertion UUID is its read handle; no name is hashed into a new identity and no
+write occurs when reading. Changing a component can retire its handle. A human answer must bind
+both its handle and its complete review basis. Integration questions retain the already minted
+blocker identity and immutable interpretation coordinate. Before a canonical seed exists their
+observed revision is zero; their material digests still bind the actual retained source.
+
+Dispute evidence material includes each claim's original evidence links and subsequent
+attachments, plus the evidence metadata and exact retained payload bytes. Merely binding the
+union of evidence IDs misses a source attached to a different claim: the capture regression in
+`authority_upgrade.rs` was observed red before that omission was fixed. Options cover the active
+competing assertion records; effects cover their identities and applicable property or relation
+declaration. The observed revision is separate from these three digests, so unrelated commits do
+not force another answer. Hashes use the payload-domain content address of compact JSON encoding
+of `(domain, material)`, with explicit `ekr.attention.dispute-*` and `ekr.attention.blocker-*`
+version-one domains and identity-ordered collections. This is a review basis, not an approval.
+
+The kernel's generated ListAttention and ShowAttention behaviors serve `ekr attention list` and
+`ekr attention show <kind> <id>`, including sessions and the typed SDK. `VerifiedRead` additionally
+projects disputes at one captured revision for rendering. The `/inbox` viewer route renders HTML
+in Rust, resolves canonical claims at the exact question revision, and includes evidence excerpts
+and retained interpretation details. The existing loopback host/body checks and GET-only boundary
+apply before reading state. All source text is escaped; no browser write or new script is added.
+
+This increment verifies independent blocker reads through actual CLI/SDK sessions, full-replay
+reopen and the HTTP viewer on both providers; the captured blocker page was also inspected in a
+headless browser. Canonical dispute projection is exercised through the kernel's reviewed-upgrade
+provider tests. CLI provisioning of an independent review binding, upgrade preview/apply transport,
+human answers, proposal persistence/application and the named B conformance scenarios are still
+required. This paragraph does not claim that a CLI can already open an upgraded lineage.

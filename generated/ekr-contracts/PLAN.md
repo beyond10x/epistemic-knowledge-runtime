@@ -1,14 +1,14 @@
 <!--
   generated from ekr v1
-  model digest 11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
-  contract digest 2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
+  model digest 890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+  contract digest 281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
   do not edit: regenerate with `ess synthesize`
 -->
 # Synthesis plan — ekr v1
 
 Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synthesize`.
 
-680 capabilities: **631 generated**, **38 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
+686 capabilities: **637 generated**, **38 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
 
 ## Generated
 
@@ -155,7 +155,9 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.AuthorityTransition.State` |
 | domain type | `ekr.kernel.AuthorityTransitionFormat` |
 | domain type | `ekr.kernel.AuthorityTransitionId` |
+| domain type | `ekr.kernel.AuthorityTransitionRecord` |
 | domain type | `ekr.kernel.AuthorityUpgradeTarget` |
+| domain type | `ekr.kernel.AuthorityUpgradedPayload` |
 | domain type | `ekr.kernel.AuthorityVersion` |
 | domain type | `ekr.kernel.BootstrapContext` |
 | domain type | `ekr.kernel.CanonicalOperationProjection` |
@@ -227,10 +229,13 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.ReviewerVerificationKey` |
 | domain type | `ekr.kernel.Revision.State` |
 | domain type | `ekr.kernel.RevisionEventFormatV2` |
+| domain type | `ekr.kernel.RevisionEventFormatV3` |
 | domain type | `ekr.kernel.RevisionEventV2` |
+| domain type | `ekr.kernel.RevisionEventV3` |
 | domain type | `ekr.kernel.RevisionId` |
 | domain type | `ekr.kernel.RevisionNumber` |
 | domain type | `ekr.kernel.RevisionPayload` |
+| domain type | `ekr.kernel.RevisionPayloadV3` |
 | domain type | `ekr.kernel.RulesetV1` |
 | domain type | `ekr.kernel.SchemaReviewTarget` |
 | domain type | `ekr.kernel.SchemaTransactionEvidence.State` |
@@ -531,6 +536,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | event type | `ekr.integrate.SubmitSchemaProposalResult` |
 | event type | `ekr.kernel.AnswerAttentionResult` |
 | event type | `ekr.kernel.ApplyUpgradeResult` |
+| event type | `ekr.kernel.AuthorityUpgraded` |
 | event type | `ekr.kernel.Explained` |
 | event type | `ekr.kernel.ListAttentionResult` |
 | event type | `ekr.kernel.PreviewUpgradeResult` |
@@ -670,7 +676,7 @@ What the specification fully determines is generated; what it cannot determine i
 | command behaviour | `ekr.integrate.ShowSchemaProposal` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.ShowSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ShowSchemaProposalResult`; `refused` externally decided (An unknown proposal is refused.), error `ekr.integrate.KnowledgeRefused` |
 | command behaviour | `ekr.integrate.SubmitSchemaProposal` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.SubmitSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.SubmitSchemaProposalResult`; `refused` externally decided (Refuse mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum exhaustion inferred from observed values.), error `ekr.integrate.KnowledgeRefused` |
 | command behaviour | `ekr.kernel.AnswerAttention` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.AnswerAttention` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.AnswerAttentionResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy and the exact AnswerAttention target, statement, corrections and predecessor decision. A host operator UUID or supplied key establishes no human authority. Revalidate against current state. Unrelated revisions alone do not invalidate review; changed evidence, choices or intended effects require renewed human review. An agent-provided identity or unsupported claim cannot authorize resolution.), error `ekr.kernel.KnowledgeRefused` |
-| command behaviour | `ekr.kernel.ApplyUpgrade` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.ApplyUpgrade` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ApplyUpgradeResult`; `refused` externally decided (Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported target, unauthenticated operator or incomplete historical verification.), error `ekr.kernel.KnowledgeRefused` |
+| command behaviour | `ekr.kernel.ApplyUpgrade` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.ApplyUpgrade` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ApplyUpgradeResult`, emits `ekr.kernel.AuthorityUpgraded`; `refused` externally decided (Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported target, unauthenticated operator or incomplete historical verification.), error `ekr.kernel.KnowledgeRefused` |
 | command behaviour | `ekr.kernel.Commit` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.Commit` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `committed` when the existing subject is in Validated, takes `commit` of `ekr.kernel.GraphTransaction`, emits `ekr.kernel.RevisionCommitted`, emits `ekr.store.PublicationPrepared`, emits `ekr.store.ObjectStored`, emits `ekr.store.CheckpointWritten`; `stale` externally decided (the canonical revision moved since the transaction was validated), takes `stale` of `ekr.kernel.GraphTransaction`, emits `ekr.kernel.TransactionStale`, emits `ekr.store.PublicationPrepared`, emits `ekr.store.ObjectStored`; `retained-commit` when the existing subject is in Committed, returns the exact retained result of `committed` without errors, events, or subject changes; `transaction-not-found` externally decided (no retained transaction carries input.transaction_id), error `ekr.kernel.TransactionNotFound`; `wrong-state` otherwise, error `ekr.kernel.TransactionStateConflict` |
 | command behaviour | `ekr.kernel.Explain` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.Explain` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `explained` otherwise, emits `ekr.kernel.Explained`; `not-found` externally decided (the canonical core holds no such assertion), error `ekr.kernel.AssertionNotFound` |
 | command behaviour | `ekr.kernel.ListAttention` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.ListAttention` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ListAttentionResult` |

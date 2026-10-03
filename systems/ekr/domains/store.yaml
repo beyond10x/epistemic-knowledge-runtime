@@ -25,7 +25,7 @@ types:
   # Runtime recovery controls remain unexecuted at declaration.
   - name: ekr.store.PublicationCommandKind
     kind: enum
-    variants: [Bootstrap, Propose, Validate, Commit]
+    variants: [Bootstrap, Propose, Validate, Commit, UpgradeAuthority]
 
   - name: ekr.store.PublicationCommandKey
     kind: struct
@@ -38,6 +38,8 @@ types:
         type: Optional<ekr.kernel.EventId>
       - name: predecessor_record_hash
         type: Optional<ekr.kernel.ContentHash>
+    # UpgradeAuthority has no transaction id; both predecessor fields name the exact
+    # reviewed stream tip. Distinct reviewed prefixes get distinct recovery slots.
 
   - name: ekr.store.PublicationObject
     kind: struct
@@ -53,7 +55,7 @@ types:
     kind: struct
     fields:
       - name: event
-        type: ekr.kernel.RevisionEventV2
+        type: ekr.kernel.RevisionEventV3
       - name: objects
         type: Map<String, ekr.store.PublicationObject>
       - name: expected_version
@@ -182,6 +184,7 @@ types:
       - {name: EkrPublicationPreparation1, wire: ekr.publication-preparation/1}
       - {name: EkrPublicationPreparation2, wire: ekr.publication-preparation/2}
       - {name: EkrPublicationPreparation3, wire: ekr.publication-preparation/3}
+      - {name: EkrPublicationPreparation4, wire: ekr.publication-preparation/4}
   - name: ekr.store.PublicationPreparationV1
     kind: struct
     fields:

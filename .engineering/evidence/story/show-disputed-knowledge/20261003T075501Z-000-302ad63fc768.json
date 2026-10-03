@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T07:55:01Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 16,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-kernel (authority transition unit; development generator; not full delivery)",
+    "reference": ".engineering/reviews/knowledge-authority-upgrade/upgrade-kernel-final.log"
+  }
+}

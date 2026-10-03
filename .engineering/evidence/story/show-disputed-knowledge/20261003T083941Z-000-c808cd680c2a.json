@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T08:39:41Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 17,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "focused provider/contract and CLI/SDK/viewer tests; development checkpoint, not full delivery",
+    "reference": ".engineering/reviews/knowledge-attention/verification.txt"
+  }
+}

@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07",
+  "source_digest": "890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:e014d3db8013e817ff8a0fa74a7392db52960eaef9ff4a4ac98dc45199281c6c",
-    "projection_digest": "2362c89e9750ee8881db97289ce852dc11ec2baeed14fc438f73b85f2b8c2593"
+    "contract_digest": "slice-sha256/2:524a5d8ca0cea5c63da0f068df3b8562747cacdff71f173b7606352deb7de520",
+    "projection_digest": "3fbac8ef567e4df43a6b6f99eb040815fb8c5ff369c699b360cd42bb12ca06b5"
   },
   "generator_version": "0.51.0",
   "target": "rust",
@@ -156,7 +156,9 @@
     "ekr.kernel.AuthorityTransition.State",
     "ekr.kernel.AuthorityTransitionFormat",
     "ekr.kernel.AuthorityTransitionId",
+    "ekr.kernel.AuthorityTransitionRecord",
     "ekr.kernel.AuthorityUpgradeTarget",
+    "ekr.kernel.AuthorityUpgradedPayload",
     "ekr.kernel.AuthorityVersion",
     "ekr.kernel.BootstrapContext",
     "ekr.kernel.CanonicalOperationProjection",
@@ -228,10 +230,13 @@
     "ekr.kernel.ReviewerVerificationKey",
     "ekr.kernel.Revision.State",
     "ekr.kernel.RevisionEventFormatV2",
+    "ekr.kernel.RevisionEventFormatV3",
     "ekr.kernel.RevisionEventV2",
+    "ekr.kernel.RevisionEventV3",
     "ekr.kernel.RevisionId",
     "ekr.kernel.RevisionNumber",
     "ekr.kernel.RevisionPayload",
+    "ekr.kernel.RevisionPayloadV3",
     "ekr.kernel.RulesetV1",
     "ekr.kernel.SchemaReviewTarget",
     "ekr.kernel.SchemaTransactionEvidence.State",
@@ -587,7 +592,9 @@
     "ekr.kernel.AuthorityTransition.State": "EkrKernelAuthorityTransitionState",
     "ekr.kernel.AuthorityTransitionFormat": "EkrKernelAuthorityTransitionFormat",
     "ekr.kernel.AuthorityTransitionId": "EkrKernelAuthorityTransitionId",
+    "ekr.kernel.AuthorityTransitionRecord": "EkrKernelAuthorityTransitionRecord",
     "ekr.kernel.AuthorityUpgradeTarget": "EkrKernelAuthorityUpgradeTarget",
+    "ekr.kernel.AuthorityUpgradedPayload": "EkrKernelAuthorityUpgradedPayload",
     "ekr.kernel.AuthorityVersion": "EkrKernelAuthorityVersion",
     "ekr.kernel.BootstrapContext": "EkrKernelBootstrapContext",
     "ekr.kernel.CanonicalOperationProjection": "EkrKernelCanonicalOperationProjection",
@@ -659,10 +666,13 @@
     "ekr.kernel.ReviewerVerificationKey": "EkrKernelReviewerVerificationKey",
     "ekr.kernel.Revision.State": "EkrKernelRevisionState",
     "ekr.kernel.RevisionEventFormatV2": "EkrKernelRevisionEventFormatV2",
+    "ekr.kernel.RevisionEventFormatV3": "EkrKernelRevisionEventFormatV3",
     "ekr.kernel.RevisionEventV2": "EkrKernelRevisionEventV2",
+    "ekr.kernel.RevisionEventV3": "EkrKernelRevisionEventV3",
     "ekr.kernel.RevisionId": "EkrKernelRevisionId",
     "ekr.kernel.RevisionNumber": "EkrKernelRevisionNumber",
     "ekr.kernel.RevisionPayload": "EkrKernelRevisionPayload",
+    "ekr.kernel.RevisionPayloadV3": "EkrKernelRevisionPayloadV3",
     "ekr.kernel.RulesetV1": "EkrKernelRulesetV1",
     "ekr.kernel.SchemaReviewTarget": "EkrKernelSchemaReviewTarget",
     "ekr.kernel.SchemaTransactionEvidence.State": "EkrKernelSchemaTransactionEvidenceState",
@@ -3293,6 +3303,21 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.kernel.AuthorityTransitionRecord/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityTransitionRecord/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityTransitionRecord/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.AuthorityUpgradeTarget/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -3304,6 +3329,21 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.AuthorityUpgradeTarget/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradedPayload/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradedPayload/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradedPayload/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -4648,6 +4688,21 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.kernel.RevisionEventFormatV3/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventFormatV3/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventFormatV3/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.RevisionEventV2/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -4659,6 +4714,21 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.RevisionEventV2/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventV3/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventV3/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventV3/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -4744,6 +4814,61 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.RevisionPayload/x-ess-union-tag",
+      "rule": "x-ess-union-tag",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/0/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/1/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/2/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/3/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/4/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/5/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/oneOf/6/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/x-ess-union-tag",
       "rule": "x-ess-union-tag",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -8640,6 +8765,16 @@
       "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
     },
     {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3",
+      "rule": "oneOf",
+      "detail": "validate exclusive branch membership against the source schema"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV3",
+      "rule": "untagged_selection",
+      "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.SeedInputV2Projection/properties/evidence_payloads",
       "rule": "open_object_storage",
       "detail": "preserve ess_extra when constructing or transforming the record; serialization rejects declared-key collisions"
@@ -8658,6 +8793,11 @@
       "pointer": "/$defs/ekr.kernel.TransactionId/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.UpgradePreview/properties/stream_version",
+      "rule": "integer",
+      "detail": "serde_json::Number retains exact JSON numbers but does not enforce integrality; validate the source constraint"
     },
     {
       "pointer": "/$defs/ekr.kernel.ValidationCommandResult",

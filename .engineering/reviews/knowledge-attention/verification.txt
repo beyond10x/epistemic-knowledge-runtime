@@ -1,0 +1,20 @@
+6ff628e8b76a9badd62ab3867527405c9d766618
+spec_digest=890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+contract_digest=281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
+attention-provider-final: passed=12 failed=0 ignored=0 groups=2
+attention-support-red: passed=0 failed=1 ignored=0 groups=1
+attention-surface-final: passed=75 failed=0 ignored=0 groups=5
+attention-contract-tests-final: passed=61 failed=0 ignored=0 groups=10
+attention-ui-final: passed=74 failed=0 ignored=0 groups=3
+d37095890e41abeb8aa1cae77e628c525ff001e33622b496422c431b4a24aaaf  .engineering/reviews/knowledge-attention/attention-browser.log
+9d3a30b04b7cda3b2bb7b54d9c3a7f902329e7fa8b6b6323b7b336b7999285b1  .engineering/reviews/knowledge-attention/attention-clippy-final.log
+55da65f1b278c734a3de40b44f562725b53431912c0074c964cb055ac65246e3  .engineering/reviews/knowledge-attention/attention-clippy-ui-final.log
+b6b47f280118a8be2d5bc04cbdc645c997cdcf89feebacc25a44755c20477872  .engineering/reviews/knowledge-attention/attention-contract-tests-final.log
+5688b187391ad9e95f9a65ccbcf1d3672d155ab43b142162baa6751aba3dd839  .engineering/reviews/knowledge-attention/attention-drift-final.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  .engineering/reviews/knowledge-attention/attention-format-final.log
+2da5fbc8e50f2f6f7b59e1eba340ecdcc42fec7bd9cb23453c9ebcab18955bb4  .engineering/reviews/knowledge-attention/attention-provider-final.log
+f6900f5808bf8ba047379a039bb8fa45bc8d0e99abb8c564663a31024bc339f9  .engineering/reviews/knowledge-attention/attention-spec-final.log
+6913ada5fbcb5ae7ee7d6d347ce80327a1a7c5d42146ecacb39446dc029a863b  .engineering/reviews/knowledge-attention/attention-support-red.log
+6c113f17223e87a63a8b0abb0a56a32ac038cfd9556091e2de143a73273be78c  .engineering/reviews/knowledge-attention/attention-surface-final.log
+6342320d3090dc27c974f65fcc7db35f7bfdedeb319167c1e1d5c34bcf6f944c  .engineering/reviews/knowledge-attention/attention-ui-final.log
+e65ca7fba000cb3c72a49bfd6ef0a7926ca90acab9ccb6e0ffc06b2e378af210  .engineering/reviews/knowledge-attention/inbox.png

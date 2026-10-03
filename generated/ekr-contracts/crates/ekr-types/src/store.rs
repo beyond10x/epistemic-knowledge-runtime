@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
-// contract digest 2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
+// model digest 890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+// contract digest 281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
 // do not edit: regenerate with `ess synthesize`
 
 //! Store — `ekr.store`.
@@ -125,8 +125,8 @@ pub struct NativeStreamId {
 /// Publication — `ekr.store.Publication`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Publication {
-    /// `event` — `ekr.kernel.RevisionEventV2`.
-    pub event: crate::kernel::RevisionEventV2,
+    /// `event` — `ekr.kernel.RevisionEventV3`.
+    pub event: crate::kernel::RevisionEventV3,
     /// `objects` — `Map<String, ekr.store.PublicationObject>`.
     pub objects: std::collections::BTreeMap<String, PublicationObject>,
     /// `expected_version` — `Integer`.
@@ -157,6 +157,8 @@ pub enum PublicationCommandKind {
     Validate,
     /// `Commit`.
     Commit,
+    /// `UpgradeAuthority`.
+    UpgradeAuthority,
 }
 
 /// PublicationObject — `ekr.store.PublicationObject`.
@@ -179,6 +181,8 @@ pub enum PublicationPreparationFormatV1 {
     EkrPublicationPreparation2,
     /// `EkrPublicationPreparation3`.
     EkrPublicationPreparation3,
+    /// `EkrPublicationPreparation4`.
+    EkrPublicationPreparation4,
 }
 
 /// PublicationPreparationV1 — `ekr.store.PublicationPreparationV1`.

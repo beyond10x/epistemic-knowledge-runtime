@@ -1,0 +1,13 @@
+   Compiling ekr-store v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-store)
+   Compiling ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 18.92s
+     Running tests/authority_upgrade.rs (target/debug/deps/authority_upgrade-9a644cbd383ea536)
+
+running 4 tests
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
