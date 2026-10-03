@@ -1,7 +1,7 @@
 //! Actual browser interactions through CDP. No evaluated browser source is used.
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -94,6 +94,96 @@ impl Drop for Running {
     }
 }
 
+/// DevTools may announce its listener before the initial page target exists.
+fn page_target(port: u16) -> String {
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        list.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        write!(
+            list,
+            "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        let mut listed = BufReader::new(list);
+        let mut status = String::new();
+        assert!(
+            listed.read_line(&mut status).unwrap() > 0,
+            "CDP discovery status absent"
+        );
+        assert_eq!(
+            status.split_whitespace().nth(1),
+            Some("200"),
+            "CDP discovery refused: {status}"
+        );
+        let mut length = 0;
+        loop {
+            let mut line = String::new();
+            listed.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                break;
+            }
+            if let Some((name, value)) = line.split_once(':') {
+                if name.eq_ignore_ascii_case("content-length") {
+                    length = value.trim().parse().unwrap();
+                }
+            }
+        }
+        let mut body = vec![0_u8; length];
+        listed.read_exact(&mut body).unwrap();
+        let targets: Value = serde_json::from_slice(&body).unwrap();
+        let target = targets
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|target| target["type"] == "page");
+        if let Some(target) = target {
+            return target["webSocketDebuggerUrl"].as_str().unwrap().to_owned();
+        }
+        if std::time::Instant::now() >= deadline {
+            panic!("no page target within discovery deadline");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn discovery_waits_for_a_page_after_the_devtools_listener_is_ready() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let address = format!("ws://127.0.0.1:{port}/devtools/page/fixture");
+    let expected = address.clone();
+    let server = std::thread::spawn(move || {
+        for targets in [
+            json!([]),
+            json!([{"type": "service_worker"}]),
+            json!([{"type": "page", "webSocketDebuggerUrl": address}]),
+        ] {
+            let (mut connection, _) = listener.accept().unwrap();
+            let mut request = BufReader::new(connection.try_clone().unwrap());
+            let mut line = String::new();
+            request.read_line(&mut line).unwrap();
+            assert_eq!(line, "GET /json/list HTTP/1.1\r\n");
+            loop {
+                line.clear();
+                assert!(request.read_line(&mut line).unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            let body = targets.to_string();
+            write!(
+                connection,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        }
+    });
+    assert_eq!(page_target(port), expected);
+    server.join().unwrap();
+}
+
 struct Browser {
     _child: Running,
     _dir: tempfile::TempDir,
@@ -101,6 +191,43 @@ struct Browser {
     socket: WebSocket<TcpStream>,
     next: u64,
     events: Vec<Value>,
+}
+
+#[test]
+fn discovery_refuses_http_errors_even_with_a_valid_target_list() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut connection, _) = listener.accept().unwrap();
+        let mut request = BufReader::new(connection.try_clone().unwrap());
+        loop {
+            let mut line = String::new();
+            assert!(request.read_line(&mut line).unwrap() > 0);
+            if line == "\r\n" {
+                break;
+            }
+        }
+        let body =
+            json!([{"type":"page","webSocketDebuggerUrl":"ws://127.0.0.1/devtools/page/refused"}])
+                .to_string();
+        write!(
+            connection,
+            "HTTP/1.1 500 Refused\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+    let refusal = std::panic::catch_unwind(|| page_target(port)).unwrap_err();
+    let text = refusal
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| refusal.downcast_ref::<&str>().copied())
+        .unwrap();
+    assert!(
+        text.contains("CDP discovery refused"),
+        "unexpected refusal: {text}"
+    );
+    server.join().unwrap();
 }
 impl Browser {
     fn new() -> Option<Self> {
@@ -162,34 +289,7 @@ impl Browser {
             );
             std::thread::sleep(Duration::from_millis(20));
         };
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
-        write!(
-            stream,
-            "GET /json/list HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
-        )
-        .unwrap();
-        stream
-            .set_read_timeout(Some(Duration::from_secs(60)))
-            .unwrap();
-        let mut reader = BufReader::new(stream);
-        let mut length = None;
-        loop {
-            let mut line = String::new();
-            assert!(
-                reader.read_line(&mut line).unwrap() > 0,
-                "CDP discovery closed before headers"
-            );
-            if line == "\r\n" {
-                break;
-            }
-            if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
-                length = Some(value.trim().parse::<usize>().unwrap());
-            }
-        }
-        let mut body = vec![0; length.unwrap()];
-        reader.read_exact(&mut body).unwrap();
-        let list: Value = serde_json::from_slice(&body).unwrap();
-        let url = list[0]["webSocketDebuggerUrl"].as_str().unwrap();
+        let url = page_target(port.parse().unwrap());
         let tcp = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
         let (socket, _) = tungstenite::client(url, tcp).unwrap();
@@ -211,6 +311,20 @@ impl Browser {
         value["result"].clone()
     }
     fn raw_call(&mut self, method: &str, params: Value) -> Value {
+        self.raw_call_until(method, params, None)
+    }
+    fn raw_call_until(&mut self, method: &str, params: Value, deadline: Option<Instant>) -> Value {
+        let read_timeout = self.socket.get_ref().read_timeout().unwrap();
+        let write_timeout = self.socket.get_ref().write_timeout().unwrap();
+        if let Some(deadline) = deadline {
+            let remaining = deadline
+                .checked_duration_since(Instant::now())
+                .expect("CDP cancellation deadline expired before sending");
+            self.socket
+                .get_mut()
+                .set_write_timeout(Some(remaining))
+                .unwrap();
+        }
         self.next += 1;
         let id = self.next;
         self.socket
@@ -221,10 +335,33 @@ impl Browser {
             ))
             .unwrap();
         loop {
+            if let Some(deadline) = deadline {
+                let remaining = deadline
+                    .checked_duration_since(Instant::now())
+                    .expect("CDP cancellation deadline expired while receiving");
+                self.socket
+                    .get_mut()
+                    .set_read_timeout(Some(remaining))
+                    .unwrap();
+            }
             let message = self.socket.read().unwrap();
             if let Message::Text(text) = message {
                 let value: Value = serde_json::from_str(&text).unwrap();
                 if value["id"] == id {
+                    if let Some(deadline) = deadline {
+                        assert!(
+                            Instant::now() < deadline,
+                            "CDP cancellation response missed its deadline"
+                        );
+                        self.socket
+                            .get_mut()
+                            .set_read_timeout(read_timeout)
+                            .unwrap();
+                        self.socket
+                            .get_mut()
+                            .set_write_timeout(write_timeout)
+                            .unwrap();
+                    }
                     return value;
                 }
                 self.events.push(value);
@@ -365,6 +502,35 @@ fn live_typing_preserves_focus_and_caret_without_navigation() {
 }
 
 impl Browser {
+    fn wait_for_canceled(&mut self, paused: &Value) {
+        let request = paused["networkId"]
+            .as_str()
+            .expect("Network.enable gives intercepted requests a network identity");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            if self.events.iter().any(|event| {
+                event["method"] == "Network.loadingFailed"
+                    && event["params"]["requestId"] == request
+                    && event["params"]["canceled"] == true
+            }) {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "request {request} was not canceled"
+            );
+            // Pump pending protocol messages; a Browser response is not a Network-event barrier.
+            let reply = self.raw_call_until("Browser.getVersion", json!({}), Some(deadline));
+            assert!(
+                reply.get("error").is_none(),
+                "cancellation event pump refused: {reply}"
+            );
+            std::thread::sleep(
+                Duration::from_millis(20).min(deadline.saturating_duration_since(Instant::now())),
+            );
+        }
+    }
+
     fn paused(&mut self, query: &str) -> Value {
         let start = Instant::now();
         loop {
@@ -393,6 +559,93 @@ impl Browser {
         self.key("a", 65, 2);
         self.type_text(value);
     }
+}
+
+#[test]
+fn cancellation_waits_past_responses_and_unrelated_or_uncanceled_failures() {
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut socket = tungstenite::accept(stream).unwrap();
+        for (request, canceled) in [("other", true), ("target", false), ("target", true)] {
+            let command = socket.read().unwrap().into_text().unwrap();
+            let command: Value = serde_json::from_str(&command).unwrap();
+            assert_eq!(command["method"], "Browser.getVersion");
+            socket
+                .send(Message::Text(
+                    json!({
+                        "method":"Network.loadingFailed",
+                        "params":{"requestId":request,"canceled":canceled}
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .unwrap();
+            socket
+                .send(Message::Text(
+                    json!({"id":command["id"],"result":{}}).to_string().into(),
+                ))
+                .unwrap();
+        }
+    });
+    let stream = TcpStream::connect(address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let (socket, _) = tungstenite::client(format!("ws://{address}/"), stream).unwrap();
+    // Reuse the process-owning struct without launching a browser for this protocol-only case.
+    let child = Running(
+        Command::new(std::env::current_exe().unwrap())
+            .arg("--list")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let mut browser = Browser {
+        _child: child,
+        _dir: tempfile::tempdir().unwrap(),
+        _serial: SERIAL.lock().unwrap(),
+        socket,
+        next: 0,
+        events: Vec::new(),
+    };
+    browser.wait_for_canceled(&json!({"networkId":"target"}));
+    assert_eq!(
+        browser.next, 3,
+        "only the exact canceled request completes the wait"
+    );
+    assert_eq!(
+        browser.socket.get_ref().read_timeout().unwrap(),
+        Some(Duration::from_secs(5))
+    );
+    let expired = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        browser.raw_call_until(
+            "Browser.getVersion",
+            json!({}),
+            Some(Instant::now() - Duration::from_secs(1)),
+        )
+    }))
+    .unwrap_err();
+    let text = expired
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| expired.downcast_ref::<&str>().copied())
+        .unwrap();
+    assert!(
+        text.contains("deadline expired before sending"),
+        "unexpected refusal: {text}"
+    );
+    assert_eq!(
+        browser.next, 3,
+        "an expired pump cannot dispatch another command"
+    );
+    server.join().unwrap();
 }
 
 #[test]
@@ -426,16 +679,9 @@ fn superseded_query_clear_failure_and_enter_are_honest() {
             "late response failed for an unexpected reason: {late}"
         );
     }
-    browser.call("Browser.getVersion", json!({}));
+    browser.wait_for_canceled(&old);
     assert!(!browser.html().contains("class=\"result\""));
     assert_eq!(browser.query_value(), "Nobody");
-    assert!(
-        browser
-            .events
-            .iter()
-            .any(|e| e["method"] == "Network.loadingFailed" && e["params"]["canceled"] == true),
-        "superseded fetch was not canceled"
-    );
     browser.replace_query("Alice");
     let request = browser.paused("q=Alice");
     browser.fulfill(&request, 200, &alice);
@@ -625,16 +871,13 @@ fn adversary_clearing_an_inflight_read_keeps_the_empty_state_after_late_failure(
     if late.get("error").is_some() {
         assert_eq!(late["error"]["message"], "Invalid InterceptionId.");
     }
-    browser.call("Browser.getVersion", json!({}));
+    browser.wait_for_canceled(&pending);
     let html = browser.html();
     assert!(html.contains("data-search-state=\"empty\""));
     assert!(html.contains("Start with a name."));
     assert!(!html.contains("Search is unavailable"));
     assert!(!html.contains("class=\"result\""));
     assert_eq!(browser.query_value(), "");
-    assert!(browser.events.iter().any(|event| {
-        event["method"] == "Network.loadingFailed" && event["params"]["canceled"] == true
-    }));
     // A later successful query must still render: an empty/error state cannot disable the adapter.
     browser.type_text("Alice");
     let next = browser.paused("q=Alice");
