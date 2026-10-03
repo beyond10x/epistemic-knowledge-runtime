@@ -19,6 +19,8 @@ scope:
 - confidence: cited
   path: crates/ekr/src/cli/view.rs
 - confidence: cited
+  path: crates/ekr/tests/adversary_agent_guidance.rs
+- confidence: cited
   path: crates/ekr/tests/agent_cli.rs
 - confidence: inferred
   path: crates/ekr/tests/search_live.rs
@@ -30,7 +32,7 @@ scope:
   path: crates/ekr/tests/view_page.rs
 - confidence: cited
   path: docs/cli.md
-revision: 6
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
@@ -61,3 +63,7 @@ Follow the llms.txt v2 proposal at https://llmstxt.org/: H1, short summary, opti
 
 ## Verification and release
 Require a real browser for the acceptance lane and controlled response ordering for races. Synthetic fixtures only. Run focused positive/negative HTTP/CLI/browser cases, independent adversarial review, then the repository's complete gate and exact-source required checks before the next source release. No consumer name, data, hostname or secret enters this public repository. Instance adoption and private deployment remain separately owned.
+
+## Static guidance review checkpoint
+
+Static implementation checkpoint 798b7d5fc776143390da5e4f0a6114bef86cc800 passes 16 search-page cases and the unchanged three-case real HTTP/CLI probe that failed on the released baseline. The independent bounded review added four std-only process cases in crates/ekr/tests/adversary_agent_guidance.rs (cited scope): corrupt-store separation, request admission, URL bounds/escaping and explicit startup readiness. Its seven-case combined process run passed, no findings; review-result:static-agent-entry-review-1 preserves the report. These are static-half checks, not live typing or full story acceptance. Compatibility/lint/full gate remain outstanding, and the browser-language decision remains pending. No source release or deployment is claimed.

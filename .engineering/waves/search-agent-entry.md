@@ -30,8 +30,11 @@ Coordinator: managed `ekr-search-agents`, branch `agent/search-agents`.
 Unit: managed `ekr-search-agents-unit`, branch `agent/search-agents-unit`, based on opening
 commit `7e71751e2`; tested static checkpoint `798b7d5fc776143390da5e4f0a6114bef86cc800`,
 not pushed or integrated. Unit lease ended and its build target is idle.
-Review: managed `ekr-search-agents-review` at that checkpoint, running the adversary role
-against the static half only. Its scratch and any build output are isolated from the unit.
+Review: managed `ekr-search-agents-review`, branch `review/static-agent-guidance`, test-only
+checkpoint `b73f1118f7c3bb457f485351fa579fb75184a8f2` above the static implementation.
+The bounded review found no issues; its four additional process tests and the existing
+three-case driver all passed. `review-result:static-agent-entry-review-1` preserves the
+publishable report verbatim. Review lease ended; no Cargo target was created for it.
 Build and scratch paths are recorded in the private coordinator handoff; builds never share
 a target concurrently. Current machine free space is near the build floor, so no full build
 starts until adequate task-owned disposable space has been recovered.
@@ -76,6 +79,6 @@ against its failing released baseline. Formatting and changed-file text scans pa
 Current candidate patch SHA-256: `53121522f000294f700560bf5b23305f7f5e7f0d9ea81d607ad8a67594769952`.
 Candidate executable SHA-256: `ff550d7740bbb60e4174321a00fbd280721759d5310ded48288a46aa4e6d44de`.
 The small report, baseline/treatment outputs and complete patch remain in task-owned scratch.
-No JavaScript was authored. Browser-language decision, capacity for remaining compatibility
-and lint checks, independent adversarial review, full gate, source release and managed cleanup
-remain outstanding. This is a partial review checkpoint, not a completed story or release.
+No JavaScript was authored. Browser-language decision, remaining compatibility and lint checks,
+review of eventual browser changes, full gate, source release and managed cleanup remain
+outstanding. This is a partial review checkpoint, not a completed story or release.
