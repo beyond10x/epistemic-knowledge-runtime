@@ -142,3 +142,19 @@ fixture credentials and absolute execution paths only in private operational rec
 The unit target is handed to this gate sequentially, with no concurrent unit/review build.
 The default temporary filesystem is currently quota-limited; use the assigned short
 private temporary directory and record any filesystem-sensitive tests explicitly.
+
+## Integrated gate correction
+
+The first integrated gate on `6b1b3e91ec9a7e476972e2d49047024af990d066` passed
+formatting, raw browser-asset reproduction and workspace/all-target Clippy. Its
+coordinator guard lane stopped at `public_surface` with exit 101: the internal
+agent-help methods `guide` and `llms` have unrestricted public declarations without
+direct external test references. The methods belong to a restricted internal type
+and are used only by its sibling viewer module. Match their visibility to that
+intended scope; retain the real HTTP output checks and the unchanged public guard.
+The original failure is retained in private `release-gate/attempt-1` receipts.
+
+The implementor owns the bounded correction in the existing unit tree. No other
+gate process remains. After the scoped correction passes, integrate it and run the
+complete gate on a newly frozen source. Remaining release-gate steps have not run;
+the story and candidate remain unpublished and incomplete.
