@@ -11,9 +11,13 @@ relations:
 - depends_on: story:adopt-generated-knowledge-contracts
 scope:
 - confidence: cited
+  path: .engineering/reviews/knowledge-retention
+- confidence: cited
   path: AGENTS.md
 - confidence: cited
   path: Cargo.lock
+- confidence: cited
+  path: Taskfile.yml
 - confidence: inferred
   path: crates/ekr
 - confidence: cited
@@ -40,7 +44,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr/domains/integrate.yaml
-revision: 17
+revision: 21
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -95,3 +99,19 @@ Local review also found that the old preserving migrate command would omit indep
 Generated transport contracts enable serde_json arbitrary-precision numbers. Two older ontology fixtures passed serde_json::Value directly to a YAML serializer, which writes the number's private serde map instead of a numeric scalar under that feature. Their JSON-to-YAML fixture conversion now passes through serialized JSON text; the existing positive round trip and unknown-field/lifecycle refusal assertions remain unchanged. This was exposed by the generated-contract adoption dependency, and belongs to the coordinator's integration work. Production ontology serialization continues to use typed records.
 
 The SDK reference and repository agent guidance now describe independent observation and interpretation writes. Canonical writes still require ordinary kernel transactions. Generated command-behavior adapters, final released-generator pinning, bound conformance reports, native process-crash verification and the combined full gate remain acceptance work. Scoped runtime tests alone do not complete this story or the release plan.
+
+## Published implementation checkpoint
+
+Unit branch ekr/knowledge-retention-20261003 is remotely recoverable at 90d01d7f5e21c9f58d407df3de319ae1f7c9d50b, authored and committed by the bot. It implements retained observations, immutable local interpretation documents, blocker/receipt inspection, CLI/session commands and typed SDK operations. Sanitized command output is retained in .engineering/reviews/knowledge-retention on that branch. This checkpoint is not merged delivery or completion; generated behavior routing and the previously listed acceptance work continue in the unit tree.
+
+The final scoped store/SDK/observation run and targeted compatibility cases exited successfully, as recorded in retention-final-crates.log. The focused retention suite, generated development drift check and changed-crate Clippy also exited successfully. The earlier broad kernel run exposed the JSON-to-YAML fixture failure documented above; its exact targeted case now passes. No combined full-gate pass is claimed.
+
+## Generated behavior and implementation conformance
+
+All six observation/incubation operations now invoke generated Behavior traits through explicit lossless transport projections. Infrastructure failures retain their original provider error. Eight kernel retention tests pass on both providers, including read-only fault classification. One store parent test executes eight abrupt process-exit combinations (file/SQLite, observation/interpretation, before/after real native atomic write), reopens and verifies retry without duplication. This does not claim interruption inside a native transaction.
+
+The real CLI conformance target reopens each provider with full replay for every command, after creating only an empty native namespace through Runtime. In three consecutive runs, each provider reports three authored scenarios passed and zero failed/error/unsupported/skipped. Deliberately giving every invocation a fresh empty store makes all three named scenarios fail on each provider, with zero target errors or skips. Exact integer conversion and positive read assertions have separate guards. Original report/2 documents, diagnostic runs and the complete-parent suite-input carrier are under .engineering/reviews/knowledge-retention/conformance. Selection covers only the three story-A scenarios; 115 other inventory scenarios are outside the claim. Scenario identifiers use hyphens; the plan's underscore names remain the Rust acceptance names.
+
+The development generator produces 118 scenarios, three authored sources and zero refusals; the committed suite matches fresh synthesis. Spec digest remains 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa, contract digest 8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca. The pinned ESS 0.36 runner admits the suite, while the old compiler refuses three newly declared identity-field relations. No contract is weakened to work around this. Taskfile freshness and conformance targets include the knowledge suite, but the combined task check awaits verified ESS release adoption.
+
+Final changed-crate Clippy, formatting and CLI/SDK surface checks pass. This is coordinator implementation and local review, not independent review. Story A stays active; the release pin, combined gate and delivery acceptance remain open. Stories B–F and both end-to-end demos are not delivered by this checkpoint.
