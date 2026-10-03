@@ -65,7 +65,7 @@ reported skips, before integration and source-release claims. Focused static-gui
 have passed; the full gate and live-typing acceptance remain outstanding. Private deployment
 and consumer acceptance remain separate.
 
-## Current stage
+## Historical static implementation stage
 
 The static Rust half has been authored in seven files. The released baseline failed all
 three new real HTTP/CLI probes, as expected: missing-store guidance, discoverable connection
@@ -102,3 +102,29 @@ compatibility.log, view-cli-corrected.log, adversary-integrated.log and clippy-p
 with individual process exits. These focused runs reused the existing small unit target;
 no full workspace build was started while machine capacity was below the build floor.
 This does not prove live-browser typing or the complete repository gate.
+
+## Live candidate and review
+
+Unit checkpoint `5ebde9dafdfde90cfad192c7abd16c38e670c49c` completes the Rust/WASM
+implementation. The unit report `live/report.md` records focused browser/HTTP/CLI
+checks, native-only installation, actual browser use of the independently installed
+binary, reproducible raw bytes from separate source paths and a deliberate artifact-drift
+refusal. These are scoped checks; the full repository gate has not run.
+
+Coordinator `9b9535bc489a80e69634dc724c631d959774ff92` prepares the next source version
+and changelog. It is unreleased and not integrated with the live implementation yet.
+
+Review tree `335673a9dba2d92704a366ec531d4ef957fa8fd4` has exactly the unit candidate's
+content while retaining its earlier static-review ancestry. A new review worker could
+not start because the host thread limit was reached, so the coordinator performed the
+tests-only adversary role in that separate checkout. Its tests-only bot commit
+`3e98343b2ad0808d7ef5221924e575c8590509da` adds in-flight clearing/recovery and reserved
+query-character cases. Both passed before the broader suite was selected.
+
+The following combined suite failed in the candidate's no-script browser harness with
+a stale document node during form navigation. `review-result:live-browser-review-1`
+retains the observed failure and its scope: this is an introduced acceptance-harness
+race, not evidence of a user-visible product failure. The implementor is correcting
+document-lifecycle handling while preserving all assertions. Do not merge or release
+until the correction and full gate are verified. Review scratch is assigned separately;
+the idle unit target is reused sequentially, never by concurrent builds.
