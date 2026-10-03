@@ -16,6 +16,12 @@ scope:
   path: Cargo.toml
 - confidence: cited
   path: README.md
+- confidence: cited
+  path: crates/ekr-sdk/src/viewer.rs
+- confidence: cited
+  path: crates/ekr-sdk/tests/session.rs
+- confidence: cited
+  path: crates/ekr-sdk/tests/spawn_busy.rs
 - confidence: inferred
   path: crates/ekr/src/cli/http.rs
 - confidence: cited
@@ -46,9 +52,11 @@ scope:
   path: docs/epistemic-knowledge-runtime-design.md
 - confidence: cited
   path: docs/overview.md
+- confidence: cited
+  path: docs/sdk.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 14
+revision: 15
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:14:16Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T01:27:02Z", actor: "agent:codex", revision: 9}

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T03:54:15Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 15,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Combined task test attempt 3 at ea93d149c: 1810 passed, 1 failed, 10 ignored across 264 completed runners. SDK viewer_spawn_zero_returns_a_url_whose_head_answers returns success for an absent store after lazy admission; full gate failed before completion.",
+    "reference": "<cache>/ekr-hosted-runtime/release-gate/test-before-sdk-viewer-fix.log"
+  }
+}
