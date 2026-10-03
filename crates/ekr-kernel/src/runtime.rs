@@ -17,6 +17,90 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Materializes parked candidate nodes, edges and assertions in the existing transient space.
+    /// # Errors
+    /// Unknown version, invalid retained input or provider failure.
+    pub fn incubation_graph(
+        &self,
+        version: &ekr_core::contract_data::EkrIntegrateInterpretationVersion,
+    ) -> Result<ekr_graph::TransientGraph, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.incubation_graph(version),
+            Backend::Sqlite(k) => k.incubation_graph(version),
+        }
+    }
+    /// Retains immutable local interpretations and reports canonical vocabulary gaps.
+    /// # Errors
+    /// Invalid input, missing evidence, changed version or persistence failure.
+    pub fn import_interpretation(
+        &self,
+        input: &ekr_core::contract_data::EkrIntegrateInterpretationImport,
+        at: Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateIncubationImportReceipt, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.import_interpretation(input, at),
+            Backend::Sqlite(k) => k.import_interpretation(input, at),
+        }
+    }
+    /// Lists immutable local interpretation coordinates and byte digests.
+    /// # Errors
+    /// Corrupt retained records or persistence failure.
+    pub fn interpretations(
+        &self,
+    ) -> Result<Vec<ekr_core::contract_data::EkrIntegrateInterpretationVersion>, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.interpretations(),
+            Backend::Sqlite(k) => k.interpretations(),
+        }
+    }
+    /// Reads local declarations, facts, blockers and processing receipts.
+    /// # Errors
+    /// Unknown version, changed digest, missing evidence or persistence failure.
+    pub fn interpretation(
+        &self,
+        version: &ekr_core::contract_data::EkrIntegrateInterpretationVersion,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateInterpretationRead, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.interpretation(version),
+            Backend::Sqlite(k) => k.interpretation(version),
+        }
+    }
+    /// Retains a checked observation and its exact bytes without a canonical revision.
+    /// # Errors
+    /// Invalid source metadata, changed prior import, read-only store or provider failure.
+    pub fn import_observation(
+        &self,
+        input: &ekr_core::contract_data::EkrObserveObservationImport,
+        at: Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrObserveObservationImportReceipt, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.import_observation(input, at),
+            Backend::Sqlite(k) => k.import_observation(input, at),
+        }
+    }
+    /// Lists independently retained source records in identity order.
+    /// # Errors
+    /// Invalid retained metadata, missing content or provider failure.
+    pub fn observations(
+        &self,
+    ) -> Result<Vec<ekr_core::contract_data::EkrGraphObservationRecord>, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.observations(),
+            Backend::Sqlite(k) => k.observations(),
+        }
+    }
+    /// Reads one observation and its exact retained payload after reopen.
+    /// # Errors
+    /// Unknown observation, invalid retained content or provider failure.
+    pub fn observation(
+        &self,
+        id: ekr_core::ObservationId,
+    ) -> Result<ekr_core::contract_data::EkrObserveRetainedObservationRead, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.observation(id),
+            Backend::Sqlite(k) => k.observation(id),
+        }
+    }
     /// Captures admitted graph, retained records and payloads at one verified history boundary.
     /// # Errors
     /// Missing seed/revision or invalid required history.

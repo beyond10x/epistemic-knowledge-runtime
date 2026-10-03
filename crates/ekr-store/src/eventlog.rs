@@ -32,12 +32,21 @@ const OBJECT_RETENTION_RAISED: &str = "ekr.store.ObjectRetentionRaised";
 const WRITER: &str = "ekr.store";
 #[path = "inventory.rs"]
 mod inventory;
+#[path = "observations.rs"]
+mod observations;
+pub use observations::ObservationRetention;
+#[path = "incubation.rs"]
+mod incubation;
+pub use incubation::IncubationRetention;
 #[path = "preparation.rs"]
 mod preparation;
 #[path = "read_only.rs"]
 mod read_only;
 #[path = "replaced.rs"]
 mod replaced;
+#[cfg(test)]
+#[path = "retention_faults.rs"]
+mod retention_faults;
 pub use inventory::{InventoriedObject, Inventory, StoreInventory};
 pub use preparation::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
@@ -1692,12 +1701,19 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
         for _ in 0..16 {
-            match self
+            #[cfg(test)]
+            if retention_faults::before_write() {
+                continue;
+            }
+            let result = self
                 .runtime()
                 .block_on(AtomicBlobEventStore::append_group_with_blobs(
                     &self.store,
                     request,
-                )) {
+                ));
+            #[cfg(test)]
+            let result = retention_faults::after_write(result);
+            match result {
                 Err(EventLogError::UnknownCommit) => continue,
                 result => return result.map_err(StoreError::from),
             }

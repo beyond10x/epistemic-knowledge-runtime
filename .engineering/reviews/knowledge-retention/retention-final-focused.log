@@ -1,0 +1,16 @@
+   Compiling ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 14.40s
+     Running tests/knowledge_retention.rs (target/debug/deps/knowledge_retention-7a29f681bfe452cc)
+
+running 7 tests
+test inconsistent_observation_is_refused_without_retaining_anything ... ok
+test retained_sources_pin_exact_bytes_on_both_providers ... ok
+test rejected_interpretation_retains_its_sources ... ok
+test observation_retry_is_idempotent ... ok
+test concurrent_imports_choose_one_immutable_record ... ok
+test invalid_local_shape_and_evidence_are_refused_before_any_publication ... ok
+test unmapped_knowledge_survives_reopen ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s

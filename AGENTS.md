@@ -39,8 +39,9 @@ An agent that seeds a store and records knowledge through `ekr`, rather than cha
 repository, reads [`docs/cli.md`](docs/cli.md) and runs `ekr guide`; the rest of this file is for
 contributors. Two rules hold for it:
 
-- it writes only through `ekr propose`, `ekr validate` and `ekr commit`, never to a store's files
-  or database;
+- it writes canonical knowledge through `ekr propose`, `ekr validate` and `ekr commit`;
+  `ekr observe import` and `ekr incubate import` retain source bytes and local interpretations
+  independently of canonical revisions. It never writes to a store's files or database;
 - it takes ids from `ekr mint`, `ekr ontology` and `ekr snapshot`, and never derives one from a
   name. `ekr mint` runs `ekr-core`'s `Id::mint()` (`NodeId::mint()`, `TypeId::mint()`, …), so a
   Rust consumer that calls that function in process, as `ekr-sdk` does, holds an id from the same

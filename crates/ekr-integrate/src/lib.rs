@@ -118,7 +118,7 @@ pub use extraction::{
 };
 
 /// A reference to a node by its type and the names it is known by, before it is resolved:
-/// `ekr.integrate.TypedReference` (`integrate.yaml`, lines 350–356).
+/// `ekr.integrate.TypedReference` (`integrate.yaml`, lines 370–376).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TypedReference {
@@ -133,7 +133,7 @@ pub struct TypedReference {
 pub(crate) use ekr_core::decode::strings;
 
 /// The one canonical node a reference resolved to: `ekr.integrate.ResolvedReference`
-/// (`integrate.yaml`, lines 360–364).
+/// (`integrate.yaml`, lines 380–384).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedReference {
@@ -142,7 +142,7 @@ pub struct ResolvedReference {
 }
 
 /// Every candidate a reference matched, in id order, with none chosen:
-/// `ekr.integrate.AmbiguousReference` (`integrate.yaml`, lines 367–371).
+/// `ekr.integrate.AmbiguousReference` (`integrate.yaml`, lines 387–391).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbiguousReference {
@@ -151,7 +151,7 @@ pub struct AmbiguousReference {
 }
 
 /// Why a reference cannot be resolved at all: `ekr.integrate.ResolutionRefusalCode`
-/// (`integrate.yaml`, lines 374–379).
+/// (`integrate.yaml`, lines 394–399).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ResolutionRefusalCode {
     /// The reference holds no alias but the empty string, so nothing identifies the node it means.
@@ -177,7 +177,7 @@ impl ResolutionRefusalCode {
     }
 }
 
-/// A refused reference and why: `ekr.integrate.ResolutionRefusal` (`integrate.yaml`, lines 381–387).
+/// A refused reference and why: `ekr.integrate.ResolutionRefusal` (`integrate.yaml`, lines 401–407).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolutionRefusal {
@@ -188,7 +188,7 @@ pub struct ResolutionRefusal {
 }
 
 /// What resolving one typed reference answers: `ekr.integrate.ResolutionOutcome`
-/// (`integrate.yaml`, lines 391–398), tagged by `kind`.
+/// (`integrate.yaml`, lines 411–418), tagged by `kind`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum ResolutionOutcome {

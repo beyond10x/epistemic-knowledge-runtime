@@ -107,14 +107,26 @@ const EDGES: [(&str, &[&str]); 6] = [
     ("ekr-core", &[]),
     (
         "ekr-kernel",
-        &["ekr-core", "ekr-ontology", "ekr-graph", "ekr-store"],
+        &[
+            "ekr-core",
+            "ekr-ontology",
+            "ekr-graph",
+            "ekr-store",
+            "ekr-integrate",
+        ],
     ),
     ("ekr-ontology", &["ekr-core"]),
     ("ekr-graph", &["ekr-core", "ekr-ontology"]),
     ("ekr-store", &["ekr-core", "ekr-graph", "ekr-ontology"]),
     (
         "ekr",
-        &["ekr-core", "ekr-kernel", "ekr-ontology", "ekr-graph"],
+        &[
+            "ekr-core",
+            "ekr-kernel",
+            "ekr-ontology",
+            "ekr-graph",
+            "ekr-integrate",
+        ],
     ),
 ];
 
@@ -155,6 +167,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "serde_json",
             "serde_yaml_ng",
             "thiserror",
+            "time",
         ],
         &[
             "eventlog-core",
@@ -162,7 +175,6 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "eventlog-sqlite",
             "proptest",
             "tempfile",
-            "time",
             "tokio",
             "trybuild",
         ],
@@ -204,7 +216,6 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         "ekr",
         &[
             "clap",
-            "ekr-integrate",
             "ekr-sdk",
             "ekr-views",
             "ess-conformance",
@@ -293,6 +304,11 @@ fn set<'a>(items: impl IntoIterator<Item = &'a &'a str>) -> BTreeSet<String> {
     items.into_iter().map(|s| (*s).to_string()).collect()
 }
 
+// Story A reuses the local shape validator below the kernel; it grants no store access.
+fn internal_dependency(name: &str) -> bool {
+    CRATES.contains(&name) || name == "ekr-integrate"
+}
+
 /// The story's "External dependencies, declared now per crate" list, against the manifests.
 #[test]
 fn external_dependencies_match_the_story() {
@@ -311,7 +327,7 @@ fn external_dependencies_match_the_story() {
         // Crate-to-crate edges are checked by their own case; ignore them here.
         let have_deps: BTreeSet<String> = have_deps
             .into_iter()
-            .filter(|d| !CRATES.contains(&d.as_str()))
+            .filter(|d| !internal_dependency(d))
             .collect();
 
         for missing in want_deps.difference(&have_deps) {
@@ -357,7 +373,7 @@ fn crate_dependency_edges_match_the_story() {
         let (have_all, _dev) = manifest_deps(crate_name);
         let have: BTreeSet<String> = have_all
             .into_iter()
-            .filter(|d| CRATES.contains(&d.as_str()))
+            .filter(|d| internal_dependency(d))
             .collect();
 
         for missing in want.difference(&have) {

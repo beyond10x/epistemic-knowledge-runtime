@@ -12,6 +12,26 @@ naming:
   display: Integrate
 
 types:
+  # Named transport and retention projections share the command's declared fields.
+  # The retained document bytes, not a serialized TransientGraph, bind its identity.
+  - name: ekr.integrate.InterpretationImport
+    kind: struct
+    fields:
+    - {name: document, type: ekr.integrate.InterpretationDocument}
+    - {name: payload, type: Bytes}
+  - name: ekr.integrate.InterpretationRead
+    kind: struct
+    fields:
+    - {name: document, type: ekr.integrate.InterpretationDocument}
+    - {name: blockers, type: List<ekr.integrate.IntegrationBlockerSnapshot>}
+    - {name: receipts, type: List<ekr.integrate.ProcessingReceiptSnapshot>}
+  - name: ekr.integrate.RetainedInterpretation
+    kind: struct
+    fields:
+    - {name: version, type: ekr.integrate.InterpretationVersion}
+    - {name: interpretation, type: ekr.integrate.InterpretationRead}
+    - {name: payload, type: Bytes}
+    - {name: root, type: ekr.graph.GraphRootRecord}
   - name: ekr.integrate.IntegrationBlockerSnapshot
     kind: struct
     fields:
