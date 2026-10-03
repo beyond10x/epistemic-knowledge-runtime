@@ -1,6 +1,8 @@
-//! Real implementation coverage of the three story-A retention scenarios, with a loss mutant.
+//! Native implementation coverage of retention and upgrades, with inert-target checks.
 #[path = "support/knowledge_target.rs"]
 mod knowledge_target;
+#[path = "support/upgrade_target.rs"]
+mod upgrade_target;
 use ekr::conformance::Provider;
 use ess_conformance::coverage::AdmittedInput;
 use ess_conformance::runner::{AdvancingClock, Ids, RunnerConfig};
@@ -13,13 +15,21 @@ const SCENARIOS: [&str; 3] = [
     "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
     "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
 ];
+const UPGRADE_SCENARIOS: [&str; 3] = [
+    "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+    "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+    "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+];
 fn fixtures() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("tests/fixtures/conformance")
 }
 fn selected() -> AdmittedInput {
-    let raw = std::fs::read_to_string(fixtures().join("knowledge-suite.json")).unwrap();
+    select("knowledge-suite.json", SCENARIOS)
+}
+fn select(file: &str, scenarios: [&str; 3]) -> AdmittedInput {
+    let raw = std::fs::read_to_string(fixtures().join(file)).unwrap();
     let full = AdmittedInput::from_suite(AdmittedSuite::from_json(&raw).unwrap()).unwrap();
-    let mut ids = SCENARIOS.map(|id| id.parse().unwrap());
+    let mut ids = scenarios.map(|id| id.parse().unwrap());
     ids.sort();
     full.select(&ids).unwrap()
 }
@@ -100,6 +110,72 @@ fn supplied_knowledge_conforms_after_reopen_and_full_replay() {
 #[test]
 fn every_retention_scenario_detects_discarded_state() {
     run(true);
+}
+
+fn run_upgrade(no_op: bool) {
+    let input = select("upgrade-suite.json", UPGRADE_SCENARIOS);
+    let selected = input.selected();
+    let mut failures = Vec::new();
+    for provider in [Provider::File, Provider::Sqlite] {
+        let work = tempfile::tempdir().unwrap();
+        let target = upgrade_target::UpgradeTarget::new(provider, work.path(), no_op);
+        let started = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+        )
+        .unwrap();
+        let run = Runner::new(
+            RunnerConfig::default(),
+            AdvancingClock::new(started, 1),
+            Ids::for_suite(selected.suite()),
+        )
+        .run_admitted(selected, &target);
+        let report = CountReport::from_run(&run, selected).unwrap();
+        let json = report.to_canonical_json().unwrap();
+        eprintln!("{provider:?} upgrade no-op={no_op}: {json}");
+        if let Some(directory) = std::env::var_os("EKR_KNOWLEDGE_REPORT_DIR") {
+            let directory = PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let name = format!(
+                "upgrade-{}-{}",
+                match provider {
+                    Provider::File => "file",
+                    Provider::Sqlite => "sqlite",
+                },
+                if no_op { "no-op" } else { "persisted" }
+            );
+            std::fs::write(directory.join(format!("{name}.report.json")), &json).unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.suite-input.json")),
+                input.document().to_canonical_json().unwrap(),
+            )
+            .unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.run.json")),
+                serde_json::to_vec_pretty(&run.report()).unwrap(),
+            )
+            .unwrap();
+        }
+        let counts = report.counts();
+        if counts.total != 3
+            || counts.error + counts.unsupported + counts.skipped != 0
+            || counts.passed != if no_op { 0 } else { 3 }
+            || counts.failed != if no_op { 3 } else { 0 }
+        {
+            failures.push(format!("{provider:?}: {:#?}", run.report()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+#[test]
+fn disputes_and_upgrades_conform_after_reopen_and_full_replay() {
+    run_upgrade(false);
+}
+#[test]
+fn every_upgrade_scenario_detects_an_inert_target() {
+    run_upgrade(true);
 }
 #[test]
 fn event_projection_preserves_large_integer_values() {

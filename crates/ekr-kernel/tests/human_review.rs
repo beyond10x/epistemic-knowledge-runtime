@@ -6,6 +6,89 @@ use ring::signature::{Ed25519KeyPair, KeyPair};
 fn hash(bytes: &[u8]) -> m::ContentHash {
     m::ContentHash(review::digest(bytes).to_string())
 }
+
+#[test]
+fn generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_scalars() {
+    use ekr_core::contract_data::{EkrKernelReviewerTrustPolicy, EkrKernelSignedHumanDecision};
+    let mut f = Fixture::new();
+    f.policy.keys[0].scopes = vec![
+        m::HumanDecisionScope::AnswerAttention,
+        m::HumanDecisionScope::ApproveSchemaProposal,
+        m::HumanDecisionScope::RejectSchemaProposal,
+        m::HumanDecisionScope::UpgradeAuthority,
+    ];
+    let audience = serde_json::json!({"tenant": f.intent.audience.tenant, "seed_anchor": f.intent.audience.seed_anchor.0});
+    let mut policy_json = serde_json::json!({
+        "format": "ekr.reviewer-trust/1", "audience": audience,
+        "keys": [{"key_digest": f.policy.keys[0].key_digest.0, "algorithm": "Ed25519",
+            "public_key": ekr_core::bytes::encode(f.key.public_key().as_ref()),
+            "operator": {"actor": f.policy.keys[0].operator.actor.0.0, "authentication_subject": "fixture-human"},
+            "scopes": ["AnswerAttention", "ApproveSchemaProposal", "RejectSchemaProposal", "UpgradeAuthority"]}]
+    });
+    let wire: EkrKernelReviewerTrustPolicy = serde_json::from_value(policy_json.clone()).unwrap();
+    assert_eq!(review::policy_from_document(&wire).unwrap(), f.policy);
+    policy_json["keys"][0]["public_key"] = "invalid-base64".into();
+    let wire = serde_json::from_value(policy_json).unwrap();
+    assert!(review::policy_from_document(&wire).is_err());
+    let basis = m::ReviewBasis {
+        observed_revision: m::RevisionNumber(17),
+        evidence_digest: hash(b"evidence"),
+        options_digest: hash(b"options"),
+        effects_digest: hash(b"effects"),
+    };
+    let basis_json = serde_json::json!({"observed_revision": 17, "evidence_digest": basis.evidence_digest.0,
+        "options_digest": basis.options_digest.0, "effects_digest": basis.effects_digest.0});
+    let schema = m::SchemaReviewTarget {
+        proposal_id: integrate::SchemaProposalId(id()),
+        proposal_digest: hash(b"proposal"),
+        basis: basis.clone(),
+    };
+    let schema_json = serde_json::json!({"proposal_id": id().0, "proposal_digest": schema.proposal_digest.0, "basis": basis_json});
+    let cases = [
+        (
+            m::HumanDecisionTarget::AnswerAttention(m::AttentionAnswerTarget {
+                dispute_id: m::DisputeId(id()),
+                basis,
+                corrections_digest: hash(b"corrections"),
+            }),
+            serde_json::json!({"kind": "AnswerAttention", "value": {"dispute_id": id().0, "basis": basis_json,
+                "corrections_digest": hash(b"corrections").0}}),
+        ),
+        (
+            m::HumanDecisionTarget::ApproveSchemaProposal(schema.clone()),
+            serde_json::json!({"kind": "ApproveSchemaProposal", "value": schema_json}),
+        ),
+        (
+            m::HumanDecisionTarget::RejectSchemaProposal(schema),
+            serde_json::json!({"kind": "RejectSchemaProposal", "value": schema_json}),
+        ),
+        (
+            f.intent.target.clone(),
+            serde_json::json!({"kind": "UpgradeAuthority", "value": {
+            "preview_digest": hash(b"preview").0, "reviewer_policy_digest": f.intent.reviewer_policy_digest.0}}),
+        ),
+    ];
+    for (target, target_json) in cases {
+        f.intent.target = target;
+        f.intent.expected_previous_decision = Some(hash(b"previous"));
+        let expected = f.proof();
+        let mut json = serde_json::json!({"algorithm": "Ed25519", "signature": ekr_core::bytes::encode(&expected.signature),
+            "intent": {"format": "ekr.human-decision/1", "decision_id": id().0, "audience": audience,
+                "reviewer_policy_digest": f.intent.reviewer_policy_digest.0, "signer_key_digest": f.intent.signer_key_digest.0,
+                "target": target_json, "statement_digest": f.intent.statement_digest.0,
+                "expected_previous_decision": hash(b"previous").0}});
+        let wire: EkrKernelSignedHumanDecision = serde_json::from_value(json.clone()).unwrap();
+        let actual = review::proof_from_document(&wire).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(
+            review::proof_bytes(&actual).unwrap(),
+            review::proof_bytes(&expected).unwrap()
+        );
+        json["intent"]["decision_id"] = "not-a-uuid".into();
+        let wire = serde_json::from_value(json).unwrap();
+        assert!(review::proof_from_document(&wire).is_err());
+    }
+}
 fn id() -> Uuid {
     Uuid("00000000-0000-0000-0000-000000000001".into())
 }

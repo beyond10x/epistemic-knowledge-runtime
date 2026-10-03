@@ -1,0 +1,650 @@
+[
+  {
+    "run": "final1",
+    "report": "file-discard.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final1",
+    "report": "file-retained.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final1",
+    "report": "sqlite-discard.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final1",
+    "report": "sqlite-retained.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final1",
+    "report": "upgrade-file-no-op.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final1",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final1",
+    "report": "upgrade-sqlite-no-op.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final1",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final2",
+    "report": "file-discard.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final2",
+    "report": "file-retained.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final2",
+    "report": "sqlite-discard.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final2",
+    "report": "sqlite-retained.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final2",
+    "report": "upgrade-file-no-op.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final2",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final2",
+    "report": "upgrade-sqlite-no-op.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final2",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final3",
+    "report": "file-discard.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final3",
+    "report": "file-retained.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final3",
+    "report": "sqlite-discard.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final3",
+    "report": "sqlite-retained.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "retention-suite-input.json",
+    "suite_input_sha256": "71af2e65d68adde42a2dbafacc6adcd7c86fc6c7f4699b4f495e77cf6b68e72d"
+  },
+  {
+    "run": "final3",
+    "report": "upgrade-file-no-op.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final3",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final3",
+    "report": "upgrade-sqlite-no-op.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 3,
+      "passed": 0,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "final3",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-property",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-property",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-relation",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-relation",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-equality",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-equality",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-interval",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-interval",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-many",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-many",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-historical-read",
+    "report": "upgrade-file-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  },
+  {
+    "run": "mutation-historical-read",
+    "report": "upgrade-sqlite-persisted.report.json",
+    "counts": {
+      "error": 0,
+      "failed": 1,
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "unsupported": 0
+    },
+    "failed": [
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "suite_input": "upgrade-suite-input.json",
+    "suite_input_sha256": "0ce8e5cf29c2f2d11eaf83c011de66d6b33ab52bc65c5854c704f30c0c194417"
+  }
+]

@@ -1,0 +1,444 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/19",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "contract_digest": "b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6"
+  },
+  "implementation": {
+    "name": "EKR native Runtime File, no-op=false",
+    "version": "0.0.27"
+  },
+  "started_at": 1791020306071,
+  "completed_at": 1791020306102,
+  "status": "failed",
+  "scenarios": [
+    {
+      "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.PreviewUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.PreviewUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.PreviewUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ApplyUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ApplyUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ApplyUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AuthorityUpgraded",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.AuthorityUpgraded",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-PAYLOAD",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAttention()",
+            "expected": [
+              "ekr.kernel.ListAttentionResult.items = []"
+            ],
+            "observed": [
+              "items = [{\"basis\":{\"effects_digest\":\"241523bf2d6323c5316f4758ba5ea57aec7a9e363566410b2a09028705c15edd\",\"evidence_digest\":\"5088784dd38faf5fd9517ad2369cc120aed9a8d80f3ea56f5bf936ab4af8c2c2\",\"observed_revision\":1.0,\"options_digest\":\"41d698c994a9df0b775c3085117954db96526daa2ec101700b54e8b7fb4ab002\"},\"claims\":[\"00000000-0000-4000-8000-000000000401\",\"00000000-0000-4000-8000-000000000402\"],\"evidence\":[\"00000000-0000-4000-8000-000000000500\",\"00000000-0000-4000-8000-000000000501\"],\"observations\":[],\"question\":\"Which value for health on Fixture 0/0 is correct, and during which dates? Select a supported claim, retract an incorrect claim, correct its time, or leave this unresolved.\",\"subject\":{\"dispute_id\":\"00000000-0000-4000-8000-000000000401\",\"kind\":\"Dispute\"}},{\"basis\":{\"effects_digest\":\"061a0f62d8cbc1c981b47911d7f809580b2ec7c664141562910c654c5ee2702f\",\"evidence_digest\":\"203b85cf34195493329ad7cf68fe660bc95911815261f08e97e41bbbfabda07d\",\"observed_revision\":1.0,\"options_digest\":\"825da2d9f145f6dd66695229c02e8ba157d826468e76a4f651f4707fd9435fc5\"},\"claims\":[\"00000000-0000-4000-8000-000000000403\",\"00000000-0000-4000-8000-000000000404\"],\"evidence\":[\"00000000-0000-4000-8000-000000000502\",\"00000000-0000-4000-8000-000000000503\"],\"observations\":[],\"question\":\"Which value for ownership0 on Fixture 0/0 is correct, and during which dates? Select a supported claim, retract an incorrect claim, correct its time, or leave this unresolved.\",\"subject\":{\"dispute_id\":\"00000000-0000-4000-8000-000000000403\",\"kind\":\"Dispute\"}}]"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "{assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000402\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000401\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000404\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000403\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000405\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000406\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000407\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000408\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000409\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000410\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000411\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000412\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "{assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000402\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000401\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000404\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000403\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000405\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000406\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000407\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000408\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000409\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000410\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000411\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000412\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "{assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000402\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000401\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000404\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000403\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000405\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000406\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000407\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000408\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000409\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000410\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000411\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000412\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "{assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000402\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000401\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000404\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000403\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000405\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000406\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000407\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000408\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000409\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000410\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000411\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}; {assertion_id = \"00000000-0000-4000-8000-000000000412\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, recorded_from = \"1970-01-01T00:00:00.000Z\", root_id = \"00000000-0000-4000-8000-000000000002\"}"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.SettledAssertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.SettledAssertions holds exactly 12 row(s)"
+            ],
+            "observed": [
+              "it holds 8 row(s): {assertion_id = \"00000000-0000-4000-8000-000000000405\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Value\", object_ref = null, object_value = {\"canonical_bytes\":\"DwAAAAAGAAAAAAAAAAVncmVlbg==\",\"kind\":\"String\"}, predicate = \"00000000-0000-4000-8000-000000000111\", predicate_kind = \"Property\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000203\", subject_kind = \"Node\", valid_from = null, valid_to = \"1970-01-01T00:00:00.010Z\"}; {assertion_id = \"00000000-0000-4000-8000-000000000406\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Value\", object_ref = null, object_value = {\"canonical_bytes\":\"DwAAAAAGAAAAAAAAAANyZWQ=\",\"kind\":\"String\"}, predicate = \"00000000-0000-4000-8000-000000000111\", predicate_kind = \"Property\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000203\", subject_kind = \"Node\", valid_from = \"1970-01-01T00:00:00.010Z\", valid_to = null}; {assertion_id = \"00000000-0000-4000-8000-000000000407\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Node\", object_ref = \"00000000-0000-4000-8000-000000000204\", object_value = null, predicate = \"00000000-0000-4000-8000-000000000121\", predicate_kind = \"Relation\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000203\", subject_kind = \"Node\", valid_from = null, valid_to = \"1970-01-01T00:00:00.010Z\"}; {assertion_id = \"00000000-0000-4000-8000-000000000408\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Node\", object_ref = \"00000000-0000-4000-8000-000000000205\", object_value = null, predicate = \"00000000-0000-4000-8000-000000000121\", predicate_kind = \"Relation\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000203\", subject_kind = \"Node\", valid_from = \"1970-01-01T00:00:00.010Z\", valid_to = null}; {assertion_id = \"00000000-0000-4000-8000-000000000409\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Value\", object_ref = null, object_value = {\"canonical_bytes\":\"DwAAAAAGAAAAAAAAAAVncmVlbg==\",\"kind\":\"String\"}, predicate = \"00000000-0000-4000-8000-000000000112\", predicate_kind = \"Property\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000206\", subject_kind = \"Node\", valid_from = null, valid_to = null}; {assertion_id = \"00000000-0000-4000-8000-000000000410\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Value\", object_ref = null, object_value = {\"canonical_bytes\":\"DwAAAAAGAAAAAAAAAANyZWQ=\",\"kind\":\"String\"}, predicate = \"00000000-0000-4000-8000-000000000112\", predicate_kind = \"Property\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000206\", subject_kind = \"Node\", valid_from = null, valid_to = null}; {assertion_id = \"00000000-0000-4000-8000-000000000411\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Node\", object_ref = \"00000000-0000-4000-8000-000000000207\", object_value = null, predicate = \"00000000-0000-4000-8000-000000000122\", predicate_kind = \"Relation\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000206\", subject_kind = \"Node\", valid_from = null, valid_to = null}; {assertion_id = \"00000000-0000-4000-8000-000000000412\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}, object_kind = \"Node\", object_ref = \"00000000-0000-4000-8000-000000000208\", object_value = null, predicate = \"00000000-0000-4000-8000-000000000122\", predicate_kind = \"Relation\", proposed_by = \"00000000-0000-4000-8000-000000000003\", recorded_from = \"1970-01-01T00:00:00.000Z\", recorded_to = null, root_id = \"00000000-0000-4000-8000-000000000002\", subject = \"00000000-0000-4000-8000-000000000206\", subject_kind = \"Node\", valid_from = null, valid_to = null}"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 16
+    },
+    {
+      "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.PreviewUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.PreviewUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.PreviewUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ApplyUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ApplyUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ApplyUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AuthorityUpgraded",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.AuthorityUpgraded",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 7
+    },
+    {
+      "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.PreviewUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.PreviewUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.PreviewUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ApplyUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ApplyUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ApplyUpgradeResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AuthorityUpgraded",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.AuthorityUpgraded",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 4
+    }
+  ]
+}

@@ -100,6 +100,27 @@ commit and by a commit that brings the transaction documents committed since the
 transaction since the seed. `--full-replay` ignores it and replays the whole history from the seed,
 re-deriving every retained decision; a verb answers the same either way.
 
+### Reviewer provisioning for upgraded stores
+
+An upgraded store additionally needs the system administrator's independent reviewer binding.
+On Unix the CLI reads a generated `ekr.kernel.TrustedReviewHostBinding` JSON document at
+`/etc/ekr/review/<tenant-payload-hash>.json` (`/private/etc/ekr/review/` on macOS). The hash is
+`ekr_core::ContentHash::of_bytes(tenant.as_bytes())`, including no newline. The document contains
+`audience: { tenant, seed_anchor }` and `reviewer_policy_digest`; both digests are lowercase
+SHA-256 hex in the runtime's specified hash domain. The seed anchor is the original seed result's
+`seed_hash`; the policy digest comes from `human_review::digest(human_review::policy_bytes(...))`.
+
+The file and every ancestor must belong to root and be non-writable by group or others. The file
+must be regular, at most 64 KiB, and no path component may be a symlink. The CLI has no flag or
+environment override for this location or trusted owner. Invalid provisioning refuses opening;
+an absent binding keeps legacy stores usable but cannot authorize reading an upgraded lineage.
+An agent-controlled `--host` file or a supplied public key cannot establish reviewer trust.
+Keep system administration outside the agent account's capabilities. Other platforms currently
+need an embedding host using `Runtime::with_review_authority`.
+
+This provisioning path and the public upgrade flow are under development; the coordinated
+resource hold has not yet allowed their new tests to execute.
+
 ### The host document (`ekr.cli-host/1`)
 
 The host document says who the operator and the validator are. It is trusted local configuration,
@@ -158,6 +179,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr observe` | writes / reads | `import <file or ->`, `list`, `show <observation-id>` | imports return a retention receipt; reads expose retained source records and exact bytes |
 | `ekr attention` | reads | `list`, `show <kind> <id>` | unresolved questions, claim/evidence identities and the exact review basis |
+| `ekr upgrade` | reads / writes | `preview <policy-file or ->`, `apply <application-file or ->` | an exact authority preview or the retained signed transition record |
 | `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -388,6 +410,53 @@ committed the verb does not fault: if a request then gets no answer it can act o
 report with what committed until then and `stopped` saying why. A fault before anything committed
 is exit 1, with nothing written.
 
+### `ekr upgrade`
+
+An existing store retains its original rules until an explicit reviewed upgrade. First provision
+the independent system binding described above, then submit the corresponding public
+`ekr.kernel.ReviewerTrustPolicy` JSON document:
+
+```console
+ekr upgrade preview policy.json > preview.json
+```
+
+The generated `ekr.kernel.UpgradePreview` names the exact head and stream prefix, original and
+target rule versions, overlapping single-value claims, and pending transactions requiring
+revalidation. Preview does not publish a revision. The supported target is the knowledge ruleset
+`ekr.knowledge-deterministic/1`; changing the legacy host profile does not activate it.
+
+Have the human reviewer inspect the preview and sign the exact `UpgradeAuthority` intent using
+their external Ed25519 signer. The intent binds the decision UUID, tenant, original seed hash,
+reviewer policy and key digests, preview digest, statement digest and prior decision. The signing
+format is `ekr_kernel::human_review::signing_bytes`; the runtime holds only the public policy and
+proof. Assemble a generated `ekr.kernel.AuthorityUpgradeApplication` JSON document:
+
+| field | content |
+|---|---|
+| `preview` | the complete unchanged preview object |
+| `policy` | the public ReviewerTrustPolicy matching independent provisioning |
+| `human_proof` | the SignedHumanDecision with the human's signature, encoded as padded base64 |
+| `statement` | the exact reviewed statement bytes, encoded as padded base64 |
+
+```console
+ekr upgrade apply signed-upgrade.json
+```
+
+Both verbs accept `-` for stdin and at most eight MiB. Application verifies the signature and
+current preview before mutation, then atomically retains the authority boundary and its evidence.
+Invalid proof material, missing reviewer provisioning and a stale preview are named
+`ekr.kernel.KnowledgeRefused` refusals; provisioning-file and retained-history corruption remain faults.
+A stale preview requires fresh review. An exact completed retry returns the same transition
+record. Historical revision bytes and seed rules remain unchanged; pending validations made under
+the old rules must be validated again. Reopening an upgraded store requires the same independent
+binding, including during full replay.
+
+Sessions serve the same verbs. The typed SDK exposes
+`Knowledge::preview_upgrade(&EkrKernelReviewerTrustPolicy)` and
+`Knowledge::apply_upgrade(&EkrKernelAuthorityUpgradeApplication)` over its configured transport.
+Neither signs a decision or chooses the deployment's trusted policy. The original `ekr schema`
+document-schema command remains unchanged.
+
 ### `ekr attention`
 
 `ekr attention list` returns generated `ekr.kernel.AttentionItem` records. Each contains a
@@ -409,8 +478,8 @@ the observed revision, without by itself changing evidence/options/effects diges
 interpretations remain visible even before a canonical seed exists. In that case the observed
 revision is zero, and the digests bind the retained document and evidence.
 
-This read surface does not activate authority or grant approval. The human answer, proposal
-decision and deployment review-binding surfaces are still under development in this release.
+This read surface does not activate authority or grant approval. Human answers and schema
+proposal decisions remain under development in this release.
 
 ### `ekr incubate`
 

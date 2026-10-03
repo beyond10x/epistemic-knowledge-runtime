@@ -5661,3 +5661,40 @@ headless browser. Canonical dispute projection is exercised through the kernel's
 provider tests. CLI provisioning of an independent review binding, upgrade preview/apply transport,
 human answers, proposal persistence/application and the named B conformance scenarios are still
 required. This paragraph does not claim that a CLI can already open an upgraded lineage.
+
+## 105.10 Public runtime reviewer provisioning (2026-10-03)
+
+`Runtime::with_review_authority` consumes an opened runtime and installs the embedding host's
+independently provisioned `TrustedReviewHostBinding`. It preserves the original seed authority,
+provider and read-only mode, and clears replay admission caches before further reads. Preview and
+application delegate to the same kernel methods used by native-provider upgrade tests. Supplying
+a different binding does not rewrite an enrollment: replay must validate it against retained
+transition records.
+
+The Unix CLI reads one generated binding JSON document from
+`/etc/ekr/review/<tenant-payload-hash>.json` (`/private/etc/ekr/review/` on macOS). The filename uses
+`ContentHash::of_bytes(tenant.as_bytes())`; the decoded audience must also match the tenant exactly.
+The system administrator provisions it outside the agent account's write authority. Starting at
+the filesystem root, every ancestor must be a root-owned directory without group or other write
+permission. The leaf must be a root-owned regular file under the same permission rule. Symlinks,
+replacement during open, oversized documents and invalid generated fields are refused. There is
+no environment variable or command-line flag selecting another provisioning path or owner.
+Absence leaves legacy opening unchanged; it cannot admit an upgraded lineage. CLI provisioning on
+other platforms is not implemented; an independently trusted embedding can use the Runtime API.
+
+The binding contains only public digests and audience information. It grants no signing ability.
+The user-selected legacy host file still supplies runtime attribution and original authority;
+its operator UUID cannot authorize a review or replace the independently selected policy digest.
+The boundary assumes system administration is outside the agent's capabilities: an agent with
+system-administrator privileges is outside this deployment trust model.
+
+The generated `AuthorityUpgradeApplication` transport document carries the exact preview,
+public policy, signed human proof and statement bytes. `ekr upgrade preview` reads a public policy;
+`ekr upgrade apply` reads that application document. Sessions and typed SDK calls use these same
+handlers. Generated JSON-to-semantic conversions validate canonical review fields but grant no
+trust. The independently bound verifier remains the sole source of approval.
+
+The new facade/reopen, protected-path, codec-equivalence and real in-process session/SDK cases
+are authored but not yet executed at this checkpoint because the coordinated disk hold forbids
+another compilation lane. This is not conformance evidence. Native process provisioning and
+upgrade/dispute viewer demonstrations remain part of the same unfinished story.

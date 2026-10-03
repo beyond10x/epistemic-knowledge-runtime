@@ -1,0 +1,97 @@
+   Compiling serde_core v1.0.229
+    Checking serde v1.0.229
+    Checking serde_json v1.0.151
+    Checking uuid v1.26.1
+    Checking iana-time-zone v0.1.65
+    Checking chrono v0.4.45
+    Checking schemars v1.2.2
+    Checking serde_yaml_ng v0.10.0 (<worktree>/vendor/serde_yaml_ng)
+    Checking ekr-contract-data v0.0.0 (<worktree>/generated/ekr-contract-data)
+    Checking ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<worktree>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<worktree>/crates/ekr-graph)
+    Checking deranged v0.5.8
+    Checking time v0.3.55
+    Checking eventlog-core v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking eventlog-sqlite v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking eventlog-file v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+   Compiling getrandom v0.3.4
+    Checking bit-vec v0.8.0
+    Checking bit-set v0.8.0
+    Checking ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+   Compiling syn v2.0.119
+   Compiling serde_derive_internals v0.29.1
+   Compiling schemars_derive v0.8.22
+    Checking schemars v0.8.22
+    Checking serde_yaml v0.9.34+deprecated
+    Checking ess-primitives v0.36.0 (https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a336)
+    Checking ess-domain v0.36.0 (https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a336)
+    Checking ess-compiler v0.36.0 (https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a336)
+    Checking ess-gen v0.36.0 (https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a336)
+    Checking ess-conformance v0.36.0 (https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a336)
+    Checking ekr-views v0.0.27 (<worktree>/crates/ekr-views)
+    Checking winnow v1.0.4
+    Checking toml_parser v1.1.3+spec-1.1.0
+    Checking toml_datetime v1.1.1+spec-1.1.0
+    Checking serde_spanned v1.1.1
+    Checking toml_writer v1.1.2+spec-1.1.0
+    Checking toml v1.1.6+spec-1.1.0
+    Checking ahash v0.8.12
+    Checking rand_core v0.9.5
+    Checking fluent-uri v0.4.1
+   Compiling strum_macros v0.28.0
+    Checking ekr-sdk v0.0.27 (<worktree>/crates/ekr-sdk)
+    Checking referencing v0.58.0
+    Checking jsonschema-value v0.58.0
+    Checking strum v0.28.0
+    Checking fancy-regex v0.19.2
+    Checking ppv-lite86 v0.2.21
+    Checking email_address v0.2.9
+    Checking fnv v1.0.7
+    Checking quick-error v1.2.3
+    Checking rusty-fork v0.3.1
+    Checking jsonschema v0.58.0
+    Checking rand_chacha v0.9.0
+    Checking ekr v0.0.27 (<worktree>/crates/ekr)
+    Checking rand v0.9.5
+    Checking rand_xorshift v0.4.0
+    Checking unarray v0.1.4
+    Checking proptest v1.11.0
+   Compiling target-tuple v1.0.2
+    Checking termcolor v1.4.1
+    Checking glob v0.3.4
+    Checking trybuild v1.0.121
+   Compiling crossbeam-utils v0.8.23
+   Compiling ident_case v1.0.1
+   Compiling crossbeam-epoch v0.9.21
+   Compiling darling_core v0.23.0
+   Compiling crossbeam-deque v0.8.8
+   Compiling darling_macro v0.23.0
+   Compiling crc32fast v1.5.2
+   Compiling rayon-core v1.13.0
+   Compiling darling v0.23.0
+    Checking simd-adler32 v0.3.10
+    Checking adler2 v2.0.1
+    Checking foldhash v0.1.5
+    Checking either v1.18.0
+    Checking hashbrown v0.15.5
+    Checking miniz_oxide v0.9.1
+   Compiling serde_with_macros v3.22.0
+    Checking csv-core v0.1.13
+    Checking fixedbitset v0.5.7
+    Checking petgraph v0.8.3
+    Checking csv v1.4.0
+    Checking flate2 v1.1.10
+    Checking serde_with v3.22.0
+    Checking rayon v1.12.0
+    Checking itertools v0.14.0
+   Compiling macros_process_mining v0.6.2
+    Checking ordered-float v5.4.0
+    Checking quick-xml v0.37.5
+    Checking rustc-hash v2.1.3
+    Checking process_mining v0.6.2
+    Checking ekr-observe v0.0.27 (<worktree>/crates/ekr-observe)
+    Checking xtask v0.0.27 (<worktree>/xtask)
+    Finished `dev` profile [unoptimized] target(s) in 2m 27s

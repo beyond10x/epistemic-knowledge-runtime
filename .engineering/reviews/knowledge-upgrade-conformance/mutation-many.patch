@@ -1,0 +1,30 @@
+diff --git a/crates/ekr-kernel/src/disputes.rs b/crates/ekr-kernel/src/disputes.rs
+index 76ca6f2ab..6936cdee0 100644
+--- a/crates/ekr-kernel/src/disputes.rs
++++ b/crates/ekr-kernel/src/disputes.rs
+@@ -128,7 +128,7 @@ fn single_valued(graph: &CanonicalGraph, subject: Subject, predicate: Predicate)
+                 && graph
+                     .ontology
+                     .edge_type(id)
+-                    .is_some_and(|definition| definition.cardinality == Cardinality::One)
++                    .is_some_and(|definition| matches!(definition.cardinality, Cardinality::One | Cardinality::Many))
+         }
+         Predicate::Property(property) => match subject {
+             Subject::Node(node) => graph.nodes.get(&node.id()).is_some_and(|node| {
+@@ -136,14 +136,14 @@ fn single_valued(graph: &CanonicalGraph, subject: Subject, predicate: Predicate)
+                     .ontology
+                     .properties_of(node.type_id)
+                     .get(&property)
+-                    .is_some_and(|definition| definition.cardinality == Cardinality::One)
++                    .is_some_and(|definition| matches!(definition.cardinality, Cardinality::One | Cardinality::Many))
+             }),
+             Subject::Edge(edge) => graph
+                 .edges
+                 .get(&edge.id())
+                 .and_then(|edge| graph.ontology.edge_type(edge.type_id))
+                 .and_then(|definition| definition.properties.get(&property))
+-                .is_some_and(|definition| definition.cardinality == Cardinality::One),
++                .is_some_and(|definition| matches!(definition.cardinality, Cardinality::One | Cardinality::Many)),
+             // No metatype declares properties of ontology definitions in the current runtime.
+             Subject::Type(_) => false,
+         },

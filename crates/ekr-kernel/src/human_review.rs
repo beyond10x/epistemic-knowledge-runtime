@@ -8,7 +8,9 @@ use ekr_core::{AgentId, ContentHash};
 use ring::signature::{UnparsedPublicKey, ED25519};
 
 mod decode;
+mod wire;
 pub use decode::{read_host_binding, read_policy, read_proof};
+pub use wire::{policy_from_document, proof_from_document};
 
 type Refusal = model::KnowledgeRefused;
 fn refuse(code: &str, reason: &str) -> Refusal {

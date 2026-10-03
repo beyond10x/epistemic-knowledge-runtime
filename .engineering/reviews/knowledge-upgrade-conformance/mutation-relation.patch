@@ -1,0 +1,13 @@
+diff --git a/crates/ekr-kernel/src/disputes.rs b/crates/ekr-kernel/src/disputes.rs
+index 76ca6f2ab..2a711aa32 100644
+--- a/crates/ekr-kernel/src/disputes.rs
++++ b/crates/ekr-kernel/src/disputes.rs
+@@ -89,7 +89,7 @@ pub fn preview_contradictions(graph: &CanonicalGraph) -> Vec<EkrKernelUpgradeCon
+     }
+     let mut conflicts = Vec::new();
+     for ((subject, predicate), claims) in groups {
+-        if !single_valued(graph, subject, predicate) {
++        if !single_valued(graph, subject, predicate) || matches!(predicate, Predicate::Relation(_)) {
+             continue;
+         }
+         for (index, left) in claims.iter().enumerate() {
