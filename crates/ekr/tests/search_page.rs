@@ -16,7 +16,7 @@ fn page<'a>(query: &'a str, state: State<'a>) -> Page<'a> {
 }
 
 #[test]
-fn entry_has_an_accessible_get_form_without_scripts_or_external_assets() {
+fn entry_has_an_accessible_get_form_with_only_local_generated_browser_assets() {
     let html = render(&page("", State::Initial));
     for expected in [
         "<form action=\"/find\" method=\"get\">",
@@ -29,7 +29,9 @@ fn entry_has_an_accessible_get_form_without_scripts_or_external_assets() {
     ] {
         assert!(html.contains(expected), "missing {expected}");
     }
-    for forbidden in ["<script", "https://", "http://", "@import", "onload="] {
+    assert!(html.contains("<script type=\"module\" src=\"/assets/search.js\"></script>"));
+    assert_eq!(html.matches("<script").count(), 1);
+    for forbidden in ["<script>", "https://", "http://", "@import", "onload="] {
         assert!(!html.contains(forbidden), "unexpected {forbidden}");
     }
     assert!(!html.contains("type=\"hidden\" name=\"revision\""));
@@ -505,13 +507,16 @@ mod live {
             "Cache-Control: no-store",
             "X-Content-Type-Options: nosniff",
             "frame-ancestors 'none'",
-            "script-src 'none'",
+            "script-src 'self' 'wasm-unsafe-eval'",
+            "connect-src 'self'",
+            "object-src 'none'",
         ] {
             assert!(headers.contains(expected), "{headers}");
         }
         assert!(body.contains("<form action=\"/find\" method=\"get\">"));
         assert!(body.contains("Revision 0"));
-        assert!(!body.contains("<script"));
+        assert!(body.contains("<script type=\"module\" src=\"/assets/search.js\"></script>"));
+        assert!(!headers.contains("'unsafe-eval'"));
         let (status, _, body) = world.get("/find?q=Alice");
         assert_eq!(status, 200);
         assert!(body.contains("Alice"));

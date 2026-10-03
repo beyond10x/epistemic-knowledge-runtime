@@ -121,7 +121,7 @@ const CACHE_LIMIT: usize = 8;
 const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
 /// Refuses framing, so another page cannot overlay the viewer.
 const FRAME_POLICY: &str = "; frame-ancestors 'none'";
-const SEARCH_POLICY: &str = "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
+const SEARCH_POLICY: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; object-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
 
 const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
@@ -773,6 +773,25 @@ fn immediate(
         .target
         .split_once('?')
         .map_or(asked.target.as_str(), |(path, _)| path);
+    if matches!(path, "/assets/search.js" | "/assets/search_bg.wasm") {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if asked.target != path {
+            Reply::text(400, "browser assets take no query")
+        } else if path == "/assets/search.js" {
+            Reply::ok(
+                "text/javascript; charset=utf-8",
+                include_bytes!(concat!(env!("OUT_DIR"), "/search.js")).to_vec(),
+            )
+        } else {
+            Reply::ok(
+                "application/wasm",
+                include_bytes!(concat!(env!("OUT_DIR"), "/search_bg.wasm")).to_vec(),
+            )
+        });
+    }
     if matches!(path, "/agent-guide.md" | "/llms.txt") {
         return Some(if asked.method != "GET" {
             Reply::text(405, "only GET")
