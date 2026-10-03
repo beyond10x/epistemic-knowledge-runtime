@@ -528,6 +528,7 @@ dependencies = [
  "ess-primitives",
  "httparse",
  "jsonschema",
+ "ring",
  "schemars 1.2.2",
  "serde",
  "serde_json",

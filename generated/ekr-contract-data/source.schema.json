@@ -3072,6 +3072,35 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.kernel.AuthorityTransitionRecord"
     },
+    "ekr.kernel.AuthorityUpgradeApplication": {
+      "additionalProperties": false,
+      "properties": {
+        "human_proof": {
+          "$ref": "#/$defs/ekr.kernel.SignedHumanDecision"
+        },
+        "policy": {
+          "$ref": "#/$defs/ekr.kernel.ReviewerTrustPolicy"
+        },
+        "preview": {
+          "$ref": "#/$defs/ekr.kernel.UpgradePreview"
+        },
+        "statement": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "preview",
+        "policy",
+        "human_proof",
+        "statement"
+      ],
+      "title": "AuthorityUpgradeApplication",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.kernel.AuthorityUpgradeApplication"
+    },
     "ekr.kernel.AuthorityUpgradeTarget": {
       "additionalProperties": false,
       "properties": {
@@ -10791,8 +10820,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:524a5d8ca0cea5c63da0f068df3b8562747cacdff71f173b7606352deb7de520",
-    "source_digest": "890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601",
+    "contract_digest": "slice-sha256/2:a18bc7b7cb9417b5a3ed4787bd20939bd8f235d72fecf66a532874aba85e0564",
+    "source_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
     "specification_version": "v1",
     "system": "ekr"
   }

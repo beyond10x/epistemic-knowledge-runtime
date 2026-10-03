@@ -56,12 +56,14 @@ mod propose;
 mod quality;
 pub(crate) mod rejections;
 mod resolve;
+mod review_host;
 mod sample;
 mod schema;
 mod seed;
 mod session;
 mod snapshot;
 mod transactions;
+mod upgrade;
 mod validate;
 mod view;
 
@@ -82,6 +84,7 @@ pub use mcp::serve_mcp;
 pub use observations::ObserveCommand;
 pub use session::serve;
 pub use transactions::StateFilter;
+pub use upgrade::UpgradeCommand;
 
 use crate::exit::Failure;
 use crate::host::CliHostConfigurationV1;
@@ -135,6 +138,19 @@ pub enum Backend {
 /// The kernel verbs, by their ESS wire names, and the agent verbs that describe them.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Preview or apply a signed authority upgrade (`ekr.kernel.PreviewUpgrade` and `ApplyUpgrade`).
+    ///
+    /// A store verb under the `ekr.cli-host/1` host and an independently provisioned reviewer
+    /// binding. `ekr upgrade preview policy.json` returns the exact review basis without changing authority.
+    /// `ekr upgrade apply application.json` reads an `ekr.kernel.AuthorityUpgradeApplication`
+    /// containing the preview, public policy, signed human proof and base64 statement.
+    /// Both accept `-` for stdin and at most eight MiB. Provisioning and examples: docs/cli.md.
+    #[command(after_help = SEE)]
+    Upgrade {
+        /// The explicit authority operation.
+        #[command(subcommand)]
+        command: UpgradeCommand,
+    },
     /// Inspect unresolved knowledge questions (`ekr.kernel.ListAttention` and `ShowAttention`).
     ///
     /// A read-only store verb under the `ekr.cli-host/1` host. List and show return generated
@@ -546,6 +562,7 @@ impl Command {
     /// store it migrates.
     pub(crate) fn access(&self) -> Access {
         match self {
+            Self::Upgrade { command } => command.access(),
             Self::Observe { command } => command.access(),
             Self::Incubate { command } => command.access(),
             Self::Seed { .. }
@@ -801,6 +818,10 @@ fn dispatch(
     stdin: &mut dyn Read,
 ) -> Result<Printed, Failure> {
     match command {
+        Command::Upgrade { command } => {
+            let runtime = source.resolve("upgrade")?.open()?;
+            upgrade::run(command, &runtime, now, stdin)
+        }
         Command::Attention { command } => {
             let runtime = source.resolve("attention")?.open()?;
             attention::run(command, &runtime)
@@ -1085,6 +1106,7 @@ impl Store {
             ..
         } = self.host.clone();
         let (store, tenant) = (&self.store, &tenant);
+        let review_binding = review_host::binding(tenant)?;
         let mut runtime = match (self.backend, access) {
             (Backend::File, Access::Write) => {
                 Runtime::file_existing(store, tenant, context, authority)
@@ -1099,6 +1121,9 @@ impl Store {
                 Runtime::sqlite_reading(store, tenant, context, authority)
             }
         }?;
+        if let Some(binding) = review_binding {
+            runtime = runtime.with_review_authority(binding)?;
+        }
         runtime.set_full_replay(self.full_replay);
         Ok(runtime)
     }

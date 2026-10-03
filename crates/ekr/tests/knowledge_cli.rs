@@ -205,7 +205,16 @@ fn observe_is_a_nested_command_and_schema_keeps_its_existing_surface() {
     use clap::Parser;
     use ekr::cli::{
         AttentionCommand, AttentionKind, Cli, Command, IncubateCommand, ObserveCommand,
+        UpgradeCommand,
     };
+    assert!(matches!(
+        Cli::try_parse_from(["ekr", "upgrade", "preview", "-"])
+            .unwrap()
+            .command,
+        Command::Upgrade {
+            command: UpgradeCommand::Preview { .. }
+        }
+    ));
     assert!(matches!(
         Cli::try_parse_from([
             "ekr",

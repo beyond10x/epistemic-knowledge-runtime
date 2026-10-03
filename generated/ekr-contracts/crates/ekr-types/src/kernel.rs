@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
-// contract digest 281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
+// model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
+// contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
 // do not edit: regenerate with `ess synthesize`
 
 //! Kernel — `ekr.kernel`.
@@ -175,6 +175,19 @@ pub struct AuthorityTransitionRecord {
     pub host_binding_object_hash: ContentHash,
     /// `target_profile_object_hash` — `ekr.kernel.ContentHash`.
     pub target_profile_object_hash: ContentHash,
+}
+
+/// AuthorityUpgradeApplication — `ekr.kernel.AuthorityUpgradeApplication`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorityUpgradeApplication {
+    /// `preview` — `ekr.kernel.UpgradePreview`.
+    pub preview: UpgradePreview,
+    /// `policy` — `ekr.kernel.ReviewerTrustPolicy`.
+    pub policy: ReviewerTrustPolicy,
+    /// `human_proof` — `ekr.kernel.SignedHumanDecision`.
+    pub human_proof: SignedHumanDecision,
+    /// `statement` — `Bytes`.
+    pub statement: Vec<u8>,
 }
 
 /// AuthorityUpgradeTarget — `ekr.kernel.AuthorityUpgradeTarget`.

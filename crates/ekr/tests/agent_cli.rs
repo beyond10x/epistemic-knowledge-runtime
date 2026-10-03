@@ -743,6 +743,18 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ),
         ("mint", &["node", "assertion", "transaction"]),
         (
+            "upgrade",
+            &[
+                "ekr.kernel.AuthorityUpgradeApplication",
+                "ekr upgrade preview",
+                "ekr upgrade apply",
+                "base64",
+                "eight MiB",
+                "docs/cli.md",
+                store,
+            ],
+        ),
+        (
             "attention",
             &[
                 "ekr.kernel.AttentionItem",

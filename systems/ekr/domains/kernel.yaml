@@ -61,12 +61,31 @@ types:
     - name: keys
       type: List<ekr.kernel.ReviewerVerificationKey>
   - name: ekr.kernel.TrustedReviewHostBinding
+    # CLI provisioning: system-owned /etc/ekr/review/<tenant-payload-hash>.json
+    # (/private/etc on macOS), without caller path or owner overrides. Every
+    # ancestor and the regular file must have trusted system ownership and no
+    # group/other write access; symlinks are refused. Embedded hosts supply the
+    # same binding through Runtime::with_review_authority, independently of input.
+    # Provider replay compares it with retained enrollment; decoding grants no
+    # human approval. Authored but unexecuted at this resource-held checkpoint:
+    # runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust,
+    # protected_chain_checks_every_owner_mode_kind_and_size_before_reading.
     kind: struct
     fields:
     - name: audience
       type: ekr.kernel.HumanDecisionAudience
     - name: reviewer_policy_digest
       type: ekr.kernel.ContentHash
+  # The CLI/session/SDK transport document carries public review material only.
+  # Policy bytes must match the independent host binding; including a policy here
+  # never enrolls it or grants approval. The statement is encoded as base64 JSON Bytes.
+  - name: ekr.kernel.AuthorityUpgradeApplication
+    kind: struct
+    fields:
+    - {name: preview, type: ekr.kernel.UpgradePreview}
+    - {name: policy, type: ekr.kernel.ReviewerTrustPolicy}
+    - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
+    - {name: statement, type: Bytes}
   - name: ekr.kernel.AttentionAnswerTarget
     kind: struct
     fields:

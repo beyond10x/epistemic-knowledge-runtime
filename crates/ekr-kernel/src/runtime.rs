@@ -17,6 +17,70 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Installs the deployment's independently provisioned reviewer binding for this runtime.
+    /// Call before reading an upgraded lineage. This consumes the previous runtime and clears
+    /// its replay admission cache; the original seed authority and provider stay unchanged.
+    /// Request content, an agent-supplied host file, or a decoded proof must never select this
+    /// binding. Retained enrollment is checked against it on every subsequent replay.
+    /// # Errors
+    /// Malformed reviewer binding or invalid original authority.
+    pub fn with_review_authority(
+        self,
+        binding: ekr_core::contracts::kernel::TrustedReviewHostBinding,
+    ) -> Result<Self, StoreError> {
+        let backend = match self.backend {
+            Backend::File(kernel) => {
+                let Commit { store, authority } = *kernel;
+                Backend::File(Box::new(Commit::over_with_review_authority(
+                    authority.context,
+                    authority.anchor,
+                    binding,
+                    |authority| Ok(store.under(authority)),
+                )?))
+            }
+            Backend::Sqlite(kernel) => {
+                let Commit { store, authority } = *kernel;
+                Backend::Sqlite(Box::new(Commit::over_with_review_authority(
+                    authority.context,
+                    authority.anchor,
+                    binding,
+                    |authority| Ok(store.under(authority)),
+                )?))
+            }
+        };
+        Ok(Self { backend })
+    }
+    /// Previews an explicit upgrade under the independently provisioned reviewer policy digest.
+    /// No revision or human decision is written.
+    /// # Errors
+    /// Unprovisioned or mismatched reviewer trust, invalid history or unsupported transition.
+    pub fn preview_upgrade(
+        &self,
+        policy: &ekr_core::contracts::kernel::ReviewerTrustPolicy,
+    ) -> Result<ekr_core::contract_data::EkrKernelUpgradePreview, crate::CommitError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.preview_upgrade(policy),
+            Backend::Sqlite(kernel) => kernel.preview_upgrade(policy),
+        }
+    }
+    /// Applies the exact signed preview through the kernel's atomic authority-transition path.
+    /// A retained retry returns the original record without consulting the clock.
+    /// # Errors
+    /// Invalid proof or reviewer trust, stale preview, read-only store or publication failure.
+    pub fn apply_upgrade(
+        &self,
+        preview: &ekr_core::contract_data::EkrKernelUpgradePreview,
+        policy: &ekr_core::contracts::kernel::ReviewerTrustPolicy,
+        proof: &ekr_core::contracts::kernel::SignedHumanDecision,
+        statement: &[u8],
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrKernelAuthorityTransitionRecord, crate::CommitError>
+    {
+        match &self.backend {
+            Backend::File(kernel) => kernel.apply_upgrade(preview, policy, proof, statement, now),
+            Backend::Sqlite(kernel) => kernel.apply_upgrade(preview, policy, proof, statement, now),
+        }
+    }
     /// Lists evidence-backed questions without creating queue state or canonical revisions.
     /// # Errors
     /// Invalid history, missing retained evidence or provider failure.

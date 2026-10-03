@@ -726,7 +726,8 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
         Command::ApplyExtraction { .. } => Err(verb_refused("apply-extraction")),
-        Command::Attention { .. }
+        Command::Upgrade { .. }
+        | Command::Attention { .. }
         | Command::Observe { .. }
         | Command::Incubate { .. }
         | Command::Propose { .. }

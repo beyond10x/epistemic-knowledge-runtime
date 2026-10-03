@@ -503,6 +503,90 @@ fn upgrade_preserves_historical_rules_hashes_and_requires_revalidation() {
     });
 }
 
+#[test]
+fn runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust() {
+    use ekr_kernel::Runtime;
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory
+            .path()
+            .join(if sqlite { "store.db" } else { "store" });
+        let old = if sqlite {
+            Runtime::sqlite(&path, "upgrade-fixture", context(), anchor())
+        } else {
+            Runtime::file(&path, "upgrade-fixture", context(), anchor())
+        }
+        .unwrap();
+        let seeded = old.seed(seed(), || Timestamp::EPOCH).unwrap();
+        let original = old.snapshot().unwrap();
+        let human = Human::new(seeded.seed_hash);
+        assert!(old.preview_upgrade(&human.policy).is_err());
+        let runtime = old.with_review_authority(human.binding.clone()).unwrap();
+        let preview = runtime.preview_upgrade(&human.policy).unwrap();
+        assert_eq!(preview.contradictions.len(), 1);
+        let proof = human.proof(&preview);
+        let receipt = runtime
+            .apply_upgrade(
+                &preview,
+                &human.policy,
+                &proof,
+                b"reviewed contradictions and pending validations",
+                || Timestamp::from_millis(1),
+            )
+            .unwrap();
+        assert_eq!(
+            runtime
+                .apply_upgrade(
+                    &preview,
+                    &human.policy,
+                    &proof,
+                    b"reviewed contradictions and pending validations",
+                    || panic!("a retained upgrade retry must not call the clock"),
+                )
+                .unwrap(),
+            receipt
+        );
+        let head = runtime.head().unwrap();
+        let questions = runtime.attention().unwrap();
+        assert_eq!(questions.len(), 1);
+        assert_eq!(questions[0].claims.len(), 2);
+        drop(runtime);
+        for reading in [false, true] {
+            for full in [false, true] {
+                let open = || {
+                    match (sqlite, reading) {
+                        (false, false) => {
+                            Runtime::file_existing(&path, "upgrade-fixture", context(), anchor())
+                        }
+                        (false, true) => {
+                            Runtime::file_reading(&path, "upgrade-fixture", context(), anchor())
+                        }
+                        (true, false) => {
+                            Runtime::sqlite_existing(&path, "upgrade-fixture", context(), anchor())
+                        }
+                        (true, true) => {
+                            Runtime::sqlite_reading(&path, "upgrade-fixture", context(), anchor())
+                        }
+                    }
+                    .unwrap()
+                };
+                assert!(
+                    open().head().is_err(),
+                    "retained proof is not host provisioning"
+                );
+                let mut wrong = human.binding.clone();
+                wrong.reviewer_policy_digest = hash(b"untrusted replacement policy");
+                assert!(open().with_review_authority(wrong).unwrap().head().is_err());
+                let mut reopened = open().with_review_authority(human.binding.clone()).unwrap();
+                reopened.set_full_replay(full);
+                assert_eq!(reopened.head().unwrap(), head);
+                assert_eq!(reopened.attention().unwrap(), questions);
+                assert_eq!(reopened.replay(RevisionNumber::SEED).unwrap(), original);
+            }
+        }
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct RetryPlan {
     file: bool,

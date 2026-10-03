@@ -54,6 +54,36 @@ pub struct Knowledge<T: Transport> {
 }
 
 impl<T: Transport> Knowledge<T> {
+    /// Previews the supported authority upgrade using public policy material. The runtime must
+    /// already have an independently provisioned binding to this exact policy digest.
+    /// # Errors
+    /// Serialization, transport, unprovisioned trust, runtime refusal or invalid response.
+    pub fn preview_upgrade(
+        &mut self,
+        policy: &crate::contracts::EkrKernelReviewerTrustPolicy,
+    ) -> Result<crate::contracts::EkrKernelUpgradePreview, ReadError> {
+        let text = serde_json::to_string(policy).map_err(|source| ReadError::Document {
+            verb: "upgrade preview".into(),
+            source,
+        })?;
+        Reader::new(&mut self.transport)
+            .read_request(Request::new(["upgrade", "preview", "-"]).with_stdin(text))
+    }
+    /// Applies an exact externally signed review through ordinary CLI/session transport.
+    /// This client never signs a decision, selects a trusted reviewer or upgrades implicitly.
+    /// # Errors
+    /// Serialization, transport, invalid proof or stale basis, runtime refusal or invalid response.
+    pub fn apply_upgrade(
+        &mut self,
+        input: &crate::contracts::EkrKernelAuthorityUpgradeApplication,
+    ) -> Result<crate::contracts::EkrKernelAuthorityTransitionRecord, ReadError> {
+        let text = serde_json::to_string(input).map_err(|source| ReadError::Document {
+            verb: "upgrade apply".into(),
+            source,
+        })?;
+        Reader::new(&mut self.transport)
+            .read_request(Request::new(["upgrade", "apply", "-"]).with_stdin(text))
+    }
     /// Lists unresolved questions with the kernel's exact evidence-bound review basis.
     /// # Errors
     /// Transport failure, invalid retained state or an invalid response document.
