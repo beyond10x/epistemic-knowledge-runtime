@@ -20,7 +20,8 @@
          font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
          display: grid; --left-w: 290px; --right-w: 360px; --strip: 20px; grid-template-columns: var(--left-w) 1fr var(--right-w); }
   aside { overflow: auto; background: var(--surface-1); padding: 16px 14px; }
-  aside.left { border-right: 1px solid var(--line); }
+  /* Keep the reader's position when hiding/restoring rewraps text at the scrollbar boundary. */
+  aside.left { border-right: 1px solid var(--line); overflow-anchor: none; }
   aside.right { border-left: 1px solid var(--line); }
   /* ---- compact: a sidebar collapses to a strip at its edge, which restores it ---- */
   aside.left, #leftStrip { grid-column: 1; grid-row: 1; }
