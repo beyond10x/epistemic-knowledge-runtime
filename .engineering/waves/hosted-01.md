@@ -72,6 +72,14 @@ are recorded before source publication.
 
 ## Required verification
 
+HTTP unit `a3a4f23079` is integrated at `45e6a2e143`. The implementor's final report records
+180 affected tests passing with no failures or ignored cases, plus four final queue tests after
+the private type-alias correction. Format and all-target package clippy passed. Independent
+`review-result:hosted-http-final-2` records a direct 13-case process run and closes both original
+contract findings, with the admission-order regression's red and green runs retained.
+Subscription-backed Codex called `head` on a synthetic loopback HTTP store; Claude Code's
+connection health check succeeded without a model request. Hosted consumer acceptance is pending.
+
 Real PostgreSQL with verified TLS and distinct schema/application authority; preserving source
 snapshot, all logical revision roots and evidence bytes; interrupted copy refusal; credential
 redaction; compatible File/SQLite and SDK behavior. Exact case names are in the story.

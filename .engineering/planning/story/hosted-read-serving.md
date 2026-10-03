@@ -8,6 +8,14 @@ relations:
 - serves: vision:o5
 - derived_from: task:hosted-postgres-copy-and-read-serving
 scope:
+- confidence: cited
+  path: CHANGELOG.md
+- confidence: cited
+  path: Cargo.lock
+- confidence: cited
+  path: Cargo.toml
+- confidence: cited
+  path: README.md
 - confidence: inferred
   path: crates/ekr/src/cli/http.rs
 - confidence: cited
@@ -34,9 +42,11 @@ scope:
   path: docs/cli.md
 - confidence: cited
   path: docs/epistemic-knowledge-runtime-design.md
+- confidence: cited
+  path: docs/overview.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 11
+revision: 13
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:14:16Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T01:27:02Z", actor: "agent:codex", revision: 9}
@@ -70,3 +80,7 @@ Search-first entry design is separate from changing transport. Incremental publi
 Read-only inspection confirms `crates/ekr/src/cli/session.rs` must refuse the new long-running verb in its exhaustive dispatch. Existing viewer suites are `tests/view_cli.rs` and `tests/view_stream.rs`, not `tests/view.rs`. The former deliberately forbids `--bind`; replace that old interface assertion while preserving loopback defaults, Host checks and ephemeral-port output. New queue admission must be bounded independently of connection timeouts, and discard expired jobs before store work. Preserve NDJSON streaming separately. Do not silently map a missing MCP protocol header to the newest revision: the stateless fallback in the transport specification is 2025-03-26, which this implementation does not support. Document and test an explicit missing-header policy compatible with the versions it advertises.
 
 The existing viewer has whole-revision name/alias search, clickable details and evidence, but remains graph-oriented and loads graph libraries during startup. This transport story does not claim a search-first UI or natural-language answering.
+
+## Release integration scope
+
+The authorized source release updates Cargo.toml and Cargo.lock, the release section in CHANGELOG.md, README.md and docs/overview.md to the new released interface. These existing release surfaces are cited; docs_cli.rs already guards the README version. Root owns these changes after the search unit is integrated, then runs the combined release gate. No source tag is described as released before its remote verification.

@@ -6,6 +6,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **Read-only HTTP MCP** is available through `ekr mcp-http`, alongside existing stdio
+  tools. The viewer and HTTP MCP support explicit listeners and exact Host/Origin admission,
+  bounded connections and request queues, and separate liveness and store readiness endpoints.
+  External authentication and private routing remain operator responsibilities.
 - **Hosted PostgreSQL stores** are available through the runtime, SDK and CLI. An
   `ekr.postgres/1` file references connection credentials and trusted CA certificates;
   connections verify the server name and certificate and use bounded pools and deadlines.
