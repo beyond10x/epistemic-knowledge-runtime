@@ -974,6 +974,157 @@ fn a_scrolled_sidebar_keeps_its_scroll_position_through_collapse_and_restore() {
     driven.no_errors();
 }
 
+/// Reproduce the wrap boundary across fonts, before assigning either sidebar's scroll position.
+/// The text fits without the scrollbar and wraps with it; neither a particular font nor a
+/// particular scrollbar width is assumed. All changes use declarative styles through native CDP.
+fn calibrate_roles_wrap_at_scrollbar(driven: &mut Driven) {
+    fn pixels(computed: &Value, name: &str) -> f64 {
+        computed["result"]["computedStyle"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|property| property["name"] == name)
+            .unwrap()["value"]
+            .as_str()
+            .unwrap()
+            .trim_end_matches("px")
+            .parse()
+            .unwrap()
+    }
+    fn width(quad: &Value) -> f64 {
+        quad[2].as_f64().unwrap() - quad[0].as_f64().unwrap()
+    }
+    fn style(driven: &mut Driven, node: &Value, value: &str) {
+        let reply = driven.call(
+            "DOM.setAttributeValue",
+            json!({"nodeId": node, "name": "style", "value": value}),
+        );
+        assert!(
+            reply.get("error").is_none(),
+            "apply layout precondition: {reply}"
+        );
+    }
+    driven.call("DOM.enable", json!({}));
+    driven.call("CSS.enable", json!({}));
+    let document = driven.call("DOM.getDocument", json!({"depth": 0}));
+    let root = &document["result"]["root"]["nodeId"];
+    let left = driven.call(
+        "DOM.querySelector",
+        json!({"nodeId": root, "selector": "aside.left"}),
+    )["result"]["nodeId"]
+        .clone();
+    let roles = driven.call(
+        "DOM.querySelector",
+        json!({"nodeId": root, "selector": "#run"}),
+    )["result"]["nodeId"]
+        .clone();
+    let box_model = driven.call("DOM.getBoxModel", json!({"nodeId": left}));
+    let model = &box_model["result"]["model"];
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": left}));
+    let narrow = width(&model["content"]);
+    let wide = width(&model["padding"])
+        - pixels(&computed, "padding-left")
+        - pixels(&computed, "padding-right");
+    assert!(
+        wide > narrow,
+        "the sidebar has a physical scrollbar: narrow={narrow}, wide={wide}"
+    );
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": roles}));
+    let original_size = pixels(&computed, "font-size");
+    style(
+        driven,
+        &roles,
+        "display:inline-block;white-space:nowrap;width:max-content",
+    );
+    let intrinsic = driven.call("DOM.getBoxModel", json!({"nodeId": roles}));
+    let intrinsic = width(&intrinsic["result"]["model"]["content"]);
+    let calibrated = original_size * (narrow + wide) / 2.0 / intrinsic;
+    style(driven, &roles, &format!("font-size:{calibrated}px"));
+
+    // Prove the actual layout crosses that boundary; font metric rounding cannot silently
+    // turn this into an ordinary nonwrapping case.
+    style(driven, &left, "overflow-y:hidden");
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": roles}));
+    let unwrapped = pixels(&computed, "height");
+    let line = pixels(&computed, "line-height");
+    assert!(
+        unwrapped < line * 1.5,
+        "without the scrollbar the roles text is one line: height={unwrapped}, line={line}"
+    );
+    let reply = driven.call(
+        "DOM.removeAttribute",
+        json!({"nodeId": left, "name": "style"}),
+    );
+    assert!(
+        reply.get("error").is_none(),
+        "restore original sidebar style: {reply}"
+    );
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": roles}));
+    let wrapped = pixels(&computed, "height");
+    assert!(
+        wrapped > line * 1.5,
+        "with the scrollbar the roles text wraps: height={wrapped}, line={line}"
+    );
+}
+
+#[test]
+fn a_wrapped_roles_line_preserves_scroll_across_sidebar_restore() {
+    let browser = need_browser!();
+    let (_front, mut driven) = opened(&browser, "#view=2d", None);
+    let node = driven.eval("__viewer.graph.nodes().sort((a, b) => __viewer.graph.degree(b) - __viewer.graph.degree(a))[0]");
+    driven.eval(&format!(
+        "history.pushState(null, '', '#view=2d&node={}'); dispatchEvent(new PopStateEvent('popstate'))",
+        node.as_str().unwrap()
+    ));
+    assert!(
+        driven.wait_for("!!document.querySelector('#panel h1')", 30),
+        "a node is open"
+    );
+    // a short window, so both sidebars scroll
+    driven.metrics(1600, 260);
+    assert!(
+        driven.wait_for(
+            "(l => l.scrollHeight > l.clientHeight + 120)(document.querySelector('aside.left')) \
+             && (r => r.scrollHeight > r.clientHeight + 40)(document.getElementById('panel'))",
+            20
+        ),
+        "both sidebars overflow: {}",
+        driven.eval("[document.querySelector('aside.left').scrollHeight, document.querySelector('aside.left').clientHeight, document.getElementById('panel').scrollHeight, document.getElementById('panel').clientHeight]")
+    );
+    calibrate_roles_wrap_at_scrollbar(&mut driven);
+    let before = driven.eval(
+        "(l => { l.scrollTop = 120; const r = document.getElementById('panel'); r.scrollTop = 40; return [l.scrollTop, r.scrollTop]; })(document.querySelector('aside.left'))",
+    );
+    assert_eq!(before, json!([120, 40]), "both sidebars scrolled");
+    // Keep the normal assertion path free of layout-forcing diagnostic calls.
+    let diagnostics = std::env::var_os("EKR_COMPACT_DIAGNOSTICS").is_some();
+    let diagnostic_before = diagnostics.then(|| driven.sidebar_diagnostic());
+    driven.key("c", "KeyC", 0);
+    measured_when(&mut driven, "m.left === 0 && m.right === 0", "collapsed");
+    let diagnostic_collapsed = diagnostics.then(|| driven.sidebar_diagnostic());
+    driven.eval("document.getElementById('leftStrip').click(); document.getElementById('rightStrip').click()");
+    measured_when(&mut driven, "m.left > 0 && m.right > 0", "restored");
+    let after = driven.eval(
+        "[document.querySelector('aside.left').scrollTop, document.getElementById('panel').scrollTop]",
+    );
+    if after != before || diagnostics {
+        eprintln!(
+            "compact sidebar diagnostic: {}",
+            json!({
+                "before": before, "after": after,
+                "before_layout": diagnostic_before,
+                "collapsed_layout": diagnostic_collapsed,
+                "restored_layout": driven.sidebar_diagnostic(),
+            })
+        );
+    }
+    assert_eq!(
+        after, before,
+        "the sidebars' scroll positions [left, right] before the collapse and after the restore"
+    );
+    driven.no_errors();
+}
+
 /// In a narrow window compact mode gives the graph all but the two strips, and a restore gives
 /// the sidebars back without an error.
 #[test]
