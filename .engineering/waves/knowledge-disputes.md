@@ -42,3 +42,8 @@ locally; compilation and implementation checks have not run under the coordinate
 The previous published integration checkpoint remains the PR head. The unit review record
 `knowledge-upgrade-surface/README.md` names actual lightweight checks and the unexecuted queue.
 Do not publish this increment as verified or treat earlier conformance digests as current.
+
+
+## Authored B conformance resource checkpoint
+
+Unit 36739a32eee65d70be5c0e46c6ac36af0c0c4df4 adds the named upgrade scenarios, real reopen/full-replay adapter, original-byte/event-prefix checks and an inert-target detector. The A suite was regenerated at the current digest. Repeat synthesis, member formatting and whitespace checks passed; compilation, actual reports and mutation detection remain unexecuted under the disk hold. The preceding public upgrade interface is also awaiting execution. See the unit's knowledge-upgrade-conformance review record. No new build lane or additional PR was started, and no source is claimed ready for publication.

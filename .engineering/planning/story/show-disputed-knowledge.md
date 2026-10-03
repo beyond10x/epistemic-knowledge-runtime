@@ -14,6 +14,8 @@ scope:
   path: Cargo.lock
 - confidence: cited
   path: Cargo.toml
+- confidence: cited
+  path: Taskfile.yml
 - confidence: inferred
   path: crates/ekr
 - confidence: inferred
@@ -32,7 +34,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 18
+revision: 20
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -132,3 +134,13 @@ Specification validation, regeneration, offline dependency resolution, formattin
 Implementation tests, compilation and Clippy are unexecuted because the coordinator's disk hold remains in force. Shared space fell below the agreed floor while other owners' build processes remained live. The owned EKR target had already been cleaned; no new lane started. This checkpoint is local, not published or integrated, and no acceptance or lifecycle completion is claimed.
 
 Next run authority_upgrade and human_review, CLI upgrade/review_host unit tests, SDK/session transport and CLI inventory checks, then workspace Clippy and current-digest conformance. The in-process session test uses explicit host provisioning over real native providers, not a production root provisioning or child-process demonstration. Public provisioning/dispute viewer demonstrations, B conformance and native crash recovery remain, followed by C-F and the complete release gate. Keep the existing single PR and ESS release ownership boundaries.
+
+## Named upgrade conformance awaiting execution
+
+Local unit checkpoint 36739a32eee65d70be5c0e46c6ac36af0c0c4df4 authors the B scenarios and a native Runtime adapter that reopens file and SQLite stores with full replay on each command and view query. The three authored expectations check symmetric property/relation competitors, equal/disjoint/Many exclusions, settled counts and original revision roots. Teardown also compares original retained content bytes and the published event prefix. The test-only human signer supplies its exact reviewed input before the scenario; expected post-state verdicts come from ESS source. An inert target that accepts commands without events or state must fail every selected scenario. That failure has not yet been executed or observed.
+
+Synthesis reports authored=3, generated=115, refused=0; these are synthesis counts, not execution or coverage counts. Suite version ess-conformance/19; spec_digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad; contract_digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6. The A suite was regenerated at the same digest, but no fresh runtime report is claimed. Member rustfmt, whitespace checks and repeat synthesis passed. Detailed limits are in .engineering/reviews/knowledge-upgrade-conformance/ in the unit checkpoint.
+
+The Taskfile conformance target already runs conformance_knowledge; its freshness gate now also compares the authored upgrade suite. Taskfile.yml is an observed shared gate surface added to machine-readable scope. The existing ESS 0.36.0 prerequisite still needs coordinated adoption of a verified released generator before the final gate can succeed.
+
+The resource hold remains in effect. Owned completed build targets are absent; no further space was reclaimed and no other owner's cache or process was changed. These new tests and the preceding upgrade surface are uncompiled, unexecuted and local only. Next: focused compilation/tests, actual inert-target failure, production mutation checks, fresh reports, native crash recovery and public dispute-viewer inspection, then the remaining C-F delivery. Keep the original complete scope, single PR and ESS ownership boundaries.
