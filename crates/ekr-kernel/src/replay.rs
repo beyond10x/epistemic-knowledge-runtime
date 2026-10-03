@@ -71,6 +71,9 @@ impl TransactionRecord {
 /// changes one ([`Self::transactions_mut`]). A read shares them and never copies them.
 #[derive(Clone)]
 pub(crate) struct ReplayState {
+    /// Immutable reviewed answers, in publication revision order.
+    pub(crate) answers:
+        BTreeMap<RevisionNumber, ekr_core::contract_data::EkrKernelHumanAnswerRecord>,
     pub(crate) upgraded_authority: Option<AuthorityStateV1>,
     pub(crate) transition: Option<ekr_core::contract_data::EkrKernelAuthorityTransitionRecord>,
     pub(crate) assessment_validators: BTreeMap<ekr_core::AssertionId, BTreeSet<AgentId>>,
@@ -1033,6 +1036,7 @@ impl KernelAuthority {
                 );
             }
             let state = ReplayState {
+                answers: BTreeMap::new(),
                 upgraded_authority: None,
                 transition: None,
                 assessment_validators: BTreeMap::new(),

@@ -172,7 +172,34 @@ impl Pipeline {
     ) -> Self {
         Self {
             validators: vec![
-                Box::new(structural::IdentityStructural { held }),
+                Box::new(structural::IdentityStructural {
+                    held,
+                    reviewed_withdrawals: None,
+                }),
+                Box::new(Reference),
+                Box::new(Types),
+                Box::new(Cardinality),
+                Box::new(schema::SchemaOntology { lineage }),
+                Box::new(Provenance),
+                Box::new(Authorization { actor }),
+            ],
+        }
+    }
+
+    /// Private reviewed path. Its sole production caller derives these withdrawals from the
+    /// exact enrolled human proof and a verified canonical capture; ordinary profiles pass None.
+    pub(crate) fn reviewed_answer(
+        actor: AgentId,
+        lineage: BTreeSet<SchemaVersionId>,
+        held: HeldIdentities,
+        withdrawals: BTreeSet<ekr_core::AssertionId>,
+    ) -> Self {
+        Self {
+            validators: vec![
+                Box::new(structural::IdentityStructural {
+                    held,
+                    reviewed_withdrawals: Some(withdrawals),
+                }),
                 Box::new(Reference),
                 Box::new(Types),
                 Box::new(Cardinality),

@@ -193,7 +193,17 @@ impl VerifiedRead {
 }
 
 fn disputes(read: &VerifiedRead) -> Result<Vec<EkrKernelAttentionItem>, StoreError> {
-    let graph = &read.graph;
+    disputes_at(&read.graph, read.root.revision, |hash| {
+        read.content(hash)
+            .ok_or_else(|| error("missing retained evidence bytes"))
+    })
+}
+
+pub(crate) fn disputes_at<'a>(
+    graph: &ekr_graph::CanonicalGraph,
+    revision: RevisionNumber,
+    content: impl Fn(&ContentHash) -> Result<&'a [u8], StoreError>,
+) -> Result<Vec<EkrKernelAttentionItem>, StoreError> {
     let mut adjacency = BTreeMap::<AssertionId, BTreeSet<AssertionId>>::new();
     for claim in graph.assertions.values() {
         if !matches!(claim.lifecycle, AssertionLifecycle::Active)
@@ -263,9 +273,7 @@ fn disputes(read: &VerifiedRead) -> Result<Vec<EkrKernelAttentionItem>, StoreErr
                 .evidence
                 .get(id)
                 .ok_or_else(|| error("missing claim evidence"))?;
-            let payload = read
-                .content(&evidence.content_hash)
-                .ok_or_else(|| error("missing retained evidence bytes"))?;
+            let payload = content(&evidence.content_hash)?;
             evidence_material.push((evidence, payload));
             if let EvidenceSource::Observation(id) = evidence.source {
                 observation_ids.insert(id);
@@ -323,7 +331,7 @@ fn disputes(read: &VerifiedRead) -> Result<Vec<EkrKernelAttentionItem>, StoreErr
             subject: Box::new(subject),
             question: format!("Which value for {name} on {about} is correct, and during which dates? Select a supported claim, retract an incorrect claim, correct its time, or leave this unresolved."),
             basis: Box::new(EkrKernelReviewBasis {
-                observed_revision: Box::new(EkrKernelRevisionNumber(read.root.revision.get().into())),
+                observed_revision: Box::new(EkrKernelRevisionNumber(revision.get().into())),
                 evidence_digest: digest("ekr.attention.dispute-evidence/1", &(&support, &evidence_material))?,
                 options_digest: digest("ekr.attention.dispute-options/1", &claims)?,
                 effects_digest: digest("ekr.attention.dispute-effects/1", &(&component, &declaration))?,

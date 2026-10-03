@@ -3,7 +3,7 @@ use super::issue;
 use crate::{GraphOperation, GraphTransaction, ValidationIssue, ValidatorName};
 use ekr_core::AssertionId;
 use ekr_graph::{AssertionLifecycle, Assessment, GraphSnapshot, TemporalRange};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone)]
 struct Claim {
     accepted: bool,
@@ -13,7 +13,11 @@ struct Claim {
     // alike, so it reads both sides in the one shape they share.
     lifecycle: AssertionLifecycle<AssertionId>,
 }
-pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<ValidationIssue> {
+pub(super) fn check(
+    snapshot: &GraphSnapshot<'_>,
+    tx: &GraphTransaction,
+    reviewed: Option<&BTreeSet<AssertionId>>,
+) -> Vec<ValidationIssue> {
     // Every refusal below is raised for a `RetractAssertion` or a `SupersedeAssertion`, so a
     // transaction carrying neither has nothing to answer, and copying every claim of the graph to
     // say so cost each validation the size of the graph.
@@ -73,7 +77,14 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
             ));
         }
         if let Some(claim) = claims.get(&id) {
-            if !claim.accepted || !claim.active {
+            let reviewed_retraction = reviewed.is_some_and(|ids| ids.contains(&id))
+                && matches!(op, GraphOperation::RetractAssertion(_))
+                && snapshot.graph().assertions.get(&id).is_some_and(|held| {
+                    matches!(held.assessment, Assessment::Disputed { .. })
+                        && matches!(held.lifecycle, AssertionLifecycle::Active)
+                        && held.transaction_time.is_open()
+                });
+            if (!claim.accepted || !claim.active) && !reviewed_retraction {
                 issues.push(issue(
                     tx,
                     ValidatorName::Structural,
