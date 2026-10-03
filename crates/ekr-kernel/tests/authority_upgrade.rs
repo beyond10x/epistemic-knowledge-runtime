@@ -1200,3 +1200,322 @@ fn upgrade_survives_process_kill_at_native_publication_boundaries() {
         }
     }
 }
+
+fn answer_decision(
+    human: &Human,
+    read: &ekr_kernel::VerifiedRead,
+    corrections: &[m::ClaimCorrection],
+) -> review::VerifiedDecision {
+    let question = read.dispute_attention().unwrap().remove(0);
+    let ekr_core::contract_data::EssPresence::Present(id) = &question.subject.dispute_id else {
+        panic!("dispute")
+    };
+    let basis = m::ReviewBasis {
+        observed_revision: m::RevisionNumber(question.basis.observed_revision.0.as_i64().unwrap()),
+        evidence_digest: m::ContentHash(question.basis.evidence_digest.0.clone()),
+        options_digest: m::ContentHash(question.basis.options_digest.0.clone()),
+        effects_digest: m::ContentHash(question.basis.effects_digest.0.clone()),
+    };
+    let target = m::HumanDecisionTarget::AnswerAttention(m::AttentionAnswerTarget {
+        dispute_id: m::DisputeId(Uuid(id.0.clone())),
+        basis,
+        corrections_digest: hash(&review::corrections_bytes(corrections).unwrap()),
+    });
+    let intent = m::HumanDecisionIntent {
+        format: m::HumanDecisionFormat::HumanDecision1,
+        decision_id: Uuid(ekr_core::EventId::mint().to_string()),
+        audience: human.binding.audience.clone(),
+        reviewer_policy_digest: human.binding.reviewer_policy_digest.clone(),
+        signer_key_digest: hash(human.key.public_key().as_ref()),
+        target: target.clone(),
+        statement_digest: hash(b"reviewed correction"),
+        expected_previous_decision: None,
+    };
+    let signature = human
+        .key
+        .sign(&review::signing_bytes(&intent).unwrap())
+        .as_ref()
+        .to_vec();
+    review::Reviewer::from_host(&human.binding, human.policy.clone())
+        .unwrap()
+        .verify(
+            &m::SignedHumanDecision {
+                intent,
+                algorithm: m::ReviewSignatureAlgorithm::Ed25519,
+                signature,
+            },
+            &target,
+            b"reviewed correction",
+            None,
+        )
+        .unwrap()
+}
+fn derive_answers<S: RevisionLog + ObjectStore + Initialize>(
+    open: impl Fn(Option<m::TrustedReviewHostBinding>) -> Commit<S>,
+) {
+    use ekr_core::contracts::{graph as g, primitives};
+    let mut doc = seed();
+    for claim in doc.graph.assertions.values_mut() {
+        claim.valid_time =
+            TemporalRange::new(Some(Timestamp::EPOCH), Some(Timestamp::from_millis(100))).unwrap();
+    }
+    let original = doc
+        .graph
+        .assertions
+        .values()
+        .find(|a| a.object == Object::Value(Value::String("green".into())))
+        .unwrap()
+        .clone();
+    let chosen = original.id;
+    let mut equal = original.clone();
+    equal.id = AssertionId::mint();
+    let equal_id = equal.id;
+    doc.graph.assertions.insert(equal.id, equal);
+    let mut third = original.clone();
+    third.id = AssertionId::mint();
+    third.object = Object::Value(Value::String("amber".into()));
+    doc.graph.assertions.insert(third.id, third);
+    let mut later = original.clone();
+    later.id = AssertionId::mint();
+    let later_id = later.id;
+    later.valid_time = TemporalRange::new(
+        Some(Timestamp::from_millis(100)),
+        Some(Timestamp::from_millis(200)),
+    )
+    .unwrap();
+    doc.graph.assertions.insert(later.id, later);
+    let old = open(None);
+    let attached = *doc
+        .graph
+        .evidence
+        .keys()
+        .find(|id| !original.evidence.contains(id))
+        .unwrap();
+    let seed = old.seed(doc, || Timestamp::EPOCH).unwrap();
+    let attach = GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations: vec![GraphOperation::AttachEvidence(
+            ekr_kernel::EvidenceAttachment {
+                assertion: chosen,
+                evidence: attached,
+            },
+        )],
+        evidence: BTreeSet::from([attached]),
+        schema_version: None,
+    };
+    old.propose(&encode(&attach), context().operator, || Timestamp::EPOCH)
+        .unwrap();
+    assert!(matches!(
+        old.validate(attach.id, RevisionNumber::SEED, || Timestamp::EPOCH)
+            .unwrap(),
+        ValidationCommandResult::Validated(_)
+    ));
+    assert!(matches!(
+        old.commit(attach.id, context().operator, || Timestamp::EPOCH)
+            .unwrap(),
+        CommitCommandResult::Committed(_)
+    ));
+    drop(old);
+    let mut human = Human::new(seed.seed_hash);
+    human.policy.keys[0]
+        .scopes
+        .insert(0, m::HumanDecisionScope::AnswerAttention);
+    human.binding.reviewer_policy_digest = hash(&review::policy_bytes(&human.policy).unwrap());
+    let kernel = open(Some(human.binding.clone()));
+    let preview = kernel.preview_upgrade(&human.policy).unwrap();
+    kernel
+        .apply_upgrade(
+            &preview,
+            &human.policy,
+            &human.proof(&preview),
+            b"reviewed contradictions and pending validations",
+            || Timestamp::from_millis(1),
+        )
+        .unwrap();
+    let read = kernel.read(None).unwrap();
+    let before = (*read.graph).clone();
+    let head = kernel.head().unwrap();
+    let statement = EvidenceId::mint();
+    let choose = m::ClaimCorrection {
+        kind: m::ClaimCorrectionKind::Choose,
+        assertion_id: g::AssertionId(Uuid(chosen.to_string())),
+        valid_from: None,
+        valid_to: None,
+        reason: "retained support favors this claim".into(),
+    };
+    let derive = |corrections: &[m::ClaimCorrection], replacements: &[m::ClaimReplacement]| {
+        answer_decision(&human, &read, corrections).correction_operations(
+            &read,
+            corrections,
+            replacements,
+            statement,
+        )
+    };
+    let chosen_ops = derive(std::slice::from_ref(&choose), &[]).unwrap();
+    let expected: BTreeSet<_> = read
+        .graph
+        .assertions
+        .values()
+        .filter(|a| {
+            a.object != read.graph.assertions[&chosen].object && a.valid_time == original.valid_time
+        })
+        .map(|a| a.id)
+        .collect();
+    assert_eq!(expected.len(), 2);
+    let actual: BTreeSet<_> = chosen_ops
+        .iter()
+        .map(|op| match op {
+            GraphOperation::RetractAssertion(r) => r.assertion,
+            _ => panic!("choose only withdraws competitors"),
+        })
+        .collect();
+    assert_eq!(actual, expected);
+    assert!(!actual.contains(&equal_id));
+    assert!(!actual.contains(&later_id));
+    let mut second_choice = choose.clone();
+    second_choice.assertion_id = g::AssertionId(Uuid(equal_id.to_string()));
+    assert_eq!(
+        derive(&[choose.clone(), second_choice], &[]).unwrap(),
+        chosen_ops
+    );
+    let competitor = *expected.first().unwrap();
+    let mut conflicting = choose.clone();
+    conflicting.assertion_id = g::AssertionId(Uuid(competitor.to_string()));
+    assert!(derive(&[choose.clone(), conflicting], &[]).is_err());
+    let mut retract = choose.clone();
+    retract.kind = m::ClaimCorrectionKind::Retract;
+    let ops = derive(std::slice::from_ref(&retract), &[]).unwrap();
+    assert!(matches!(&ops[..], [GraphOperation::RetractAssertion(r)] if r.assertion == chosen));
+    assert!(derive(&[choose.clone(), retract], &[]).is_err());
+    let mut unresolved = choose.clone();
+    unresolved.kind = m::ClaimCorrectionKind::Unresolved;
+    assert!(derive(std::slice::from_ref(&unresolved), &[])
+        .unwrap()
+        .is_empty());
+    assert!(derive(&[choose.clone(), unresolved], &[]).is_err());
+    assert!(derive(&[], &[]).is_err());
+    let mut outside = choose.clone();
+    outside.assertion_id = g::AssertionId(Uuid(later_id.to_string()));
+    assert!(derive(&[outside], &[]).is_err());
+    let mut correction = choose.clone();
+    correction.kind = m::ClaimCorrectionKind::CorrectTime;
+    correction.valid_from = Some(primitives::Timestamp("1969-12-31T23:59:59.900Z".into()));
+    correction.valid_to = Some(primitives::Timestamp("1970-01-01T00:00:00Z".into()));
+    let replacement_id = AssertionId::mint();
+    let replacement = m::ClaimReplacement {
+        previous: choose.assertion_id.clone(),
+        replacement: g::AssertionId(Uuid(replacement_id.to_string())),
+    };
+    assert!(derive(std::slice::from_ref(&correction), &[]).is_err());
+    let ops = derive(
+        std::slice::from_ref(&correction),
+        std::slice::from_ref(&replacement),
+    )
+    .unwrap();
+    let [GraphOperation::RetractAssertion(old), GraphOperation::AddAssertion(new)] = &ops[..]
+    else {
+        panic!("retract plus replacement")
+    };
+    assert_eq!(old.assertion, chosen);
+    assert_eq!(new.id, replacement_id);
+    assert_eq!(
+        new.valid_time,
+        TemporalRange::new(Some(Timestamp::from_millis(-100)), Some(Timestamp::EPOCH)).unwrap()
+    );
+    assert_eq!(new.object, original.object);
+    assert_eq!(new.subject, original.subject);
+    assert_eq!(
+        new.evidence,
+        original
+            .evidence
+            .union(&BTreeSet::from([statement, attached]))
+            .copied()
+            .collect()
+    );
+    assert!(matches!(new.assessment, Assessment::Proposed));
+    assert_eq!(
+        derive(
+            std::slice::from_ref(&correction),
+            std::slice::from_ref(&replacement)
+        )
+        .unwrap(),
+        ops
+    );
+    let mut used = replacement.clone();
+    used.replacement = choose.assertion_id.clone();
+    assert!(derive(std::slice::from_ref(&correction), &[used]).is_err());
+    assert!(derive(
+        std::slice::from_ref(&choose),
+        std::slice::from_ref(&replacement)
+    )
+    .is_err());
+    correction.valid_from = Some(primitives::Timestamp("1970-01-01T00:00:00.001Z".into()));
+    assert!(derive(&[correction], &[replacement]).is_err());
+    let decision = answer_decision(&human, &read, std::slice::from_ref(&choose));
+    let mut altered = choose.clone();
+    altered.reason.push_str(" altered");
+    assert_eq!(
+        decision
+            .correction_operations(&read, &[altered], &[], statement)
+            .unwrap_err()
+            .code,
+        "review-target"
+    );
+    let mut changed = kernel.read(None).unwrap();
+    let graph = std::sync::Arc::make_mut(&mut changed.graph);
+    graph.assertions.get_mut(&chosen).unwrap().valid_time = TemporalRange::UNBOUNDED;
+    assert_eq!(
+        decision
+            .correction_operations(&changed, std::slice::from_ref(&choose), &[], statement)
+            .unwrap_err()
+            .code,
+        "answer-review-required"
+    );
+    assert_eq!(*read.graph, before);
+    assert_eq!(kernel.head().unwrap(), head);
+    assert!(
+        ekr_kernel::Pipeline::deterministic(context().validator)
+            .validate(
+                &ekr_graph::GraphSnapshot::of(&read.graph),
+                &GraphTransaction {
+                    id: TransactionId::mint(),
+                    proposer: context().operator,
+                    operations: chosen_ops,
+                    evidence: BTreeSet::new(),
+                    schema_version: None,
+                }
+            )
+            .unwrap_err()
+            .iter()
+            .any(|i| i.code == "assertion-lifecycle-state"),
+        "derivation must not relax unsigned ordinary validation"
+    );
+}
+#[test]
+fn reviewed_correction_derivation_is_exact_and_preserves_the_original_claims() {
+    let file = tempfile::tempdir().unwrap();
+    derive_answers(|binding| {
+        let open =
+            |authority| Ok(FileStore::file(file.path(), "upgrade-fixture", None)?.under(authority));
+        match binding {
+            Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
+            None => Commit::over_with_authority(context(), anchor(), open),
+        }
+        .unwrap()
+    });
+    let sqlite = tempfile::tempdir().unwrap();
+    derive_answers(|binding| {
+        let open = |authority| {
+            Ok(
+                SqliteStore::sqlite(&sqlite.path().join("store.db"), "upgrade-fixture", None)?
+                    .under(authority),
+            )
+        };
+        match binding {
+            Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
+            None => Commit::over_with_authority(context(), anchor(), open),
+        }
+        .unwrap()
+    });
+}

@@ -1,0 +1,9 @@
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 9.21s
+     Running tests/authority_upgrade.rs (<answer-build>/target/debug/deps/authority_upgrade-fa872288e5d012c9)
+
+running 1 test
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.06s
+

@@ -1,0 +1,4 @@
+701 capabilities: 651 generated, 39 obligation(s), 11 refused
+32 artifact(s), written to <fresh-generated>/contracts
+444 model type(s), written to <fresh-generated>/data; runtime obligations in types-report.json
+36 generated artifacts match fresh synthesis byte-for-byte

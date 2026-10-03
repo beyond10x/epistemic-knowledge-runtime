@@ -1,0 +1,26 @@
+   Compiling ekr-contract-data v0.0.0 (<answer-unit>/generated/ekr-contract-data)
+   Compiling ekr-types v1.0.0 (<answer-unit>/generated/ekr-contracts/crates/ekr-types)
+   Compiling ekr-core v0.0.27 (<answer-unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<answer-unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<answer-unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<answer-unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<answer-unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 36.47s
+     Running tests/authority_upgrade.rs (<answer-build>/target/debug/deps/authority_upgrade-fa872288e5d012c9)
+
+running 1 test
+
+thread 'reviewed_correction_derivation_is_exact_and_preserves_the_original_claims' (1609397) panicked at crates/ekr-kernel/tests/authority_upgrade.rs:1257:86:
+called `Result::unwrap()` on an `Err` value: KnowledgeRefused { code: "review-scope-order", reason: "scopes must be unique and ordered by wire label" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... FAILED
+
+failures:
+
+failures:
+    reviewed_correction_derivation_is_exact_and_preserves_the_original_claims
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p ekr-kernel --test authority_upgrade`

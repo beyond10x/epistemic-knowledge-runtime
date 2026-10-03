@@ -1,0 +1,112 @@
+[
+  {
+    "kind": "actor_grants",
+    "source": "ekr.integrate.Applier",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.integrate.ApplyExtraction`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.integrate.HumanReviewer",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.integrate.ApproveSchemaProposal`, `ekr.integrate.RejectSchemaProposal`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.integrate.KnowledgeProposer",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.integrate.ApplySchemaProposal`, `ekr.integrate.DiscoverSchemaGaps`, `ekr.integrate.ImportInterpretation`, `ekr.integrate.ListInterpretations`, `ekr.integrate.ShowInterpretation`, `ekr.integrate.ShowSchemaProposal`, `ekr.integrate.SubmitSchemaProposal`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.kernel.Committer",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.kernel.Commit`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.kernel.HumanOperator",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.kernel.AnswerAttention`, `ekr.kernel.ApplyUpgrade`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.kernel.KnowledgeReader",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.kernel.ListAnswers`, `ekr.kernel.ListAttention`, `ekr.kernel.PreviewUpgrade`, `ekr.kernel.ShowAttention`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.kernel.Operator",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.kernel.Explain`, `ekr.kernel.Seed`, `ekr.kernel.Snapshot`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.kernel.Proposer",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.kernel.Propose`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.kernel.Validator",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.kernel.Validate`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.observe.KnowledgeSupplier",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.observe.ImportObservation`, `ekr.observe.ListObservations`, `ekr.observe.ShowObservation`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  },
+  {
+    "kind": "actor_grants",
+    "source": "ekr.views.Reader",
+    "disposition": {
+      "disposition": "refused",
+      "reason": "needs_caller_identity",
+      "stage": "planning",
+      "detail": "may invoke `ekr.views.ChangesSince`, `ekr.views.DescribeNode`, `ekr.views.DrawFactSample`, `ekr.views.ExpandNeighbourhood`, `ekr.views.ExportOcel`, `ekr.views.FindCodeNames`, `ekr.views.ProjectGraph`, `ekr.views.ProjectOverview`, `ekr.views.ProjectTimeline`, `ekr.views.ReportFactQuality`, `ekr.views.ReportStoreQuality`, `ekr.views.SearchNodes`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+    }
+  }
+]
