@@ -960,7 +960,7 @@ Any other method is 405 and any other path 404. A request that announces a body 
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
 head that does not parse, or is not complete within 16 KiB or 5 seconds of the connection being
 accepted, is 400. At most 64 connections are served at once; one more is answered 503 (`busy`) at
-once and closed. At most 16 requests wait for the store thread; a full queue returns 503. Each
+once and closed. At most 64 requests wait for the store thread; a full queue returns 503. Each
 wait ends 35 seconds after accept, and expired jobs are discarded before execution. Whole
 responses have a total write deadline of 5 seconds. Health and the embedded page bypass the
 store queue. With the default authority policy, a request whose `Host` header is not exactly `127.0.0.1:<port>` or

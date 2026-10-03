@@ -188,7 +188,8 @@ pub(super) fn run(
 ) -> Result<String, Failure> {
     let (listener, authorities) = super::http::bind(bind, port, hosts)?;
     super::http::announce(&listener)?;
-    let (jobs, store_thread) = super::http::queue();
+    // Preserve the viewer's admitted concurrent stream capacity while bounding pending work.
+    let (jobs, store_thread) = super::http::queue(super::http::CONNECTION_LIMIT);
     let connection_authorities = authorities.clone();
     std::thread::Builder::new()
         .name("ekr-view-accept".to_owned())

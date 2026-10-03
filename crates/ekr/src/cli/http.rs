@@ -337,8 +337,8 @@ pub(super) struct Job<T, R> {
 }
 type Queue<T, R> = (SyncSender<Job<T, R>>, Receiver<Job<T, R>>);
 
-pub(super) fn queue<T, R>() -> Queue<T, R> {
-    sync_channel(QUEUE_LIMIT)
+pub(super) fn queue<T, R>(capacity: usize) -> Queue<T, R> {
+    sync_channel(capacity)
 }
 pub(super) fn alive<T, R>(job: &Job<T, R>, now: Instant) -> bool {
     now < job.deadline
@@ -368,7 +368,7 @@ pub(super) fn serve(
         ));
     }
     announce(&listener)?;
-    let (jobs, requests) = queue();
+    let (jobs, requests) = queue(QUEUE_LIMIT);
     std::thread::Builder::new()
         .name("ekr-http-accept".into())
         .spawn(move || {
@@ -476,7 +476,7 @@ mod tests {
     }
     #[test]
     fn timed_out_jobs_cannot_grow_the_bounded_queue() {
-        let (send, receive) = queue::<(), ()>();
+        let (send, receive) = queue::<(), ()>(QUEUE_LIMIT);
         let now = Instant::now();
         for _ in 0..QUEUE_LIMIT {
             let (reply, _) = sync_channel(1);
@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn health_bypasses_a_saturated_store_queue() {
-        let (jobs, pending) = queue();
+        let (jobs, pending) = queue(QUEUE_LIMIT);
         for _ in 0..QUEUE_LIMIT {
             let (reply, _) = sync_channel(1);
             jobs.try_send(Job {
