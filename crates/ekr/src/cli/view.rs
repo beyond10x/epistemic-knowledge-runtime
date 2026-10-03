@@ -1335,6 +1335,114 @@ mod tests {
     use super::super::session::{reader_work, ReaderWork};
     use super::*;
 
+    #[test]
+    fn disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen() {
+        use super::super::upgrade_fixture as fixture;
+        use ekr_kernel::human_review;
+        for file in [true, false] {
+            let directory = tempfile::tempdir().unwrap();
+            let open = || {
+                if file {
+                    Runtime::file(
+                        directory.path(),
+                        fixture::TENANT,
+                        fixture::context(),
+                        fixture::anchor(),
+                    )
+                } else {
+                    Runtime::sqlite(
+                        &directory.path().join("store.db"),
+                        fixture::TENANT,
+                        fixture::context(),
+                        fixture::anchor(),
+                    )
+                }
+                .unwrap()
+            };
+            let mut seed = fixture::seed(false);
+            for node in seed.graph.nodes.values_mut() {
+                if node.canonical_name == "Fixture 0/0" {
+                    node.canonical_name = "Fixture <img src=x onerror=alert(1)>".into();
+                }
+            }
+            let runtime = open();
+            let seeded = runtime
+                .seed(seed.clone(), || ekr_core::Timestamp::EPOCH)
+                .unwrap();
+            let human = fixture::Human::new(seeded.seed_hash);
+            let runtime = runtime
+                .with_review_authority(human.binding.clone())
+                .unwrap();
+            let preview = runtime.preview_upgrade(&human.policy).unwrap();
+            runtime
+                .apply_upgrade(
+                    &preview,
+                    &human.policy,
+                    &human_review::proof_from_document(&human.proof(&preview)).unwrap(),
+                    fixture::STATEMENT,
+                    || ekr_core::Timestamp::from_millis(1),
+                )
+                .unwrap();
+            drop(runtime);
+            let mut runtime = open().with_review_authority(human.binding).unwrap();
+            runtime.set_full_replay(true);
+            let mut memory = Memory::default();
+            let Answered::Whole(reply) = route_answer(
+                Some(Ok(Checked::Same(&runtime))),
+                &mut memory,
+                Route::Inbox,
+                "",
+            ) else {
+                panic!("inbox must be rendered whole")
+            };
+            assert_eq!(reply.status, 200);
+            assert_eq!(reply.content_type, HTML);
+            let page = String::from_utf8(reply.body).unwrap();
+            assert_eq!(page.matches("<article ").count(), 2);
+            assert_eq!(page.matches("Assessment: Disputed").count(), 4);
+            assert!(page.contains("Which value for health"));
+            assert!(page.contains("Which value for ownership0"));
+            assert!(page.contains("green") && page.contains("red"));
+            assert!(page.contains("Target: Fixture 0/1"));
+            assert!(page.contains("Target: Fixture 0/2"));
+            assert!(page.contains("Fixture &lt;img src=x onerror=alert(1)&gt;"));
+            assert!(!page.contains("<img") && !page.contains("<script") && !page.contains("<form"));
+            for id in seed.graph.assertions.keys() {
+                assert!(page.contains(&format!("Claim <code>{id}</code>")));
+            }
+            for source in seed.graph.evidence.values() {
+                assert!(page.contains(&format!("href=\"/evidence/{}\"", source.id)));
+                let bytes = &seed.evidence_payloads[&source.content_hash];
+                assert!(page.contains(std::str::from_utf8(bytes).unwrap()));
+                let response = evidence(&runtime, &source.id.to_string());
+                assert_eq!(response.status, 200);
+                assert_eq!(response.body.as_slice(), bytes.as_ref());
+            }
+            let Answered::Whole(refusal) = route_answer(
+                Some(Ok(Checked::Same(&runtime))),
+                &mut memory,
+                Route::Inbox,
+                "answer=choose",
+            ) else {
+                panic!("query must be refused")
+            };
+            assert_eq!(refusal.status, 400);
+            if let Some(output) = std::env::var_os("EKR_INBOX_INSPECTION_DIR") {
+                let output = std::path::Path::new(&output);
+                std::fs::create_dir_all(output).unwrap();
+                std::fs::write(
+                    output.join(if file {
+                        "file-inbox.html"
+                    } else {
+                        "sqlite-inbox.html"
+                    }),
+                    page,
+                )
+                .unwrap();
+            }
+        }
+    }
+
     /// `GET <target>` to a server on port 9, answered whole.
     fn get(held: &mut Held, memory: &mut Memory, target: &str) -> Reply {
         let asked = Asked {

@@ -1,0 +1,22 @@
+   Compiling ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 3.75s
+     Running unittests src/lib.rs (<temporary-build>/target/debug/deps/ekr-7281d7560f073b95)
+
+running 1 test
+test cli::view::tests::disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen ... FAILED
+
+failures:
+
+---- cli::view::tests::disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen stdout ----
+
+thread 'cli::view::tests::disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen' (1164024) panicked at crates/ekr/src/cli/view.rs:1406:13:
+assertion failed: page.contains("Target: Fixture 0/1")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    cli::view::tests::disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 61 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p ekr --lib`
