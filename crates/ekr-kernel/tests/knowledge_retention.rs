@@ -189,8 +189,18 @@ fn inconsistent_observation_is_refused_without_retaining_anything() {
             .is_err());
         assert!(runtime.observations().unwrap().is_empty());
         assert!(runtime.published_events().unwrap().is_empty());
+        let mut invalid_time = serde_json::to_value(observation()).unwrap();
+        invalid_time["observation"]["captured_at"] = "17".into();
+        assert!(serde_json::from_value::<EkrObserveObservationImport>(invalid_time).is_err());
+        // Direct typed construction can still carry a time outside RFC 3339's year range.
+        // The runtime must refuse that value before any provider mutation.
         let mut invalid_time = observation();
-        invalid_time.observation.captured_at = "17".into();
+        invalid_time.observation.captured_at =
+            time::Date::from_calendar_date(-1, time::Month::January, 1)
+                .unwrap()
+                .midnight()
+                .assume_utc()
+                .into();
         assert!(runtime
             .import_observation(&invalid_time, Timestamp::EPOCH)
             .is_err());
@@ -439,14 +449,20 @@ fn invalid_local_shape_and_evidence_are_refused_before_any_publication() {
             *document.pointer_mut(pointer).unwrap() = replacement;
             let payload = bytes::encode(&serde_json::to_vec(&document).unwrap());
             let input =
-                serde_json::from_value(serde_json::json!({"document":document,"payload":payload}))
-                    .unwrap();
-            assert!(
-                runtime
-                    .import_interpretation(&input, Timestamp::EPOCH)
-                    .is_err(),
-                "accepted {pointer}"
-            );
+                serde_json::from_value(serde_json::json!({"document":document,"payload":payload}));
+            if pointer == "/evidence/0/evidence/observed_at" {
+                assert!(
+                    input.is_err(),
+                    "generated timestamp admitted malformed input"
+                );
+            } else {
+                assert!(
+                    runtime
+                        .import_interpretation(&input.unwrap(), Timestamp::EPOCH)
+                        .is_err(),
+                    "accepted {pointer}"
+                );
+            }
             assert_eq!(
                 runtime.published_events().unwrap().len(),
                 held,

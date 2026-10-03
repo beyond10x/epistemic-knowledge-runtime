@@ -5750,3 +5750,19 @@ The link itself includes the full reviewed record, even without `--documents`. T
 continues to add retained evidence payloads, including the human statement. Proof, policy and
 derived transaction remain referenced by their immutable addresses. This changes a read
 projection only; historical event bytes, signature rules and publication remain unchanged.
+
+## 105.13 Released timestamp contracts and retained answer bytes (2026-10-03)
+
+ESS 0.52.0 generates RFC 3339 timestamp fields as typed instants. Public documents keep their
+serialized field names and string representation; checked adapters connect these generated
+values to the runtime's millisecond timestamps and refuse unrepresentable times. Correction
+bounds still require exact millisecond precision. The SDK observation builder takes the
+generated timestamp type.
+
+Answer record format /1 previously retained the supplied spelling of correction bounds, including
+trailing fractional zeros and explicit zero offsets. Replay preserves those original bytes and
+addresses. It reconstructs the expected generated record, restores only the original valid-from
+and valid-to spellings after checking their instants, and compares the complete canonical JSON
+bytes. Every other field and the ordinary derived transaction remain independently checked.
+The signature codec already binds correction times as millisecond instants; its domain, bytes,
+verification and material-basis rules do not change. No historical record is rewritten.

@@ -1,0 +1,94 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 27.69s
+     Running unittests src/lib.rs (<build>/target/debug/deps/ekr_kernel-d670326513b14901)
+
+running 28 tests
+test document::checked::tests::mixed_accounting_refuses_before_allocating_a_coerced_string ... ok
+test document::checked::tests::string_refusals_precede_the_allocating_application_visitor ... ok
+test incubation_value::tests::existing_canonical_encoder_is_the_oracle_for_every_value_kind ... ok
+test document::bounded_load::a_transaction_document_nested_past_the_depth_is_refused_at_the_first_container_past_it ... ok
+test replay::tests::retirement_requires_the_confirmed_occurrence_and_matching_prefix ... ok
+test checkpoint::tests::held_identities_are_read_from_each_receipt_without_parsing_its_proposal ... ok
+test seed::bounded_load::a_seed_nested_past_the_depth_is_refused_at_the_first_container_past_it ... ok
+test seed::shared_payloads::a_carried_payload_becomes_the_retained_allocation_only_for_verified_equal_bytes ... ok
+test validate::candidate::tests::a_candidate_borrows_existing_node_types_at_every_graph_size ... ok
+test replay::tests::node_only_commits_share_the_unchanged_assertion_edge_index ... ok
+test replay::tests::prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors ... ok
+test replay::tests::confirmed_commit_releases_the_previous_head_before_the_next_command ... ok
+test replay::tests::reusable_graph_belongs_to_the_authority_not_the_thread ... ok
+test checkpoint::tests::checkpoint_writer_matches_the_complete_owned_document_bytes ... ok
+test answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals ... ok
+test replay::tests::an_equal_root_replayed_by_another_authority_falls_back_to_clone ... ok
+test replay::tests::reused_graph_preserves_inherited_attachments_and_matches_forced_clone ... ok
+test replay::tests::an_unpublished_candidate_cannot_seed_reuse ... ok
+test checkpoint::tests::a_fresh_open_restores_the_head_and_replays_nothing_the_checkpoint_covers ... ok
+test replay::tests::readers_and_checkpoint_graphs_prevent_reuse_extraction ... ok
+test replay::tests::warm_alias_checks_visit_no_unchanged_nodes ... ok
+test replay::tests::one_handle_holds_the_head_graph_and_not_one_graph_per_revision ... ok
+test replay::tests::a_new_checkpoint_releases_its_predecessors_graph_before_the_next_command ... ok
+test replay::tests::one_handle_validates_against_an_earlier_revision_whose_graph_it_released ... ok
+test answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers ... ok
+test replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers ... ok
+test replay::tests::warm_validation_hashes_no_more_prefix_occurrences_as_history_grows ... ok
+test replay::tests::append_commits_copy_no_more_assertions_as_the_graph_grows ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.69s
+
+     Running tests/attention_answers_recovery.rs (<build>/target/debug/deps/attention_answers_recovery-40f7c736636c59b1)
+
+running 2 tests
+test answer_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test answer_native_process_death_resumes_without_partial_corrections ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.83s
+
+     Running tests/authority_upgrade.rs (<build>/target/debug/deps/authority_upgrade-ed98ec8049a9f7be)
+
+running 7 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust ... ok
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/human_review.rs (<build>/target/debug/deps/human_review-fac8632e8ef1662d)
+
+running 17 tests
+test correction_codec_preserves_order_every_field_and_millisecond_instants ... ok
+test forged_truncated_and_altered_signatures_refuse ... ok
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... ok
+test exact_human_answer_survives_only_unrelated_basis_advancement ... ok
+test generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_scalars ... ok
+test independent_binding_refuses_substituted_policy_and_store ... ok
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... ok
+test canonical_readers_refuse_every_truncation_and_trailing_byte ... ok
+test policy_key_order_is_checked_and_an_empty_policy_never_authorizes ... ok
+test signing_message_matches_the_fixed_binary_layout_vector ... ok
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... ok
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... ok
+test human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor ... ok
+test retained_proof_and_every_review_basis_field_are_bound ... ok
+test all_four_targets_verify_only_in_their_own_enrolled_scope ... ok
+test protocol_digests_and_object_addresses_resolve_the_same_bytes_after_both_provider_reopens ... ok
+test no_single_byte_change_in_retained_proof_can_replay_as_approved ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/knowledge_retention.rs (<build>/target/debug/deps/knowledge_retention-890fb8e08289f3c2)
+
+running 8 tests
+test inconsistent_observation_is_refused_without_retaining_anything ... ok
+test retained_sources_pin_exact_bytes_on_both_providers ... ok
+test generated_observation_commands_preserve_provider_faults ... ok
+test rejected_interpretation_retains_its_sources ... ok
+test observation_retry_is_idempotent ... ok
+test concurrent_imports_choose_one_immutable_record ... ok
+test invalid_local_shape_and_evidence_are_refused_before_any_publication ... ok
+test unmapped_knowledge_survives_reopen ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+

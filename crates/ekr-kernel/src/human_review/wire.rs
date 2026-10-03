@@ -148,14 +148,21 @@ pub fn proof_from_document(
     Ok(proof)
 }
 
-pub(crate) fn correction_from_document(value: &w::EkrKernelClaimCorrection) -> m::ClaimCorrection {
-    let timestamp = |value: &w::EssPresence<String>| match value {
-        w::EssPresence::Absent => None,
-        w::EssPresence::Present(value) => {
-            Some(ekr_core::contracts::primitives::Timestamp(value.clone()))
-        }
+pub(crate) fn correction_from_document(
+    value: &w::EkrKernelClaimCorrection,
+) -> Result<m::ClaimCorrection, Refusal> {
+    let timestamp = |value: &w::EssPresence<w::EssTimestamp>| match value {
+        w::EssPresence::Absent => Ok(None),
+        w::EssPresence::Present(value) => crate::incubation_document::timestamp_text(value)
+            .map(|text| Some(ekr_core::contracts::primitives::Timestamp(text)))
+            .map_err(|_| {
+                refuse(
+                    "review-invalid-time",
+                    "correction time is not representable as RFC 3339",
+                )
+            }),
     };
-    m::ClaimCorrection {
+    Ok(m::ClaimCorrection {
         kind: match *value.kind {
             w::EkrKernelClaimCorrectionKind::V0 => m::ClaimCorrectionKind::Choose,
             w::EkrKernelClaimCorrectionKind::V1 => m::ClaimCorrectionKind::CorrectTime,
@@ -164,9 +171,9 @@ pub(crate) fn correction_from_document(value: &w::EkrKernelClaimCorrection) -> m
         },
         assertion_id: ekr_core::contracts::graph::AssertionId(Uuid(value.assertion_id.0.clone())),
         reason: value.reason.clone(),
-        valid_from: timestamp(&value.valid_from),
-        valid_to: timestamp(&value.valid_to),
-    }
+        valid_from: timestamp(&value.valid_from)?,
+        valid_to: timestamp(&value.valid_to)?,
+    })
 }
 /// Decode a generated answer application without granting its claimed approval any authority.
 /// The runtime still verifies the signature, retained policy and current material review basis.
@@ -179,7 +186,7 @@ pub fn answer_from_document(
         .corrections
         .iter()
         .map(|v| correction_from_document(v))
-        .collect();
+        .collect::<Result<_, _>>()?;
     super::corrections_bytes(&corrections)?;
     Ok(m::AttentionAnswerApplication {
         human_proof: proof_from_document(&value.human_proof)?,

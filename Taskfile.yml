@@ -80,16 +80,16 @@ tasks:
   spec-check:
     desc: the runtime's own ESS contract validates
     preconditions:
-      - sh: test "$(ess --version)" = "ess 0.36.0"
-        msg: spec-check needs an ess on PATH whose --version is ess 0.36.0
+      - sh: test "$(ess --version)" = "ess 0.52.0"
+        msg: spec-check needs an ess on PATH whose --version is ess 0.52.0
     cmds:
       - ess specify validate --path systems/ekr
 
   conform-check:
     desc: conform-fresh, then both native providers run the ekr-kernel suite
     preconditions:
-      - sh: test "$(ess --version)" = "ess 0.36.0"
-        msg: conform-check needs an ess on PATH whose --version is ess 0.36.0
+      - sh: test "$(ess --version)" = "ess 0.52.0"
+        msg: conform-check needs an ess on PATH whose --version is ess 0.52.0
     cmds:
       - task: conform-fresh
       - cargo test --locked -p ekr --test conformance --test conformance_knowledge -- --nocapture
@@ -97,8 +97,8 @@ tasks:
   conform-fresh:
     desc: the committed kernel, views, integration and supplied-knowledge suites are fresh synthesis
     preconditions:
-      - sh: test "$(ess --version)" = "ess 0.36.0"
-        msg: conform-fresh needs an ess on PATH whose --version is ess 0.36.0
+      - sh: test "$(ess --version)" = "ess 0.52.0"
+        msg: conform-fresh needs an ess on PATH whose --version is ess 0.52.0
     cmds:
       - mkdir -p "${CARGO_TARGET_DIR:-target}/ekr-conformance"
       - ess conform synthesize --path systems/ekr --component ekr-kernel --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-suite.json"

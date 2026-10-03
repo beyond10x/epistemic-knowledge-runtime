@@ -1,0 +1,31 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+warning: function `replay_bytes` is never used
+  --> crates/ekr-kernel/src/answers/durable.rs:32:4
+   |
+32 | fn replay_bytes(
+   |    ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ekr-kernel` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 10.12s
+     Running unittests src/lib.rs (<build>/target/debug/deps/ekr_kernel-d670326513b14901)
+
+running 1 test
+test answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers ... FAILED
+
+failures:
+
+---- answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers stdout ----
+
+thread 'answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers' (1333503) panicked at crates/ekr-kernel/src/answers/tests.rs:644:33:
+called `Result::unwrap()` on an `Err` value: Document("answer-record-not-canonical")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.59s
+
+error: test failed, to rerun pass `-p ekr-kernel --lib`

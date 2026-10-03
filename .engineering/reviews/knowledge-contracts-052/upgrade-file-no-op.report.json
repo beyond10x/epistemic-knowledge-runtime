@@ -1,0 +1,64 @@
+{
+  "completed_at": 1791036863602,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 3,
+    "passed": 0,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+          "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+          "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:399409eadd10354fd9c8a96aafd2558bb34a8797688f9a2340561e3bc3f5fe19",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:536c0eecff12bfe59a70f22428b1b54f8809aa7692727c19b5901188127bef23",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}

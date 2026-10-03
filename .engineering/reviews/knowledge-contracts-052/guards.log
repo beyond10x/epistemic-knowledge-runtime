@@ -1,0 +1,134 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.10s
+     Running `<build>/target/debug/xtask fmt --check`
+   Compiling xtask v0.0.27 (<worktree>/xtask)
+    Finished `test` profile [unoptimized] target(s) in 0.62s
+     Running unittests src/bin/ekr-docs.rs (<build>/target/debug/deps/ekr_docs-10fffbb38f4e769c)
+
+running 3 tests
+test tests::invalid_commit_is_refused_before_writing ... ok
+test tests::authored_document_is_valid ... ok
+test tests::broken_links_duplicate_anchors_and_scripts_are_refused ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (<build>/target/debug/deps/xtask-c2e37cb35645fa6c)
+
+running 11 tests
+test contracts::tests::changed_generated_source_fails ... ok
+test contracts::tests::extra_generated_source_fails ... ok
+test contracts::tests::identical_artifacts_pass ... ok
+test contracts::tests::extra_manifest_fails ... ok
+test contracts::tests::missing_generated_source_fails ... ok
+test contracts::tests::only_the_known_local_ownership_journal_is_excluded ... ok
+test format::tests::all_members_but_no_nested_dependency_are_formatted ... ok
+test tests::missing_runtime_manifest_and_unrelated_directory_refuse ... ok
+test contracts::tests::symlinks_cannot_hide_artifacts_or_ownership_state ... ok
+test tests::runtime_manifest_selects_its_own_workspace ... ok
+test tests::standalone_invocation_walks_from_its_current_directory ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling libc v0.2.189
+   Compiling getrandom v0.3.4
+   Compiling getrandom v0.4.3
+   Compiling rand_core v0.9.5
+   Compiling serde v1.0.229
+   Compiling deranged v0.5.8
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.2
+   Compiling time v0.3.55
+   Compiling serde_json v1.0.151
+   Compiling tempfile v3.27.0
+   Compiling getrandom v0.2.17
+   Compiling wait-timeout v0.2.1
+   Compiling serde_yaml_ng v0.10.0 (<worktree>/vendor/serde_yaml_ng)
+   Compiling rusty-fork v0.3.1
+   Compiling ring v0.17.14
+   Compiling rand_chacha v0.9.0
+   Compiling ekr-contract-data v0.0.0 (<worktree>/generated/ekr-contract-data)
+   Compiling rand_xorshift v0.4.0
+   Compiling rand v0.9.5
+   Compiling uuid v1.26.1
+   Compiling ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+   Compiling proptest v1.11.0
+    Finished `test` profile [unoptimized] target(s) in 40.42s
+     Running tests/identity_serde.rs (<build>/target/debug/deps/identity_serde-7d7998b3a7aca092)
+
+running 53 tests
+test adversary_input08::public_observation_ids_keep_uuid_bits_and_canonical_text ... ok
+test agent_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test assertion_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test adversary_i_macro_doc_counts_the_id_newtypes_it_declares ... ok
+test event_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test attachment_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test evidence_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test edge_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test existing_observe_identities_have_typed_contract_cases ... ok
+test issue_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test merge_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test node_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test property_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test edge_id::round_trips_for_any_bits ... ok
+test evidence_id::round_trips_for_any_bits ... ok
+test generated_document_identity_requires_checked_ingress_after_deserialization ... ok
+test graph_root_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test assertion_id::round_trips_for_any_bits ... ok
+test revision_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test revision_number::round_trips_as_a_number_and_refuses_a_malformed_one ... ok
+test schema_version_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test graph_root_id::round_trips_for_any_bits ... ok
+test attachment_id::round_trips_for_any_bits ... ok
+test revision_number_text_form::a_second_spelling_of_a_number_is_refused ... ok
+test source_checkpoint_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test revision_number_text_form::the_written_form_is_the_only_form ... ok
+test revision_number::round_trips_for_any_number ... ok
+test event_id::round_trips_for_any_bits ... ok
+test observation_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test property_id::round_trips_for_any_bits ... ok
+test support_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test transaction_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test type_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test revision_id::round_trips_for_any_bits ... ok
+test observation_id::round_trips_for_any_bits ... ok
+test node_id::round_trips_for_any_bits ... ok
+test split_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test issue_id::round_trips_for_any_bits ... ok
+test schema_version_id::round_trips_for_any_bits ... ok
+test source_unit_id::round_trips_as_a_string_and_refuses_a_malformed_one ... ok
+test agent_id::round_trips_for_any_bits ... ok
+test merge_id::round_trips_for_any_bits ... ok
+test transaction_id::round_trips_for_any_bits ... ok
+test source_checkpoint_id::round_trips_for_any_bits ... ok
+test split_id::round_trips_for_any_bits ... ok
+test support_id::round_trips_for_any_bits ... ok
+test source_unit_id::round_trips_for_any_bits ... ok
+test type_id::round_trips_for_any_bits ... ok
+test every_ess_id_type_exists_in_the_crate ... ok
+test adversary_input08::removing_a_declared_identity_is_not_hidden_by_the_typed_inventory ... ok
+test adversary_input08::renamed_domain_files_preserve_the_identity_inventory ... ok
+test an_unknown_domain_filename_with_a_missing_identity_fails_the_actual_scan ... ok
+test adversary_input08::semantic_yaml_spelling_does_not_hide_a_new_identity ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 5.54s
+     Running tests/story_contract.rs (<build>/target/debug/deps/story_contract-98c4cecee4af9424)
+
+running 14 tests
+test every_crate_opts_into_workspace_lints ... ok
+test crate_dependency_edges_match_the_story ... ok
+test no_manifest_carries_a_comment ... ok
+test the_commit_authority_matcher_reads_a_head_by_shape_and_not_by_spelling ... ok
+test the_expectation_tables_cover_every_crate ... ok
+test the_eventlog_scan_refuses_every_path_and_nothing_else ... ok
+test external_dependencies_match_the_story ... ok
+test the_six_crates_are_workspace_members ... ok
+test the_sdk_links_no_kernel_store_or_graph ... ok
+test workspace_dependencies_carry_the_story_qualifiers ... ok
+test seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer ... ok
+test ekr_names_no_eventlog_item ... ok
+test no_rust_source_reads_the_planning_store ... ok
+test only_the_kernel_implements_the_commit_authority ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s

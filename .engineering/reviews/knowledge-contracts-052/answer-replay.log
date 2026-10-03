@@ -1,0 +1,15 @@
+   Compiling ekr-contract-data v0.0.0 (<worktree>/generated/ekr-contract-data)
+   Compiling ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<worktree>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<worktree>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 23.04s
+     Running unittests src/lib.rs (<build>/target/debug/deps/ekr_kernel-d670326513b14901)
+
+running 1 test
+test answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.76s
+

@@ -3,12 +3,13 @@
   "suite": "systems/ekr/conformance/suite.json",
   "producer": {
     "tool": "ess",
-    "version": "0.36.0",
+    "version": "0.52.0",
     "source": "https://github.com/beyond10x/ess",
-    "rev": "be44a3365eb273cb3d447b74cd5b0e75181d284e"
+    "rev": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647"
   },
   "command": [
     "ess",
+    "verify",
     "conform",
     "synthesize",
     "--path",

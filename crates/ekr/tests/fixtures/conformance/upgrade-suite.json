@@ -24,7 +24,7 @@
     },
     "counts": {
       "authored": 3,
-      "generated": 115,
+      "generated": 116,
       "outside": 0,
       "refused": 0
     },
@@ -74,6 +74,7 @@
       "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected",
       "ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale",
       "ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated",
+      "ekr.kernel.ListAnswers/outcome/answered",
       "ekr.kernel.ListAttention/outcome/answered",
       "ekr.kernel.PreviewUpgrade/outcome/answered",
       "ekr.kernel.PreviewUpgrade/outcome/refused",
@@ -159,8 +160,8 @@
     }
   },
   "provenance": {
-    "contract_digest": "b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6",
-    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c",
+    "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
     "specification_version": "v1",
     "suite_version": "ess-conformance/19",
     "system": "ekr"
@@ -234,11 +235,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -447,11 +456,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -644,11 +661,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -854,11 +879,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -1099,11 +1132,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -1340,11 +1381,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -1541,11 +1590,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -1759,11 +1816,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -2008,11 +2073,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -2258,11 +2331,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -2503,11 +2584,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -2762,11 +2851,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -2995,11 +3092,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -3196,11 +3301,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -3505,11 +3618,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -3747,11 +3868,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -4040,11 +4169,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -4268,11 +4405,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -4469,11 +4614,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -4663,11 +4816,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -4912,11 +5073,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -5162,11 +5331,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -5407,11 +5584,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -5666,11 +5851,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -5991,11 +6184,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -6228,11 +6429,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -6429,11 +6638,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -6643,11 +6860,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -6988,11 +7213,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -7228,11 +7461,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -7421,11 +7662,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -7631,11 +7880,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -7928,11 +8185,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -8150,11 +8415,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -8443,11 +8716,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -8667,11 +8948,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -8964,11 +9253,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -9240,11 +9537,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -9497,11 +9802,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -9756,11 +10069,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -10057,11 +10378,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -10343,7 +10672,15 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -10628,11 +10965,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -10893,11 +11238,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -11132,11 +11485,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -11519,11 +11880,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -11771,11 +12140,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -13169,11 +13546,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -13404,11 +13789,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -13755,11 +14148,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -13978,11 +14379,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -14181,11 +14590,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -14389,11 +14806,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -14907,11 +15332,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -15100,11 +15533,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -15312,7 +15753,15 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -15501,11 +15950,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -15711,11 +16168,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -16915,11 +17380,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -17392,11 +17865,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -18340,11 +18821,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -18806,11 +19295,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -19428,11 +19925,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -19912,11 +20417,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -20141,11 +20654,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -20600,11 +21121,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -20850,11 +21379,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -21237,11 +21774,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -21487,11 +22032,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -21795,11 +22348,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -22056,11 +22617,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -22407,11 +22976,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -22661,11 +23238,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -22969,11 +23554,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -23124,6 +23717,519 @@
         }
       ]
     },
+    "ekr.kernel.ListAnswers/outcome/answered": {
+      "purpose": "`ekr.kernel.ListAnswers` answers `answered` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EvidenceId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObservationId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.RevisionRoot"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.IntegrationBlockerId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.SchemaProposalId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AnswerOutcome"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AnswerReceipt"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AnswerRecordFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionItem"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionSubject"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ClaimCorrection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ClaimCorrectionKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ClaimReplacement"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.DisputeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanAnswerId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanAnswerRecord"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionRecord"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewBasis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TrustedOperatorIdentity"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ListAnswers"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ListAnswers",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ApplySchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ApproveSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.DiscoverSchemaGapsResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ImportInterpretationResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ListInterpretationsResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.RejectSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ShowInterpretationResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ShowSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.SubmitSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AnswerAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.PreviewUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ShowAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.observe.ImportObservationResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.observe.ObservationShown"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.observe.ObservationsListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.KnowledgeReader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.ListAnswers",
+          "input": {
+            "dispute_id": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-35df877f5a41"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ListAnswers",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
+          "shape": {
+            "answers": {
+              "holds": "list"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.integrate.ApplySchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ApproveSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.DiscoverSchemaGapsResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ImportInterpretationResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ListInterpretationsResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.RejectSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ShowInterpretationResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ShowSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.SubmitSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AnswerAttentionResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ShowAttentionResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.observe.ImportObservationResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.observe.ObservationShown",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.observe.ObservationsListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
     "ekr.kernel.ListAttention/outcome/answered": {
       "purpose": "`ekr.kernel.ListAttention` answers `answered` for an input no other branch's guard claims",
       "source": [
@@ -23236,11 +24342,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -23434,11 +24548,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -23671,11 +24793,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -23930,11 +25060,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -24131,11 +25269,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -24345,11 +25491,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -24538,11 +25692,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -24748,11 +25910,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -24945,11 +26115,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -25155,11 +26333,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -25372,11 +26558,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -25649,11 +26843,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -25874,11 +27076,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -26084,11 +27294,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -26277,11 +27495,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -26487,11 +27713,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -26691,11 +27925,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -27389,11 +28631,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -27602,11 +28852,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -27892,11 +29150,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -28153,11 +29419,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -28411,11 +29685,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -28616,11 +29898,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -28831,11 +30121,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -29024,11 +30322,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -29238,11 +30544,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -29435,11 +30749,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -29648,11 +30970,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -29868,11 +31198,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -30176,11 +31514,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -30399,11 +31745,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -30613,11 +31967,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -30806,11 +32168,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -31013,11 +32383,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -31237,11 +32615,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -31545,11 +32931,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -34742,11 +36136,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -34977,11 +36379,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -35186,11 +36596,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -35411,11 +36829,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -35616,11 +37042,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -35814,11 +37248,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -36003,11 +37445,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -36213,11 +37663,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -36426,11 +37884,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -36678,11 +38144,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -36879,11 +38353,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -37102,11 +38584,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -37395,11 +38885,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -37674,11 +39172,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -37951,11 +39457,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -38181,11 +39695,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -38386,11 +39908,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -38616,11 +40146,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -38821,11 +40359,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -39044,11 +40590,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -39249,11 +40803,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -39489,11 +41051,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -39686,11 +41256,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -39904,11 +41482,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -40105,11 +41691,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -40323,11 +41917,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -40524,11 +42126,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -40742,11 +42352,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -40951,11 +42569,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -41205,11 +42831,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -41402,11 +43036,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -41621,11 +43263,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -41860,11 +43510,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -42086,11 +43744,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -42287,11 +43953,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -42513,11 +44187,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -42722,11 +44404,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -42990,11 +44680,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -43191,11 +44889,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -43418,11 +45124,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -43899,11 +45613,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -44133,11 +45855,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -44338,11 +46068,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -44572,11 +46310,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -44777,11 +46523,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -45011,11 +46765,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -45208,11 +46970,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -45430,11 +47200,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -45627,11 +47405,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -45849,11 +47635,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -46050,11 +47844,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -46315,11 +48117,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -46508,11 +48318,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -46730,11 +48548,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -46927,11 +48753,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -47149,11 +48983,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -47358,11 +49200,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -47629,11 +49479,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -47830,11 +49688,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -48052,11 +49918,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -48257,11 +50131,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -48479,11 +50361,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -48676,11 +50566,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -48890,11 +50788,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -49087,11 +50993,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -49301,11 +51215,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -49502,11 +51424,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -49767,11 +51697,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -49960,11 +51898,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -50171,11 +52117,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -50398,11 +52352,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -50616,11 +52578,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -50813,11 +52783,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -51031,11 +53009,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -51236,11 +53222,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -51550,11 +53544,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -51755,11 +53757,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -51982,11 +53992,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -52329,11 +54347,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -52563,11 +54589,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -52772,11 +54806,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -53006,11 +55048,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -53219,11 +55269,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -53509,11 +55567,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -53718,11 +55784,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -53941,11 +56015,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -54154,11 +56236,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -54370,11 +56460,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -54622,11 +56720,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -54869,11 +56975,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -55062,11 +57176,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -55276,11 +57398,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -55473,11 +57603,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -55687,11 +57825,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -55888,11 +58034,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -56137,11 +58291,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -56330,11 +58492,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -56545,11 +58715,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -56776,11 +58954,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -56998,11 +59184,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -57195,11 +59389,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -57417,11 +59619,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {
@@ -57622,11 +59832,19 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
           "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
         },
         {
           "kind": "event",
@@ -57867,11 +60085,19 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
           "step": "expect_no_event"
         },
         {

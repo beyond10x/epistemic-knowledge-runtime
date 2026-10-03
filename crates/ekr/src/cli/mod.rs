@@ -66,6 +66,10 @@ mod transactions;
 mod upgrade;
 #[cfg(test)]
 #[path = "../../tests/support/upgrade_fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "viewer tests share the fixture without the conformance-only answer signer helpers"
+)]
 mod upgrade_fixture;
 mod validate;
 mod view;

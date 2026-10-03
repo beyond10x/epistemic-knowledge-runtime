@@ -1,6 +1,10 @@
 {
-  "version": "0.51.0",
-  "source_revision": "126c2b3905d0f4279086b9d3030096147955dfec",
-  "binary_sha256": "9481253cd158080118c9fc532dd0a70d1907d77d345bdb4102f7acdca2a88ac6",
-  "release": null
+  "version": "0.52.0",
+  "source_revision": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647",
+  "binary_sha256": "7c0f35fd2c2365c2390113f756eba1275ea25902d04f7ca5a8f8f6ab30395be7",
+  "release": {
+    "tag": "0.52.0",
+    "archive": "ess-0.52.0-x86_64-unknown-linux-gnu.tar.gz",
+    "archive_sha256": "54ae56c63135afc9d8da12e36ef3dcc3d6c4ec8fdc6c2c30fb34bd2d8dc8a5ce"
+  }
 }

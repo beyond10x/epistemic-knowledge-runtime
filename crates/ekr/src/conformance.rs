@@ -572,8 +572,28 @@ impl KernelTarget {
         match control {
             Control::AlreadySeeded | Control::Stale => Ok(()),
             Control::InvalidSeed => self.require_document("seed_document"),
-            Control::Malformed | Control::Misattributed | Control::Rejected => {
+            Control::Malformed | Control::Misattributed => {
                 self.require_document("transaction_document")
+            }
+            Control::Rejected => {
+                // ESS 0.52 also emits this control in authored timelines after Propose.
+                // The document may have any scenario-owned path; validate the actual captured
+                // transaction, without replacing it or selecting the handler's outcome.
+                let id = transaction_input(request)?;
+                let held = runtime
+                    .transactions()
+                    .map_err(|e| unavailable("reading the proposed transaction", e))?;
+                if held
+                    .get(&id)
+                    .is_some_and(|record| record.state() == TransactionState::Proposed)
+                {
+                    Ok(())
+                } else {
+                    Err(unavailable(
+                        "establishing validation input",
+                        "the requested transaction is not proposed",
+                    ))
+                }
             }
             Control::RevisionAbsent => {
                 let id = transaction_input(request)?;

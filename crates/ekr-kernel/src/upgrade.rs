@@ -78,7 +78,7 @@ pub(crate) fn review_record(
             actor: Box::new(EkrKernelAgentId(record.operator.actor.0 .0)),
             authentication_subject: record.operator.authentication_subject,
         }),
-        recorded_at: record.recorded_at.0,
+        recorded_at: crate::incubation_document::wire_timestamp(&record.recorded_at.0)?,
     })
 }
 impl KernelAuthority {
@@ -370,7 +370,7 @@ pub(crate) fn replay_transition(
         bytes(&preview)? == bytes(&record.preview)?,
         "upgrade-preview-stale",
     )?;
-    let at = crate::incubation_document::timestamp(&record.review.recorded_at)?;
+    let at = crate::incubation_document::timestamp_value(&record.review.recorded_at)?;
     replay::require(
         at >= state.head().committed_at
             && bytes(&review_record(&verified, at)?)? == bytes(&record.review)?,

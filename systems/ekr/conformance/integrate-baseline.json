@@ -7,27 +7,146 @@
     "file",
     "sqlite"
   ],
-  "total": 2,
-  "answered_floor": 2,
+  "total": 18,
+  "answered_floor": 18,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
     "ekr.integrate.ApplyExtraction/outcome/applied",
-    "ekr.integrate.ApplyExtraction/outcome/refused"
+    "ekr.integrate.ApplyExtraction/outcome/refused",
+    "ekr.integrate.ApplySchemaProposal/outcome/answered",
+    "ekr.integrate.ApplySchemaProposal/outcome/refused",
+    "ekr.integrate.ApproveSchemaProposal/outcome/answered",
+    "ekr.integrate.ApproveSchemaProposal/outcome/refused",
+    "ekr.integrate.DiscoverSchemaGaps/outcome/answered",
+    "ekr.integrate.ImportInterpretation/outcome/answered",
+    "ekr.integrate.ImportInterpretation/outcome/refused",
+    "ekr.integrate.ListInterpretations/outcome/answered",
+    "ekr.integrate.RejectSchemaProposal/outcome/answered",
+    "ekr.integrate.RejectSchemaProposal/outcome/refused",
+    "ekr.integrate.ShowInterpretation/outcome/answered",
+    "ekr.integrate.ShowInterpretation/outcome/refused",
+    "ekr.integrate.ShowSchemaProposal/outcome/answered",
+    "ekr.integrate.ShowSchemaProposal/outcome/refused",
+    "ekr.integrate.SubmitSchemaProposal/outcome/answered",
+    "ekr.integrate.SubmitSchemaProposal/outcome/refused"
   ],
   "authored": {},
   "step_floors": {
     "ekr.integrate.ApplyExtraction/outcome/applied": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 44,
       "expect_outcome": 1
     },
     "ekr.integrate.ApplyExtraction/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ApplySchemaProposal/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ApplySchemaProposal/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ApproveSchemaProposal/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ApproveSchemaProposal/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.DiscoverSchemaGaps/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ImportInterpretation/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ImportInterpretation/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ListInterpretations/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.RejectSchemaProposal/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.RejectSchemaProposal/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ShowInterpretation/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ShowInterpretation/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ShowSchemaProposal/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ShowSchemaProposal/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.SubmitSchemaProposal/outcome/answered": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.SubmitSchemaProposal/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
       "expect_outcome": 1
     }
   }

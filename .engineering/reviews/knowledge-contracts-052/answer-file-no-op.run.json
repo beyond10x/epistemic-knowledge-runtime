@@ -1,0 +1,715 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/19",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c"
+  },
+  "implementation": {
+    "name": "EKR native Runtime File, no-op=true",
+    "version": "0.0.27"
+  },
+  "started_at": 1791036863603,
+  "completed_at": 1791036863628,
+  "status": "failed",
+  "scenarios": [
+    {
+      "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "purpose": "A review preceding new competing evidence refuses; an independently renewed review resolves the question and preserves historical evidence.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.AnswerAttention/refused",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-OUTCOME",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "outcome",
+                "name": {
+                  "command": "ekr.kernel.AnswerAttention",
+                  "outcome": "refused"
+                }
+              }
+            ],
+            "input": "ekr.kernel.AnswerAttention(basis = {\"effects_digest\":\"241523bf2d6323c5316f4758ba5ea57aec7a9e363566410b2a09028705c15edd\",\"evidence_digest\":\"5088784dd38faf5fd9517ad2369cc120aed9a8d80f3ea56f5bf936ab4af8c2c2\",\"observed_revision\":1.0,\"options_digest\":\"ab1f7b3886b1e5a0aeb84bb276f12cb64dcd2eaeef4b158c13a2395077a5c928\"}, corrections = [{\"assertion_id\":\"00000000-0000-4000-8000-000000000401\",\"kind\":\"Choose\",\"reason\":\"human reviewed the retained source evidence\"}], dispute_id = \"00000000-0000-4000-8000-000000000401\", human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"d244a458225d6efb88a6d891e3c09453fce4f9ef8641e7389b7e1d9b3d49c581\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000801\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"6f04ec7639035a92c1f64c20649cb834bd876225c18bdb5ab06d574066bb08a2\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"d816acff8aae0a94999e749479e6097d43ff9f929f6929ad6170f4e7703a3a90\",\"target\":{\"kind\":\"AnswerAttention\",\"value\":{\"basis\":{\"effects_digest\":\"241523bf2d6323c5316f4758ba5ea57aec7a9e363566410b2a09028705c15edd\",\"evidence_digest\":\"5088784dd38faf5fd9517ad2369cc120aed9a8d80f3ea56f5bf936ab4af8c2c2\",\"observed_revision\":1.0,\"options_digest\":\"ab1f7b3886b1e5a0aeb84bb276f12cb64dcd2eaeef4b158c13a2395077a5c928\"},\"corrections_digest\":\"575384426dd60fef2a1c6d5d7c0480268aaac917d43be1aa265f36e2b7e97a10\",\"dispute_id\":\"00000000-0000-4000-8000-000000000401\"}}},\"signature\":\"vErisqvM3JWLbJw0jwEtx3zUeNBDZEC5P6veHCz8qAa2RnS6uIhegahpeenX3r1am98oyf4L/LWt8C7VZvSxAA==\"}, statement = \"cmV2aWV3ZWQgZml4dHVyZSBhbnN3ZXI=\")",
+            "expected": [
+              "outcome = refused"
+            ],
+            "observed": [
+              "outcome = answered"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.AnswerAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AnswerAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.AnswerAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.AnswerAttention(basis = {\"effects_digest\":\"02528c910ae0a8bb55f510336db04771811b772b572be10015a9d168c3f83910\",\"evidence_digest\":\"e8b667e2c48ed0ffc03f649205ce65db361c7eff66c3c71765252c52699505e9\",\"observed_revision\":2.0,\"options_digest\":\"3bcd3983cda8e7cd271fb118064670d0adff20d050e921ec941814b33398fed8\"}, corrections = [{\"assertion_id\":\"00000000-0000-4000-8000-000000000401\",\"kind\":\"Choose\",\"reason\":\"human reviewed the retained source evidence\"}], dispute_id = \"00000000-0000-4000-8000-000000000401\", human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"d244a458225d6efb88a6d891e3c09453fce4f9ef8641e7389b7e1d9b3d49c581\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000802\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"6f04ec7639035a92c1f64c20649cb834bd876225c18bdb5ab06d574066bb08a2\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"d816acff8aae0a94999e749479e6097d43ff9f929f6929ad6170f4e7703a3a90\",\"target\":{\"kind\":\"AnswerAttention\",\"value\":{\"basis\":{\"effects_digest\":\"02528c910ae0a8bb55f510336db04771811b772b572be10015a9d168c3f83910\",\"evidence_digest\":\"e8b667e2c48ed0ffc03f649205ce65db361c7eff66c3c71765252c52699505e9\",\"observed_revision\":2.0,\"options_digest\":\"3bcd3983cda8e7cd271fb118064670d0adff20d050e921ec941814b33398fed8\"},\"corrections_digest\":\"575384426dd60fef2a1c6d5d7c0480268aaac917d43be1aa265f36e2b7e97a10\",\"dispute_id\":\"00000000-0000-4000-8000-000000000401\"}}},\"signature\":\"zCuTyysEQwLfvlC3cglDpb2BwnEABTwvJUOd5srz2pjL6xy+dkR6m9Pe3l1VPv5LDyp3GFPojhDRd2Vr0pIHDg==\"}, statement = \"cmV2aWV3ZWQgZml4dHVyZSBhbnN3ZXI=\")",
+            "expected": [
+              "event ekr.kernel.AnswerAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAttention()",
+            "expected": [
+              "event ekr.kernel.ListAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAnswers/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAnswersResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAnswersResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAnswers()",
+            "expected": [
+              "event ekr.kernel.ListAnswersResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.SnapshotTaken"
+              }
+            ],
+            "input": "ekr.kernel.Snapshot(at = 0.0)",
+            "expected": [
+              "event ekr.kernel.SnapshotTaken published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.HumanAnswerRecords"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.HumanAnswerRecords holds a row where basis = {\"effects_digest\":\"02528c910ae0a8bb55f510336db04771811b772b572be10015a9d168c3f83910\",\"evidence_digest\":\"e8b667e2c48ed0ffc03f649205ce65db361c7eff66c3c71765252c52699505e9\",\"observed_revision\":2.0,\"options_digest\":\"3bcd3983cda8e7cd271fb118064670d0adff20d050e921ec941814b33398fed8\"}, corrections = [{\"assertion_id\":\"00000000-0000-4000-8000-000000000401\",\"kind\":\"Choose\",\"reason\":\"human reviewed the retained source evidence\"}], dispute_id = \"00000000-0000-4000-8000-000000000401\", operator = {\"actor\":\"00000000-0000-4000-8000-000000000003\",\"authentication_subject\":\"fixture-human\"}, state = \"Recorded\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.HumanAnswerRecords"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.HumanAnswerRecords holds exactly 1 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000402\", lifecycle = {\"at_revision\":3.0,\"kind\":\"Retracted\",\"reason\":\"human reviewed the retained source evidence\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds exactly 3 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.SettledAssertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.SettledAssertions holds exactly 1 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.RetainedEvidence"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.RetainedEvidence holds a row where evidence_id = \"00000000-0000-4000-8000-000000000500\", extracted_by = \"00000000-0000-4000-8000-000000000003\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.RetainedEvidence"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.RetainedEvidence holds a row where evidence_id = \"00000000-0000-4000-8000-000000000501\", extracted_by = \"00000000-0000-4000-8000-000000000003\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where knowledge_root = \"0bf74942693571730857aeb94403bb3997bf9ee5730b806a10b04b20c2b9c312\", number = 0.0"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds exactly 4 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        }
+      ],
+      "duration_ms": 11
+    },
+    {
+      "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+      "purpose": "A signed answer remains valid across an unrelated ordinary commit; reopened full replay retains the reviewed correction and prior evidence.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.AnswerAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AnswerAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.AnswerAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.AnswerAttention(basis = {\"effects_digest\":\"241523bf2d6323c5316f4758ba5ea57aec7a9e363566410b2a09028705c15edd\",\"evidence_digest\":\"5088784dd38faf5fd9517ad2369cc120aed9a8d80f3ea56f5bf936ab4af8c2c2\",\"observed_revision\":1.0,\"options_digest\":\"ab1f7b3886b1e5a0aeb84bb276f12cb64dcd2eaeef4b158c13a2395077a5c928\"}, corrections = [{\"assertion_id\":\"00000000-0000-4000-8000-000000000401\",\"kind\":\"Choose\",\"reason\":\"human reviewed the retained source evidence\"}], dispute_id = \"00000000-0000-4000-8000-000000000401\", human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"d244a458225d6efb88a6d891e3c09453fce4f9ef8641e7389b7e1d9b3d49c581\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000801\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"6f04ec7639035a92c1f64c20649cb834bd876225c18bdb5ab06d574066bb08a2\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"d816acff8aae0a94999e749479e6097d43ff9f929f6929ad6170f4e7703a3a90\",\"target\":{\"kind\":\"AnswerAttention\",\"value\":{\"basis\":{\"effects_digest\":\"241523bf2d6323c5316f4758ba5ea57aec7a9e363566410b2a09028705c15edd\",\"evidence_digest\":\"5088784dd38faf5fd9517ad2369cc120aed9a8d80f3ea56f5bf936ab4af8c2c2\",\"observed_revision\":1.0,\"options_digest\":\"ab1f7b3886b1e5a0aeb84bb276f12cb64dcd2eaeef4b158c13a2395077a5c928\"},\"corrections_digest\":\"575384426dd60fef2a1c6d5d7c0480268aaac917d43be1aa265f36e2b7e97a10\",\"dispute_id\":\"00000000-0000-4000-8000-000000000401\"}}},\"signature\":\"vErisqvM3JWLbJw0jwEtx3zUeNBDZEC5P6veHCz8qAa2RnS6uIhegahpeenX3r1am98oyf4L/LWt8C7VZvSxAA==\"}, statement = \"cmV2aWV3ZWQgZml4dHVyZSBhbnN3ZXI=\")",
+            "expected": [
+              "event ekr.kernel.AnswerAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAttention()",
+            "expected": [
+              "event ekr.kernel.ListAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAnswers/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAnswersResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAnswersResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAnswers()",
+            "expected": [
+              "event ekr.kernel.ListAnswersResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.SnapshotTaken"
+              }
+            ],
+            "input": "ekr.kernel.Snapshot(at = 0.0)",
+            "expected": [
+              "event ekr.kernel.SnapshotTaken published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.HumanAnswerRecords"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.HumanAnswerRecords holds a row where basis = {\"effects_digest\":\"241523bf2d6323c5316f4758ba5ea57aec7a9e363566410b2a09028705c15edd\",\"evidence_digest\":\"5088784dd38faf5fd9517ad2369cc120aed9a8d80f3ea56f5bf936ab4af8c2c2\",\"observed_revision\":1.0,\"options_digest\":\"ab1f7b3886b1e5a0aeb84bb276f12cb64dcd2eaeef4b158c13a2395077a5c928\"}, corrections = [{\"assertion_id\":\"00000000-0000-4000-8000-000000000401\",\"kind\":\"Choose\",\"reason\":\"human reviewed the retained source evidence\"}], dispute_id = \"00000000-0000-4000-8000-000000000401\", operator = {\"actor\":\"00000000-0000-4000-8000-000000000003\",\"authentication_subject\":\"fixture-human\"}, state = \"Recorded\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.HumanAnswerRecords"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.HumanAnswerRecords holds exactly 1 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000402\", lifecycle = {\"at_revision\":3.0,\"kind\":\"Retracted\",\"reason\":\"human reviewed the retained source evidence\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds exactly 2 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.SettledAssertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.SettledAssertions holds exactly 1 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.RetainedEvidence"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.RetainedEvidence holds a row where evidence_id = \"00000000-0000-4000-8000-000000000500\", extracted_by = \"00000000-0000-4000-8000-000000000003\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.RetainedEvidence"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.RetainedEvidence holds a row where evidence_id = \"00000000-0000-4000-8000-000000000501\", extracted_by = \"00000000-0000-4000-8000-000000000003\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where knowledge_root = \"0bf74942693571730857aeb94403bb3997bf9ee5730b806a10b04b20c2b9c312\", number = 0.0"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds exactly 4 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        }
+      ],
+      "duration_ms": 11
+    }
+  ]
+}

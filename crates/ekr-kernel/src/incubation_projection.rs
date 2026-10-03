@@ -200,7 +200,9 @@ fn evidence(
             },
             content_hash: hash(&value.evidence.content_hash),
             extracted_by: k::AgentId(uuid(&value.evidence.extracted_by.0)),
-            observed_at: p::Timestamp(value.evidence.observed_at.clone()),
+            observed_at: p::Timestamp(super::incubation_document::timestamp_text(
+                &value.evidence.observed_at,
+            )?),
             confidence_bp: integer(&value.evidence.confidence_bp)?,
         },
         payload: bytes(&value.payload)?,

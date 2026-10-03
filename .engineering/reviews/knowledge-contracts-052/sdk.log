@@ -1,0 +1,33 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<worktree>/crates/ekr-views)
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+   Compiling ekr-sdk v0.0.27 (<worktree>/crates/ekr-sdk)
+    Finished `test` profile [unoptimized] target(s) in 8.50s
+     Running tests/document_drift.rs (<build>/target/debug/deps/document_drift-0da7431e5ae8809d)
+
+running 15 tests
+test ensure_refuses_what_no_schema_change_can_make_true_and_names_it ... ok
+test the_sdk_pins_the_kernels_frozen_transaction_document_limits_by_name_and_bound ... ok
+test the_sdk_links_only_core_and_generated_data_under_any_name_and_no_tokio ... ok
+test transitive_guard_follows_renamed_build_and_target_edges_but_not_dev_edges ... ok
+test the_transaction_builder_derives_the_evidence_manifest_and_refuses_what_every_profile_refuses ... ok
+test a_local_mint_is_the_function_ekr_mint_runs ... ok
+test a_local_hash_equals_ekr_hash_for_the_same_bytes_trailing_newline_included ... ok
+test the_readers_refuse_the_one_key_json_form_of_a_tag_so_the_sdk_writes_tags ... ok
+test every_operation_kind_ekr_lists_has_a_builder ... ok
+test the_seed_builder_files_every_record_under_its_id_inside_the_graph_document_envelope ... ok
+test every_builder_output_is_read_by_the_kernel_and_passes_ekr_schema ... ok
+test ensure_against_a_store_whose_ontology_matches_emits_no_operation_and_otherwise_evolves_it ... ok
+test seed_and_data_documents_the_sdk_builds_seed_and_commit_on_a_store ... ok
+test the_sdk_has_no_transitive_runtime_or_storage_dependency ... ok
+test every_limit_the_sdk_checks_it_refuses_where_the_kernel_does_and_by_the_same_name ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.49s
+
+     Running tests/knowledge.rs (<build>/target/debug/deps/knowledge-86255f7b1309ed28)
+
+running 1 test
+test observation_builder_reuses_the_existing_source_key ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

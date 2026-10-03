@@ -6,7 +6,7 @@ fn observation_builder_reuses_the_existing_source_key() {
     let input = observation_import(
         "manual".into(),
         Some("entry-1".into()),
-        "2026-10-03T00:00:00Z".into(),
+        serde_json::from_value(serde_json::json!("2026-10-03T00:00:00Z")).unwrap(),
         serde_json::from_str("\"FeedItem\"").unwrap(),
         b"a\r\nb\n",
     );

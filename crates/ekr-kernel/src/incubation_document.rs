@@ -9,9 +9,24 @@ pub(super) fn error(detail: impl std::fmt::Display) -> StoreError {
 }
 
 pub(super) fn timestamp(value: &str) -> Result<Timestamp, StoreError> {
-    let parsed = time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
-        .map_err(error)?;
-    let nanos = parsed.unix_timestamp_nanos();
+    timestamp_value(&wire_timestamp(value)?)
+}
+
+pub(super) fn wire_timestamp(value: &str) -> Result<EssTimestamp, StoreError> {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map(EssTimestamp)
+        .map_err(error)
+}
+
+pub(super) fn timestamp_text(value: &EssTimestamp) -> Result<String, StoreError> {
+    value
+        .0
+        .format(&time::format_description::well_known::Rfc3339)
+        .map_err(error)
+}
+
+pub(super) fn timestamp_value(value: &EssTimestamp) -> Result<Timestamp, StoreError> {
+    let nanos = value.0.unix_timestamp_nanos();
     if nanos % 1_000_000 != 0 {
         return Err(error("timestamp exceeds millisecond precision"));
     }
@@ -206,7 +221,7 @@ pub(super) fn project(
                     id: e.id.0.parse().map_err(error)?,
                     source,
                     content_hash: e.content_hash.0.parse().map_err(error)?,
-                    observed_at: timestamp(&e.observed_at)?,
+                    observed_at: timestamp_value(&e.observed_at)?,
                     extracted_by: e.extracted_by.0.parse().map_err(error)?,
                     confidence: bp,
                 },

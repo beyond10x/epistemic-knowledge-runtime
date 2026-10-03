@@ -4,8 +4,9 @@
 //!
 //! `systems/ekr` declares the command on the `ekr-integrate` component; the suite ESS synthesizes
 //! for it (`ess conform synthesize --component ekr-integrate`) is committed as
-//! `systems/ekr/conformance/integrate-suite.json` and holds two scenarios,
-//! `ekr.integrate.ApplyExtraction/outcome/applied` and `.../outcome/refused`. The committed suite
+//! `systems/ekr/conformance/integrate-suite.json`. The original extraction scenarios,
+//! `ekr.integrate.ApplyExtraction/outcome/applied` and `.../outcome/refused`, remain in the
+//! full inventory alongside the knowledge-import and schema-proposal obligations. The committed suite
 //! is admitted and run with `Runner::run_admitted` on both providers, and its scenario set, total,
 //! floor and each scenario's step floors are held against the hand-committed
 //! `systems/ekr/conformance/integrate-baseline.json`, never against the suite under test, so a
@@ -210,7 +211,7 @@ fn the_provenance_records_the_integrate_synthesis() {
     assert_eq!(value["format"], "ekr.conformance-provenance/1");
     assert_eq!(value["suite"], SUITE);
     assert_eq!(value["producer"]["tool"], "ess");
-    assert_eq!(value["producer"]["version"], "0.36.0");
+    assert_eq!(value["producer"]["version"], "0.52.0");
     let command: Vec<&str> = value["command"]
         .as_array()
         .expect("synthesis command")
@@ -223,7 +224,7 @@ fn the_provenance_records_the_integrate_synthesis() {
             .find(|pair| pair[0] == flag)
             .map(|pair| pair[1])
     };
-    assert_eq!(command[..3], ["ess", "conform", "synthesize"]);
+    assert_eq!(command[..4], ["ess", "verify", "conform", "synthesize"]);
     assert_eq!(argument("--path"), Some("systems/ekr"));
     assert_eq!(argument("--component"), Some("ekr-integrate"));
     assert_eq!(argument("--suite-format"), Some("5"));
@@ -334,6 +335,7 @@ fn run(target: &IntegrateTarget, outcome: &str) -> SemanticCommandResult {
         .execute_command(SemanticCommandRequest {
             command: "ekr.integrate.ApplyExtraction".parse().unwrap(),
             actor: Some("ekr.integrate.Applier".parse().unwrap()),
+            caller: None,
             input: BTreeMap::from([(
                 "extraction_document".to_owned(),
                 Node::Text("extraction_document".to_owned()),
