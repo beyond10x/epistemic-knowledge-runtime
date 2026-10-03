@@ -38,6 +38,9 @@ pub use observations::ObservationRetention;
 #[path = "incubation.rs"]
 mod incubation;
 pub use incubation::IncubationRetention;
+#[path = "schema_proposals.rs"]
+mod schema_proposals;
+pub use schema_proposals::SchemaProposalRetention;
 #[path = "preparation.rs"]
 mod preparation;
 #[path = "read_only.rs"]

@@ -1,0 +1,9 @@
+   Compiling ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposal-retention-20261003/crates/ekr-store)
+error[E0432]: unresolved import `ekr_store::SchemaProposalRetention`
+ --> crates/ekr-store/tests/schema_proposal_retention.rs:5:30
+  |
+5 | use ekr_store::{ObjectStore, SchemaProposalRetention, StorageClass, StoreError};
+  |                              ^^^^^^^^^^^^^^^^^^^^^^^ no `SchemaProposalRetention` in the root
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `ekr-store` (test "schema_proposal_retention") due to 1 previous error

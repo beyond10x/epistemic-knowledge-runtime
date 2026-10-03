@@ -1,0 +1,61 @@
+   Compiling ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposal-retention-20261003/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 3.13s
+     Running tests/schema_proposal_retention.rs (<build-lane>/target/debug/deps/schema_proposal_retention-3164b14c633b5283)
+
+running 6 tests
+test exact_retries_and_reopen_preserve_the_original_on_both_providers ... FAILED
+test changed_bytes_under_one_id_refuse_without_pinning_the_loser ... FAILED
+test malformed_mismatched_and_noncanonical_identity_inputs_publish_nothing ... FAILED
+test concurrent_changed_input_elects_one_and_refuses_the_other ... FAILED
+test concurrent_identical_retries_elect_one_retained_record ... FAILED
+test retained_payload_is_pinned_and_never_downgrades_stronger_retention ... FAILED
+
+failures:
+
+---- exact_retries_and_reopen_preserve_the_original_on_both_providers stdout ----
+
+thread 'exact_retries_and_reopen_preserve_the_original_on_both_providers' (1433303) panicked at crates/ekr-store/tests/schema_proposal_retention.rs:47:80:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- changed_bytes_under_one_id_refuse_without_pinning_the_loser stdout ----
+
+thread 'changed_bytes_under_one_id_refuse_without_pinning_the_loser' (1433300) panicked at crates/ekr-store/tests/schema_proposal_retention.rs:63:67:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+
+---- malformed_mismatched_and_noncanonical_identity_inputs_publish_nothing stdout ----
+
+thread 'malformed_mismatched_and_noncanonical_identity_inputs_publish_nothing' (1433304) panicked at crates/ekr-store/tests/schema_proposal_retention.rs:101:55:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+
+---- concurrent_changed_input_elects_one_and_refuses_the_other stdout ----
+
+thread 'concurrent_changed_input_elects_one_and_refuses_the_other' (1433301) panicked at crates/ekr-store/tests/schema_proposal_retention.rs:149:9:
+assertion `left == right` failed: [Err(Document("not implemented")), Err(Document("not implemented"))]
+  left: 0
+ right: 1
+
+---- concurrent_identical_retries_elect_one_retained_record stdout ----
+
+thread 'concurrent_identical_retries_elect_one_retained_record' (1433302) panicked at crates/ekr-store/tests/schema_proposal_retention.rs:149:9:
+assertion `left == right` failed: [Err(Document("not implemented")), Err(Document("not implemented"))]
+  left: 0
+ right: 1
+
+---- retained_payload_is_pinned_and_never_downgrades_stronger_retention stdout ----
+
+thread 'retained_payload_is_pinned_and_never_downgrades_stronger_retention' (1433305) panicked at crates/ekr-store/tests/schema_proposal_retention.rs:118:69:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+
+
+failures:
+    changed_bytes_under_one_id_refuse_without_pinning_the_loser
+    concurrent_changed_input_elects_one_and_refuses_the_other
+    concurrent_identical_retries_elect_one_retained_record
+    exact_retries_and_reopen_preserve_the_original_on_both_providers
+    malformed_mismatched_and_noncanonical_identity_inputs_publish_nothing
+    retained_payload_is_pinned_and_never_downgrades_stronger_retention
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-store --test schema_proposal_retention`
