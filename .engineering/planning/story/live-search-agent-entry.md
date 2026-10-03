@@ -9,6 +9,22 @@ relations:
 - derived_from: story:search-first-viewer-entry
 scope:
 - confidence: inferred
+  path: .github/workflows/correctness.yml
+- confidence: inferred
+  path: Cargo.lock
+- confidence: inferred
+  path: Cargo.toml
+- confidence: inferred
+  path: Taskfile.yml
+- confidence: inferred
+  path: crates/ekr-search-web
+- confidence: inferred
+  path: crates/ekr/Cargo.toml
+- confidence: inferred
+  path: crates/ekr/assets/search.wasm
+- confidence: inferred
+  path: crates/ekr/build.rs
+- confidence: inferred
   path: crates/ekr/src/cli/agent_help.rs
 - confidence: cited
   path: crates/ekr/src/cli/http.rs
@@ -26,19 +42,24 @@ scope:
   path: crates/ekr/tests/search_live.rs
 - confidence: cited
   path: crates/ekr/tests/search_page.rs
+- confidence: inferred
+  path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: crates/ekr/tests/view_cli.rs
 - confidence: cited
   path: crates/ekr/tests/view_page.rs
 - confidence: cited
   path: docs/cli.md
-revision: 9
+- confidence: inferred
+  path: xtask/src
+revision: 12
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
 ---
 ## Outcome and authorization
-The operator requests live results while typing on the search entry, a visible link explaining agent MCP connection, and an agent-readable llms.txt entry. Implement and publish the generic capability under the standing upstream authorization. Preserve ordinary GET search and the existing read-only serving contract. The browser-language exception is pending: Rust remains required until the operator explicitly authorizes a narrow self-contained JavaScript enhancement. Static guidance and Rust rendering can proceed independently.
+
+The operator requests live results while typing on the search entry, a visible MCP connection guide and an agent-readable llms.txt entry. Implement and publish the generic capability under the standing upstream authorization. Preserve ordinary GET search and read-only serving. Rust remains the implementation language: the optional authored-JavaScript exception was not approved, so proceed on the Rust/WebAssembly baseline where feasible rather than treating that optional question as permission to stop all browser work. Generated interop assets must be emitted by pinned tooling outside committed source; do not hide authored JavaScript inside Rust strings.
 
 ## Acceptance
 A browser user receives correctly ordered current-query results while typing without losing input focus, can open explicit MCP connection instructions from the search page, and an agent following llms.txt reaches accurate data-free guidance; all existing no-script form, revision, escaping and HTTP admission behavior remains valid.
@@ -71,3 +92,13 @@ The static implementation at 798b7d5fc776143390da5e4f0a6114bef86cc800 passed the
 Follow-up unit checkpoint 63f508cad432fea986af8696a5e3e98bb904252c retains the independent review tests and updates the exact CLI-option expectation for the documented guidance flags. The corrected complete view_cli target, retained adversary_agent_guidance target and package all-target Clippy pass. The recorded test_result identifies each receipt and its precise counts, including the earlier failing expectation and existing ignored screenshot exporter. These test-only commits do not change the previously tested source binary.
 
 Live typing, browser acceptance, full workspace gate, source release and deployment remain outstanding. No custom JavaScript is authorized. Rust/WASM remains permitted; a bounded packaging assessment is checking whether the existing single-command tagged CLI installation can preserve embedded browser assets without authored JavaScript or an extra mandatory end-user toolchain. This is a partial checkpoint, not a completed story.
+
+## Rust browser packaging proposal
+
+A read-only feasibility assessment identified a native-install-compatible path: Rust browser logic compiles to a checked raw WASM artifact, a pinned native wasm-bindgen-cli-support build dependency generates its processed WASM and JavaScript interop into OUT_DIR, and the CLI embeds both. Ordinary tagged CLI installation must not require Node, a separately installed binding generator or a WASM target. The raw artifact must be reproducible from pinned source/lock/toolchain, carry no private build paths, and pass a rebuild-and-compare gate.
+
+The ordinary web binding target needs an authored initialization call. Pinned generator 0.2.129's Deno target instead emits automatic initialization through standard browser module APIs. Browser compatibility is an inference from the generator, not an accepted contract: a disposable real-browser smoke must prove Rust start runs under the intended CSP before this proposal becomes source implementation. Keep the module and WASM same-origin, use only the specific wasm-unsafe-eval allowance, and retain the no-script GET fallback. Do not add unrestricted evaluation, inline bootstrap, external scripts or authored JavaScript snippets.
+
+Existing search concepts and wire semantics are declared in systems/ekr/domains/views.yaml (SearchNodes/NodesSearched); the browser is a read-only adapter, not a new storage domain. Its behavior remains the named acceptance cases above. Actual DOM focus/caret, stale responses, composition, clear, failure and historical links require real-browser verification after implementation. Source scope below is inferred packaging work pending the smoke, not a claim that it exists.
+
+References: Cargo build-script OUT_DIR/native dependency contract, https://doc.rust-lang.org/cargo/reference/build-scripts.html; pinned generator source, https://github.com/wasm-bindgen/wasm-bindgen/blob/0.2.129/crates/cli-support/src/js/mod.rs; generated deployment modes, https://wasm-bindgen.github.io/wasm-bindgen/reference/deployment.html.

@@ -43,10 +43,12 @@ starts until adequate task-owned disposable space has been recovered.
 
 ## Language and implementation boundary
 
-The narrow browser JavaScript exception is awaiting an operator decision. It is not approved
-by existing graph-viewer code. Static help, option validation and Markdown rendering remain
-Rust and can proceed independently. No custom script is committed until that question is
-settled; Rust/WebAssembly remains the baseline language requirement.
+The narrow browser JavaScript exception was not approved and is not inferred from existing
+graph-viewer code. Rust/WebAssembly is the selected baseline. Static help, option validation
+and Markdown rendering are Rust. A disposable real-browser smoke is testing a pinned
+tool-generated automatic module loader; source implementation follows only if that proof
+succeeds. No authored JavaScript is committed, including snippets hidden inside Rust strings.
+The optional exception question does not by itself block the permitted Rust path.
 
 Reuse server-rendered search results and revision links. No store, provider, search-ranking,
 MCP mutation, identity system or consumer-specific data belongs in this change.
@@ -81,7 +83,7 @@ against its failing released baseline. Formatting and changed-file text scans pa
 Current candidate patch SHA-256: `53121522f000294f700560bf5b23305f7f5e7f0d9ea81d607ad8a67594769952`.
 Candidate executable SHA-256: `ff550d7740bbb60e4174321a00fbd280721759d5310ded48288a46aa4e6d44de`.
 The small report, baseline/treatment outputs and complete patch remain in task-owned scratch.
-No JavaScript was authored. Browser-language decision, review of eventual browser changes,
+No JavaScript was authored. Rust/WASM packaging proof, browser implementation and review,
 full gate, source release and managed cleanup remain outstanding. This is a partial review
 checkpoint, not a completed story or release.
 
