@@ -613,17 +613,21 @@ fn linked_workspace_crates(manifest: &toml::Table) -> Vec<String> {
     linked_packages(manifest)
         .into_iter()
         .filter(|package| package == "ekr" || package.starts_with("ekr-"))
-        .filter(|package| package != "ekr-core")
+        .filter(|package| !["ekr-core", "ekr-contract-data"].contains(&package.as_str()))
         .collect()
 }
 
 #[test]
-fn the_sdk_links_no_workspace_crate_but_ekr_core_under_any_name_and_no_tokio() {
+fn the_sdk_links_only_core_and_generated_data_under_any_name_and_no_tokio() {
     let path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("Cargo.toml");
     let manifest: toml::Table = std::fs::read_to_string(path).unwrap().parse().unwrap();
     assert_eq!(linked_workspace_crates(&manifest), Vec::<String>::new());
     let linked = linked_packages(&manifest);
     assert!(linked.contains(&"ekr-core".to_owned()), "{linked:?}");
+    assert!(
+        linked.contains(&"ekr-contract-data".to_owned()),
+        "{linked:?}"
+    );
     assert!(!linked.contains(&"tokio".to_owned()), "the SDK links tokio");
     let features = manifest
         .get("features")
@@ -1426,5 +1430,101 @@ fn seed_and_data_documents_the_sdk_builds_seed_and_commit_on_a_store() {
         node["aliases"],
         serde_json::json!(["lichen-guide-2019"]),
         "{node:#}"
+    );
+}
+
+/// Follow resolved package IDs, including renamed and target-specific normal/build edges.
+/// Dev-only edges do not ship with the SDK and would include its real-runtime test harness.
+fn production_closure(metadata: &Json, root: &str) -> BTreeSet<String> {
+    let nodes = metadata["resolve"]["nodes"]
+        .as_array()
+        .expect("resolved Cargo graph");
+    let mut pending = vec![root.to_owned()];
+    let mut reached = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !reached.insert(id.clone()) {
+            continue;
+        }
+        let node = nodes
+            .iter()
+            .find(|node| node["id"].as_str() == Some(&id))
+            .expect("every edge resolves");
+        for edge in node["deps"].as_array().expect("node dependencies") {
+            if edge["dep_kinds"]
+                .as_array()
+                .expect("dependency kinds")
+                .iter()
+                .any(|kind| kind["kind"].as_str() != Some("dev"))
+            {
+                pending.push(
+                    edge["pkg"]
+                        .as_str()
+                        .expect("resolved package id")
+                        .to_owned(),
+                );
+            }
+        }
+    }
+    reached
+}
+
+#[test]
+fn the_sdk_has_no_transitive_runtime_or_storage_dependency() {
+    let directory = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    let output =
+        std::process::Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+            .current_dir(&directory)
+            .args(["metadata", "--format-version", "1", "--locked", "--offline"])
+            .output()
+            .expect("cargo metadata runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let metadata: Json = serde_json::from_slice(&output.stdout).unwrap();
+    let packages = metadata["packages"].as_array().unwrap();
+    let sdk = packages
+        .iter()
+        .find(|package| package["manifest_path"].as_str() == directory.join("Cargo.toml").to_str())
+        .expect("this SDK manifest is resolved");
+    let reached = production_closure(&metadata, sdk["id"].as_str().unwrap());
+    let names: BTreeSet<_> = packages
+        .iter()
+        .filter(|package| reached.contains(package["id"].as_str().unwrap()))
+        .map(|package| package["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        names.contains("ekr-contract-data") && names.contains("ekr-types"),
+        "{names:?}"
+    );
+    let permitted = ["ekr-sdk", "ekr-core", "ekr-contract-data", "ekr-types"];
+    let forbidden: Vec<_> = names
+        .iter()
+        .filter(|name| {
+            ((**name == "ekr" || name.starts_with("ekr-")) && !permitted.contains(name))
+                || name.starts_with("eventlog-")
+                || ["tokio", "rusqlite"].contains(name)
+        })
+        .collect();
+    assert!(
+        forbidden.is_empty(),
+        "SDK reaches runtime/storage packages: {forbidden:?}"
+    );
+}
+
+#[test]
+fn transitive_guard_follows_renamed_build_and_target_edges_but_not_dev_edges() {
+    let metadata = serde_json::json!({"resolve":{"nodes":[
+        {"id":"sdk", "deps":[{"name":"innocent", "pkg":"data", "dep_kinds":[{"kind":null,"target":"cfg(unix)"}]}, {"pkg":"test-only", "dep_kinds":[{"kind":"dev"}]}]},
+        {"id":"data", "deps":[{"name":"hidden", "pkg":"store", "dep_kinds":[{"kind":"build"}]}]},
+        {"id":"store", "deps":[]}
+    ]}});
+    assert_eq!(
+        production_closure(&metadata, "sdk"),
+        ["sdk", "data", "store"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
     );
 }

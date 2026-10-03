@@ -344,7 +344,7 @@ fn the_examples_keys_are_the_fields_the_domain_declares() {
         declared_fields("ekr.integrate.ExtractionDocument")
     );
     assert_eq!(
-        declaration("ekr.integrate.ExtractionFormat")["variants"][0].as_str(),
+        declaration("ekr.integrate.ExtractionFormat")["variants"][0]["wire"].as_str(),
         Some(EXTRACTION_FORMAT)
     );
     assert_eq!(

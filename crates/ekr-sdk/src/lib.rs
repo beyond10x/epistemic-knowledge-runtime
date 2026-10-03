@@ -16,3 +16,6 @@ pub mod resolve;
 pub mod session;
 pub mod transport;
 pub mod viewer;
+
+/// Generated serde request and receipt documents; runtime validation is required.
+pub use ekr_contract_data as contracts;

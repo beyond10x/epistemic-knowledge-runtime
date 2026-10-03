@@ -1,0 +1,3 @@
+# ESS's per-directory ownership journals hold machine-local inode and path data.
+/ekr-contracts/.ess-output/
+/ekr-contract-data/.ess-output/
