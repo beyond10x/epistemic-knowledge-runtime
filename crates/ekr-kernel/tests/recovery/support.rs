@@ -705,6 +705,10 @@ pub fn preparation_hash(prepared: &PublicationPreparationV1) -> ContentHash {
 
 /// Recomputes the provider's own fingerprint over a retained native request.
 pub fn fingerprint(request: &NativePublicationRequest) -> String {
+    native_request(request).fingerprint().unwrap()
+}
+/// Restore the exact public native request for process-death tests inside a real provider.
+pub fn native_request(request: &NativePublicationRequest) -> eventlog_core::BlobAppendGroup {
     use eventlog_core::{
         AppendGroup, BlobAppendGroup, BlobWrite, CommandMeta, Expected, NewEvent, StreamAppend,
         StreamId, TenantId,
@@ -741,8 +745,9 @@ pub fn fingerprint(request: &NativePublicationRequest) -> String {
         })
         .collect();
     let meta = &request.meta;
+    assert!(meta.claim.is_none(), "atomic group must not carry a claim");
     let nanos: i128 = meta.occurred_at_unix_nanos.parse().unwrap();
-    let group = BlobAppendGroup {
+    BlobAppendGroup {
         group: AppendGroup {
             tenant: TenantId::new(request.tenant.clone()).unwrap(),
             appends,
@@ -772,8 +777,7 @@ pub fn fingerprint(request: &NativePublicationRequest) -> String {
                 bytes: b.bytes.clone(),
             })
             .collect(),
-    };
-    group.fingerprint().unwrap()
+    }
 }
 /// The first-attempt preparation the store would have built for `decision` in `like`'s slot,
 /// reconstructed from public formats. Only valid where every staged object is new.

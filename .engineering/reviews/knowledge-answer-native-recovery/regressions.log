@@ -1,0 +1,24 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 1.83s
+     Running tests/adversary_p1_12_recovery_1.rs (<scratch>/target/debug/deps/adversary_p1_12_recovery_1-51ada7cf5d327886)
+
+running 9 tests
+test adv1_a_pending_bootstrap_with_a_different_seed_document_is_a_publication_input_conflict ... ok
+test adv1_a_pending_bootstrap_under_a_changed_host_anchor_is_a_publication_input_conflict ... ok
+test adv1_a_validate_preparation_in_the_commit_slot_is_refused_by_name_and_changes_nothing ... ok
+test adv1_an_unresolved_commit_overtaken_by_a_competing_commit_becomes_stale_at_its_elected_time ... ok
+test adv1_a_forged_successor_under_a_new_occurrence_id_is_refused_and_changes_nothing ... ok
+test adv1_unrelated_movement_during_uncertainty_keeps_the_elected_occurrence_for_every_kind ... ok
+test adv1_reads_over_a_pending_preparation_write_nothing_for_every_kind ... ok
+test adv1_two_unresolved_revision_one_commits_resolve_to_one_commit_in_either_order ... ok
+test adv1_two_processes_racing_for_revision_one_commit_it_exactly_once ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/adversary_p1_12_recovery_r2_anchor_race.rs (<scratch>/target/debug/deps/adversary_p1_12_recovery_r2_anchor_race-0a2f1b7961b8e1d4)
+
+running 1 test
+test adv2_a_bootstrap_elected_under_another_anchor_during_the_clock_sample_is_an_input_conflict ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
