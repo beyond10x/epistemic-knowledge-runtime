@@ -9520,6 +9520,12 @@
           },
           "type": "array"
         },
+        "supporting_evidence": {
+          "items": {
+            "$ref": "#/$defs/ekr.views.SchemaEvidenceEntry"
+          },
+          "type": "array"
+        },
         "unrecorded_edges": {
           "type": "integer"
         },
@@ -10034,6 +10040,12 @@
           },
           "type": "array"
         },
+        "supporting_evidence": {
+          "items": {
+            "$ref": "#/$defs/ekr.views.SchemaEvidenceEntry"
+          },
+          "type": "array"
+        },
         "versions": {
           "items": {
             "$ref": "#/$defs/ekr.views.ProjectedSchemaVersion"
@@ -10509,6 +10521,36 @@
       "type": "object",
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.views.SampledFact"
+    },
+    "ekr.views.SchemaEvidenceEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/ekr.graph.EvidenceId"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "$ref": "#/$defs/ekr.kernel.RevisionNumber"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/ekr.ontology.SchemaVersionId"
+        },
+        "transaction_id": {
+          "$ref": "#/$defs/ekr.kernel.TransactionId"
+        }
+      },
+      "required": [
+        "revision",
+        "schema_version",
+        "transaction_id",
+        "evidence"
+      ],
+      "title": "SchemaEvidenceEntry",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.views.SchemaEvidenceEntry"
     },
     "ekr.views.SchemaMember": {
       "additionalProperties": false,
@@ -11112,8 +11154,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:911dd946d4fce70360a69234f9ab522499906e14280300b8b7997fb2d8d065da",
-    "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "slice-sha256/2:d281a175b42a84f9ab5090dc1ce7281234533447a1ccc53b3289b454383b238c",
+    "source_digest": "76cac94520a78179089e10b0871c7979eacd35197c8e7b584616fac60d49e705",
     "specification_version": "v1",
     "system": "ekr"
   }

@@ -180,6 +180,42 @@ pub(super) fn render(runtime: &Runtime) -> Result<Vec<u8>, String> {
         write!(page, "<article id=\"answer-{}\"><h3>{outcome}</h3><p>Reviewed by {} · {} · revision {revision}</p><pre>{}</pre><p><a href=\"/evidence/{evidence}\">Human statement evidence</a></p><details><summary>Corrections and effective times</summary><pre>{}</pre></details><details><summary>Signed decision and provenance</summary><pre>{}</pre></details></article>",
             escaped(&answer.answer_id.0), escaped(&answer.review.operator.authentication_subject), escaped(answer.review.recorded_at.0.format(&time::format_description::well_known::Rfc3339).map_err(|error| error.to_string())?), excerpt(statement), document(&answer.corrections)?, document(&answer)?).unwrap();
     }
+    if let Some(head) = runtime.head().map_err(|e| e.to_string())? {
+        let history = runtime
+            .schema_history(head.revision)
+            .map_err(|e| e.to_string())?;
+        let entries = ekr_views::schema_evidence(&history).map_err(|e| e.to_string())?;
+        if !entries.is_empty() {
+            page.push_str("<section id=\"schema-history\"><h2>Schema evidence history</h2><p>Sources cited by the transactions that introduced these schema versions.</p>");
+            for entry in entries {
+                write!(
+                    page,
+                    "<article><h3>Schema version {}</h3><p>Revision {} · transaction {}</p>",
+                    escaped(&entry.schema_version.0),
+                    escaped(&entry.revision.0),
+                    escaped(&entry.transaction_id.0)
+                )
+                .unwrap();
+                for id in entry.evidence {
+                    let evidence_id: EvidenceId =
+                        id.0.parse()
+                            .map_err(|e: ekr_core::IdParseError| e.to_string())?;
+                    let evidence = history
+                        .graph
+                        .evidence
+                        .get(&evidence_id)
+                        .ok_or("missing schema evidence")?;
+                    let bytes = runtime
+                        .content(&evidence.content_hash)
+                        .map_err(|e| e.to_string())?
+                        .ok_or("missing retained schema evidence bytes")?;
+                    write!(page, "<details><summary>Evidence {evidence_id}</summary><pre>{}</pre><pre>{}</pre><a href=\"/evidence/{evidence_id}\">Open retained bytes</a></details>", document(evidence)?, excerpt(&bytes)).unwrap();
+                }
+                page.push_str("</article>");
+            }
+            page.push_str("</section>");
+        }
+    }
     page.push_str("</main></html>");
     Ok(page.into_bytes())
 }

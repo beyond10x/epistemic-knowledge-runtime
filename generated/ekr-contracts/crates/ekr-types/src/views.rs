@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146
-// contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c
+// model digest 76cac94520a78179089e10b0871c7979eacd35197c8e7b584616fac60d49e705
+// contract digest c0793b41517a2b54756a5ae9c6d0c85aa53885defe0f88328a27a2c46c880d14
 // do not edit: regenerate with `ess synthesize`
 
 //! Views — `ekr.views`.
@@ -810,6 +810,8 @@ pub struct OverviewSchema {
     pub unrecorded_nodes: i64,
     /// `unrecorded_edges` — `Integer`.
     pub unrecorded_edges: i64,
+    /// `supporting_evidence` — `Optional<List<ekr.views.SchemaEvidenceEntry>>`.
+    pub supporting_evidence: Option<Vec<SchemaEvidenceEntry>>,
 }
 
 /// OverviewSchemaVersion — `ekr.views.OverviewSchemaVersion`.
@@ -1025,6 +1027,8 @@ pub struct ProjectedSchema {
     pub versions: Vec<ProjectedSchemaVersion>,
     /// `revisions` — `List<ekr.views.ProjectedRevision>`.
     pub revisions: Vec<ProjectedRevision>,
+    /// `supporting_evidence` — `Optional<List<ekr.views.SchemaEvidenceEntry>>`.
+    pub supporting_evidence: Option<Vec<SchemaEvidenceEntry>>,
 }
 
 /// ProjectedSchemaVersion — `ekr.views.ProjectedSchemaVersion`.
@@ -1191,6 +1195,19 @@ pub struct SampledFact {
     pub assertion: ProjectedAssertion,
     /// `evidence` — `List<ekr.views.SampledEvidence>`.
     pub evidence: Vec<SampledEvidence>,
+}
+
+/// SchemaEvidenceEntry — `ekr.views.SchemaEvidenceEntry`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaEvidenceEntry {
+    /// `revision` — `ekr.kernel.RevisionNumber`.
+    pub revision: crate::kernel::RevisionNumber,
+    /// `schema_version` — `ekr.ontology.SchemaVersionId`.
+    pub schema_version: crate::ontology::SchemaVersionId,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: crate::kernel::TransactionId,
+    /// `evidence` — `List<ekr.graph.EvidenceId>`.
+    pub evidence: Vec<crate::graph::EvidenceId>,
 }
 
 /// SchemaMember — `ekr.views.SchemaMember`.

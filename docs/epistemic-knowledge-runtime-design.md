@@ -5793,3 +5793,29 @@ actually written by the previous implementation, verifies their original roots a
 invalidates the old pending validation and repeats full replay after the reviewed transition.
 CLI/SDK/viewer history presentation and the named ESS scenario remain delivery acceptance work;
 these focused kernel cases do not establish their conformance.
+
+## 105.15 Schema evidence read presentation (2026-10-03)
+
+The ESS-generated `ekr.views.SchemaEvidenceEntry` carries the introducing revision, schema
+version, transaction identity and its sorted evidence identities. The kernel's verified schema
+history is projected into this shared type; the CLI, typed SDK and viewer do not define parallel
+copies of that record. `ekr ontology --at N` includes entries through N in `supporting_evidence`;
+the graph projection and overview include them under `schema.supporting_evidence`. Empty lists
+are omitted so earlier stores retain their previous read bytes. Seed evidence is never attributed
+to a schema transaction.
+
+The Rust-rendered inbox adds a Schema evidence history section with escaped retained excerpts
+and links to the complete evidence bytes. It creates no browser write capability.
+`cli::ontology::tests::schema_change_exposes_supporting_evidence` constructs changes through the
+typed SDK, commits them through the real kernel, then checks CLI/SDK decoding, projection,
+overview and escaped inbox output after normal and full replay on both providers. It also selects
+earlier revisions after later commits to exclude future citations. This implementation test does
+not replace the separately required authored ESS scenario or full delivery gate.
+
+Verified replay retains every authority boundary, so explanation selects the profile active at
+the retained validation's basis revision. Keeping only the latest transition loses the earlier
+knowledge/1 boundary after a second upgrade and incorrectly compares its validation with the seed
+profile. The native knowledge/1 regression now commits an ordinary assertion before upgrading,
+then checks that both current and historical explanations still identify knowledge/1 after normal
+and full replay. Checkpoints preceding any upgrade start with no extra boundaries; checkpoints
+covering upgrades still require authority replay. No persisted profile, record or root changes.

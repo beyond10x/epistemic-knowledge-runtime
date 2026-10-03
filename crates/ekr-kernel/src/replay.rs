@@ -75,6 +75,8 @@ pub(crate) struct ReplayState {
     pub(crate) answers:
         BTreeMap<RevisionNumber, ekr_core::contract_data::EkrKernelHumanAnswerRecord>,
     pub(crate) upgraded_authority: Option<AuthorityStateV1>,
+    /// Every verified authority boundary; explanations may cite validations from any epoch.
+    pub(crate) authority_changes: BTreeMap<RevisionNumber, AuthorityStateV1>,
     pub(crate) transition: Option<ekr_core::contract_data::EkrKernelAuthorityTransitionRecord>,
     pub(crate) assessment_validators: BTreeMap<ekr_core::AssertionId, BTreeSet<AgentId>>,
     pub(crate) seed: SeedResultV1,
@@ -1043,6 +1045,7 @@ impl KernelAuthority {
             let state = ReplayState {
                 answers: BTreeMap::new(),
                 upgraded_authority: None,
+                authority_changes: BTreeMap::new(),
                 transition: None,
                 assessment_validators: BTreeMap::new(),
                 held,

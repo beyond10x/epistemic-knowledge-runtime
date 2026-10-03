@@ -45,6 +45,7 @@ pub use checks::{
     CodeNamesMeta, PropertyQuality, QualityMeta, RejectedTransaction, RejectionIssue, Rejections,
     SharedName, StoreQuality,
 };
+pub use ekr_core::contract_data::EkrViewsSchemaEvidenceEntry as SchemaEvidenceEntry;
 pub use kernel::{
     ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction,
     NamedType, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty,

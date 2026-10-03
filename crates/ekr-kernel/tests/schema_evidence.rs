@@ -109,6 +109,8 @@ fn run<S: RevisionLog + ObjectStore + Initialize + ObservationRetention + Incuba
     }
     // An ordinary data operation never becomes admissible merely by sharing a schema transaction.
     let mut mixed = schema(support);
+    // Isolate the schema/data boundary: a stray manifest must not mask a missing shape guard.
+    mixed.evidence.clear();
     let (_, document) = proposal(&doc);
     let data = ekr_kernel::TransactionDocument::parse(&document).unwrap();
     mixed
@@ -119,14 +121,22 @@ fn run<S: RevisionLog + ObjectStore + Initialize + ObservationRetention + Incuba
             Timestamp::from_millis(30)
         })
         .unwrap();
-    assert!(matches!(
-        kernel
-            .validate(mixed.id, kernel.head().unwrap().unwrap().revision, || {
-                Timestamp::from_millis(31)
-            })
-            .unwrap(),
-        ValidationCommandResult::Rejected(_)
-    ));
+    let ValidationCommandResult::Rejected(mixed_rejection) = kernel
+        .validate(mixed.id, kernel.head().unwrap().unwrap().revision, || {
+            Timestamp::from_millis(31)
+        })
+        .unwrap()
+    else {
+        panic!("mixed schema/data transaction was admitted");
+    };
+    assert!(
+        mixed_rejection
+            .issues
+            .iter()
+            .any(|issue| issue.code == "mixed-schema-transaction"),
+        "wrong refusal for mixed schema/data transaction: {:?}",
+        mixed_rejection.issues
+    );
     let unchanged = kernel.head().unwrap();
     let unknown = schema(EvidenceId::mint());
     let mut uncited = schema(support);
@@ -304,6 +314,64 @@ fn native_knowledge_one_upgrades_without_rewriting_its_rejection_or_roots() {
         let before = runtime.transactions().unwrap();
         assert_eq!(before[&pending].state(), TransactionState::Validated);
         assert_eq!(before[&rejected].state(), TransactionState::Rejected);
+        let mut claim = runtime
+            .read(None)
+            .unwrap()
+            .seed_input
+            .graph
+            .assertions
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        claim.id = AssertionId::mint();
+        claim.assessment = Assessment::Proposed;
+        claim.transaction_time = TransactionTime::since(Timestamp::from_millis(6));
+        let claim_id = claim.id;
+        let assertion_tx = GraphTransaction {
+            id: TransactionId::mint(),
+            proposer: context().operator,
+            evidence: claim.evidence.clone(),
+            schema_version: None,
+            operations: vec![GraphOperation::AddAssertion(Box::new(claim))],
+        };
+        runtime
+            .propose(&encode(&assertion_tx), context().operator, || {
+                Timestamp::from_millis(6)
+            })
+            .unwrap();
+        assert!(matches!(
+            runtime
+                .validate(assertion_tx.id, legacy_root.revision, || {
+                    Timestamp::from_millis(7)
+                })
+                .unwrap(),
+            ValidationCommandResult::Validated(_)
+        ));
+        runtime
+            .commit(assertion_tx.id, context().operator, || {
+                Timestamp::from_millis(8)
+            })
+            .unwrap();
+        let assertion_revision = runtime.head().unwrap().unwrap().revision;
+        let explain_old = |read: ekr_kernel::VerifiedRead| {
+            let explanation = read.explain(claim_id).expect(
+                "a knowledge/1 assertion keeps its original explanation after the second upgrade",
+            );
+            let validation = explanation
+                .links
+                .iter()
+                .find_map(|link| match link {
+                    ekr_kernel::ExplanationLink::Validation(validation) => Some(validation),
+                    _ => None,
+                })
+                .expect("ordinary assertion has a validation link");
+            assert_eq!(
+                validation.validation_profile,
+                ValidationProfileV1::knowledge(context().validator)
+            );
+        };
+        explain_old(runtime.read(None).unwrap());
         let human = Human::new(runtime.read(None).unwrap().seed.seed_hash);
         assert_eq!(review::policy_bytes(&human.policy).unwrap(), policy_bytes);
         let preview = runtime.preview_upgrade(&policy).unwrap();
@@ -351,6 +419,8 @@ fn native_knowledge_one_upgrades_without_rewriting_its_rejection_or_roots() {
         for full in [false, true] {
             let reopened = open(full);
             assert_eq!(reopened.head().unwrap(), Some(final_root));
+            explain_old(reopened.read(Some(assertion_revision)).unwrap());
+            explain_old(reopened.read(None).unwrap());
             let history = reopened.schema_history(final_root.revision).unwrap();
             assert_eq!(history.revisions[&RevisionNumber::SEED].root, seed_root);
             assert_eq!(history.revisions[&legacy_root.revision].root, legacy_root);

@@ -181,7 +181,7 @@ pub struct SnapshotEvidence {
 }
 
 /// `ekr ontology`: the schema in force at a revision, by name and id.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ontology {
     /// The revision read.
     pub revision: u64,
@@ -195,7 +195,13 @@ pub struct Ontology {
     pub node_types: Vec<OntologyNodeType>,
     /// Its edge types.
     pub edge_types: Vec<OntologyEdgeType>,
+    /// Immutable schema transactions' cited evidence through this revision, omitted when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supporting_evidence: Vec<super::SchemaEvidenceEntry>,
 }
+
+// The generated evidence entry contains only integer revisions and string identities, all Eq.
+impl Eq for Ontology {}
 
 /// A type by id, with its name when the ontology names it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

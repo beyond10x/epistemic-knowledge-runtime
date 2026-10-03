@@ -668,6 +668,7 @@ fn restored(
     Ok(ReplayState {
         answers: BTreeMap::new(),
         upgraded_authority: None,
+        authority_changes: BTreeMap::new(),
         transition: None,
         assessment_validators: BTreeMap::new(),
         seed,

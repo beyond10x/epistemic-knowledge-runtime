@@ -257,6 +257,8 @@ struct ProjectedRevision {
 struct ProjectedSchema {
     versions: Vec<ProjectedSchemaVersion>,
     revisions: Vec<ProjectedRevision>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    supporting_evidence: Vec<crate::SchemaEvidenceEntry>,
 }
 
 pub(crate) const fn evidence_kind(kind: EvidenceKind) -> &'static str {
@@ -556,6 +558,7 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         schema: ProjectedSchema {
             versions,
             revisions,
+            supporting_evidence: loaded.supporting_evidence.clone(),
         },
     };
     let bytes = serde_json::to_vec(&document)

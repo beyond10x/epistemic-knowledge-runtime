@@ -609,6 +609,14 @@ seed). These are the ids a transaction document uses for `type_id`, `predicate: 
 property keys. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`, exit 2,
 as for `ekr snapshot --at`.
 
+When schema transactions cited evidence, `supporting_evidence` lists their `revision`,
+`schema_version`, `transaction_id` and sorted `evidence` ids through the selected revision.
+The field is omitted when no schema transaction cited evidence. Each id can be inspected with
+`ekr evidence <id>`; seed evidence is not attributed to a later schema change. The graph
+projection and overview expose the same records under `schema.supporting_evidence`.
+The viewer's read-only inbox includes a **Schema evidence history** section with those records
+and retained source excerpts.
+
 ### `ekr code-names`
 
 `ekr code-names <file>... [--at N]` checks that code which reads a store stays generic over any

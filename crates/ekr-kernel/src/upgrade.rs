@@ -461,6 +461,9 @@ pub(crate) fn replay_transition(
     state.validated.clear();
     let mut active = authority.anchor.clone();
     active.validation_profile = profile;
+    state
+        .authority_changes
+        .insert(root.revision, active.clone());
     state.upgraded_authority = Some(active);
     state.transition = Some(record);
     Ok(())

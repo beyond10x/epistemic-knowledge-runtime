@@ -627,6 +627,11 @@ these independent streams before publishing a destination, to prevent a partial 
 
 ## Typed reads
 
+`Reader::ontology(at)` exposes schema history citations in `supporting_evidence`, and the
+overview exposes the same records in `schema.supporting_evidence`. Each `SchemaEvidenceEntry`
+is the ESS-generated record containing the introducing revision, schema version, transaction
+and evidence identities. Selecting a past revision excludes later schema support.
+
 `ekr_sdk::read::Reader` sends a read over any transport (a `ProcessSession`, a `&mut` one, a
 recording or a replay) and returns a typed value instead of a `Reply`:
 

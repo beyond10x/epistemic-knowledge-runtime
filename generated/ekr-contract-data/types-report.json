@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+  "source_digest": "76cac94520a78179089e10b0871c7979eacd35197c8e7b584616fac60d49e705",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:911dd946d4fce70360a69234f9ab522499906e14280300b8b7997fb2d8d065da",
-    "projection_digest": "451ee193e27fe7004c73a4df0e0ac96ff8b75b95676f91be66cfac6769772060"
+    "contract_digest": "slice-sha256/2:d281a175b42a84f9ab5090dc1ce7281234533447a1ccc53b3289b454383b238c",
+    "projection_digest": "9ce150720a7350a4a37ed1bb6f939889081dbeb1555b19e00da8ace98572ecf0"
   },
   "generator_version": "0.52.0",
   "target": "rust",
@@ -436,6 +436,7 @@
     "ekr.views.SampleOrigin",
     "ekr.views.SampledEvidence",
     "ekr.views.SampledFact",
+    "ekr.views.SchemaEvidenceEntry",
     "ekr.views.SchemaMember",
     "ekr.views.SchemaMemberKind",
     "ekr.views.SharedName",
@@ -883,6 +884,7 @@
     "ekr.views.SampleOrigin": "EkrViewsSampleOrigin",
     "ekr.views.SampledEvidence": "EkrViewsSampledEvidence",
     "ekr.views.SampledFact": "EkrViewsSampledFact",
+    "ekr.views.SchemaEvidenceEntry": "EkrViewsSchemaEvidenceEntry",
     "ekr.views.SchemaMember": "EkrViewsSchemaMember",
     "ekr.views.SchemaMemberKind": "EkrViewsSchemaMemberKind",
     "ekr.views.SharedName": "EkrViewsSharedName",
@@ -8231,6 +8233,21 @@
     },
     {
       "pointer": "/$defs/ekr.views.SampledFact/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.views.SchemaEvidenceEntry/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.views.SchemaEvidenceEntry/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.views.SchemaEvidenceEntry/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },

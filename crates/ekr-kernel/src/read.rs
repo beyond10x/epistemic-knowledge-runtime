@@ -47,7 +47,7 @@ pub struct VerifiedRead {
     pub context: BootstrapContext,
     /// Complete original registry and validation profile, verified against the host anchor.
     pub authority: AuthorityStateV1,
-    pub(crate) authority_change: Option<(RevisionNumber, AuthorityStateV1)>,
+    pub(crate) authority_changes: BTreeMap<RevisionNumber, AuthorityStateV1>,
     /// All canonical revision coordinates through this boundary.
     pub revisions: BTreeMap<RevisionNumber, VerifiedRevision>,
     /// Actual retained transaction decisions through this boundary.
@@ -62,9 +62,9 @@ pub struct VerifiedRead {
 }
 impl VerifiedRead {
     pub(crate) fn authority_at(&self, revision: RevisionNumber) -> &AuthorityStateV1 {
-        self.authority_change
-            .as_ref()
-            .filter(|(at, _)| *at <= revision)
+        self.authority_changes
+            .range(..=revision)
+            .next_back()
             .map_or(&self.authority, |(_, authority)| authority)
     }
     /// Already verified retained bytes, with no provider access or new history observation.
@@ -267,23 +267,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             seed_input,
             context: envelope.context,
             authority: envelope.authority.clone(),
-            authority_change: state
-                .upgraded_authority
-                .as_ref()
-                .zip(state.transition.as_ref())
-                .map(|(authority, transition)| {
-                    (
-                        RevisionNumber::new(
-                            transition
-                                .result
-                                .revision
-                                .0
-                                .as_u64()
-                                .expect("replayed transition revision"),
-                        ),
-                        authority.clone(),
-                    )
-                }),
+            authority_changes: state.authority_changes.clone(),
             transactions: state.transaction_records(),
             answers: state.answers.clone(),
             revisions: state

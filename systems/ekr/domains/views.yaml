@@ -447,6 +447,26 @@ types:
         type: List<ekr.views.ProjectedSchemaVersion>
       - name: revisions
         type: List<ekr.views.ProjectedRevision>
+      - name: supporting_evidence
+        type: Optional<List<ekr.views.SchemaEvidenceEntry>>
+
+  # An immutable schema transaction's cited evidence. Ordered by revision, then evidence id;
+  # omit the containing supporting_evidence field when no schema transaction cited evidence.
+  # Seed evidence is not schema-transaction evidence. Entries after the selected revision are
+  # excluded. The kernel's SchemaTransactionEvidence relation remains the authority for links.
+  # cli::ontology::tests::schema_change_exposes_supporting_evidence holds the presentation
+  # binding on both providers; authored ESS conformance remains separate acceptance work.
+  - name: ekr.views.SchemaEvidenceEntry
+    kind: struct
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: schema_version
+        type: ekr.ontology.SchemaVersionId
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
 
   # The document. Rendered, never stored as canonical state; nothing owns it. Its tie to one
   # revision is design § 82, stated here rather than as a relation.
@@ -671,6 +691,8 @@ types:
         type: Integer
       - name: unrecorded_edges
         type: Integer
+      - name: supporting_evidence
+        type: Optional<List<ekr.views.SchemaEvidenceEntry>>
 
   # How many nodes of a node type, or edges of an edge type, the overviewed revision holds. Every
   # type the overviewed ontology declares is listed, with zero where it has none.

@@ -1,0 +1,29 @@
+
+running 2 tests
+test schema_support_survives_sqlite_reopen_and_full_replay ... FAILED
+test schema_support_survives_file_reopen_and_full_replay ... FAILED
+
+failures:
+
+---- schema_support_survives_sqlite_reopen_and_full_replay stdout ----
+
+thread 'schema_support_survives_sqlite_reopen_and_full_replay' (168567) panicked at crates/ekr-kernel/tests/schema_evidence.rs:128:30:
+mixed schema/data transaction was admitted
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- schema_support_survives_file_reopen_and_full_replay stdout ----
+
+thread 'schema_support_survives_file_reopen_and_full_replay' (168566) panicked at crates/ekr-kernel/tests/schema_evidence.rs:128:30:
+mixed schema/data transaction was admitted
+
+
+failures:
+    schema_support_survives_file_reopen_and_full_replay
+    schema_support_survives_sqlite_reopen_and_full_replay
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.09s
+
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 7.21s
+     Running tests/schema_evidence.rs (<build>/target/debug/deps/schema_evidence-513e65a9c974d27a)
+error: test failed, to rerun pass `-p ekr-kernel --test schema_evidence`
