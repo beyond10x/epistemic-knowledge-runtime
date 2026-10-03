@@ -3,7 +3,10 @@ use crate::{Commit, VerifiedRead};
 use ekr_core::contract_data::*;
 use ekr_core::{AssertionId, ContentHash, EvidenceId, ObservationId, RevisionNumber};
 use ekr_graph::{Assertion, AssertionLifecycle, Assessment, EvidenceSource, Predicate, Subject};
-use ekr_store::{IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, StoreError};
+use ekr_store::{
+    IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, SchemaProposalRetention,
+    StoreError,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -58,7 +61,14 @@ fn checked_subject(value: &EkrKernelAttentionSubject) -> Result<(), StoreError> 
     Ok(())
 }
 
-impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> Commit<S> {
+impl<
+        S: RevisionLog
+            + ObjectStore
+            + ObservationRetention
+            + IncubationRetention
+            + SchemaProposalRetention,
+    > Commit<S>
+{
     /// Derive unresolved questions from current admitted state; this never creates queue state.
     /// # Errors
     /// Invalid canonical history, missing retained evidence or provider failure.
@@ -153,8 +163,51 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
                 });
             }
         }
-        // Schema proposals join this projection when their retention/decision path is present.
-        // No synthetic proposal or independent queue is introduced here.
+        for retained in self.store.retained_schema_proposals()? {
+            let proposal = self.retained_schema_proposal(&retained.proposal.proposal_id)?;
+            let mut subject = subject(EkrKernelAttentionKind::V2);
+            subject.proposal_id = EssPresence::Present(proposal.proposal.proposal_id.clone());
+            let mut observations: BTreeSet<_> = proposal
+                .proposal
+                .observations
+                .iter()
+                .map(|id| id.0.clone())
+                .collect();
+            let mut evidence: BTreeSet<_> = proposal
+                .proposal
+                .evidence
+                .iter()
+                .map(|id| id.0.clone())
+                .collect();
+            for source in &proposal.proposal.sources {
+                let source = self.retained_interpretation(&source.version)?;
+                observations.extend(source.document.observations.iter().map(|id| id.0.clone()));
+                evidence.extend(
+                    source
+                        .document
+                        .evidence
+                        .iter()
+                        .map(|entry| entry.evidence.id.0.clone()),
+                );
+            }
+            items.push(EkrKernelAttentionItem {
+                subject: Box::new(subject),
+                question: format!(
+                    "Should this vocabulary proposal be approved? {}",
+                    proposal.proposal.explanation
+                ),
+                basis: proposal.basis,
+                claims: Vec::new(),
+                evidence: evidence
+                    .into_iter()
+                    .map(|id| Box::new(EkrGraphEvidenceId(id)))
+                    .collect(),
+                observations: observations
+                    .into_iter()
+                    .map(|id| Box::new(EkrGraphObservationId(id)))
+                    .collect(),
+            });
+        }
         items.sort_by_key(|item| match &*item.subject.kind {
             EkrKernelAttentionKind::V0 => (
                 0,

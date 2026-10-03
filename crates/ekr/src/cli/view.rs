@@ -54,6 +54,7 @@
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
 //! | `GET /inbox` | Rust-rendered unresolved questions, competing claims, retained evidence, parked knowledge and reviewed answer history; queries are refused; no browser writes |
+//! | `GET /schema-proposal/<id>` | Rust-rendered proposal additions, mapping preview, retained sources and review material; queries are refused; no browser writes |
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
@@ -611,6 +612,7 @@ impl Reply {
 enum Route<'a> {
     Page,
     Inbox,
+    SchemaProposal(&'a str),
     Head,
     Projection,
     Roles,
@@ -641,6 +643,7 @@ fn route(path: &str) -> Option<Route<'_>> {
         "/changes" => Some(Route::Changes),
         _ => named("/evidence/")
             .map(Route::Evidence)
+            .or_else(|| named("/schema-proposal/").map(Route::SchemaProposal))
             .or_else(|| named("/node/").map(Route::Node)),
     }
 }
@@ -766,6 +769,16 @@ fn route_answer(
                 match super::inbox::render(runtime) {
                     Ok(page) => Reply::ok(HTML, page),
                     Err(error) => Reply::text(500, error),
+                }
+            }
+        }
+        Route::SchemaProposal(id) => {
+            if !query.is_empty() {
+                Reply::refusal(400, "invalid-query", "the proposal page takes no query")
+            } else {
+                match super::inbox::proposal(runtime, id) {
+                    Ok(page) => Reply::ok(HTML, page),
+                    Err(error) => Reply::text(400, error),
                 }
             }
         }

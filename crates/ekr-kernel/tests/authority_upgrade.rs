@@ -4,7 +4,14 @@
 mod recovery;
 include!("support/authority_review_fixture.rs");
 
-fn run<S: RevisionLog + ObjectStore + Initialize + ObservationRetention + IncubationRetention>(
+fn run<
+    S: RevisionLog
+        + ObjectStore
+        + Initialize
+        + ObservationRetention
+        + IncubationRetention
+        + ekr_store::SchemaProposalRetention,
+>(
     open: impl Fn(Option<m::TrustedReviewHostBinding>, bool) -> Commit<S>,
 ) {
     let doc = seed();

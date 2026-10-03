@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Schema proposal · EKR</title><style>body{max-width:1000px;margin:2rem auto;padding:0 1rem;font:16px/1.5 system-ui;background:#121211;color:#f2f2ee}a{color:#73b3ff}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#232322;padding:1rem}code{overflow-wrap:anywhere}</style><nav><a href="/inbox">Knowledge inbox</a></nav><main><h1>Schema proposal</h1><p>Name the retained project vocabulary.</p><p>Exact proposal digest: <code>f3e80ca1730b473f8ae2828f8b9a72222f445e1b2bd79c7bb783f5deb0f2c689</code></p><p>Submit human decisions through the CLI or SDK.</p><h2>Schema additions</h2><pre>[
+  {
+    &quot;kind&quot;: &quot;DefineType&quot;,
+    &quot;value&quot;: {
+      &quot;abstract_type&quot;: false,
+      &quot;name&quot;: &quot;UnmappedProject&quot;,
+      &quot;parents&quot;: [],
+      &quot;properties&quot;: []
+    }
+  }
+]</pre><h2>Mapping preview</h2><pre>[]</pre><h2>Selected claim corrections</h2><pre>[]</pre><h2>Source interpretations</h2><details><summary>Retained interpretation 01a10327-71ef-73ef-927d-d350ab038e8c</summary><pre>{
+  &quot;items&quot;: [],
+  &quot;version&quot;: {
+    &quot;document_digest&quot;: &quot;bf272a3a38a5e5a3fc0098e87d928e2ad89a147e444acd53797a109f2873f31b&quot;,
+    &quot;interpretation_id&quot;: &quot;01a10327-71ef-73ef-927d-d350ab038e8c&quot;,
+    &quot;version&quot;: 1
+  }
+}</pre><pre>{
+  &quot;blockers&quot;: [
+    {
+      &quot;basis_digest&quot;: &quot;0f8099fa1f4a266ad2f3242c950c43406a32095b8b49f506cb7794e76c083800&quot;,
+      &quot;blocker_id&quot;: &quot;01a10327-71f6-7044-a78e-139ad07895ab&quot;,
+      &quot;declaration&quot;: &quot;UnmappedProject&quot;,
+      &quot;document_digest&quot;: &quot;bf272a3a38a5e5a3fc0098e87d928e2ad89a147e444acd53797a109f2873f31b&quot;,
+      &quot;item&quot;: &quot;entities[0]&quot;,
+      &quot;kind&quot;: &quot;UnknownType&quot;,
+      &quot;reason&quot;: &quot;Local type has no canonical declaration&quot;
+    }
+  ],
+  &quot;document&quot;: {
+    &quot;entities&quot;: [
+      {
+        &quot;aliases&quot;: [
+          &quot;Maple&quot;
+        ],
+        &quot;node_type&quot;: &quot;UnmappedProject&quot;
+      }
+    ],
+    &quot;evidence&quot;: [
+      {
+        &quot;evidence&quot;: {
+          &quot;confidence_bp&quot;: 7500,
+          &quot;content_hash&quot;: &quot;d90aa0e69f5d75247e94ba251819a050464b0f4aa4737b0ea3e5c56336f47820&quot;,
+          &quot;extracted_by&quot;: &quot;00000000-0000-4000-8000-000000000101&quot;,
+          &quot;id&quot;: &quot;00000000-0000-4000-8000-000000000401&quot;,
+          &quot;observed_at&quot;: &quot;1970-01-01T00:00:00.017Z&quot;,
+          &quot;source&quot;: {
+            &quot;kind&quot;: &quot;Observation&quot;,
+            &quot;observation&quot;: &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;
+          }
+        },
+        &quot;payload&quot;: &quot;UHJvamVjdCBNYXBsZSBoZWFsdGggaXMgYW1iZXIuDQo8c2NyaXB0PmZpeHR1cmUoKTwvc2NyaXB0Pg==&quot;
+      }
+    ],
+    &quot;facts&quot;: [],
+    &quot;local_schema&quot;: {
+      &quot;edge_types&quot;: [],
+      &quot;node_types&quot;: [
+        {
+          &quot;abstract_type&quot;: false,
+          &quot;name&quot;: &quot;UnmappedProject&quot;,
+          &quot;parents&quot;: [],
+          &quot;properties&quot;: []
+        }
+      ]
+    },
+    &quot;observations&quot;: [
+      &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;
+    ],
+    &quot;root_id&quot;: &quot;01a10327-71ef-73ef-927d-d35104b5ddb9&quot;,
+    &quot;version&quot;: {
+      &quot;interpretation_id&quot;: &quot;01a10327-71ef-73ef-927d-d350ab038e8c&quot;,
+      &quot;version&quot;: 1
+    }
+  },
+  &quot;receipts&quot;: []
+}</pre></details><h2>Supporting evidence</h2><details><summary>Retained evidence 00000000-0000-4000-8000-000000000401</summary><pre>{
+  &quot;confidence_bp&quot;: 7500,
+  &quot;content_hash&quot;: &quot;d90aa0e69f5d75247e94ba251819a050464b0f4aa4737b0ea3e5c56336f47820&quot;,
+  &quot;extracted_by&quot;: &quot;00000000-0000-4000-8000-000000000101&quot;,
+  &quot;id&quot;: &quot;00000000-0000-4000-8000-000000000401&quot;,
+  &quot;observed_at&quot;: &quot;1970-01-01T00:00:00.017Z&quot;,
+  &quot;source&quot;: {
+    &quot;kind&quot;: &quot;Observation&quot;,
+    &quot;observation&quot;: &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;
+  }
+}</pre><pre>Project Maple health is amber.
+&lt;script&gt;fixture()&lt;/script&gt;</pre></details><p>This identifier appears in both retained and canonical evidence; both records are shown.</p><details><summary>Canonical evidence 00000000-0000-4000-8000-000000000401</summary><pre>{
+  &quot;id&quot;: &quot;00000000-0000-4000-8000-000000000401&quot;,
+  &quot;source&quot;: {
+    &quot;HumanStatement&quot;: {
+      &quot;identity&quot;: &quot;Runtime operator&quot;
+    }
+  },
+  &quot;content_hash&quot;: &quot;2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db&quot;,
+  &quot;extracted_by&quot;: &quot;00000000-0000-4000-8000-000000000101&quot;,
+  &quot;observed_at&quot;: 1773273600000,
+  &quot;confidence&quot;: 10000
+}</pre><pre>Alice is CEO of Acme.</pre><a href="/evidence/00000000-0000-4000-8000-000000000401">Open retained bytes</a></details><h2>Supporting observations</h2><details><summary>Source observation 0096050c-072d-81a6-866d-86e8249ea97c</summary><pre>{
+  &quot;captured_at&quot;: &quot;1970-01-01T00:00:00.017Z&quot;,
+  &quot;content_hash&quot;: &quot;d90aa0e69f5d75247e94ba251819a050464b0f4aa4737b0ea3e5c56336f47820&quot;,
+  &quot;kind&quot;: &quot;FeedItem&quot;,
+  &quot;observation_id&quot;: &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;,
+  &quot;source&quot;: &quot;manual&quot;,
+  &quot;source_native_id&quot;: &quot;health-1&quot;
+}</pre><pre>Project Maple health is amber.
+&lt;script&gt;fixture()&lt;/script&gt;</pre></details><h2>Review material</h2><pre>{
+  &quot;effects_digest&quot;: &quot;6ed5ac590610f379b2bb1429fb17fc03661baa9f2a3ffec3970edd3426aa5a68&quot;,
+  &quot;evidence_digest&quot;: &quot;e57d4ac9604ac2af5283054bbbf8943f341d0ec84ba102cbad6a0c2c71133848&quot;,
+  &quot;observed_revision&quot;: 0,
+  &quot;options_digest&quot;: &quot;0dc6320727ae9933f239ebad3c361aabe48cb68974094e983df2f2c07a998626&quot;
+}</pre><h2>Review history</h2><pre>[]</pre><h2>Application history</h2><pre>[]</pre></main></html>

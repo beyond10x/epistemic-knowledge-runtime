@@ -543,6 +543,10 @@ changed bytes under the same identity refuse. Read-only sessions refuse submissi
 `ekr schema-proposal show <proposal-id>` returns the retained proposal, exact byte digest, current
 mapping blockers and material review basis. Both commands return `ekr.integrate.SchemaProposalRead`.
 SDK equivalents are `Knowledge::submit_schema_proposal` and `Knowledge::schema_proposal`.
+Retained proposals appear in `attention list`. The read-only viewer links each proposal from
+`/inbox` to `/schema-proposal/<proposal-id>`, showing additions, mappings, source observations,
+immutable interpretation documents and review material. Both pages accept GET without query
+parameters; they expose no browser write controls.
 
 ### `ekr incubate`
 

@@ -5,7 +5,10 @@ use ekr_core::contract_data as w;
 use ekr_core::contracts::kernel::obligations::{ListAttentionBehavior, ShowAttentionBehavior};
 use ekr_core::contracts::obligation::UnmetObligation;
 use ekr_core::contracts::{graph as g, integrate as i, kernel as m, primitives::Uuid};
-use ekr_store::{IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, StoreError};
+use ekr_store::{
+    IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, SchemaProposalRetention,
+    StoreError,
+};
 
 fn optional<T, R>(value: &w::EssPresence<T>, f: impl FnOnce(&T) -> R) -> Option<R> {
     match value {
@@ -92,8 +95,13 @@ impl<'a, S: RevisionLog + ObjectStore> Behavior<'a, S> {
         outcome.map_err(error)
     }
 }
-impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention>
-    ListAttentionBehavior for Behavior<'_, S>
+impl<
+        S: RevisionLog
+            + ObjectStore
+            + ObservationRetention
+            + IncubationRetention
+            + SchemaProposalRetention,
+    > ListAttentionBehavior for Behavior<'_, S>
 {
     fn list_attention(
         &mut self,
@@ -111,8 +119,13 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention>
         }
     }
 }
-impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention>
-    ShowAttentionBehavior for Behavior<'_, S>
+impl<
+        S: RevisionLog
+            + ObjectStore
+            + ObservationRetention
+            + IncubationRetention
+            + SchemaProposalRetention,
+    > ShowAttentionBehavior for Behavior<'_, S>
 {
     fn show_attention(
         &mut self,
@@ -143,7 +156,13 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention>
         }
     }
 }
-pub(super) fn list<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention>(
+pub(super) fn list<
+    S: RevisionLog
+        + ObjectStore
+        + ObservationRetention
+        + IncubationRetention
+        + SchemaProposalRetention,
+>(
     commit: &Commit<S>,
 ) -> Result<Vec<w::EkrKernelAttentionItem>, StoreError> {
     let mut behavior = Behavior::new(commit);
@@ -151,7 +170,13 @@ pub(super) fn list<S: RevisionLog + ObjectStore + ObservationRetention + Incubat
     behavior.finish(outcome)?;
     Ok(behavior.items)
 }
-pub(super) fn show<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention>(
+pub(super) fn show<
+    S: RevisionLog
+        + ObjectStore
+        + ObservationRetention
+        + IncubationRetention
+        + SchemaProposalRetention,
+>(
     commit: &Commit<S>,
     selected: &w::EkrKernelAttentionSubject,
 ) -> Result<w::EkrKernelAttentionItem, StoreError> {

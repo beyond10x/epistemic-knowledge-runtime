@@ -1,0 +1,131 @@
+   Compiling ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 5.76s
+     Running tests/knowledge_cli.rs (<build-lane>/target/debug/deps/knowledge_cli-6538a297b4d84a19)
+
+running 2 tests
+test observe_is_a_nested_command_and_schema_keeps_its_existing_surface ... ok
+test typed_observation_import_retries_and_reads_through_a_real_session ... FAILED
+
+failures:
+
+---- typed_observation_import_retries_and_reads_through_a_real_session stdout ----
+
+thread 'typed_observation_import_retries_and_reads_through_a_real_session' (2077739) panicked at crates/ekr/tests/knowledge_cli.rs:256:9:
+canonical evidence sharing the retained ID was hidden: HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: 5583
+X-Content-Type-Options: nosniff
+Cache-Control: no-store
+Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'
+Connection: close
+
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Schema proposal · EKR</title><style>body{max-width:1000px;margin:2rem auto;padding:0 1rem;font:16px/1.5 system-ui;background:#121211;color:#f2f2ee}a{color:#73b3ff}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#232322;padding:1rem}code{overflow-wrap:anywhere}</style><nav><a href="/inbox">Knowledge inbox</a></nav><main><h1>Schema proposal</h1><p>Name the retained project vocabulary.</p><p>Exact proposal digest: <code>4ccb963088eb18b7bc32c09c32c603769ec709b16958cd3be2356b26710c9a50</code></p><p>Submit human decisions through the CLI or SDK.</p><h2>Schema additions</h2><pre>[
+  {
+    &quot;kind&quot;: &quot;DefineType&quot;,
+    &quot;value&quot;: {
+      &quot;abstract_type&quot;: false,
+      &quot;name&quot;: &quot;UnmappedProject&quot;,
+      &quot;parents&quot;: [],
+      &quot;properties&quot;: []
+    }
+  }
+]</pre><h2>Mapping preview</h2><pre>[]</pre><h2>Selected claim corrections</h2><pre>[]</pre><h2>Source interpretations</h2><details><summary>Retained interpretation 01a10325-d060-753e-8126-0409063be928</summary><pre>{
+  &quot;items&quot;: [],
+  &quot;version&quot;: {
+    &quot;document_digest&quot;: &quot;b4f87286948bf26518a1ef146b3e1b73e003c48e1c8d9cc726b9c55e9a5ee9a7&quot;,
+    &quot;interpretation_id&quot;: &quot;01a10325-d060-753e-8126-0409063be928&quot;,
+    &quot;version&quot;: 1
+  }
+}</pre><pre>{
+  &quot;blockers&quot;: [
+    {
+      &quot;basis_digest&quot;: &quot;0f8099fa1f4a266ad2f3242c950c43406a32095b8b49f506cb7794e76c083800&quot;,
+      &quot;blocker_id&quot;: &quot;01a10325-d069-77aa-966d-c51e21b2fcb9&quot;,
+      &quot;declaration&quot;: &quot;UnmappedProject&quot;,
+      &quot;document_digest&quot;: &quot;b4f87286948bf26518a1ef146b3e1b73e003c48e1c8d9cc726b9c55e9a5ee9a7&quot;,
+      &quot;item&quot;: &quot;entities[0]&quot;,
+      &quot;kind&quot;: &quot;UnknownType&quot;,
+      &quot;reason&quot;: &quot;Local type has no canonical declaration&quot;
+    }
+  ],
+  &quot;document&quot;: {
+    &quot;entities&quot;: [
+      {
+        &quot;aliases&quot;: [
+          &quot;Maple&quot;
+        ],
+        &quot;node_type&quot;: &quot;UnmappedProject&quot;
+      }
+    ],
+    &quot;evidence&quot;: [
+      {
+        &quot;evidence&quot;: {
+          &quot;confidence_bp&quot;: 7500,
+          &quot;content_hash&quot;: &quot;d90aa0e69f5d75247e94ba251819a050464b0f4aa4737b0ea3e5c56336f47820&quot;,
+          &quot;extracted_by&quot;: &quot;00000000-0000-4000-8000-000000000101&quot;,
+          &quot;id&quot;: &quot;00000000-0000-4000-8000-000000000401&quot;,
+          &quot;observed_at&quot;: &quot;1970-01-01T00:00:00.017Z&quot;,
+          &quot;source&quot;: {
+            &quot;kind&quot;: &quot;Observation&quot;,
+            &quot;observation&quot;: &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;
+          }
+        },
+        &quot;payload&quot;: &quot;UHJvamVjdCBNYXBsZSBoZWFsdGggaXMgYW1iZXIuDQo8c2NyaXB0PmZpeHR1cmUoKTwvc2NyaXB0Pg==&quot;
+      }
+    ],
+    &quot;facts&quot;: [],
+    &quot;local_schema&quot;: {
+      &quot;edge_types&quot;: [],
+      &quot;node_types&quot;: [
+        {
+          &quot;abstract_type&quot;: false,
+          &quot;name&quot;: &quot;UnmappedProject&quot;,
+          &quot;parents&quot;: [],
+          &quot;properties&quot;: []
+        }
+      ]
+    },
+    &quot;observations&quot;: [
+      &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;
+    ],
+    &quot;root_id&quot;: &quot;01a10325-d060-753e-8126-040adbb0d599&quot;,
+    &quot;version&quot;: {
+      &quot;interpretation_id&quot;: &quot;01a10325-d060-753e-8126-0409063be928&quot;,
+      &quot;version&quot;: 1
+    }
+  },
+  &quot;receipts&quot;: []
+}</pre></details><h2>Supporting evidence</h2><details><summary>Retained evidence 00000000-0000-4000-8000-000000000401</summary><pre>{
+  &quot;confidence_bp&quot;: 7500,
+  &quot;content_hash&quot;: &quot;d90aa0e69f5d75247e94ba251819a050464b0f4aa4737b0ea3e5c56336f47820&quot;,
+  &quot;extracted_by&quot;: &quot;00000000-0000-4000-8000-000000000101&quot;,
+  &quot;id&quot;: &quot;00000000-0000-4000-8000-000000000401&quot;,
+  &quot;observed_at&quot;: &quot;1970-01-01T00:00:00.017Z&quot;,
+  &quot;source&quot;: {
+    &quot;kind&quot;: &quot;Observation&quot;,
+    &quot;observation&quot;: &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;
+  }
+}</pre><pre>Project Maple health is amber.
+&lt;script&gt;fixture()&lt;/script&gt;</pre></details><h2>Supporting observations</h2><details><summary>Source observation 0096050c-072d-81a6-866d-86e8249ea97c</summary><pre>{
+  &quot;captured_at&quot;: &quot;1970-01-01T00:00:00.017Z&quot;,
+  &quot;content_hash&quot;: &quot;d90aa0e69f5d75247e94ba251819a050464b0f4aa4737b0ea3e5c56336f47820&quot;,
+  &quot;kind&quot;: &quot;FeedItem&quot;,
+  &quot;observation_id&quot;: &quot;0096050c-072d-81a6-866d-86e8249ea97c&quot;,
+  &quot;source&quot;: &quot;manual&quot;,
+  &quot;source_native_id&quot;: &quot;health-1&quot;
+}</pre><pre>Project Maple health is amber.
+&lt;script&gt;fixture()&lt;/script&gt;</pre></details><h2>Review material</h2><pre>{
+  &quot;effects_digest&quot;: &quot;6ed5ac590610f379b2bb1429fb17fc03661baa9f2a3ffec3970edd3426aa5a68&quot;,
+  &quot;evidence_digest&quot;: &quot;1fe00552d15d5502c840a8aae9568f66081efab7681ddfe919d0d4e89e1707bd&quot;,
+  &quot;observed_revision&quot;: 0,
+  &quot;options_digest&quot;: &quot;c75e4850593f18028f8550eda8c5f618b8f2f8444460b72b908b4e561627098a&quot;
+}</pre><h2>Review history</h2><pre>[]</pre><h2>Application history</h2><pre>[]</pre></main></html>
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    typed_observation_import_retries_and_reads_through_a_real_session
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+error: test failed, to rerun pass `-p ekr --test knowledge_cli`

@@ -58,6 +58,9 @@ pub(super) fn render(runtime: &Runtime) -> Result<Vec<u8>, String> {
             _ => return Err("attention subject has no matching identity".into()),
         };
         write!(page, "<article id=\"{}\"><small>{}</small><h2>{}</h2><p><code>ekr attention show {} {}</code></p>", escaped(id), kind, escaped(&item.question), kind, escaped(id)).unwrap();
+        if matches!(*item.subject.kind, EkrKernelAttentionKind::V2) {
+            write!(page, "<p><a href=\"/schema-proposal/{}\">Review schema additions, mappings and evidence</a></p>", escaped(id)).unwrap();
+        }
         if !item.claims.is_empty() {
             let revision = item
                 .basis
@@ -217,6 +220,91 @@ pub(super) fn render(runtime: &Runtime) -> Result<Vec<u8>, String> {
         }
     }
     page.push_str("</main></html>");
+    Ok(page.into_bytes())
+}
+
+pub(super) fn proposal(runtime: &Runtime, id: &str) -> Result<Vec<u8>, String> {
+    use ekr_core::generated_identity::{Identity, SchemaProposalId};
+    let id = SchemaProposalId::parse_identity(id).map_err(|e| e.to_string())?;
+    let shown = runtime.schema_proposal(&id).map_err(|e| e.to_string())?;
+    let mut page = String::from(
+        r#"<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Schema proposal · EKR</title><style>body{max-width:1000px;margin:2rem auto;padding:0 1rem;font:16px/1.5 system-ui;background:#121211;color:#f2f2ee}a{color:#73b3ff}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#232322;padding:1rem}code{overflow-wrap:anywhere}</style><nav><a href="/inbox">Knowledge inbox</a></nav><main><h1>Schema proposal</h1>"#,
+    );
+    write!(page, "<p>{}</p><p>Exact proposal digest: <code>{}</code></p><p>Submit human decisions through the CLI or SDK.</p><h2>Schema additions</h2><pre>{}</pre><h2>Mapping preview</h2><pre>{}</pre><h2>Selected claim corrections</h2><pre>{}</pre>", escaped(&shown.proposal.explanation), escaped(&shown.proposal_digest.0), document(&shown.proposal.additions)?, document(&shown.preview)?, document(&shown.proposal.corrections)?).unwrap();
+    let mut observations: std::collections::BTreeSet<_> = shown
+        .proposal
+        .observations
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    let mut retained_evidence = std::collections::BTreeMap::new();
+    page.push_str("<h2>Source interpretations</h2>");
+    for source in &shown.proposal.sources {
+        let held = runtime
+            .interpretation(&source.version)
+            .map_err(|e| e.to_string())?;
+        observations.extend(held.document.observations.iter().map(|id| id.0.clone()));
+        for evidence in &held.document.evidence {
+            retained_evidence.insert(evidence.evidence.id.0.clone(), evidence.clone());
+        }
+        write!(page, "<details><summary>Retained interpretation {}</summary><pre>{}</pre><pre>{}</pre></details>", escaped(&source.version.interpretation_id.0), document(source)?, document(&held)?).unwrap();
+    }
+    page.push_str("<h2>Supporting evidence</h2>");
+    let evidence_ids: std::collections::BTreeSet<_> = shown
+        .proposal
+        .evidence
+        .iter()
+        .map(|id| id.0.clone())
+        .chain(retained_evidence.keys().cloned())
+        .collect();
+    let revision = shown
+        .basis
+        .observed_revision
+        .0
+        .as_u64()
+        .ok_or("invalid proposal revision")?;
+    let read = runtime
+        .read(Some(RevisionNumber::new(revision)))
+        .map_err(|e| e.to_string())?;
+    for id in evidence_ids {
+        if let Some(evidence) = retained_evidence.get(&id) {
+            let bytes = ekr_core::bytes::decode(&evidence.payload).map_err(|e| e.to_string())?;
+            write!(page, "<details><summary>Retained evidence {}</summary><pre>{}</pre><pre>{}</pre></details>", escaped(&id), document(&evidence.evidence)?, excerpt(&bytes)).unwrap();
+        }
+        let parsed: EvidenceId = id
+            .parse()
+            .map_err(|e: ekr_core::IdParseError| e.to_string())?;
+        if let Some(evidence) = read.graph.evidence.get(&parsed) {
+            if retained_evidence.contains_key(&id) {
+                page.push_str("<p>This identifier appears in both retained and canonical evidence; both records are shown.</p>");
+            }
+            let bytes = read
+                .content(&evidence.content_hash)
+                .ok_or("missing supporting bytes")?;
+            write!(page, "<details><summary>Canonical evidence {id}</summary><pre>{}</pre><pre>{}</pre><a href=\"/evidence/{id}\">Open retained bytes</a></details>", document(evidence)?, excerpt(bytes)).unwrap();
+        } else if !retained_evidence.contains_key(&id) {
+            return Err("missing supporting evidence".into());
+        }
+    }
+    page.push_str("<h2>Supporting observations</h2>");
+    for id in observations {
+        let observation = runtime
+            .observation(
+                id.parse()
+                    .map_err(|e: ekr_core::IdParseError| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+        let bytes = ekr_core::bytes::decode(&observation.payload).map_err(|e| e.to_string())?;
+        write!(
+            page,
+            "<details><summary>Source observation {}</summary><pre>{}</pre><pre>{}</pre></details>",
+            escaped(id),
+            document(&observation.observation)?,
+            excerpt(&bytes)
+        )
+        .unwrap();
+    }
+    write!(page, "<h2>Review material</h2><pre>{}</pre><h2>Review history</h2><pre>{}</pre><h2>Application history</h2><pre>{}</pre></main></html>", document(&shown.basis)?, document(&shown.reviews)?, document(&shown.receipts)?).unwrap();
     Ok(page.into_bytes())
 }
 

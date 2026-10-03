@@ -24,7 +24,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 9
+revision: 10
 ---
 ## Outcome
 
@@ -51,3 +51,7 @@ The operator supplied and explicitly requested execution of the knowledge inbox/
 Independent contract review identified a concurrency requirement that F must implement and test: application can read an approval, a concurrent E review can append rejection without advancing canonical head, and an ordinary canonical-head compare/exchange would still succeed. Therefore each canonical application publication must atomically guard the effective proposal-review stream version/proof alongside its ordinary revision boundary, or serialize both through one provider condition. A separate check immediately before commit is insufficient. Preserve later rejection semantics under response-loss recovery as well.
 
 Before F implementation, author and generate durable application-election records binding exact proposal/review and preallocated schema/item transaction, assertion and schema identities. Qualify remaining-item receipts by immutable source version, item and mapping digest. Generate retained MappingRecord and CanonicalDerivation projections; pin proposal/source/mapping/evidence bytes independently of incubation roots. Reconcile already elected/committed transactions before resume. These refinements are required scope, not implemented behavior or an external dependency blocker.
+
+## Application atomicity design candidate
+
+A bounded read-only design review proposed a nonempty publication marker in the same per-proposal review stream and the same atomic group as each ordinary canonical publication. Physical sequence and effective human predecessor must remain distinct. This is compatible with the pinned Eventlog prohibition on empty append entries and does not introduce another canonical writer. Durable election freezes transaction documents/allocated identities before any publication; resume recognizes its own committed prefix rather than re-running initial additive admission against its already-applied schema. The unvalidated proposal and exact source seams are retained at .engineering/reviews/knowledge-schema-application-design/minimal-contract-proposal.md. Required entities/relations must validate in ESS and regenerate before implementation. Signed approval does not authorize conflicting retained/canonical evidence identities to be silently reused: application must retain admissible evidence or leave the fact blocked.

@@ -54,6 +54,11 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
             .unwrap();
         assert_eq!(seeded.exit, 0, "{seeded:?}");
         let head = session.request(&Request::new(["head"])).unwrap();
+        let seed_document = ekr_kernel::SeedDocument::from_yaml(&example("ekr-seed/2")).unwrap();
+        let canonical_evidence = seed_document.graph.evidence.values().next().unwrap();
+        let canonical_payload =
+            std::str::from_utf8(&seed_document.evidence_payloads[&canonical_evidence.content_hash])
+                .unwrap();
         let payload = b"Project Maple health is amber.\r\n<script>fixture()</script>";
         let input = observation_import(
             "manual".into(),
@@ -101,7 +106,9 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
             "version":{"interpretation_id":ekr_core::NodeId::mint(), "version":1},
             "root_id":ekr_core::GraphRootId::mint(), "observations":[input.observation.observation_id],
             "local_schema":{"node_types":[{"name":"UnmappedProject", "parents":[], "abstract_type":false, "properties":[]}], "edge_types":[]},
-            "entities":[{"node_type":"UnmappedProject", "aliases":["Maple"]}], "facts":[], "evidence":[]
+            "entities":[{"node_type":"UnmappedProject", "aliases":["Maple"]}], "facts":[],
+            "evidence":[{"evidence":{"id":canonical_evidence.id,"source":{"kind":"Observation","observation":input.observation.observation_id},
+                "content_hash":input.observation.content_hash,"observed_at":"1970-01-01T00:00:00.017Z","extracted_by":canonical_evidence.extracted_by,"confidence_bp":7500},"payload":input.payload}]
         });
         let interpretation: ekr_sdk::contracts::EkrIntegrateInterpretationImport = serde_json::from_value(serde_json::json!({
             "payload":ekr_core::bytes::encode(&serde_json::to_vec_pretty(&document).unwrap()), "document":document,
@@ -124,7 +131,7 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         let proposal = serde_json::json!({
             "proposal_id":ekr_core::NodeId::mint(), "base_schema":gaps.base_schema,
             "sources":[{"version":imported.version,"items":[]}],
-            "observations":interpretation.document.observations,"evidence":[],
+            "observations":interpretation.document.observations,"evidence":[canonical_evidence.id],
             "additions":[{"kind":"DefineType","value":interpretation.document.local_schema.node_types[0]}],
             "mappings":[],"corrections":[],"explanation":"Name the retained project vocabulary."
         });
@@ -158,7 +165,15 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
             .unwrap()
             .is_valid(&serde_json::to_value(&gaps).unwrap()));
         let questions = knowledge.attention().unwrap();
-        assert_eq!(questions.len(), 1);
+        assert_eq!(questions.len(), 2);
+        assert_eq!(
+            questions[1].subject.proposal_id,
+            ekr_sdk::contracts::EssPresence::Present(submitted.proposal.proposal_id.clone())
+        );
+        assert_eq!(
+            knowledge.attention_item(&questions[1].subject).unwrap(),
+            questions[1]
+        );
         assert_eq!(
             questions[0].subject.blocker_id,
             ekr_sdk::contracts::EssPresence::Present(imported.blockers[0].clone())
@@ -231,12 +246,36 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         assert!(inbox.contains("&lt;script&gt;fixture()&lt;/script&gt;"));
         assert!(!inbox.contains("<script>"));
         assert!(!inbox.contains("<form"));
+        let proposal_path = format!("/schema-proposal/{}", submitted.proposal.proposal_id.0);
+        assert!(inbox.contains(&proposal_path));
+        let proposal_page = page(viewer.url(), "GET", &proposal_path);
+        assert!(proposal_page.starts_with("HTTP/1.1 200"), "{proposal_page}");
+        assert!(proposal_page.contains("Name the retained project vocabulary."));
+        assert!(proposal_page.contains(&submitted.proposal_digest.0));
+        assert!(proposal_page.contains("Project Maple health is amber."));
+        assert!(
+            proposal_page.contains(canonical_payload),
+            "canonical evidence sharing the retained ID was hidden: {proposal_page}"
+        );
+        assert!(proposal_page.contains("&lt;script&gt;fixture()&lt;/script&gt;"));
+        assert!(!proposal_page.contains("<script>"));
+        assert!(!proposal_page.contains("<form"));
+        assert!(page(viewer.url(), "POST", &proposal_path).starts_with("HTTP/1.1 405"));
+        assert!(
+            page(viewer.url(), "GET", &format!("{proposal_path}?revision=0"))
+                .starts_with("HTTP/1.1 400")
+        );
         if let Some(directory) = std::env::var_os("EKR_INBOX_CAPTURE_DIR") {
             let directory = std::path::PathBuf::from(directory);
             std::fs::create_dir_all(&directory).unwrap();
             std::fs::write(
                 directory.join(format!("{backend:?}.html").to_lowercase()),
                 inbox.split_once("\r\n\r\n").unwrap().1,
+            )
+            .unwrap();
+            std::fs::write(
+                directory.join(format!("{backend:?}-proposal.html").to_lowercase()),
+                proposal_page.split_once("\r\n\r\n").unwrap().1,
             )
             .unwrap();
         }

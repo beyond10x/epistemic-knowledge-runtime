@@ -1,0 +1,109 @@
+    Checking ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-kernel)
+    Checking ekr-views v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-views)
+    Checking ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr)
+error[E0599]: the method `attention` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+  --> crates/ekr-kernel/tests/authority_upgrade.rs:16:13
+   |
+16 |         old.attention().unwrap().is_empty(),
+   |             ^^^^^^^^^
+   |
+   = note: the following trait bounds were not satisfied:
+           `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+   |
+ 9 | ) where S: ekr_store::SchemaProposalRetention {
+   |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+  --> crates/ekr-kernel/tests/authority_upgrade.rs:94:28
+   |
+94 |     let questions = kernel.attention().unwrap();
+   |                            ^^^^^^^^^
+   |
+   = note: the following trait bounds were not satisfied:
+           `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+   |
+ 9 | ) where S: ekr_store::SchemaProposalRetention {
+   |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention_item` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+   --> crates/ekr-kernel/tests/authority_upgrade.rs:100:23
+    |
+100 |     assert_eq!(kernel.attention_item(&question.subject).unwrap(), *question);
+    |                       ^^^^^^^^^^^^^^ method cannot be called on `ekr_kernel::Commit<S>` due to unsatisfied trait bounds
+    |
+    = note: the following trait bounds were not satisfied:
+            `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+    |
+  9 | ) where S: ekr_store::SchemaProposalRetention {
+    |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention_item` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+   --> crates/ekr-kernel/tests/authority_upgrade.rs:105:20
+    |
+105 |     assert!(kernel.attention_item(&invalid_subject).is_err());
+    |                    ^^^^^^^^^^^^^^ method cannot be called on `ekr_kernel::Commit<S>` due to unsatisfied trait bounds
+    |
+    = note: the following trait bounds were not satisfied:
+            `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+    |
+  9 | ) where S: ekr_store::SchemaProposalRetention {
+    |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+   --> crates/ekr-kernel/tests/authority_upgrade.rs:130:23
+    |
+130 |     assert_eq!(kernel.attention().unwrap(), questions);
+    |                       ^^^^^^^^^
+    |
+    = note: the following trait bounds were not satisfied:
+            `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+    |
+  9 | ) where S: ekr_store::SchemaProposalRetention {
+    |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+   --> crates/ekr-kernel/tests/authority_upgrade.rs:164:37
+    |
+164 |     let unchanged_question = kernel.attention().unwrap().remove(0);
+    |                                     ^^^^^^^^^
+    |
+    = note: the following trait bounds were not satisfied:
+            `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+    |
+  9 | ) where S: ekr_store::SchemaProposalRetention {
+    |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+   --> crates/ekr-kernel/tests/authority_upgrade.rs:240:34
+    |
+240 |     let final_questions = kernel.attention().unwrap();
+    |                                  ^^^^^^^^^
+    |
+    = note: the following trait bounds were not satisfied:
+            `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+    |
+  9 | ) where S: ekr_store::SchemaProposalRetention {
+    |   +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: the method `attention` exists for struct `ekr_kernel::Commit<S>`, but its trait bounds were not satisfied
+   --> crates/ekr-kernel/tests/authority_upgrade.rs:259:29
+    |
+259 |         assert_eq!(reopened.attention().unwrap(), final_questions);
+    |                             ^^^^^^^^^
+    |
+    = note: the following trait bounds were not satisfied:
+            `S: ekr_store::SchemaProposalRetention`
+help: consider restricting the type parameter to satisfy the trait bound
+    |
+  9 | ) where S: ekr_store::SchemaProposalRetention {
+    |   +++++++++++++++++++++++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `ekr-kernel` (test "authority_upgrade") due to 8 previous errors

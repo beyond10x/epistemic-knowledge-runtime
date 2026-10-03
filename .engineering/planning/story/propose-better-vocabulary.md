@@ -32,7 +32,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 17
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -86,3 +86,7 @@ The remaining E work is divided into bounded, disjoint implementation surfaces u
 ## Submission implementation checkpoint
 
 Generated SubmitSchemaProposal and ShowSchemaProposal obligations now admit exact immutable proposals and recompute mapping previews without canonical publication. CLI/session and typed SDK submit/show execute this path. Independent review defects and corrections are retained in review-result:schema-proposal-submission-independent-r1 and -r2; observed commands, counts and limits are in .engineering/reviews/knowledge-schema-proposal-submission/README.md. Signed review persistence, proposal attention/viewer, final correction admission and implementation conformance remain before E acceptance. F remains separate and incomplete; this checkpoint does not grant approval or schema application.
+
+## Proposal presentation checkpoint
+
+Typed attention now includes retained proposals and links to Rust-rendered read-only proposal pages. A repeated evidence identity renders both retained and canonical source material; no canonical source is shadowed. Real CLI/session tests cover both providers and full replay, while Firefox inspection of the saved route response is retained in .engineering/reviews/knowledge-schema-proposal-viewer/. Independent review and correction are schema-proposal-viewer-independent-r1 and -r2. Review-aware filtering and signed human decision retention remain pending; neither this presentation increment nor the unvalidated F atomicity candidate establishes completed E/F acceptance.
