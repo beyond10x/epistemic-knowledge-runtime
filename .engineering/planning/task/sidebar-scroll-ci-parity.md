@@ -2,17 +2,18 @@
 format: aep.planning-md/3
 id: task:sidebar-scroll-ci-parity
 kind: task
-status: active
+status: implemented
 title: Preserve sidebar scroll position across CI browser collapse and restore
 relations:
 - informed_by: task:viewer-compact-mode
 - informed_by: story:live-search-agent-entry
 - serves: vision:o5
 - decomposes: story:live-search-agent-entry
-revision: 5
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T12:49:30Z", actor: "agent:codex", revision: 2, decided_on: {"recorded":{"test_result":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T12:49:30Z", actor: "agent:codex", revision: 3, decided_on: {"recorded":{"test_result":1}}}
+- {from: "active", to: "implemented", at: "2026-10-03T15:43:15Z", actor: "agent:codex", revision: 7, decided_on: {"recorded":{"test_result":3}}}
 ---
 ## Observed failure
 
@@ -53,3 +54,21 @@ A permanently narrow roles line did not reproduce the failure. The durable regre
 The original compact case remains unchanged. The additional scenario reuses its existing JavaScript expressions verbatim; all new calibration behavior is Rust/native CDP. No new JavaScript expression, tolerance, skip or post-toggle scroll reset is introduced. Independent read-only review found no behavioral must-fix and noted that disabling anchoring also affects dynamic updates within that sidebar. Keep the scope left-only.
 
 Focused integration checks and the next required CI run remain outstanding. This local red/green result does not yet establish a release or deployment.
+
+## Verified source release
+
+The released source now passes the required repository correctness workflow. The earlier failed attempts remain historical evidence; they are not relabeled. This record closes the generic engine work and makes no consumer deployment claim.
+
+Fresh workflow readback:
+
+```json
+{"conclusion":"success","headSha":"f1ab55d33d432e1be33d779c8914eb10b0d98c4e","status":"completed","updatedAt":"2026-10-03T15:06:44Z","url":"https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37130396636"}
+
+```
+
+Fresh release readback:
+
+```json
+{"isDraft":false,"isPrerelease":false,"publishedAt":"2026-10-03T14:42:00Z","tagName":"0.0.30","url":"https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.30"}
+
+```

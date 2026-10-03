@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:live-search-agent-entry
 kind: story
-status: active
+status: implemented
 title: Live search results and discoverable agent connection guidance
 relations:
 - serves: vision:o5
@@ -62,10 +62,11 @@ scope:
   path: docs/overview.md
 - confidence: inferred
   path: xtask/src
-revision: 20
+revision: 22
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
+- {from: "active", to: "implemented", at: "2026-10-03T15:43:16Z", actor: "agent:codex", revision: 22, decided_on: {"recorded":{"test_result":8,"review_outcome":1,"verification":2}}}
 ---
 ## Outcome and authorization
 
@@ -142,3 +143,21 @@ Both methods belong to the private cli::agent_help module and its pub(super) Con
 Correction 1a016ba0634e44a402aef3fd58285691c827d9aa changes only guide() and llms() visibility to pub(super), matching their existing private module and restricted Config type. The coordinator reviewed the exact two-line diff and unchanged callers. No behavior, guard, assertion or browser asset changed.
 
 The unit visibility/report.md and green.log record all 32 focused cases passing: public_surface 12, adversary_agent_guidance 4 and search_page 16; no failures or ignores. Formatting, package all-target Clippy with warnings denied and text scanning also exited zero. The worker ended its lease and handed back the idle sequential target. Integrate the correction and freeze the combined source for the complete gate; these focused results do not establish a release.
+
+## Verified source release
+
+The released source now passes the required repository correctness workflow. Earlier failed attempts remain historical evidence; they are not relabeled. This closes the generic engine work and makes no consumer deployment claim.
+
+Fresh workflow readback:
+
+```json
+{"conclusion":"success","headSha":"f1ab55d33d432e1be33d779c8914eb10b0d98c4e","status":"completed","updatedAt":"2026-10-03T15:06:44Z","url":"https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37130396636"}
+
+```
+
+Fresh release readback:
+
+```json
+{"isDraft":false,"isPrerelease":false,"publishedAt":"2026-10-03T14:42:00Z","tagName":"0.0.30","url":"https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.30"}
+
+```
