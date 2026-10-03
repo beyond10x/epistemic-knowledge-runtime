@@ -1,0 +1,10 @@
+{
+  "completed_at": "2026-10-03T13:25:33Z",
+  "unit_commit": "b55e33591e6b8ac70ab9f73d10621b006a2856d2",
+  "integration_commit": "c60270ce01c54a72a88fb0823253bdb44d6ae631",
+  "source_comparison": "crates/generated/systems/docs/Cargo.toml/Cargo.lock/xtask/Taskfile.yml byte-identical",
+  "passed": 2,
+  "failed": 0,
+  "ignored": 0,
+  "native_matrix_cases": 16
+}
