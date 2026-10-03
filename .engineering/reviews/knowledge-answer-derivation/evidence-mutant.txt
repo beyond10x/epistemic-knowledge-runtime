@@ -1,0 +1,24 @@
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 13.39s
+     Running tests/authority_upgrade.rs (<answer-build>/target/debug/deps/authority_upgrade-fa872288e5d012c9)
+
+running 1 test
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... FAILED
+
+failures:
+
+---- reviewed_correction_derivation_is_exact_and_preserves_the_original_claims stdout ----
+
+thread 'reviewed_correction_derivation_is_exact_and_preserves_the_original_claims' (1654164) panicked at crates/ekr-kernel/tests/authority_upgrade.rs:1428:5:
+assertion `left == right` failed
+  left: {EvidenceId(2165214509286663804017469799813822312), EvidenceId(2165214509353156828038913361136245663)}
+ right: {EvidenceId(2165214509286663804017469799813822312), EvidenceId(2165214509287884446406656205461905779), EvidenceId(2165214509353156828038913361136245663)}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    reviewed_correction_derivation_is_exact_and_preserves_the_original_claims
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p ekr-kernel --test authority_upgrade`

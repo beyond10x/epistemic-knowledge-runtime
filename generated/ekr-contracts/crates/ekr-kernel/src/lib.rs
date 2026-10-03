@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
-// contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
+// model digest f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b
+// contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48
 // do not edit: regenerate with `ess synthesize`
 
 //! ekr-kernel — the `ekr-kernel` component of `ekr` v1.
@@ -22,8 +22,12 @@ pub enum PublishedEvent {
     AnswerAttentionResult(ekr_types::kernel::AnswerAttentionResult),
     /// `ekr.kernel.ApplyUpgradeResult`.
     ApplyUpgradeResult(ekr_types::kernel::ApplyUpgradeResult),
+    /// `ekr.kernel.AttentionAnswered`.
+    AttentionAnswered(ekr_types::kernel::AttentionAnswered),
     /// `ekr.kernel.Explained`.
     Explained(ekr_types::kernel::Explained),
+    /// `ekr.kernel.ListAnswersResult`.
+    ListAnswersResult(ekr_types::kernel::ListAnswersResult),
     /// `ekr.kernel.ListAttentionResult`.
     ListAttentionResult(ekr_types::kernel::ListAttentionResult),
     /// `ekr.kernel.PreviewUpgradeResult`.
@@ -82,7 +86,7 @@ impl<B> EkrKernel<B> {
 
 impl<B> EkrKernel<B>
 where
-    B: ekr_types::kernel::obligations::AnswerAttentionBehavior + ekr_types::kernel::obligations::ApplyUpgradeBehavior + ekr_types::kernel::obligations::CommitBehavior + ekr_types::kernel::obligations::ExplainBehavior + ekr_types::kernel::obligations::ListAttentionBehavior + ekr_types::kernel::obligations::PreviewUpgradeBehavior + ekr_types::kernel::obligations::ProposeBehavior + ekr_types::kernel::obligations::SeedBehavior + ekr_types::kernel::obligations::ShowAttentionBehavior + ekr_types::kernel::obligations::SnapshotBehavior + ekr_types::kernel::obligations::ValidateBehavior + ekr_types::kernel::obligations::AuthorityTransitionRecordsQuery + ekr_types::kernel::obligations::CurrentRevisionQuery + ekr_types::kernel::obligations::DisputeClaimRecordsQuery + ekr_types::kernel::obligations::DisputeRecordsQuery + ekr_types::kernel::obligations::HumanAnswerRecordsQuery + ekr_types::kernel::obligations::HumanDecisionRecordsQuery + ekr_types::kernel::obligations::PendingTransactionsQuery + ekr_types::kernel::obligations::RejectionsQuery + ekr_types::kernel::obligations::RetainedEvidenceQuery + ekr_types::kernel::obligations::RevisionsQuery + ekr_types::kernel::obligations::SchemaTransactionEvidenceRecordsQuery + ekr_types::kernel::obligations::TransactionsQuery + ekr_types::kernel::obligations::ValidationIssuesQuery,
+    B: ekr_types::kernel::obligations::AnswerAttentionBehavior + ekr_types::kernel::obligations::ApplyUpgradeBehavior + ekr_types::kernel::obligations::CommitBehavior + ekr_types::kernel::obligations::ExplainBehavior + ekr_types::kernel::obligations::ListAnswersBehavior + ekr_types::kernel::obligations::ListAttentionBehavior + ekr_types::kernel::obligations::PreviewUpgradeBehavior + ekr_types::kernel::obligations::ProposeBehavior + ekr_types::kernel::obligations::SeedBehavior + ekr_types::kernel::obligations::ShowAttentionBehavior + ekr_types::kernel::obligations::SnapshotBehavior + ekr_types::kernel::obligations::ValidateBehavior + ekr_types::kernel::obligations::AuthorityTransitionRecordsQuery + ekr_types::kernel::obligations::CurrentRevisionQuery + ekr_types::kernel::obligations::DisputeClaimRecordsQuery + ekr_types::kernel::obligations::DisputeRecordsQuery + ekr_types::kernel::obligations::HumanAnswerRecordsQuery + ekr_types::kernel::obligations::HumanDecisionRecordsQuery + ekr_types::kernel::obligations::PendingTransactionsQuery + ekr_types::kernel::obligations::RejectionsQuery + ekr_types::kernel::obligations::RetainedEvidenceQuery + ekr_types::kernel::obligations::RevisionsQuery + ekr_types::kernel::obligations::SchemaTransactionEvidenceRecordsQuery + ekr_types::kernel::obligations::TransactionsQuery + ekr_types::kernel::obligations::ValidationIssuesQuery,
 {
     /// Accepts `ekr.kernel.AnswerAttention`: runs the behaviour obligation, then publishes the declared events
     /// the outcome carries.
@@ -154,6 +158,21 @@ where
                 self.outbox.push(PublishedEvent::Explained(explained.clone()));
             }
             ekr_types::kernel::ExplainOutcome::NotFound { .. } => {}
+        }
+        Ok(outcome)
+    }
+
+    /// Accepts `ekr.kernel.ListAnswers`: runs the behaviour obligation, then publishes the declared events
+    /// the outcome carries.
+    ///
+    /// `Err` is the typed refusal of an unmet obligation — never a domain outcome, which always
+    /// arrives as a variant of the outcome type, refusals included.
+    pub fn list_answers(&mut self, input: ekr_types::kernel::ListAnswers) -> Result<ekr_types::kernel::ListAnswersOutcome, ekr_types::obligation::UnmetObligation> {
+        let outcome = self.behaviors.list_answers(input)?;
+        match &outcome {
+            ekr_types::kernel::ListAnswersOutcome::Answered { list_answers_result, .. } => {
+                self.outbox.push(PublishedEvent::ListAnswersResult(list_answers_result.clone()));
+            }
         }
         Ok(outcome)
     }

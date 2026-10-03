@@ -5698,3 +5698,32 @@ The new facade/reopen, protected-path, codec-equivalence and real in-process ses
 are authored but not yet executed at this checkpoint because the coordinated disk hold forbids
 another compilation lane. This is not conformance evidence. Native process provisioning and
 upgrade/dispute viewer demonstrations remain part of the same unfinished story.
+
+## 105.11 Reviewed answer publication (2026-10-03)
+
+An answer uses the generated `AttentionAnswerApplication` and immutable `HumanAnswerRecord`.
+The retained record owns explicit `AnswerReplacement` links and references its stored record and
+ordinary transaction by content address. A temporal correction retracts the old assertion without
+changing its valid-time interval and adds a fresh assertion with the reviewed interval, original
+and attached supporting evidence, and the human statement. It does not reuse ordinary supersession,
+whose interval-truncation semantics remain unchanged. Choosing a claim retracts only its direct
+competitors; equal claims and temporally disjoint claims are preserved. Contradictory instructions,
+unknown claims, unused replacement identities and unreviewed effects are refused.
+
+Publication must verify the enrolled human proof, current material review basis and previous human
+decision before deriving and validating the ordinary transaction. A private reviewed validation
+context may authorize withdrawal of the selected disputed assertions; ordinary unsigned transaction
+validation and historical replay profiles retain their rules. The answer is published atomically
+with its evidence and revision as `AttentionAnswered` in `ekr.revision-event/4`. Replay must repeat
+proof verification, effect derivation, ordinary validation and resulting-root comparison.
+
+The logical answer preparation slot uses the signed decision identity and exact predecessor in
+`ekr.publication-preparation/5`. Older preparation keys omit absent answer identities to preserve
+their bytes and addresses. An exact retry returns the original receipt, even if the question is now
+settled. A changed input under the same identity refuses. An unrelated revision may require another
+CAS attempt but does not require another human answer; changed evidence, options or effects do.
+Unresolved answers retain their statement without withdrawing claims. Receipt questions describe
+remaining canonical disputes, not concurrently changing incubation roots or proposal projections.
+
+This amendment defines the implementation contract. Generating these types does not establish
+publication, recovery, replay or human-resolution conformance.

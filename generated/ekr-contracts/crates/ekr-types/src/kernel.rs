@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
-// contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
+// model digest f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b
+// contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48
 // do not edit: regenerate with `ess synthesize`
 
 //! Kernel — `ekr.kernel`.
@@ -62,9 +62,41 @@ pub struct AnswerReceipt {
     pub remaining: Vec<AttentionItem>,
 }
 
+/// AnswerRecordFormat — `ekr.kernel.AnswerRecordFormat`: one of a closed set of names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnswerRecordFormat {
+    /// `HumanAnswer1`.
+    HumanAnswer1,
+}
+
+/// The states of `ekr.kernel.AnswerReplacement`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `AnswerReplacement<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnswerReplacementState {
+    /// `Recorded`.
+    Recorded,
+}
+
 /// ApplicationProfileV1 — `ekr.kernel.ApplicationProfileV1`: a distinct wrapper around `String`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationProfileV1(pub String);
+
+/// AttentionAnswerApplication — `ekr.kernel.AttentionAnswerApplication`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttentionAnswerApplication {
+    /// `human_proof` — `ekr.kernel.SignedHumanDecision`.
+    pub human_proof: SignedHumanDecision,
+    /// `dispute_id` — `ekr.kernel.DisputeId`.
+    pub dispute_id: DisputeId,
+    /// `basis` — `ekr.kernel.ReviewBasis`.
+    pub basis: ReviewBasis,
+    /// `corrections` — `List<ekr.kernel.ClaimCorrection>`.
+    pub corrections: Vec<ClaimCorrection>,
+    /// `statement` — `Bytes`.
+    pub statement: Vec<u8>,
+}
 
 /// AttentionAnswerTarget — `ekr.kernel.AttentionAnswerTarget`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,6 +107,21 @@ pub struct AttentionAnswerTarget {
     pub basis: ReviewBasis,
     /// `corrections_digest` — `ekr.kernel.ContentHash`.
     pub corrections_digest: ContentHash,
+}
+
+/// AttentionAnsweredPayload — `ekr.kernel.AttentionAnsweredPayload`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttentionAnsweredPayload {
+    /// `answer_id` — `ekr.kernel.HumanAnswerId`.
+    pub answer_id: HumanAnswerId,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: TransactionId,
+    /// `revision_id` — `ekr.kernel.RevisionId`.
+    pub revision_id: RevisionId,
+    /// `number` — `ekr.kernel.RevisionNumber`.
+    pub number: RevisionNumber,
+    /// `knowledge_root` — `ekr.kernel.ContentHash`.
+    pub knowledge_root: ContentHash,
 }
 
 /// AttentionItem — `ekr.kernel.AttentionItem`.
@@ -310,6 +357,15 @@ pub enum ClaimCorrectionKind {
     CorrectTime,
     /// `Unresolved`.
     Unresolved,
+}
+
+/// ClaimReplacement — `ekr.kernel.ClaimReplacement`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaimReplacement {
+    /// `previous` — `ekr.graph.AssertionId`.
+    pub previous: crate::graph::AssertionId,
+    /// `replacement` — `ekr.graph.AssertionId`.
+    pub replacement: crate::graph::AssertionId,
 }
 
 /// CliHostConfigurationV1 — `ekr.kernel.CliHostConfigurationV1`.
@@ -647,6 +703,43 @@ pub enum HumanAnswerState {
 /// HumanAnswerId — `ekr.kernel.HumanAnswerId`: a distinct wrapper around `Uuid`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HumanAnswerId(pub crate::primitives::Uuid);
+
+/// HumanAnswerRecord — `ekr.kernel.HumanAnswerRecord`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HumanAnswerRecord {
+    /// `format` — `ekr.kernel.AnswerRecordFormat`.
+    pub format: AnswerRecordFormat,
+    /// `answer_id` — `ekr.kernel.HumanAnswerId`.
+    pub answer_id: HumanAnswerId,
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: EventId,
+    /// `revision_id` — `ekr.kernel.RevisionId`.
+    pub revision_id: RevisionId,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: TransactionId,
+    /// `dispute_id` — `ekr.kernel.DisputeId`.
+    pub dispute_id: DisputeId,
+    /// `basis` — `ekr.kernel.ReviewBasis`.
+    pub basis: ReviewBasis,
+    /// `corrections` — `List<ekr.kernel.ClaimCorrection>`.
+    pub corrections: Vec<ClaimCorrection>,
+    /// `replacements` — `List<ekr.kernel.ClaimReplacement>`.
+    pub replacements: Vec<ClaimReplacement>,
+    /// `statement_evidence` — `ekr.graph.EvidenceId`.
+    pub statement_evidence: crate::graph::EvidenceId,
+    /// `transaction_object_hash` — `ekr.kernel.ContentHash`.
+    pub transaction_object_hash: ContentHash,
+    /// `validation_hash` — `ekr.kernel.ContentHash`.
+    pub validation_hash: ContentHash,
+    /// `validators` — `List<ekr.kernel.AgentId>`.
+    pub validators: Vec<AgentId>,
+    /// `result` — `ekr.graph.RevisionRoot`.
+    pub result: crate::graph::RevisionRoot,
+    /// `review` — `ekr.kernel.HumanDecisionRecord`.
+    pub review: HumanDecisionRecord,
+    /// `receipt` — `ekr.kernel.AnswerReceipt`.
+    pub receipt: AnswerReceipt,
+}
 
 /// HumanDecisionAudience — `ekr.kernel.HumanDecisionAudience`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1088,6 +1181,13 @@ pub struct RevisionEventFormatV2(pub String);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevisionEventFormatV3(pub String);
 
+/// RevisionEventFormatV4 — `ekr.kernel.RevisionEventFormatV4`: one of a closed set of names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevisionEventFormatV4 {
+    /// `RevisionEvent4`.
+    RevisionEvent4,
+}
+
 /// RevisionEventV2 — `ekr.kernel.RevisionEventV2`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevisionEventV2 {
@@ -1112,6 +1212,19 @@ pub struct RevisionEventV3 {
     pub record_hash: ContentHash,
     /// `payload` — `ekr.kernel.RevisionPayloadV3`.
     pub payload: RevisionPayloadV3,
+}
+
+/// RevisionEventV4 — `ekr.kernel.RevisionEventV4`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RevisionEventV4 {
+    /// `format` — `ekr.kernel.RevisionEventFormatV4`.
+    pub format: RevisionEventFormatV4,
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: EventId,
+    /// `record_hash` — `ekr.kernel.ContentHash`.
+    pub record_hash: ContentHash,
+    /// `payload` — `ekr.kernel.RevisionPayloadV4`.
+    pub payload: RevisionPayloadV4,
 }
 
 /// RevisionId — `ekr.kernel.RevisionId`: a distinct wrapper around `Uuid`.
@@ -1156,6 +1269,13 @@ pub enum RevisionPayloadV3 {
     TransactionStale(StalePayload),
     /// Tagged `TransactionValidated` — `ekr.kernel.ValidatedPayload`.
     TransactionValidated(ValidatedPayload),
+}
+
+/// RevisionPayloadV4 — `ekr.kernel.RevisionPayloadV4`: one of a fixed set of shapes, tagged on the wire by `kind`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RevisionPayloadV4 {
+    /// Tagged `AttentionAnswered` — `ekr.kernel.AttentionAnsweredPayload`.
+    AttentionAnswered(AttentionAnsweredPayload),
 }
 
 /// RulesetV1 — `ekr.kernel.RulesetV1`: a distinct wrapper around `String`.
@@ -1731,6 +1851,142 @@ impl AnyAgent {
         match self {
             Self::Registered(instance) => AgentSnapshot {
                 state: AgentState::Registered,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
+/// What AnswerReplacement — `ekr.kernel.AnswerReplacement` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`AnswerReplacement<S>`], and at a boundary by [`AnswerReplacementSnapshot::state`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnswerReplacementData {
+    /// The identity: `replacement` — `ekr.graph.AssertionId`.
+    ///
+    /// Carries `corrected_claim`: `ekr.kernel.AnswerReplacement` references one `ekr.graph.Assertion`.
+    pub replacement: crate::graph::AssertionId,
+    /// `answer_id` — `ekr.kernel.HumanAnswerId`.
+    ///
+    /// Carries `replacements`: `ekr.kernel.HumanAnswer` owns many `ekr.kernel.AnswerReplacement`.
+    pub answer_id: HumanAnswerId,
+    /// `previous` — `ekr.graph.AssertionId`.
+    ///
+    /// Carries `former_claim`: `ekr.kernel.AnswerReplacement` references one `ekr.graph.Assertion`.
+    pub previous: crate::graph::AssertionId,
+}
+
+/// The states of `ekr.kernel.AnswerReplacement`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](answer_replacement_state::Marker), so [`AnswerReplacement<S>`](AnswerReplacement) can only ever rest in a real state.
+pub mod answer_replacement_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Recorded {}
+    }
+
+    /// A declared state of `AnswerReplacement`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::AnswerReplacementState;
+    }
+
+    /// `Recorded`. Where a new instance starts.
+    pub struct Recorded;
+
+    impl Marker for Recorded {
+        const STATE: super::AnswerReplacementState = super::AnswerReplacementState::Recorded;
+    }
+}
+
+/// AnswerReplacement — `ekr.kernel.AnswerReplacement` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Recorded`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`AnswerReplacementSnapshot`]
+/// and [`AnswerReplacementSnapshot::refine`].
+pub struct AnswerReplacement<S: answer_replacement_state::Marker> {
+    data: AnswerReplacementData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: answer_replacement_state::Marker> AnswerReplacement<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> AnswerReplacementState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &AnswerReplacementData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> AnswerReplacementData {
+        self.data
+    }
+}
+
+impl AnswerReplacement<answer_replacement_state::Recorded> {
+    /// A new instance, resting in `Recorded` — the only state the lifecycle starts one in.
+    pub fn new(data: AnswerReplacementData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.kernel.AnswerReplacement` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`AnswerReplacementSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnswerReplacementSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: AnswerReplacementState,
+    /// What it holds.
+    pub data: AnswerReplacementData,
+}
+
+/// An `AnswerReplacement` in whichever declared state it was found.
+pub enum AnyAnswerReplacement {
+    /// Resting in `Recorded`.
+    Recorded(AnswerReplacement<answer_replacement_state::Recorded>),
+}
+
+impl AnswerReplacementSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `AnswerReplacementState` cannot spell one.
+    pub fn refine(self) -> AnyAnswerReplacement {
+        match self.state {
+            AnswerReplacementState::Recorded => AnyAnswerReplacement::Recorded(AnswerReplacement {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyAnswerReplacement {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> AnswerReplacementState {
+        match self {
+            Self::Recorded(_) => AnswerReplacementState::Recorded,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> AnswerReplacementSnapshot {
+        match self {
+            Self::Recorded(instance) => AnswerReplacementSnapshot {
+                state: AnswerReplacementState::Recorded,
                 data: instance.into_data(),
             },
         }
@@ -2463,6 +2719,14 @@ impl AnyGraphTransaction {
 pub struct HumanAnswerData {
     /// The identity: `answer_id` — `ekr.kernel.HumanAnswerId`.
     pub answer_id: HumanAnswerId,
+    /// `record_object_hash` — `ekr.kernel.ContentHash`.
+    ///
+    /// Carries `record`: `ekr.kernel.HumanAnswer` references one `ekr.store.StoredObject`.
+    pub record_object_hash: ContentHash,
+    /// `transaction_object_hash` — `ekr.kernel.ContentHash`.
+    ///
+    /// Carries `transaction_document`: `ekr.kernel.HumanAnswer` references one `ekr.store.StoredObject`.
+    pub transaction_object_hash: ContentHash,
     /// `human_proof_digest` — `ekr.kernel.ContentHash`.
     ///
     /// Carries `human_proof`: `ekr.kernel.HumanAnswer` references one `ekr.kernel.RetainedHumanDecision`.
@@ -3362,6 +3626,38 @@ pub enum ExplainOutcome {
     },
 }
 
+/// ListAnswers — the input of `ekr.kernel.ListAnswers`.
+///
+/// Everything it can result in is [`ListAnswersOutcome`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListAnswers {
+    /// `dispute_id` — `Optional<ekr.kernel.DisputeId>`.
+    pub dispute_id: Option<DisputeId>,
+}
+
+/// Actual typed response of `ekr.kernel.ListAnswers`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListAnswersResponse {
+    /// `answers` — `List<ekr.kernel.HumanAnswerRecord>`.
+    pub answers: Vec<HumanAnswerRecord>,
+}
+
+/// Everything `ekr.kernel.ListAnswers` can result in — one variant per declared outcome.
+///
+/// An infrastructure failure is deliberately not in here: a refusal is a fact about the domain,
+/// a transport fault is a fact about the run, and conflating the two is what the declared
+/// outcomes exist to prevent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ListAnswersOutcome {
+    /// `answered` — otherwise.
+    ///
+    /// Read immutable authenticated answer history in publication order, optionally filtered by dispute, including unresolved answers and superseded decisions.
+    Answered {
+        /// The `ekr.kernel.ListAnswersResult` this outcome publishes.
+        list_answers_result: ListAnswersResult,
+    },
+}
+
 /// ListAttention — the input of `ekr.kernel.ListAttention`.
 ///
 /// Everything it can result in is [`ListAttentionOutcome`].
@@ -3707,6 +4003,25 @@ pub struct ApplyUpgradeResult {
     pub transition_id: AuthorityTransitionId,
 }
 
+/// AttentionAnswered — the event `ekr.kernel.AttentionAnswered`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttentionAnswered {
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: EventId,
+    /// `record_hash` — `ekr.kernel.ContentHash`.
+    pub record_hash: ContentHash,
+    /// `answer_id` — `ekr.kernel.HumanAnswerId`.
+    pub answer_id: HumanAnswerId,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: TransactionId,
+    /// `revision_id` — `ekr.kernel.RevisionId`.
+    pub revision_id: RevisionId,
+    /// `number` — `ekr.kernel.RevisionNumber`.
+    pub number: RevisionNumber,
+    /// `knowledge_root` — `ekr.kernel.ContentHash`.
+    pub knowledge_root: ContentHash,
+}
+
 /// AuthorityUpgraded — the event `ekr.kernel.AuthorityUpgraded`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorityUpgraded {
@@ -3731,6 +4046,13 @@ pub struct Explained {
     pub assertion_id: crate::graph::AssertionId,
     /// `links` — `Integer`.
     pub links: i64,
+}
+
+/// ListAnswersResult — the event `ekr.kernel.ListAnswersResult`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListAnswersResult {
+    /// `answers` — `List<ekr.kernel.HumanAnswerRecord>`.
+    pub answers: Vec<HumanAnswerRecord>,
 }
 
 /// ListAttentionResult — the event `ekr.kernel.ListAttentionResult`.
@@ -4303,6 +4625,19 @@ pub mod obligations {
         fn explain(&mut self, input: super::Explain) -> Result<super::ExplainOutcome, crate::obligation::UnmetObligation>;
     }
 
+    /// The behaviour `ekr.kernel.ListAnswers` — an implementation obligation.
+    ///
+    /// Why it is not generated: kept an obligation by a typed response (`response:`).
+    ///
+    /// Contract: given `ekr.kernel.ListAnswers` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ListAnswersResult`.
+    pub trait ListAnswersBehavior {
+        /// Decides and enacts exactly one declared outcome of `ekr.kernel.ListAnswers`.
+        ///
+        /// `Err` is the typed refusal of an obligation nothing has satisfied; a satisfying
+        /// implementation never returns it.
+        fn list_answers(&mut self, input: super::ListAnswers) -> Result<super::ListAnswersOutcome, crate::obligation::UnmetObligation>;
+    }
+
     /// The behaviour `ekr.kernel.ListAttention` — an implementation obligation.
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
@@ -4566,6 +4901,12 @@ pub mod obligations {
     impl ExplainBehavior for Unimplemented {
         fn explain(&mut self, _input: super::Explain) -> Result<super::ExplainOutcome, crate::obligation::UnmetObligation> {
             Err(crate::obligation::UnmetObligation { capability: "command behaviour", source: "ekr.kernel.Explain" })
+        }
+    }
+
+    impl ListAnswersBehavior for Unimplemented {
+        fn list_answers(&mut self, _input: super::ListAnswers) -> Result<super::ListAnswersOutcome, crate::obligation::UnmetObligation> {
+            Err(crate::obligation::UnmetObligation { capability: "command behaviour", source: "ekr.kernel.ListAnswers" })
         }
     }
 

@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+  "source_digest": "f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:a18bc7b7cb9417b5a3ed4787bd20939bd8f235d72fecf66a532874aba85e0564",
-    "projection_digest": "16e8c97b60fe5b8e2b8fb143eb5fc76560d334685ff2fe6a057b71b5e0a86e9f"
+    "contract_digest": "slice-sha256/2:648d4a4fc1a1bc4fb6529cc822f29695efc9b811ed7914cfe52ede1e2d906b76",
+    "projection_digest": "9f64609e46ed45d5b677442442a8f8c399555b1d249ff04b50fd97300468eb52"
   },
   "generator_version": "0.51.0",
   "target": "rust",
@@ -146,8 +146,12 @@
     "ekr.kernel.AliasAdditionProjection",
     "ekr.kernel.AnswerOutcome",
     "ekr.kernel.AnswerReceipt",
+    "ekr.kernel.AnswerRecordFormat",
+    "ekr.kernel.AnswerReplacement.State",
     "ekr.kernel.ApplicationProfileV1",
+    "ekr.kernel.AttentionAnswerApplication",
     "ekr.kernel.AttentionAnswerTarget",
+    "ekr.kernel.AttentionAnsweredPayload",
     "ekr.kernel.AttentionItem",
     "ekr.kernel.AttentionKind",
     "ekr.kernel.AttentionSubject",
@@ -166,6 +170,7 @@
     "ekr.kernel.CanonicalTransactionProjection",
     "ekr.kernel.ClaimCorrection",
     "ekr.kernel.ClaimCorrectionKind",
+    "ekr.kernel.ClaimReplacement",
     "ekr.kernel.CliHostConfigurationV1",
     "ekr.kernel.CliHostFormatV1",
     "ekr.kernel.CommitCommandResult",
@@ -195,6 +200,7 @@
     "ekr.kernel.GraphTransaction.State",
     "ekr.kernel.HumanAnswer.State",
     "ekr.kernel.HumanAnswerId",
+    "ekr.kernel.HumanAnswerRecord",
     "ekr.kernel.HumanDecisionAudience",
     "ekr.kernel.HumanDecisionFormat",
     "ekr.kernel.HumanDecisionIntent",
@@ -232,12 +238,15 @@
     "ekr.kernel.Revision.State",
     "ekr.kernel.RevisionEventFormatV2",
     "ekr.kernel.RevisionEventFormatV3",
+    "ekr.kernel.RevisionEventFormatV4",
     "ekr.kernel.RevisionEventV2",
     "ekr.kernel.RevisionEventV3",
+    "ekr.kernel.RevisionEventV4",
     "ekr.kernel.RevisionId",
     "ekr.kernel.RevisionNumber",
     "ekr.kernel.RevisionPayload",
     "ekr.kernel.RevisionPayloadV3",
+    "ekr.kernel.RevisionPayloadV4",
     "ekr.kernel.RulesetV1",
     "ekr.kernel.SchemaReviewTarget",
     "ekr.kernel.SchemaTransactionEvidence.State",
@@ -583,8 +592,12 @@
     "ekr.kernel.AliasAdditionProjection": "EkrKernelAliasAdditionProjection",
     "ekr.kernel.AnswerOutcome": "EkrKernelAnswerOutcome",
     "ekr.kernel.AnswerReceipt": "EkrKernelAnswerReceipt",
+    "ekr.kernel.AnswerRecordFormat": "EkrKernelAnswerRecordFormat",
+    "ekr.kernel.AnswerReplacement.State": "EkrKernelAnswerReplacementState",
     "ekr.kernel.ApplicationProfileV1": "EkrKernelApplicationProfileV1",
+    "ekr.kernel.AttentionAnswerApplication": "EkrKernelAttentionAnswerApplication",
     "ekr.kernel.AttentionAnswerTarget": "EkrKernelAttentionAnswerTarget",
+    "ekr.kernel.AttentionAnsweredPayload": "EkrKernelAttentionAnsweredPayload",
     "ekr.kernel.AttentionItem": "EkrKernelAttentionItem",
     "ekr.kernel.AttentionKind": "EkrKernelAttentionKind",
     "ekr.kernel.AttentionSubject": "EkrKernelAttentionSubject",
@@ -603,6 +616,7 @@
     "ekr.kernel.CanonicalTransactionProjection": "EkrKernelCanonicalTransactionProjection",
     "ekr.kernel.ClaimCorrection": "EkrKernelClaimCorrection",
     "ekr.kernel.ClaimCorrectionKind": "EkrKernelClaimCorrectionKind",
+    "ekr.kernel.ClaimReplacement": "EkrKernelClaimReplacement",
     "ekr.kernel.CliHostConfigurationV1": "EkrKernelCliHostConfigurationV1",
     "ekr.kernel.CliHostFormatV1": "EkrKernelCliHostFormatV1",
     "ekr.kernel.CommitCommandResult": "EkrKernelCommitCommandResult",
@@ -632,6 +646,7 @@
     "ekr.kernel.GraphTransaction.State": "EkrKernelGraphTransactionState",
     "ekr.kernel.HumanAnswer.State": "EkrKernelHumanAnswerState",
     "ekr.kernel.HumanAnswerId": "EkrKernelHumanAnswerId",
+    "ekr.kernel.HumanAnswerRecord": "EkrKernelHumanAnswerRecord",
     "ekr.kernel.HumanDecisionAudience": "EkrKernelHumanDecisionAudience",
     "ekr.kernel.HumanDecisionFormat": "EkrKernelHumanDecisionFormat",
     "ekr.kernel.HumanDecisionIntent": "EkrKernelHumanDecisionIntent",
@@ -669,12 +684,15 @@
     "ekr.kernel.Revision.State": "EkrKernelRevisionState",
     "ekr.kernel.RevisionEventFormatV2": "EkrKernelRevisionEventFormatV2",
     "ekr.kernel.RevisionEventFormatV3": "EkrKernelRevisionEventFormatV3",
+    "ekr.kernel.RevisionEventFormatV4": "EkrKernelRevisionEventFormatV4",
     "ekr.kernel.RevisionEventV2": "EkrKernelRevisionEventV2",
     "ekr.kernel.RevisionEventV3": "EkrKernelRevisionEventV3",
+    "ekr.kernel.RevisionEventV4": "EkrKernelRevisionEventV4",
     "ekr.kernel.RevisionId": "EkrKernelRevisionId",
     "ekr.kernel.RevisionNumber": "EkrKernelRevisionNumber",
     "ekr.kernel.RevisionPayload": "EkrKernelRevisionPayload",
     "ekr.kernel.RevisionPayloadV3": "EkrKernelRevisionPayloadV3",
+    "ekr.kernel.RevisionPayloadV4": "EkrKernelRevisionPayloadV4",
     "ekr.kernel.RulesetV1": "EkrKernelRulesetV1",
     "ekr.kernel.SchemaReviewTarget": "EkrKernelSchemaReviewTarget",
     "ekr.kernel.SchemaTransactionEvidence.State": "EkrKernelSchemaTransactionEvidenceState",
@@ -3145,6 +3163,36 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.kernel.AnswerRecordFormat/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AnswerRecordFormat/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AnswerRecordFormat/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AnswerReplacement.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AnswerReplacement.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AnswerReplacement.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.ApplicationProfileV1/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -3160,6 +3208,26 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.kernel.AttentionAnswerApplication/properties/statement/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AttentionAnswerApplication/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AttentionAnswerApplication/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AttentionAnswerApplication/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.AttentionAnswerTarget/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -3171,6 +3239,21 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.AttentionAnswerTarget/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AttentionAnsweredPayload/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AttentionAnsweredPayload/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AttentionAnsweredPayload/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -3551,6 +3634,21 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.ClaimCorrectionKind/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ClaimReplacement/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ClaimReplacement/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ClaimReplacement/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -4086,6 +4184,21 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.HumanAnswerId/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.HumanAnswerRecord/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.HumanAnswerRecord/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.HumanAnswerRecord/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -4725,6 +4838,21 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.kernel.RevisionEventFormatV4/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventFormatV4/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventFormatV4/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.RevisionEventV2/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -4751,6 +4879,21 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.RevisionEventV3/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventV4/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventV4/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionEventV4/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -4891,6 +5034,31 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.RevisionPayloadV3/x-ess-union-tag",
+      "rule": "x-ess-union-tag",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4/oneOf/0/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4/x-ess-union-tag",
       "rule": "x-ess-union-tag",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -8642,6 +8810,11 @@
       "detail": "validate this constraint against the source schema at runtime"
     },
     {
+      "pointer": "/$defs/ekr.kernel.AttentionAnswerApplication/properties/statement/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.AuthorityStateV1/properties/agents",
       "rule": "open_object_storage",
       "detail": "preserve ess_extra when constructing or transforming the record; serialization rejects declared-key collisions"
@@ -8798,6 +8971,16 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.RevisionPayloadV3",
+      "rule": "untagged_selection",
+      "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4",
+      "rule": "oneOf",
+      "detail": "validate exclusive branch membership against the source schema"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.RevisionPayloadV4",
       "rule": "untagged_selection",
       "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
     },

@@ -29,7 +29,7 @@ fn subject(value: &w::EkrKernelAttentionSubject) -> m::AttentionSubject {
         }),
     }
 }
-fn item(value: &w::EkrKernelAttentionItem) -> Result<m::AttentionItem, StoreError> {
+pub(crate) fn item(value: &w::EkrKernelAttentionItem) -> Result<m::AttentionItem, StoreError> {
     Ok(m::AttentionItem {
         subject: subject(&value.subject),
         question: value.question.clone(),

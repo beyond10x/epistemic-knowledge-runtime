@@ -8,6 +8,7 @@ use ekr_core::{AgentId, ContentHash};
 use ring::signature::{UnparsedPublicKey, ED25519};
 
 mod attention;
+mod corrections;
 mod decode;
 mod wire;
 pub use attention::corrections_bytes;

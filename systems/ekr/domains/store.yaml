@@ -25,11 +25,13 @@ types:
   # Runtime recovery controls remain unexecuted at declaration.
   - name: ekr.store.PublicationCommandKind
     kind: enum
-    variants: [Bootstrap, Propose, Validate, Commit, UpgradeAuthority]
+    variants: [Bootstrap, Propose, Validate, Commit, UpgradeAuthority, AnswerAttention]
 
   - name: ekr.store.PublicationCommandKey
     kind: struct
     fields:
+      - name: answer_id
+        type: Optional<ekr.kernel.HumanAnswerId>
       - name: kind
         type: ekr.store.PublicationCommandKind
       - name: transaction_id
@@ -38,6 +40,10 @@ types:
         type: Optional<ekr.kernel.EventId>
       - name: predecessor_record_hash
         type: Optional<ekr.kernel.ContentHash>
+    # Absent answer_id is omitted from historical key encodings, preserving old slot hashes.
+    # AnswerAttention requires answer_id (the signed decision UUID), no transaction_id, and
+    # the current retained predecessor. Its preparation is format 5; event schema is 4.
+    # A completed decision is deduplicated by exact retained proof before electing any retry.
     # UpgradeAuthority has no transaction id; both predecessor fields name the exact
     # reviewed stream tip. Distinct reviewed prefixes get distinct recovery slots.
 
@@ -185,6 +191,7 @@ types:
       - {name: EkrPublicationPreparation2, wire: ekr.publication-preparation/2}
       - {name: EkrPublicationPreparation3, wire: ekr.publication-preparation/3}
       - {name: EkrPublicationPreparation4, wire: ekr.publication-preparation/4}
+      - {name: EkrPublicationPreparation5, wire: ekr.publication-preparation/5}
   - name: ekr.store.PublicationPreparationV1
     kind: struct
     fields:
