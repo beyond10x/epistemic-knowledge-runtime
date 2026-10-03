@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:retain-supplied-knowledge
 kind: story
-status: draft
+status: active
 title: A. Retain supplied knowledge
 relations:
 - decomposes: epic:p2-observation-layer
@@ -24,7 +24,10 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 8
+revision: 11
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
+- {from: "proposed", to: "active", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
 ---
 ## Outcome
 
@@ -50,3 +53,9 @@ Contract source commit 07604bf1a5e6c19ef86b78846dc99a603f3d2bfb, spec_digest 29e
 
 The operator supplied and explicitly requested execution of the knowledge inbox/schema learning plan on 2026-10-03. This story scopes that accepted intent; its draft status does not imply implementation exists. Shared kernel, CLI, specification and gate edits are serialized.
 
+
+## Implementation sequencing
+
+Generated-model adoption has landed on the integration branch at fc2df2dc27527d5cd5afe844bacc4ef8a32d8579. Runtime development may now use the exact generated upstream candidate recorded in generated/ess-generator.json: the generator defects are fixed and the resulting semantic workspace compiles. This clarifies development sequencing only. The dependency on completed adoption remains; acceptance still requires the verified ESS release, final regeneration and the full gate. No model may be hand-transcribed. Shared kernel, CLI and contract edits stay serialized after the adoption source commit.
+
+The coordinator is implementing this unit after available workers exhausted their execution allowances. Local role-separated review must be identified as such, never represented as independent review. Retain failed probes and their final passing cases.

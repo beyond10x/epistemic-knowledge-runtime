@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-03T01:01:31Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:retain-supplied-knowledge",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator execution request: implement knowledge inbox and evidence-led schema learning, story A observation and interpretation retention"
+  }
+}
