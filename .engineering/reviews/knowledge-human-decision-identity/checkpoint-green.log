@@ -1,0 +1,10 @@
+   Compiling ekr-store v0.0.27 (<review-retention-worktree>/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 3.42s
+     Running tests/human_decision_identity.rs (<owned-build>/target/debug/deps/human_decision_identity-b609c12be874160b)
+
+running 2 tests
+test ordinary_checkpoint_head_keeps_the_existing_shortcut ... ok
+test checkpoint_head_after_signed_answer_checks_its_mandatory_identity_binding ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.02s
+

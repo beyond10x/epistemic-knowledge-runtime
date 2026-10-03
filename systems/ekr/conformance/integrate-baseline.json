@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 18,
-  "answered_floor": 18,
+  "total": 19,
+  "answered_floor": 19,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -19,6 +19,7 @@
     "ekr.integrate.ApproveSchemaProposal/outcome/answered",
     "ekr.integrate.ApproveSchemaProposal/outcome/refused",
     "ekr.integrate.DiscoverSchemaGaps/outcome/answered",
+    "ekr.integrate.DiscoverSchemaGaps/outcome/refused",
     "ekr.integrate.ImportInterpretation/outcome/answered",
     "ekr.integrate.ImportInterpretation/outcome/refused",
     "ekr.integrate.ListInterpretations/outcome/answered",
@@ -76,6 +77,13 @@
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.DiscoverSchemaGaps/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 45,
       "expect_outcome": 1
     },
     "ekr.integrate.ImportInterpretation/outcome/answered": {

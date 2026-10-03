@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized] target(s) in 0.16s
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-a1091bef560f2a15)
+
+running 1 test
+test proposal_submission_refuses_inapplicable_corrections ... FAILED
+
+failures:
+
+---- proposal_submission_refuses_inapplicable_corrections stdout ----
+
+thread 'proposal_submission_refuses_inapplicable_corrections' (2703034) panicked at crates/ekr-kernel/tests/schema_proposal_reviews.rs:538:13:
+accepted [{"assertion_id":"01a10352-c04f-7116-bc29-bbd122a33b77","kind":"Choose","reason":" "}]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    proposal_submission_refuses_inapplicable_corrections
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p ekr-kernel --test schema_proposal_reviews`

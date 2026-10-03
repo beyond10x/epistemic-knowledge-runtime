@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 9ef3db2c31e7e282eb52684fc83bf8bd66b214dc7d4408ee9b27d10ae9ed26b0
-// contract digest f0fd932f4806cf61844ffb487dc766c5f3249457a9242e2a479e06513ccdce4c
+// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
+// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
 // do not edit: regenerate with `ess synthesize`
 
 //! Integrate — `ekr.integrate`.
@@ -3045,7 +3045,7 @@ pub struct ApproveSchemaProposalResponse {
 pub enum ApproveSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections. Verify material against one coherent canonical snapshot, then atomically retain the decision, proof, policy and statement against the exact review predecessor. Canonical revisions do not advance. A concurrent canonical change may immediately make this observed-basis decision stale; application revalidates it. Exact retries retain the original review; a reused decision identity with changed input refuses.
+    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections. Verify material against one coherent canonical snapshot, then atomically retain the decision, proof, policy and statement against the exact review predecessor. Canonical revisions do not advance. A concurrent canonical change may immediately make this observed-basis decision stale; application revalidates it. Exact retries retain the original review; a reused decision identity with changed input refuses across all human decision kinds in the audience, including upgrades and attention answers, in the same atomic publication.
     Answered {
         /// The `ekr.integrate.ApproveSchemaProposalResult` this outcome publishes.
         approve_schema_proposal_result: ApproveSchemaProposalResult,
@@ -3194,7 +3194,7 @@ pub struct RejectSchemaProposalResponse {
 pub enum RejectSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Record the host-authenticated human decision and retain its statement as evidence without advancing canonical revisions. Atomically retain rejection, proof, policy and statement against the exact review predecessor. Rejection prevents subsequent application writes while preserving committed history. Exact retries return the retained decision; changed input under the same decision identity refuses.
+    /// Record the host-authenticated human decision and retain its statement as evidence without advancing canonical revisions. Atomically retain rejection, proof, policy and statement against the exact review predecessor. Rejection prevents subsequent application writes while preserving committed history. Exact retries return the retained decision; changed input under the same decision identity refuses across all human decision kinds in the audience, including upgrades and attention answers, in the same atomic publication.
     Answered {
         /// The `ekr.integrate.RejectSchemaProposalResult` this outcome publishes.
         reject_schema_proposal_result: RejectSchemaProposalResult,

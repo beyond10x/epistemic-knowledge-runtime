@@ -1,0 +1,22 @@
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 0.71s
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-7e75166974ccd353)
+
+running 1 test
+test schema_review_revalidates_material_and_replays_the_original_review_revision ... FAILED
+
+failures:
+
+---- schema_review_revalidates_material_and_replays_the_original_review_revision stdout ----
+
+thread 'schema_review_revalidates_material_and_replays_the_original_review_revision' (2393607) panicked at crates/ekr-kernel/tests/schema_proposal_reviews.rs:300:9:
+assertion failed: store.reject_schema_proposal(&impossible, Timestamp::from_millis(6)).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    schema_review_revalidates_material_and_replays_the_original_review_revision
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.13s
+
+error: test failed, to rerun pass `-p ekr-kernel --test schema_proposal_reviews`

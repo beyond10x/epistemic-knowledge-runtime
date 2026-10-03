@@ -20,7 +20,7 @@ fn bytes(value: &str) -> Result<Vec<u8>, Refusal> {
         )
     })
 }
-fn basis(value: &w::EkrKernelReviewBasis) -> Result<m::ReviewBasis, Refusal> {
+pub(crate) fn basis(value: &w::EkrKernelReviewBasis) -> Result<m::ReviewBasis, Refusal> {
     let result = m::ReviewBasis {
         observed_revision: m::RevisionNumber(value.observed_revision.0.as_i64().ok_or_else(
             || {

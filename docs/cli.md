@@ -519,7 +519,8 @@ provides `Knowledge::answer_attention(&EkrKernelAttentionAnswerApplication)` and
 `Knowledge::answer_history(Option<&EkrKernelDisputeId>)`. Read-only sessions refuse answer writes.
 The read-only viewer's inbox includes answer history with the reviewer, statement evidence,
 corrections, effective times and retained decision details. Settled questions disappear from the
-open inbox while their answers remain inspectable. Schema proposal decisions remain under development.
+open inbox while their answers remain inspectable. Schema proposal decisions use the separately
+signed review operations below.
 
 ### `ekr schema-proposal`
 
@@ -543,9 +544,30 @@ changed bytes under the same identity refuse. Read-only sessions refuse submissi
 `ekr schema-proposal show <proposal-id>` returns the retained proposal, exact byte digest, current
 mapping blockers and material review basis. Both commands return `ekr.integrate.SchemaProposalRead`.
 SDK equivalents are `Knowledge::submit_schema_proposal` and `Knowledge::schema_proposal`.
-Retained proposals appear in `attention list`. The read-only viewer links each proposal from
+
+`ekr schema-proposal approve review.json` and `ekr schema-proposal reject review.json` accept
+`ekr.integrate.SchemaProposalReviewApplication` JSON (or `-` for stdin, at most eight MiB).
+The application names the exact `proposal_id`, `proposal_digest`, `basis`, base64 `statement`
+and external `human_proof`. The proof uses `ApproveSchemaProposal` or `RejectSchemaProposal`
+respectively and signs those same values plus the `expected_previous_decision` returned by show.
+Use the independently provisioned reviewer policy described under `ekr upgrade`; the key must
+have the corresponding review scope. An agent-supplied identity or signature key grants no trust.
+
+Both commands return `ekr.integrate.ProposalReviewSnapshot`. The retained review records the
+authenticated operator and keeps its proof, policy and statement evidence without advancing the
+canonical revision. Unrelated revisions can preserve the reviewed material; changed evidence,
+choices or intended effects require renewed review. An exact retry returns its original record,
+including after a later rejection; it never reinstates an older approval. Reusing a decision
+identity with changed content refuses across all human review kinds. SDK equivalents are
+`Knowledge::approve_schema_proposal` and `Knowledge::reject_schema_proposal`, using the same
+generated input and output types. Approval does not itself apply schema additions or mapped facts.
+
+Retained proposals whose latest decision is not a rejection appear in `attention list`.
+Rejected proposals remain inspectable through `schema-proposal show` and their viewer page.
+The read-only viewer links each proposal from
 `/inbox` to `/schema-proposal/<proposal-id>`, showing additions, mappings, source observations,
-immutable interpretation documents and review material. Both pages accept GET without query
+immutable interpretation documents, review material and authenticated human statement history.
+Both pages accept GET without query
 parameters; they expose no browser write controls.
 
 ### `ekr incubate`

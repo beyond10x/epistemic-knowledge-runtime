@@ -2093,7 +2093,9 @@ commands:
     - name: refused
       external: Verify human_proof under the independently enrolled reviewer policy and the exact AnswerAttention target, statement, corrections and predecessor decision. A host operator UUID or supplied key establishes no human authority. Revalidate against current state. Unrelated revisions alone do not invalidate
         review; changed evidence, choices or intended effects require renewed human
-        review. An agent-provided identity or unsupported claim cannot authorize resolution.
+        review. Decision identities are unique across every human decision kind within the
+        audience; changed content under an upgrade, answer or schema-review identity refuses
+        atomically. An agent-provided identity or unsupported claim cannot authorize resolution.
       error: ekr.kernel.KnowledgeRefused
   - name: ekr.kernel.PreviewUpgrade
     naming:
@@ -2157,7 +2159,9 @@ commands:
         rules.
     - name: refused
       external: Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported
-        target, unauthenticated operator or incomplete historical verification.
+        target, unauthenticated operator or incomplete historical verification. Decision identities
+        are unique across every human decision kind within the audience; changed content under
+        an upgrade, answer or schema-review identity refuses atomically.
       error: ekr.kernel.KnowledgeRefused
 
   # Design § 8. The seed is the minimal trusted starting state; loading it produces revision 0.

@@ -6,8 +6,8 @@ status: validated
 title: systems/ekr — the runtime's executable system specification, v1
 relations:
 - specifies: epic:p1-kernel-ontology-core
-model_digest: 9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345
-revision: 6
+model_digest: 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
+revision: 7
 transitions:
 - {from: "draft", to: "validated", at: "2026-09-21T01:59:07Z", actor: "agent:claude", revision: 2, imported: true}
 - {from: "validated", to: "conforming", at: "2026-09-23T20:38:55Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 3, decided_on: {"recorded":{"ess_conformance":1}}, imported: true}

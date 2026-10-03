@@ -53,6 +53,35 @@ pub struct Knowledge<T: Transport> {
 }
 
 impl<T: Transport> Knowledge<T> {
+    /// Retains an exact externally signed approval under independently provisioned host trust.
+    /// The proof covers the proposal digest, reviewed material, statement and predecessor.
+    /// # Errors
+    /// Serialization, transport, invalid or stale review, unprovisioned trust, or provider failure.
+    pub fn approve_schema_proposal(
+        &mut self,
+        input: &crate::contracts::EkrIntegrateSchemaProposalReviewApplication,
+    ) -> Result<crate::contracts::EkrIntegrateProposalReviewSnapshot, ReadError> {
+        let text = serde_json::to_string(input).map_err(|source| ReadError::Document {
+            verb: "schema-proposal approve".into(),
+            source,
+        })?;
+        Reader::new(&mut self.transport)
+            .read_request(Request::new(["schema-proposal", "approve", "-"]).with_stdin(text))
+    }
+    /// Retains an exact externally signed rejection while preserving previous reviews.
+    /// # Errors
+    /// Serialization, transport, invalid or stale review, unprovisioned trust, or provider failure.
+    pub fn reject_schema_proposal(
+        &mut self,
+        input: &crate::contracts::EkrIntegrateSchemaProposalReviewApplication,
+    ) -> Result<crate::contracts::EkrIntegrateProposalReviewSnapshot, ReadError> {
+        let text = serde_json::to_string(input).map_err(|source| ReadError::Document {
+            verb: "schema-proposal reject".into(),
+            source,
+        })?;
+        Reader::new(&mut self.transport)
+            .read_request(Request::new(["schema-proposal", "reject", "-"]).with_stdin(text))
+    }
     /// Retains exact proposal bytes and returns current mapping preview and review material.
     /// # Errors
     /// Serialization, transport, invalid proposal or provider failure.

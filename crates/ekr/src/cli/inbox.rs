@@ -304,7 +304,30 @@ pub(super) fn proposal(runtime: &Runtime, id: &str) -> Result<Vec<u8>, String> {
         )
         .unwrap();
     }
-    write!(page, "<h2>Review material</h2><pre>{}</pre><h2>Review history</h2><pre>{}</pre><h2>Application history</h2><pre>{}</pre></main></html>", document(&shown.basis)?, document(&shown.reviews)?, document(&shown.receipts)?).unwrap();
+    write!(
+        page,
+        "<h2>Review material</h2><pre>{}</pre><h2>Review history</h2>",
+        document(&shown.basis)?
+    )
+    .unwrap();
+    for review in runtime
+        .schema_proposal_reviews(&id)
+        .map_err(|e| e.to_string())?
+    {
+        let bytes =
+            ekr_core::bytes::decode(&review.statement.payload).map_err(|e| e.to_string())?;
+        let decision = match *review.review.decision {
+            ekr_core::contract_data::EkrIntegrateReviewDecision::V0 => "Approved",
+            ekr_core::contract_data::EkrIntegrateReviewDecision::V1 => "Rejected",
+        };
+        write!(page, "<article><h3>{decision}</h3><p>Reviewed by {}</p><pre>{}</pre><details><summary>Signed decision and statement provenance</summary><pre>{}</pre></details></article>", escaped(&review.review.operator.authentication_subject), excerpt(&bytes), document(&review)?).unwrap();
+    }
+    write!(
+        page,
+        "<h2>Application history</h2><pre>{}</pre></main></html>",
+        document(&shown.receipts)?
+    )
+    .unwrap();
     Ok(page.into_bytes())
 }
 

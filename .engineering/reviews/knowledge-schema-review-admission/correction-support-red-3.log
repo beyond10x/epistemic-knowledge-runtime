@@ -1,0 +1,29 @@
+   Compiling serde_yaml_ng v0.10.0 (<proposal-worktree>/vendor/serde_yaml_ng)
+   Compiling ekr-contract-data v0.0.0 (<proposal-worktree>/generated/ekr-contract-data)
+   Compiling ekr-core v0.0.27 (<proposal-worktree>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<proposal-worktree>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<proposal-worktree>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<proposal-worktree>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<proposal-worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 34.88s
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-a1091bef560f2a15)
+
+running 1 test
+test proposal_correction_review_binds_support_attached_to_either_competing_claim ... FAILED
+
+failures:
+
+---- proposal_correction_review_binds_support_attached_to_either_competing_claim stdout ----
+
+thread 'proposal_correction_review_binds_support_attached_to_either_competing_claim' (2702954) panicked at crates/ekr-kernel/tests/schema_proposal_reviews.rs:275:5:
+Rejected(RejectionRecordV1 { format: "ekr.rejection-record/1", event_id: EventId(2165255193210456210149257072210497067), proposed_event_id: EventId(2165255193200786664130303852281893550), proposal_record_hash: ContentHash([153, 29, 144, 153, 45, 200, 197, 57, 142, 181, 252, 166, 238, 144, 170, 20, 66, 252, 221, 37, 212, 151, 105, 214, 123, 249, 50, 96, 15, 208, 245, 157]), requested_basis: ValidationBasisV1 { format: "ekr.validation-basis/1", graph_root_id: GraphRootId(302240678275694148452354), previous_revision_id: RevisionId(2165255193179020743843083821234691750), previous_event_id: EventId(2165255193179020743843083816489890332), previous_record_hash: ContentHash([232, 197, 253, 253, 234, 204, 41, 103, 189, 131, 213, 239, 76, 52, 96, 198, 221, 39, 111, 120, 116, 210, 207, 79, 137, 76, 240, 162, 154, 51, 108, 32]), previous_root: Root { revision: RevisionNumber(1), parent: Some(ContentHash([31, 58, 221, 230, 197, 4, 136, 45, 90, 103, 64, 155, 66, 21, 194, 173, 69, 89, 140, 161, 22, 223, 126, 103, 214, 30, 115, 247, 143, 254, 187, 77])), ontology_root: ContentHash([97, 183, 249, 67, 159, 5, 210, 89, 204, 129, 253, 122, 59, 134, 166, 160, 16, 22, 83, 117, 4, 249, 100, 209, 27, 114, 234, 238, 225, 30, 2, 155]), knowledge_root: ContentHash([47, 228, 246, 241, 117, 4, 120, 213, 66, 94, 159, 164, 177, 85, 110, 190, 73, 229, 17, 185, 146, 100, 193, 213, 87, 189, 241, 65, 55, 88, 163, 238]), evidence_root: ContentHash([148, 79, 11, 149, 44, 187, 131, 247, 199, 15, 149, 27, 69, 34, 74, 143, 82, 219, 189, 242, 186, 42, 137, 94, 1, 155, 167, 96, 73, 171, 87, 254]), agent_root: ContentHash([37, 251, 148, 188, 192, 94, 67, 219, 45, 250, 157, 241, 109, 187, 101, 104, 154, 55, 7, 46, 156, 70, 72, 28, 246, 227, 143, 125, 172, 141, 200, 225]), transaction: ContentHash([101, 105, 0, 241, 41, 114, 22, 78, 235, 134, 148, 242, 114, 78, 121, 16, 22, 161, 250, 88, 19, 14, 53, 149, 51, 94, 132, 93, 200, 221, 70, 69]) }, previous_root_hash: ContentHash([173, 130, 86, 130, 6, 49, 206, 110, 50, 78, 176, 103, 203, 126, 67, 53, 202, 24, 48, 129, 36, 22, 223, 223, 0, 171, 157, 192, 236, 30, 32, 233]), seed_hash: ContentHash([0, 5, 135, 223, 164, 162, 63, 92, 41, 209, 145, 0, 254, 108, 184, 250, 223, 8, 14, 109, 71, 143, 164, 248, 121, 146, 171, 245, 151, 185, 21, 208]), ontology_root: ContentHash([97, 183, 249, 67, 159, 5, 210, 89, 204, 129, 253, 122, 59, 134, 166, 160, 16, 22, 83, 117, 4, 249, 100, 209, 27, 114, 234, 238, 225, 30, 2, 155]), authority_root: ContentHash([37, 251, 148, 188, 192, 94, 67, 219, 45, 250, 157, 241, 109, 187, 101, 104, 154, 55, 7, 46, 156, 70, 72, 28, 246, 227, 143, 125, 172, 141, 200, 225]), validation_profile_hash: ContentHash([219, 58, 223, 150, 47, 50, 212, 87, 244, 69, 96, 58, 225, 123, 214, 223, 191, 228, 183, 21, 164, 22, 200, 78, 223, 127, 24, 86, 5, 130, 129, 13]) }, validator: AgentId(302240678275694148452356), rejected_at: Timestamp(3), issues: [RecordedValidationIssue { id: IssueId(2165255193210456210149257076570043784), transaction_id: TransactionId(2165255193198386801754968619523332696), validator: Structural, code: "assertion-not-active", message: "assertion 01a10352-bf57-757d-a1d7-e7377bbe8e8e is not accepted and active; evidence attaches only to a current assertion" }] })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    proposal_correction_review_binds_support_attached_to_either_competing_claim
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p ekr-kernel --test schema_proposal_reviews`

@@ -60,6 +60,8 @@ mod review_host;
 mod sample;
 mod schema;
 mod schema_proposal;
+#[cfg(test)]
+mod schema_proposal_tests;
 mod seed;
 mod session;
 mod snapshot;

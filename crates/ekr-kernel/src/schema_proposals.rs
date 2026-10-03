@@ -3,8 +3,8 @@ use crate::{Commit, CommitError, VerifiedRead};
 use ekr_core::contract_data as w;
 use ekr_core::{ContentHash, Timestamp};
 use ekr_store::{
-    IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, SchemaProposalRetention,
-    StoreError,
+    HumanDecisionRetention, IncubationRetention, ObjectStore, ObservationRetention,
+    ProposalReviewRetention, RevisionLog, SchemaProposalRetention, StoreError,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -59,6 +59,8 @@ impl<
             + ObjectStore
             + ObservationRetention
             + IncubationRetention
+            + HumanDecisionRetention
+            + ProposalReviewRetention
             + SchemaProposalRetention,
     > Commit<S>
 {
@@ -228,14 +230,35 @@ impl<
         record: &w::EkrIntegrateRetainedSchemaProposal,
         strict: bool,
     ) -> Result<w::EkrIntegrateSchemaProposalRead, StoreError> {
+        let read = self.read(None).map_err(read_error)?;
+        let mut result = self.project_schema_proposal_at(record, strict, &read)?;
+        if !strict {
+            let reviews = self.verified_proposal_reviews(record)?;
+            result.expected_previous_decision =
+                reviews.last().map_or(w::EssPresence::Absent, |r| {
+                    w::EssPresence::Present(r.review.human_proof_digest.clone())
+                });
+            result.reviews = reviews.into_iter().map(|r| r.review).collect();
+        }
+        Ok(result)
+    }
+
+    pub(super) fn project_schema_proposal_at(
+        &self,
+        record: &w::EkrIntegrateRetainedSchemaProposal,
+        strict: bool,
+        read: &VerifiedRead,
+    ) -> Result<w::EkrIntegrateSchemaProposalRead, StoreError> {
         use ekr_core::generated_identity::Identity;
         let proposal = &record.proposal;
+        if strict {
+            super::schema_proposal_corrections::validate(read, proposal)?;
+        }
         w::EkrIntegrateSchemaProposalId::parse_identity(&proposal.proposal_id.0).map_err(error)?;
-        let read = self.read(None).map_err(read_error)?;
         let SourceSupport {
             sources,
             enums: supported,
-        } = self.sources(proposal, &read)?;
+        } = self.sources(proposal, read)?;
         let history = self
             .schema_history(read.root.revision)
             .map_err(read_error)?;
@@ -254,7 +277,7 @@ impl<
             Err(err) => return Err(err),
         };
         let (mut preview, effects) =
-            super::schema_proposal_mapping::preview(&read, proposal, &candidate, &sources, strict)?;
+            super::schema_proposal_mapping::preview(read, proposal, &candidate, &sources, strict)?;
         let declarations =
             super::schema_proposal_material::relevant(&read.graph.ontology, &candidate, proposal)?;
         if let Some(reason) = &stale {
@@ -279,13 +302,31 @@ impl<
                     .and_then(|id| read.graph.evidence.get(&id))
             })
             .collect();
+        let corrections = super::schema_proposal_corrections::components(read, proposal)?;
+        let correction_evidence: Vec<_> = corrections
+            .iter()
+            .map(|item| &item.basis.evidence_digest)
+            .collect();
+        let correction_options: Vec<_> = corrections
+            .iter()
+            .map(|item| &item.basis.options_digest)
+            .collect();
+        let correction_effects: Vec<_> = corrections
+            .iter()
+            .map(|item| &item.basis.effects_digest)
+            .collect();
         let basis = w::EkrKernelReviewBasis {
             observed_revision: Box::new(w::EkrKernelRevisionNumber(
                 read.root.revision.get().into(),
             )),
             evidence_digest: digest(
                 "ekr.schema-proposal.evidence/1",
-                &(&sources_material, &observed, &canonical_evidence),
+                &(
+                    &sources_material,
+                    &observed,
+                    &canonical_evidence,
+                    &correction_evidence,
+                ),
             )?,
             options_digest: digest(
                 "ekr.schema-proposal.options/1",
@@ -294,11 +335,18 @@ impl<
                     &proposal.additions,
                     &proposal.mappings,
                     &proposal.corrections,
+                    &correction_options,
                 ),
             )?,
             effects_digest: digest(
                 "ekr.schema-proposal.effects/1",
-                &(&preview, &effects, &declarations, &stale),
+                &(
+                    &preview,
+                    &effects,
+                    &declarations,
+                    &stale,
+                    &correction_effects,
+                ),
             )?,
         };
         Ok(w::EkrIntegrateSchemaProposalRead {

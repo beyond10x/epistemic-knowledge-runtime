@@ -1439,7 +1439,8 @@ commands:
         proof, policy and statement against the exact review predecessor. Canonical revisions
         do not advance. A concurrent canonical change may immediately make this observed-basis
         decision stale; application revalidates it. Exact retries retain the original review;
-        a reused decision identity with changed input refuses.
+        a reused decision identity with changed input refuses across all human decision kinds
+        in the audience, including upgrades and attention answers, in the same atomic publication.
     - name: refused
       external: Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal,
         reviewed evidence and intended effects must match the verified observed snapshot.
@@ -1474,7 +1475,9 @@ commands:
         as evidence without advancing canonical revisions. Atomically retain rejection,
         proof, policy and statement against the exact review predecessor. Rejection prevents
         subsequent application writes while preserving committed history. Exact retries return
-        the retained decision; changed input under the same decision identity refuses.
+        the retained decision; changed input under the same decision identity refuses across all
+        human decision kinds in the audience, including upgrades and attention answers, in the
+        same atomic publication.
     - name: refused
       external: Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal,
         reviewed evidence and intended effects must match the verified observed snapshot.

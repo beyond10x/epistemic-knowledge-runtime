@@ -17,6 +17,48 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Read authenticated proposal decisions and their retained human statement evidence.
+    /// # Errors
+    /// Unknown proposal, invalid retained decision or unavailable evidence.
+    pub fn schema_proposal_reviews(
+        &self,
+        id: &ekr_core::contract_data::EkrIntegrateSchemaProposalId,
+    ) -> Result<
+        Vec<ekr_core::contract_data::EkrIntegrateRetainedProposalReview>,
+        ekr_store::StoreError,
+    > {
+        match &self.backend {
+            Backend::File(kernel) => kernel.schema_proposal_reviews(id),
+            Backend::Sqlite(kernel) => kernel.schema_proposal_reviews(id),
+        }
+    }
+
+    /// Retain an externally signed approval for an exact proposal and review basis.
+    /// # Errors
+    /// Invalid approval, stale material or predecessor, or provider failure.
+    pub fn approve_schema_proposal(
+        &self,
+        input: &ekr_core::contract_data::EkrIntegrateSchemaProposalReviewApplication,
+        at: Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateProposalReviewSnapshot, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.approve_schema_proposal(input, at),
+            Backend::Sqlite(kernel) => kernel.approve_schema_proposal(input, at),
+        }
+    }
+    /// Retain an externally signed rejection for an exact proposal and review basis.
+    /// # Errors
+    /// Invalid rejection, stale material or predecessor, or provider failure.
+    pub fn reject_schema_proposal(
+        &self,
+        input: &ekr_core::contract_data::EkrIntegrateSchemaProposalReviewApplication,
+        at: Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateProposalReviewSnapshot, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.reject_schema_proposal(input, at),
+            Backend::Sqlite(kernel) => kernel.reject_schema_proposal(input, at),
+        }
+    }
     /// Retains an exact supported proposal and produces a read-only mapping preview.
     /// # Errors
     /// Invalid proposal, missing sources or provider failure.

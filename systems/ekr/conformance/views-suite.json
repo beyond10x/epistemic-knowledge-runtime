@@ -193,7 +193,7 @@
     "counts": {
       "authored": 31,
       "generated": 47,
-      "outside": 69,
+      "outside": 70,
       "refused": 0
     },
     "generated": [
@@ -339,6 +339,17 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.integrate.DiscoverSchemaGaps/outcome/answered"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.integrate.DiscoverSchemaGaps"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.integrate.DiscoverSchemaGaps/outcome/refused"
       },
       {
         "needs": [
@@ -1641,8 +1652,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "c912d271f87a864612f374502cd6fa4cb6f3fdf9e053b40d4a559ab075e72cb5",
-    "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+    "contract_digest": "9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278",
+    "spec_digest": "7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"

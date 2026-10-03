@@ -1,0 +1,25 @@
+   Compiling ekr-graph v0.0.27 (<review-retention-worktree>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<review-retention-worktree>/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 3.86s
+     Running tests/human_decision_identity.rs (<owned-build>/target/debug/deps/human_decision_identity-b609c12be874160b)
+
+running 2 tests
+test ordinary_checkpoint_head_keeps_the_existing_shortcut ... ok
+test checkpoint_head_after_signed_answer_checks_its_mandatory_identity_binding ... FAILED
+
+failures:
+
+---- checkpoint_head_after_signed_answer_checks_its_mandatory_identity_binding stdout ----
+
+thread 'checkpoint_head_after_signed_answer_checks_its_mandatory_identity_binding' (3218155) panicked at crates/ekr-store/tests/human_decision_identity.rs:459:5:
+sqlite=false: checkpoint head bypassed binding: Ok(Some(Root { revision: RevisionNumber(2), parent: Some(ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168])), ontology_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), knowledge_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), evidence_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), agent_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), transaction: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]) }))
+sqlite=true: checkpoint head bypassed binding: Ok(Some(Root { revision: RevisionNumber(2), parent: Some(ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168])), ontology_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), knowledge_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), evidence_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), agent_root: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]), transaction: ContentHash([200, 33, 12, 228, 209, 97, 246, 143, 204, 188, 117, 113, 56, 111, 70, 152, 14, 238, 95, 113, 29, 91, 208, 31, 63, 145, 185, 207, 85, 75, 222, 168]) }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    checkpoint_head_after_signed_answer_checks_its_mandatory_identity_binding
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p ekr-store --test human_decision_identity`

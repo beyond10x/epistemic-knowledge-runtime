@@ -10,6 +10,8 @@ fn run<
         + Initialize
         + ObservationRetention
         + IncubationRetention
+        + ekr_store::HumanDecisionRetention
+        + ekr_store::ProposalReviewRetention
         + ekr_store::SchemaProposalRetention,
 >(
     open: impl Fn(Option<m::TrustedReviewHostBinding>, bool) -> Commit<S>,
@@ -501,9 +503,10 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
     let elected = attempts[0].clone();
     assert_eq!(
         elected.format,
-        ekr_store::PublicationPreparationV1::FORMAT_V4
+        ekr_store::PublicationPreparationV1::FORMAT_V6
     );
-    assert_eq!(elected.decision.event.schema_version(), 3);
+    assert_eq!(elected.decision.event.schema_version(), 5);
+    assert!(elected.decision.event.requires_human_binding());
     assert!(elected.decision.event.supported());
     drop(attempts);
     drop(kernel);

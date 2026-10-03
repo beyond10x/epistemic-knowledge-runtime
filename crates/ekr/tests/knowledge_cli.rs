@@ -152,6 +152,30 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
                 .unwrap(),
             submitted
         );
+        let untrusted_review: ekr_sdk::contracts::EkrIntegrateSchemaProposalReviewApplication = serde_json::from_value(serde_json::json!({
+            "proposal_id":submitted.proposal.proposal_id,"proposal_digest":submitted.proposal_digest,
+            "basis":submitted.basis,"statement":ekr_core::bytes::encode(b"An agent cannot approve itself."),
+            "human_proof":{"algorithm":"Ed25519","signature":ekr_core::bytes::encode(&[0;64]),
+                "intent":{"format":"ekr.human-decision/1","decision_id":ekr_core::EventId::mint(),
+                    "audience":{"tenant":"fixture","seed_anchor":submitted.proposal_digest},
+                    "reviewer_policy_digest":submitted.proposal_digest,"signer_key_digest":submitted.proposal_digest,
+                    "statement_digest":ekr_kernel::human_review::digest(b"An agent cannot approve itself.").to_string(),
+                    "target":{"kind":"ApproveSchemaProposal","value":{"proposal_id":submitted.proposal.proposal_id,
+                        "proposal_digest":submitted.proposal_digest,"basis":submitted.basis}}}}
+        })).unwrap();
+        assert!(matches!(
+            knowledge.approve_schema_proposal(&untrusted_review),
+            Err(ekr_sdk::read::ReadError::Refused { .. })
+        ));
+        assert!(matches!(
+            knowledge.reject_schema_proposal(&untrusted_review),
+            Err(ekr_sdk::read::ReadError::Refused { .. })
+        ));
+        assert!(knowledge
+            .schema_proposal(&submitted.proposal.proposal_id)
+            .unwrap()
+            .reviews
+            .is_empty());
         schema["$ref"] = "#/$defs/ekr.integrate.SchemaProposalRead".into();
         assert!(jsonschema::options()
             .should_validate_formats(true)

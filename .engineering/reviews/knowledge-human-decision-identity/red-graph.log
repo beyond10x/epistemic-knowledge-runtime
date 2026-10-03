@@ -1,0 +1,31 @@
+   Compiling getrandom v0.2.17
+   Compiling serde_yaml_ng v0.10.0 (<review-retention-worktree>/vendor/serde_yaml_ng)
+   Compiling ring v0.17.14
+   Compiling uuid v1.26.1
+   Compiling ekr-contract-data v0.0.0 (<review-retention-worktree>/generated/ekr-contract-data)
+   Compiling ekr-core v0.0.27 (<review-retention-worktree>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<review-retention-worktree>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<review-retention-worktree>/crates/ekr-graph)
+    Finished `test` profile [unoptimized] target(s) in 20.42s
+     Running tests/revision_events.rs (<owned-build>/target/debug/deps/revision_events-456bd44874ede3ca)
+
+running 1 test
+test shared_human_identity_envelope_is_explicit_and_preserves_old_event_bytes ... FAILED
+
+failures:
+
+---- shared_human_identity_envelope_is_explicit_and_preserves_old_event_bytes stdout ----
+
+thread 'shared_human_identity_envelope_is_explicit_and_preserves_old_event_bytes' (2661335) panicked at crates/ekr-graph/tests/revision_events.rs:492:9:
+assertion `left == right` failed
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    shared_human_identity_envelope_is_explicit_and_preserves_old_event_bytes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-graph --test revision_events`

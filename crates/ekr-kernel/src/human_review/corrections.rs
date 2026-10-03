@@ -126,14 +126,11 @@ fn interval(correction: &m::ClaimCorrection) -> Result<TemporalRange, Refusal> {
     TemporalRange::new(bound(&correction.valid_from)?, bound(&correction.valid_to)?)
         .ok_or_else(|| invalid("inverted correction interval"))
 }
-fn derive(
+fn instructions<'a>(
     graph: &CanonicalGraph,
     claims: &BTreeSet<AssertionId>,
-    corrections: &[m::ClaimCorrection],
-    replacements: &[m::ClaimReplacement],
-    operator: AgentId,
-    statement: EvidenceId,
-) -> Result<Vec<GraphOperation>, Refusal> {
+    corrections: &'a [m::ClaimCorrection],
+) -> Result<BTreeMap<AssertionId, &'a m::ClaimCorrection>, Refusal> {
     if corrections.is_empty() {
         return Err(invalid(
             "an answer needs a correction or explicit uncertainty",
@@ -169,6 +166,60 @@ fn derive(
             return Err(invalid("uncertainty cannot be combined with claim changes"));
         }
     }
+    for (id, correction) in &instructions {
+        match correction.kind {
+            m::ClaimCorrectionKind::Choose => {
+                let Assessment::Disputed {
+                    competing_assertions,
+                } = &graph.assertions[id].assessment
+                else {
+                    unreachable!()
+                };
+                for peer in competing_assertions {
+                    let peer = peer.id();
+                    if !claims.contains(&peer) {
+                        return Err(invalid("competitor is outside the reviewed dispute"));
+                    }
+                    if instructions
+                        .get(&peer)
+                        .is_some_and(|c| c.kind != m::ClaimCorrectionKind::Retract)
+                    {
+                        return Err(invalid(
+                            "chosen claim conflicts with another requested effect",
+                        ));
+                    }
+                }
+            }
+            m::ClaimCorrectionKind::CorrectTime => {
+                if interval(correction)? == graph.assertions[id].valid_time {
+                    return Err(invalid("temporal correction does not change the interval"));
+                }
+            }
+            m::ClaimCorrectionKind::Retract | m::ClaimCorrectionKind::Unresolved => {}
+        }
+    }
+    Ok(instructions)
+}
+
+/// Validate applicability without allocating replacement identities or claiming a signed answer.
+pub(crate) fn validate_corrections(
+    graph: &CanonicalGraph,
+    claims: &BTreeSet<AssertionId>,
+    corrections: &[m::ClaimCorrection],
+) -> Result<(), Refusal> {
+    corrections_bytes(corrections)?;
+    instructions(graph, claims, corrections).map(|_| ())
+}
+
+fn derive(
+    graph: &CanonicalGraph,
+    claims: &BTreeSet<AssertionId>,
+    corrections: &[m::ClaimCorrection],
+    replacements: &[m::ClaimReplacement],
+    operator: AgentId,
+    statement: EvidenceId,
+) -> Result<Vec<GraphOperation>, Refusal> {
+    let instructions = instructions(graph, claims, corrections)?;
     let mut mapped = BTreeMap::new();
     let mut new_ids = BTreeSet::new();
     for replacement in replacements {

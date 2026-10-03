@@ -1,0 +1,24 @@
+   Compiling ekr-store v0.0.27 (<proposal-worktree>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<proposal-worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 33.75s
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-7e75166974ccd353)
+
+running 1 test
+test proposal_correction_review_binds_the_full_competing_component ... FAILED
+
+failures:
+
+---- proposal_correction_review_binds_the_full_competing_component stdout ----
+
+thread 'proposal_correction_review_binds_the_full_competing_component' (3152118) panicked at crates/ekr-kernel/tests/schema_proposal_reviews.rs:504:9:
+accepted changed competing component
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    proposal_correction_review_binds_the_full_competing_component
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p ekr-kernel --test schema_proposal_reviews`

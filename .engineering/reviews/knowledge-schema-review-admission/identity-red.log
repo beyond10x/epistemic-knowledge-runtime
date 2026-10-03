@@ -1,0 +1,22 @@
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 1.64s
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-7e75166974ccd353)
+
+running 1 test
+test schema_review_cannot_reuse_an_authority_upgrade_decision_identity ... FAILED
+
+failures:
+
+---- schema_review_cannot_reuse_an_authority_upgrade_decision_identity stdout ----
+
+thread 'schema_review_cannot_reuse_an_authority_upgrade_decision_identity' (2408314) panicked at crates/ekr-kernel/tests/schema_proposal_reviews.rs:326:9:
+assertion failed: store.approve_schema_proposal(&approval, Timestamp::from_millis(3)).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    schema_review_cannot_reuse_an_authority_upgrade_decision_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p ekr-kernel --test schema_proposal_reviews`

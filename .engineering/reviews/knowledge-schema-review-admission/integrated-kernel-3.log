@@ -1,0 +1,60 @@
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 2.51s
+     Running tests/attention_answers_recovery.rs (<owned-build>/target/debug/deps/attention_answers_recovery-40f7c736636c59b1)
+
+running 2 tests
+test answer_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test answer_native_process_death_resumes_without_partial_corrections ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s
+
+     Running tests/authority_upgrade.rs (<owned-build>/target/debug/deps/authority_upgrade-ed98ec8049a9f7be)
+
+running 7 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust ... ok
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/human_review.rs (<owned-build>/target/debug/deps/human_review-fac8632e8ef1662d)
+
+running 18 tests
+test correction_codec_preserves_order_every_field_and_millisecond_instants ... ok
+test independent_binding_refuses_substituted_policy_and_store ... ok
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... ok
+test signing_message_matches_the_fixed_binary_layout_vector ... ok
+test policy_key_order_is_checked_and_an_empty_policy_never_authorizes ... ok
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... ok
+test forged_truncated_and_altered_signatures_refuse ... ok
+test human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor ... ok
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... ok
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... ok
+test exact_human_answer_survives_only_unrelated_basis_advancement ... ok
+test generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_scalars ... ok
+test retained_proof_and_every_review_basis_field_are_bound ... ok
+test schema_review_binds_exact_proposal_and_material_without_binding_unrelated_revisions ... ok
+test canonical_readers_refuse_every_truncation_and_trailing_byte ... ok
+test all_four_targets_verify_only_in_their_own_enrolled_scope ... ok
+test protocol_digests_and_object_addresses_resolve_the_same_bytes_after_both_provider_reopens ... ok
+test no_single_byte_change_in_retained_proof_can_replay_as_approved ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-7e75166974ccd353)
+
+running 7 tests
+test schema_review_cannot_reuse_an_authority_upgrade_decision_identity ... ok
+test proposal_submission_refuses_inapplicable_corrections ... ok
+test proposal_correction_review_binds_the_full_competing_component ... ok
+test concurrent_identical_schema_reviews_return_one_elected_record ... ok
+test schema_reviews_and_attention_answers_share_decision_identity_in_both_directions ... ok
+test schema_proposal_requires_exact_human_approval ... ok
+test schema_review_revalidates_material_and_replays_the_original_review_revision ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+

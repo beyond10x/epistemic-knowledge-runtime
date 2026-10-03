@@ -5828,3 +5828,37 @@ evidence identities, earlier revisions and the original root after reopening wit
 both providers. An inert target and a production mutation that drops citations both fail this
 scenario; restored code passes. The broader component inventory and full integrated gate remain
 separate requirements.
+
+## 105.16 Human decision identities across review kinds (2026-10-03)
+
+The audience-wide decision identity rule in §105.6 includes authority upgrades, attention answers
+and schema proposal approvals or rejections. A proposal-local index is insufficient: a second
+valid signature over a different operation must not reuse an already recorded decision UUID.
+The physical index stores the existing ESS `ekr.kernel.HumanDecisionRecord`; it is a derived
+uniqueness constraint, not a separate source of cryptographic authority.
+
+Every new signed publication must bind that record in one shared singleton identity stream in the
+same atomic group as its actual decision, retained objects and, for an upgrade or answer, canonical
+revision. An absent-only compare-and-append gives concurrent decisions one winner across operation
+kinds. Preparing a command does not reserve its identity. Exact receipt recovery returns the
+original decision without giving an earlier approval precedence over a later rejection.
+
+New signed canonical occurrences use `ekr.revision-event/5`; this envelope is valid only for
+authority upgrades and attention answers and requires their shared identity binding on cold replay.
+Their existing complete generated records and proof encodings remain unchanged. Historical `/3`
+upgrades and `/4` answers preserve their original bytes, hashes and replay rules. Their retained
+decisions still reserve identity for later writes even when no shared index existed at publication.
+Historical review records receive the same treatment. Contradictory historical bindings refuse;
+they are never silently selected or rewritten.
+
+`ekr.publication-preparation/6` holds the exact native request including this binding. Authorization
+accepts only the precisely derived identity append alongside existing required revision and object
+appends. It cannot authorize arbitrary extra streams. A previously published legacy request retains
+its original receipt. An unpublished older signed preparation requires revalidation before it can
+write; its frozen native request is not silently amended. Direct legacy signed writes also refuse.
+Consequently historical unindexed signed records cannot grow through this runtime, while all new
+signed writers contend on the shared atomic index. Mixed old and new writer binaries are not
+supported during this transition. Unsigned canonical advancement creates no human decision identity.
+
+These are format and implementation obligations. Their implementation, both-provider recovery
+tests and conformance reports must be recorded before this amendment is reported as delivered.

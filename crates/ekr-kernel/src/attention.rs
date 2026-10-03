@@ -4,8 +4,8 @@ use ekr_core::contract_data::*;
 use ekr_core::{AssertionId, ContentHash, EvidenceId, ObservationId, RevisionNumber};
 use ekr_graph::{Assertion, AssertionLifecycle, Assessment, EvidenceSource, Predicate, Subject};
 use ekr_store::{
-    IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, SchemaProposalRetention,
-    StoreError,
+    HumanDecisionRetention, IncubationRetention, ObjectStore, ObservationRetention,
+    ProposalReviewRetention, RevisionLog, SchemaProposalRetention, StoreError,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -66,6 +66,8 @@ impl<
             + ObjectStore
             + ObservationRetention
             + IncubationRetention
+            + HumanDecisionRetention
+            + ProposalReviewRetention
             + SchemaProposalRetention,
     > Commit<S>
 {
@@ -165,6 +167,13 @@ impl<
         }
         for retained in self.store.retained_schema_proposals()? {
             let proposal = self.retained_schema_proposal(&retained.proposal.proposal_id)?;
+            if proposal
+                .reviews
+                .last()
+                .is_some_and(|review| matches!(*review.decision, EkrIntegrateReviewDecision::V1))
+            {
+                continue;
+            }
             let mut subject = subject(EkrKernelAttentionKind::V2);
             subject.proposal_id = EssPresence::Present(proposal.proposal.proposal_id.clone());
             let mut observations: BTreeSet<_> = proposal

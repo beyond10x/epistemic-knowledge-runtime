@@ -1,0 +1,67 @@
+   Compiling ekr-store v0.0.27 (<review-retention-worktree>/crates/ekr-store)
+warning: unused `Appended` that must be used
+   --> crates/ekr-store/tests/human_decision_identity.rs:109:5
+    |
+109 | /     store
+110 | |         .publish(&Publication {
+111 | |             event: RevisionEvent {
+112 | |                 format: RevisionEvent::FORMAT.into(),
+...   |
+129 | |         })
+130 | |         .unwrap();
+    | |_________________^
+    |
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+109 |     let _ = store
+    |     +++++++
+
+warning: `ekr-store` (test "human_decision_identity") generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 4.35s
+     Running tests/human_decision_identity.rs (<owned-build>/target/debug/deps/human_decision_identity-b609c12be874160b)
+
+running 4 tests
+test legacy_direct_publication_refuses_before_any_mutation ... FAILED
+test new_signed_occurrences_require_matching_index_on_cold_replay ... FAILED
+test historical_signed_decisions_reserve_ids_without_requiring_new_indexes ... FAILED
+test canonical_and_proposal_decisions_race_on_one_atomic_identity ... FAILED
+
+failures:
+
+---- legacy_direct_publication_refuses_before_any_mutation stdout ----
+
+thread 'legacy_direct_publication_refuses_before_any_mutation' (2651112) panicked at crates/ekr-store/tests/human_decision_identity.rs:275:13:
+assertion failed: matches!(store.publish(&p),Err(StoreError::Document(ref reason)) if
+    reason.contains("human-decision-revalidation-required"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- new_signed_occurrences_require_matching_index_on_cold_replay stdout ----
+
+thread 'new_signed_occurrences_require_matching_index_on_cold_replay' (2651113) panicked at crates/ekr-store/tests/human_decision_identity.rs:252:13:
+a stored document could not be read: revision-envelope-disagrees
+
+---- historical_signed_decisions_reserve_ids_without_requiring_new_indexes stdout ----
+
+thread 'historical_signed_decisions_reserve_ids_without_requiring_new_indexes' (2651111) panicked at crates/ekr-store/tests/human_decision_identity.rs:224:13:
+assertion `left == right` failed
+  left: None
+ right: Some(EkrKernelHumanDecisionRecord { decision_id: "01a1034d-dcde-752f-927f-4e2d1485621d", operator: EkrKernelTrustedOperatorIdentity { actor: EkrKernelAgentId("01a1034d-dcde-752f-927f-4e304902871c"), authentication_subject: "synthetic" }, policy_digest: EkrKernelContentHash("01dd861b7b270a985f5e803b7a882a8f1eda994fd1093a1a5184b6d515029ebf"), policy_object_hash: EkrKernelContentHash("01dd861b7b270a985f5e803b7a882a8f1eda994fd1093a1a5184b6d515029ebf"), proof_digest: EkrKernelContentHash("1aa1efbe5c3dd467a6d3fb49aa20b6503b1bb52c34a282ba3d11a198bb34b983"), proof_object_hash: EkrKernelContentHash("01dd861b7b270a985f5e803b7a882a8f1eda994fd1093a1a5184b6d515029ebf"), recorded_at: EssTimestamp(1970-01-01 0:00:00.0 +00:00:00), statement_digest: EkrKernelContentHash("01dd861b7b270a985f5e803b7a882a8f1eda994fd1093a1a5184b6d515029ebf"), statement_object_hash: EkrKernelContentHash("01dd861b7b270a985f5e803b7a882a8f1eda994fd1093a1a5184b6d515029ebf") })
+
+---- canonical_and_proposal_decisions_race_on_one_atomic_identity stdout ----
+
+thread 'canonical_and_proposal_decisions_race_on_one_atomic_identity' (2651110) panicked at crates/ekr-store/tests/human_decision_identity.rs:330:13:
+assertion `left == right` failed: [Err(Document("invalid-publication-envelope")), Ok(true)]
+  left: 0
+ right: 1
+
+
+failures:
+    canonical_and_proposal_decisions_race_on_one_atomic_identity
+    historical_signed_decisions_reserve_ids_without_requiring_new_indexes
+    legacy_direct_publication_refuses_before_any_mutation
+    new_signed_occurrences_require_matching_index_on_cold_replay
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p ekr-store --test human_decision_identity`

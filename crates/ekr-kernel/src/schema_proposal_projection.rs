@@ -150,8 +150,8 @@ pub(super) fn shown(
     value: &w::EkrIntegrateSchemaProposalRead,
 ) -> Result<m::ShowSchemaProposalResult, StoreError> {
     // Review and application persistence are separate handlers; never silently drop their history.
-    if !value.reviews.is_empty() || !value.receipts.is_empty() {
-        return Err(error("unsupported review history projection"));
+    if !value.receipts.is_empty() {
+        return Err(error("unsupported application history projection"));
     }
     Ok(m::ShowSchemaProposalResult {
         proposal: document(&value.proposal)?,
@@ -161,7 +161,11 @@ pub(super) fn shown(
             .iter()
             .map(|v| preview(v))
             .collect::<Result<_, _>>()?,
-        reviews: Vec::new(),
+        reviews: value
+            .reviews
+            .iter()
+            .map(|v| review(v))
+            .collect::<Result<_, _>>()?,
         receipts: Vec::new(),
         basis: k::ReviewBasis {
             observed_revision: k::RevisionNumber(
@@ -180,5 +184,30 @@ pub(super) fn shown(
             w::EssPresence::Absent => None,
             w::EssPresence::Present(hash) => Some(k::ContentHash(hash.0.clone())),
         },
+    })
+}
+
+pub(super) fn review(
+    value: &w::EkrIntegrateProposalReviewSnapshot,
+) -> Result<m::ProposalReviewSnapshot, StoreError> {
+    Ok(m::ProposalReviewSnapshot {
+        review_id: m::ProposalReviewId(Uuid(value.review_id.0.clone())),
+        proposal_id: m::SchemaProposalId(Uuid(value.proposal_id.0.clone())),
+        proposal_digest: k::ContentHash(value.proposal_digest.0.clone()),
+        human_proof_digest: k::ContentHash(value.human_proof_digest.0.clone()),
+        basis: crate::human_review::basis_from_document(&value.basis)
+            .map_err(|e| error(e.reason))?,
+        decision: match *value.decision {
+            w::EkrIntegrateReviewDecision::V0 => m::ReviewDecision::Approved,
+            w::EkrIntegrateReviewDecision::V1 => m::ReviewDecision::Rejected,
+        },
+        operator: k::TrustedOperatorIdentity {
+            actor: k::AgentId(Uuid(value.operator.actor.0.clone())),
+            authentication_subject: value.operator.authentication_subject.clone(),
+        },
+        evidence_id: g::EvidenceId(Uuid(value.evidence_id.0.clone())),
+        recorded_at: ekr_core::contracts::primitives::Timestamp(
+            crate::incubation_document::timestamp_text(&value.recorded_at)?,
+        ),
     })
 }

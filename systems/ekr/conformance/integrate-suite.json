@@ -4,7 +4,7 @@
     "authored_sources": {},
     "counts": {
       "authored": 0,
-      "generated": 18,
+      "generated": 19,
       "outside": 98,
       "refused": 0
     },
@@ -16,6 +16,7 @@
       "ekr.integrate.ApproveSchemaProposal/outcome/answered",
       "ekr.integrate.ApproveSchemaProposal/outcome/refused",
       "ekr.integrate.DiscoverSchemaGaps/outcome/answered",
+      "ekr.integrate.DiscoverSchemaGaps/outcome/refused",
       "ekr.integrate.ImportInterpretation/outcome/answered",
       "ekr.integrate.ImportInterpretation/outcome/refused",
       "ekr.integrate.ListInterpretations/outcome/answered",
@@ -1751,8 +1752,8 @@
   },
   "provenance": {
     "component": "ekr-integrate",
-    "contract_digest": "c912d271f87a864612f374502cd6fa4cb6f3fdf9e053b40d4a559ab075e72cb5",
-    "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+    "contract_digest": "9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278",
+    "spec_digest": "7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -4853,6 +4854,415 @@
         },
         {
           "event": "ekr.integrate.ApproveSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ImportInterpretationResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ListInterpretationsResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.RejectSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ShowInterpretationResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ShowSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.SubmitSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AnswerAttentionResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AttentionAnswered",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAnswersResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.ShowAttentionResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.observe.ImportObservationResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.observe.ObservationShown",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.observe.ObservationsListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.integrate.DiscoverSchemaGaps/outcome/refused": {
+      "purpose": "`ekr.integrate.DiscoverSchemaGaps` answers `refused` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "command",
+          "name": "ekr.integrate.DiscoverSchemaGaps"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.integrate.DiscoverSchemaGaps",
+            "outcome": "refused"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ApplySchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ApproveSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.DiscoverSchemaGapsResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ImportInterpretationResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ListInterpretationsResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.RejectSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ShowInterpretationResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ShowSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.SubmitSchemaProposalResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AnswerAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AttentionAnswered"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAnswersResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.PreviewUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ShowAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.observe.ImportObservationResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.observe.ObservationShown"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.observe.ObservationsListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.integrate.KnowledgeRefused"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.integrate.KnowledgeProposer"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.integrate.DiscoverSchemaGaps",
+            "outcome": "refused"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.integrate.KnowledgeProposer",
+          "command": "ekr.integrate.DiscoverSchemaGaps",
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.integrate.DiscoverSchemaGaps",
+            "outcome": "refused"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.integrate.KnowledgeRefused",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ApplySchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ApproveSchemaProposalResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.DiscoverSchemaGapsResult",
           "step": "expect_no_event"
         },
         {
@@ -8961,6 +9371,27 @@
         {
           "event": "ekr.integrate.ShowSchemaProposalResult",
           "shape": {
+            "basis.effects_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "basis.evidence_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "basis.observed_revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "basis.options_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "expected_previous_decision": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
             "preview": {
               "holds": "list"
             },

@@ -8,8 +8,8 @@ use ekr_core::contracts::{
 };
 use ekr_core::{contract_data as w, contracts::integrate as m, Timestamp};
 use ekr_store::{
-    IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, SchemaProposalRetention,
-    StoreError,
+    HumanDecisionRetention, IncubationRetention, ObjectStore, ObservationRetention,
+    ProposalReviewRetention, RevisionLog, SchemaProposalRetention, StoreError,
 };
 
 struct Behavior<'a, S: RevisionLog + ObjectStore> {
@@ -54,6 +54,8 @@ impl<
             + ObjectStore
             + ObservationRetention
             + IncubationRetention
+            + HumanDecisionRetention
+            + ProposalReviewRetention
             + SchemaProposalRetention,
     > SubmitSchemaProposalBehavior for Behavior<'_, S>
 {
@@ -96,6 +98,8 @@ impl<
             + ObjectStore
             + ObservationRetention
             + IncubationRetention
+            + HumanDecisionRetention
+            + ProposalReviewRetention
             + SchemaProposalRetention,
     > ShowSchemaProposalBehavior for Behavior<'_, S>
 {
@@ -127,6 +131,8 @@ pub(super) fn submit<
         + ObjectStore
         + ObservationRetention
         + IncubationRetention
+        + HumanDecisionRetention
+        + ProposalReviewRetention
         + SchemaProposalRetention,
 >(
     commit: &Commit<S>,
@@ -159,6 +165,8 @@ pub(super) fn show<
         + ObjectStore
         + ObservationRetention
         + IncubationRetention
+        + HumanDecisionRetention
+        + ProposalReviewRetention
         + SchemaProposalRetention,
 >(
     commit: &Commit<S>,

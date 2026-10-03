@@ -10,9 +10,12 @@ use ring::signature::{UnparsedPublicKey, ED25519};
 mod attention;
 mod corrections;
 mod decode;
+mod schema;
 mod wire;
 pub use attention::corrections_bytes;
+pub(crate) use corrections::validate_corrections;
 pub use decode::{read_host_binding, read_policy, read_proof};
+pub(crate) use wire::basis as basis_from_document;
 pub(crate) use wire::correction_from_document;
 pub use wire::{answer_from_document, policy_from_document, proof_from_document};
 

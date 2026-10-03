@@ -61,7 +61,12 @@ pub(crate) fn publication(
     let hash = ContentHash::of_bytes(&bytes);
     Publication {
         event: RevisionEvent {
-            format: payload.format().into(),
+            format: match &payload {
+                RevisionPayload::AuthorityUpgraded { .. }
+                | RevisionPayload::AttentionAnswered(_) => RevisionEvent::SIGNED_FORMAT,
+                _ => payload.format(),
+            }
+            .into(),
             event_id,
             record_hash: hash,
             payload,

@@ -15,6 +15,8 @@ scope:
 - confidence: cited
   path: crates/ekr
 - confidence: cited
+  path: crates/ekr-graph
+- confidence: cited
   path: crates/ekr-integrate
 - confidence: cited
   path: crates/ekr-kernel
@@ -32,7 +34,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 19
+revision: 23
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -94,3 +96,21 @@ Typed attention now includes retained proposals and links to Rust-rendered read-
 ## Human review retention ownership
 
 Next bounded E unit: physical retention of the already-generated RetainedProposalReview in its own managed tree based on f39ea736eaafeeed87e7a1bd516dbc3973f38157. Own crates/ekr-store/src/proposal_reviews.rs, module/export-only changes in crates/ekr-store/src/eventlog.rs and lib.rs, and crates/ekr-store/tests/proposal_review_retention.rs. Preserve exact proof/policy/statement bytes atomically with generated review records, compare the effective proposal predecessor, and bind decision identity immutably. Per-proposal review streams must retain physical cursor semantics separately from human decision meaning so the later F marker can share the atomic stream guard. No new F marker format is implemented before its ESS contract validates. Kernel signature/admission, CLI, projections and AEP remain coordinator-owned and do not overlap. The unit tests physical retention only and cannot authorize a human decision. One owned Cargo lane is reserved exclusively for this store unit until handback; root will write tests/admission without running a concurrent build.
+
+## Review identity correction scope
+
+Independent review schema-review-admission-independent-r1 found a reproducible cross-domain decision-id reuse defect (schema-review-admission/identity-red.log). Existing ESS ekr.kernel.HumanDecisionRecord and design §105.6 already require audience-wide identity uniqueness; no new semantic entity is introduced.
+
+Serialized correction unit: scope_retention owns crates/ekr-store/src human-decision binding, preparation, eventlog and proposal_reviews persistence; crates/ekr-graph/src/events.rs explicit new signed-event format dispatch; corresponding store/graph tests. Root owns kernel review admission/replay, generated obligation implementations, CLI/SDK/viewer, specifications and AEP. No simultaneous Cargo: worker receives the sole lane only after root handback. Root reviews, bot-commits and integrates the store correction before testing consumer behavior.
+
+Required behavior: one shared atomic decision identity binding across upgrades, attention answers and proposal reviews; old canonical records reserve identities without rewriting bytes or original replay rules; new signed publications require the binding at cold replay; old unpublished signed preparations require explicit revalidation, while already-published requests recover their exact original receipts. Preserve provenance retention and all existing format/replay fixtures. Do not merely precheck before writes or weaken uniqueness. New physical formats use existing generated HumanDecisionRecord data, preserve old formats, and require test-first both-provider coverage including cross-domain races and stale preparations. This correction does not complete E/F or authorize application without its separate review guard.
+
+## Human review implementation checkpoint
+
+Physical review retention is locally merged at de2880012 (source 89fc4337fce53b51072c62d066b3207093c32490). Kernel approval/rejection, historical signature replay, typed CLI/SDK operations and retained statement rendering are implemented locally, awaiting final integrated verification. No schema or mapped fact application is implemented by this increment.
+
+Observed review defects and corrections remain independently attributable. The historical-basis admission test failed accepting material attributed to an impossible older revision and then passed after historical projection validation. The component regression failed after a valid third claim joined the selected claim's dispute without changing that selected row; full affected-component evidence/options/effects digests now participate in the proposal basis. Blank correction reasons were accepted before the shared pure correction validator. The earlier AttachEvidence hypothesis was unreachable because disputed assertions refuse that operation; it is withdrawn, not reported as a reproduced defect. Review reports r1 and r2 preserve that correction.
+
+Actual focused results are retained under <retained-evidence>/schema-review-admission: component-red.log, correction-applicability-red-2.log, corrections-green-2.log and their statuses; the correction/submission/exact-approval cases pass on both providers. cli-ui-red.log reproduced rejected proposals remaining in attention; cli-ui-green.log passes the real signed approval/rejection dispatch, idempotent retry, rejected-item filtering, escaped human statement rendering and unchanged canonical head on both providers. Child-session SDK tests and full component gates still need the final integrated source.
+
+Audience-wide decision binding is being integrated from the serialized store worker. Independent physical-port review found a checkpoint shortcut omission, now under correction. The original admission identity regression remains the end-to-end gate; no full gate, final E approval or F delivery is claimed. The source specification digest is 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11; ESS regenerated both contract trees after an explicit verified output-ownership repair, with drift checking still required.

@@ -16,6 +16,16 @@ pub enum SchemaProposalCommand {
         /// Input JSON file, or `-` for stdin; limited to eight MiB.
         document: PathBuf,
     },
+    /// Retain an exact externally signed approval under independently provisioned reviewer trust.
+    Approve {
+        /// SchemaProposalReviewApplication JSON file, or `-` for stdin; at most eight MiB.
+        document: PathBuf,
+    },
+    /// Retain an exact externally signed rejection while preserving earlier history.
+    Reject {
+        /// SchemaProposalReviewApplication JSON file, or `-` for stdin; at most eight MiB.
+        document: PathBuf,
+    },
     /// Show retained proposal bytes and the current material review basis.
     Show {
         /// Stable proposal identity returned by submit.
@@ -27,16 +37,16 @@ pub enum SchemaProposalCommand {
 impl SchemaProposalCommand {
     pub(super) fn access(&self) -> Access {
         match self {
-            Self::Submit { .. } => Access::Write,
+            Self::Submit { .. } | Self::Approve { .. } | Self::Reject { .. } => Access::Write,
             _ => Access::Read,
         }
     }
 }
 fn refusal(error: PersistenceError) -> Failure {
     match error {
-        PersistenceError::Document(_) | PersistenceError::PublicationInputConflict => {
-            Failure::refused("ekr.integrate.KnowledgeRefused", error)
-        }
+        PersistenceError::Document(_)
+        | PersistenceError::PublicationInputConflict
+        | PersistenceError::Conflict => Failure::refused("ekr.integrate.KnowledgeRefused", error),
         other => Failure::store(other),
     }
 }
@@ -47,6 +57,12 @@ pub(super) fn run(
     stdin: &mut dyn Read,
 ) -> Result<Printed, Failure> {
     match command {
+        SchemaProposalCommand::Approve { document } => {
+            review(&document, runtime, now(), stdin, true)
+        }
+        SchemaProposalCommand::Reject { document } => {
+            review(&document, runtime, now(), stdin, false)
+        }
         SchemaProposalCommand::Submit { document } => {
             let mut bytes = Vec::new();
             input::open(&document, stdin)?
@@ -79,4 +95,32 @@ pub(super) fn run(
             })?)
         }
     }
+}
+
+fn review(
+    document: &std::path::Path,
+    runtime: &Runtime,
+    at: ekr_core::Timestamp,
+    stdin: &mut dyn Read,
+    approve: bool,
+) -> Result<Printed, Failure> {
+    let mut bytes = Vec::new();
+    input::open(document, stdin)?
+        .take(8 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(Failure::fault)?;
+    if bytes.len() > 8 * 1024 * 1024 {
+        return Err(Failure::refused(
+            "ekr.integrate.KnowledgeRefused",
+            "input exceeds eight MiB",
+        ));
+    }
+    let input = serde_json::from_slice(&bytes)
+        .map_err(|e| Failure::refused("ekr.integrate.KnowledgeRefused", e))?;
+    let result = if approve {
+        runtime.approve_schema_proposal(&input, at)
+    } else {
+        runtime.reject_schema_proposal(&input, at)
+    };
+    render(&result.map_err(refusal)?)
 }

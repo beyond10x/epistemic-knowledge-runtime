@@ -6,8 +6,8 @@ use ekr_core::contracts::kernel::obligations::{ListAttentionBehavior, ShowAttent
 use ekr_core::contracts::obligation::UnmetObligation;
 use ekr_core::contracts::{graph as g, integrate as i, kernel as m, primitives::Uuid};
 use ekr_store::{
-    IncubationRetention, ObjectStore, ObservationRetention, RevisionLog, SchemaProposalRetention,
-    StoreError,
+    HumanDecisionRetention, IncubationRetention, ObjectStore, ObservationRetention,
+    ProposalReviewRetention, RevisionLog, SchemaProposalRetention, StoreError,
 };
 
 fn optional<T, R>(value: &w::EssPresence<T>, f: impl FnOnce(&T) -> R) -> Option<R> {
@@ -100,6 +100,8 @@ impl<
             + ObjectStore
             + ObservationRetention
             + IncubationRetention
+            + HumanDecisionRetention
+            + ProposalReviewRetention
             + SchemaProposalRetention,
     > ListAttentionBehavior for Behavior<'_, S>
 {
@@ -124,6 +126,8 @@ impl<
             + ObjectStore
             + ObservationRetention
             + IncubationRetention
+            + HumanDecisionRetention
+            + ProposalReviewRetention
             + SchemaProposalRetention,
     > ShowAttentionBehavior for Behavior<'_, S>
 {
@@ -161,6 +165,8 @@ pub(super) fn list<
         + ObjectStore
         + ObservationRetention
         + IncubationRetention
+        + HumanDecisionRetention
+        + ProposalReviewRetention
         + SchemaProposalRetention,
 >(
     commit: &Commit<S>,
@@ -175,6 +181,8 @@ pub(super) fn show<
         + ObjectStore
         + ObservationRetention
         + IncubationRetention
+        + HumanDecisionRetention
+        + ProposalReviewRetention
         + SchemaProposalRetention,
 >(
     commit: &Commit<S>,

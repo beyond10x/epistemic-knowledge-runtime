@@ -139,9 +139,10 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
     let elected = hooks.resumed.borrow()[0].clone();
     assert_eq!(
         elected.format,
-        ekr_store::PublicationPreparationV1::FORMAT_V5
+        ekr_store::PublicationPreparationV1::FORMAT_V6
     );
-    assert_eq!(elected.decision.event.schema_version(), 4);
+    assert_eq!(elected.decision.event.schema_version(), 5);
+    assert!(elected.decision.event.requires_human_binding());
     let mut wrong = input.clone();
     wrong.statement.push(b'!');
     assert!(kernel

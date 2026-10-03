@@ -1,0 +1,27 @@
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<proposal-worktree>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<proposal-worktree>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<proposal-worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 20.92s
+     Running unittests src/lib.rs (<owned-build>/target/debug/deps/ekr-36f1557db15e028e)
+
+running 1 test
+test cli::schema_proposal_tests::cli_dispatch_records_signed_approval_and_rejection_without_advancing_head ... FAILED
+
+failures:
+
+---- cli::schema_proposal_tests::cli_dispatch_records_signed_approval_and_rejection_without_advancing_head stdout ----
+
+thread 'cli::schema_proposal_tests::cli_dispatch_records_signed_approval_and_rejection_without_advancing_head' (3179183) panicked at crates/ekr/src/cli/schema_proposal_tests.rs:138:9:
+assertion failed: runtime.attention().unwrap().iter().all(|item|
+        item.subject.proposal_id !=
+            w::EssPresence::Present(shown.proposal.proposal_id.clone()))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    cli::schema_proposal_tests::cli_dispatch_records_signed_approval_and_rejection_without_advancing_head
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.17s
+
+error: test failed, to rerun pass `-p ekr --lib`

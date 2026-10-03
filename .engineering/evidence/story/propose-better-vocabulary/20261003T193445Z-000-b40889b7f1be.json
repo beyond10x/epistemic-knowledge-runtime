@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T19:34:45Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:propose-better-vocabulary",
+  "kind": "story",
+  "revision": 19,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Physical proposal review retention: store 193 to 201 passed, 3 existing ignores; focused red8 to green8; clippy and format passed",
+    "reference": ".engineering/reviews/knowledge-schema-review-retention/report.md"
+  }
+}

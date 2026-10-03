@@ -132,6 +132,74 @@ fn generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_sc
 fn id() -> Uuid {
     Uuid("00000000-0000-0000-0000-000000000001".into())
 }
+
+#[test]
+fn schema_review_binds_exact_proposal_and_material_without_binding_unrelated_revisions() {
+    let mut f = Fixture::new();
+    f.policy.keys[0].scopes = vec![
+        m::HumanDecisionScope::ApproveSchemaProposal,
+        m::HumanDecisionScope::RejectSchemaProposal,
+    ];
+    let policy_digest = hash(&review::policy_bytes(&f.policy).unwrap());
+    f.binding.reviewer_policy_digest = policy_digest.clone();
+    f.intent.reviewer_policy_digest = policy_digest;
+    let target = m::SchemaReviewTarget {
+        proposal_id: integrate::SchemaProposalId(id()),
+        proposal_digest: hash(b"exact proposal bytes"),
+        basis: m::ReviewBasis {
+            observed_revision: m::RevisionNumber(3),
+            evidence_digest: hash(b"sources"),
+            options_digest: hash(b"additions mappings corrections"),
+            effects_digest: hash(b"effects"),
+        },
+    };
+    for approve in [false, true] {
+        f.intent.target = if approve {
+            m::HumanDecisionTarget::ApproveSchemaProposal(target.clone())
+        } else {
+            m::HumanDecisionTarget::RejectSchemaProposal(target.clone())
+        };
+        let proof = f.proof();
+        let reviewer = f.reviewer();
+        let mut current = target.clone();
+        current.basis.observed_revision.0 += 1;
+        assert!(reviewer
+            .verify_schema_proposal(&proof, &current, approve, b"reviewed", None)
+            .is_ok());
+        assert!(reviewer
+            .verify_schema_proposal(&proof, &current, !approve, b"reviewed", None)
+            .is_err());
+        for changed in 0..6 {
+            let mut current = current.clone();
+            match changed {
+                0 => current.proposal_id.0 = Uuid(ekr_core::NodeId::mint().to_string()),
+                1 => current.proposal_digest = hash(b"changed proposal"),
+                2 => current.basis.evidence_digest = hash(b"changed sources"),
+                3 => current.basis.options_digest = hash(b"changed options"),
+                4 => current.basis.effects_digest = hash(b"changed effects"),
+                _ => current.basis.observed_revision.0 = 2,
+            }
+            assert!(
+                reviewer
+                    .verify_schema_proposal(&proof, &current, approve, b"reviewed", None)
+                    .is_err(),
+                "accepted material change {changed}"
+            );
+        }
+        assert!(reviewer
+            .verify_schema_proposal(&proof, &current, approve, b"different statement", None)
+            .is_err());
+        assert!(reviewer
+            .verify_schema_proposal(
+                &proof,
+                &current,
+                approve,
+                b"reviewed",
+                Some(review::digest(b"new predecessor"))
+            )
+            .is_err());
+    }
+}
 struct Fixture {
     key: Ed25519KeyPair,
     policy: m::ReviewerTrustPolicy,
