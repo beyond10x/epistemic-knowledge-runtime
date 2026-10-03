@@ -8,6 +8,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **Search-first browser entry** at `/find` uses a plain HTML form, bounded name/alias
+  results and revision-pinned graph and evidence links, without loading graph libraries.
+  Historical evidence requests accept `revision`; the existing graph and JSON routes remain.
 - **Read-only HTTP MCP** is available through `ekr mcp-http`, alongside existing stdio
   tools. The viewer and HTTP MCP support explicit listeners and exact Host/Origin admission,
   bounded connections and request queues, and separate liveness and store readiness endpoints.

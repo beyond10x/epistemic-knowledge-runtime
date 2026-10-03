@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T03:13:33Z",
+  "actor": "agent:codex",
+  "artifact": "story:search-first-viewer-entry",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Implementor logs: 24 viewer unit cases and 46 process/docs cases passed, zero failures or ignores; final lint correction reran all9 search cases successfully; fmt and all-target package clippy passed after moving off a quota-exhausted RAM cache. Independent reviewer directly ran9 cases, then inspected the sole equivalent empty-slice lint correction. Complete patch9e51ce140c9864fbaa3f99180e33492ab4d93869a346ce37dbe666d128008382.",
+    "reference": "<cache>/ekr-hosted-runtime/search/final-search.log"
+  }
+}
