@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601",
+  "source_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:524a5d8ca0cea5c63da0f068df3b8562747cacdff71f173b7606352deb7de520",
-    "projection_digest": "3fbac8ef567e4df43a6b6f99eb040815fb8c5ff369c699b360cd42bb12ca06b5"
+    "contract_digest": "slice-sha256/2:a18bc7b7cb9417b5a3ed4787bd20939bd8f235d72fecf66a532874aba85e0564",
+    "projection_digest": "16e8c97b60fe5b8e2b8fb143eb5fc76560d334685ff2fe6a057b71b5e0a86e9f"
   },
   "generator_version": "0.51.0",
   "target": "rust",
@@ -157,6 +157,7 @@
     "ekr.kernel.AuthorityTransitionFormat",
     "ekr.kernel.AuthorityTransitionId",
     "ekr.kernel.AuthorityTransitionRecord",
+    "ekr.kernel.AuthorityUpgradeApplication",
     "ekr.kernel.AuthorityUpgradeTarget",
     "ekr.kernel.AuthorityUpgradedPayload",
     "ekr.kernel.AuthorityVersion",
@@ -593,6 +594,7 @@
     "ekr.kernel.AuthorityTransitionFormat": "EkrKernelAuthorityTransitionFormat",
     "ekr.kernel.AuthorityTransitionId": "EkrKernelAuthorityTransitionId",
     "ekr.kernel.AuthorityTransitionRecord": "EkrKernelAuthorityTransitionRecord",
+    "ekr.kernel.AuthorityUpgradeApplication": "EkrKernelAuthorityUpgradeApplication",
     "ekr.kernel.AuthorityUpgradeTarget": "EkrKernelAuthorityUpgradeTarget",
     "ekr.kernel.AuthorityUpgradedPayload": "EkrKernelAuthorityUpgradedPayload",
     "ekr.kernel.AuthorityVersion": "EkrKernelAuthorityVersion",
@@ -3314,6 +3316,26 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.AuthorityTransitionRecord/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradeApplication/properties/statement/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradeApplication/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradeApplication/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradeApplication/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -8626,6 +8648,11 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.AuthorityTransitionId/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.AuthorityUpgradeApplication/properties/statement/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
     },

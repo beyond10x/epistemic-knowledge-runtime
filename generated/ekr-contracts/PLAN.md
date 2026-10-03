@@ -1,14 +1,14 @@
 <!--
   generated from ekr v1
-  model digest 890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
-  contract digest 281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
+  model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
+  contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
   do not edit: regenerate with `ess synthesize`
 -->
 # Synthesis plan — ekr v1
 
 Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synthesize`.
 
-686 capabilities: **637 generated**, **38 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
+687 capabilities: **638 generated**, **38 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
 
 ## Generated
 
@@ -156,6 +156,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.AuthorityTransitionFormat` |
 | domain type | `ekr.kernel.AuthorityTransitionId` |
 | domain type | `ekr.kernel.AuthorityTransitionRecord` |
+| domain type | `ekr.kernel.AuthorityUpgradeApplication` |
 | domain type | `ekr.kernel.AuthorityUpgradeTarget` |
 | domain type | `ekr.kernel.AuthorityUpgradedPayload` |
 | domain type | `ekr.kernel.AuthorityVersion` |

@@ -33,3 +33,12 @@ preview/apply through CLI and typed SDK sessions, exercise disputed claims in th
 and author/execute the named B conformance scenarios. Native crash tests, released ESS adoption
 and the combined gate remain required. Continue C-F under the original release plan; keep the
 single existing PR and the ESS release ownership boundaries.
+
+## Public upgrade surface resource hold
+
+Unit 96a3e47dcb7e694e95adefabe725fb0cb33190ff adds generated transport and Runtime/CLI/session/SDK upgrade surfaces,
+with an independently provisioned Unix host-binding reader. Source and authored tests are saved
+locally; compilation and implementation checks have not run under the coordinated disk hold.
+The previous published integration checkpoint remains the PR head. The unit review record
+`knowledge-upgrade-surface/README.md` names actual lightweight checks and the unexecuted queue.
+Do not publish this increment as verified or treat earlier conformance digests as current.
