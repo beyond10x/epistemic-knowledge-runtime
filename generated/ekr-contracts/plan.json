@@ -2,8 +2,8 @@
   "provenance": {
     "system": "ekr",
     "specification_version": "v1",
-    "source_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
-    "contract_digest": "c912d271f87a864612f374502cd6fa4cb6f3fdf9e053b40d4a559ab075e72cb5"
+    "source_digest": "f878e31bbf912e1096577aea52f5df406087b6610af3197f6839e5a414249291",
+    "contract_digest": "097352d071d8f0f2e934bd80f62875125c884515adbd7a644cffa7a3492e0bd5"
   },
   "scope": {
     "profile": "component-skeletons"
@@ -823,6 +823,20 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.integrate.RetainedProposalReview",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.RetainedSchemaProposal",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.integrate.ReviewDecision",
       "disposition": {
         "disposition": "generated"
@@ -859,6 +873,27 @@
     {
       "kind": "domain_type",
       "source": "ekr.integrate.SchemaProposalId",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.SchemaProposalImport",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.SchemaProposalRead",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.SchemaProposalReviewApplication",
       "disposition": {
         "disposition": "generated"
       }
@@ -3472,7 +3507,7 @@
           "class": "undetermined",
           "construct": "a typed response (`response:`)"
         },
-        "contract": "given `ekr.integrate.ApproveSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApproveSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`"
+        "contract": "given `ekr.integrate.ApproveSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApproveSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`"
       }
     },
     {
@@ -3491,7 +3526,7 @@
           "class": "undetermined",
           "construct": "a typed response (`response:`)"
         },
-        "contract": "given `ekr.integrate.DiscoverSchemaGaps` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.DiscoverSchemaGapsResult`"
+        "contract": "given `ekr.integrate.DiscoverSchemaGaps` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.DiscoverSchemaGapsResult`; `refused` externally decided (A canonical base schema is required; an unseeded or unverifiable store is refused.), error `ekr.integrate.KnowledgeRefused`"
       }
     },
     {
@@ -3548,7 +3583,7 @@
           "class": "undetermined",
           "construct": "a typed response (`response:`)"
         },
-        "contract": "given `ekr.integrate.RejectSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.RejectSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`"
+        "contract": "given `ekr.integrate.RejectSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.RejectSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`"
       }
     },
     {
@@ -3605,7 +3640,7 @@
           "class": "undetermined",
           "construct": "a typed response (`response:`)"
         },
-        "contract": "given `ekr.integrate.SubmitSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.SubmitSchemaProposalResult`; `refused` externally decided (Refuse mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum exhaustion inferred from observed values.), error `ekr.integrate.KnowledgeRefused`"
+        "contract": "given `ekr.integrate.SubmitSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.SubmitSchemaProposalResult`; `refused` externally decided (Refuse unknown or incompatible base schemas, mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum constraints whose complete variant set is not equal to a selected retained local enum declaration. Subsets, unions of declarations, observed literals and prose alone do not establish this support. Never infer an exhaustive enum from observed fact values; the reviewer sees the explicit constraint.), error `ekr.integrate.KnowledgeRefused`"
       }
     },
     {

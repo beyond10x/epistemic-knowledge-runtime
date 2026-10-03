@@ -630,13 +630,12 @@ entities:
       terminal: [Attached]
 
   # Design § 16. Confidence in basis points, so it is an integer a suite can compare.
-  # What creates one: the seed, whose envelope retains each entry's payload, or an ekr.kernel
-  # AddEvidence operation of a committed transaction, which carries the entry with its payload and
-  # whose commit stores the payload as a Provenance object (ekr.kernel.EvidenceAdditionProjection,
-  # decision-blocker:evidence-entry-after-seed, option 1). Either way the entry's content_hash is
-  # the address of retained bytes, its source is HumanStatement and its extracted_by is the agent
-  # that submitted it. Its id is never taken again (identity-already-exists), and it is never
-  # removed: Retained is its only state.
+  # Entries and bytes can be retained by seed, committed AddEvidence, immutable interpretation,
+  # or authenticated human-review retention. Independent retention does not itself place an entry
+  # in canonical revisions; ordinary validated transactions admit canonical citations. The address
+  # names retained bytes; admissibility depends on the pinned authority and source kind, including
+  # retained observations. A retained identity cannot be rebound to different material. Retained
+  # is its only state. Schema-review retention remains unexecuted until story E's native cases pass.
   - name: ekr.graph.Evidence
     identity:
       name: evidence_id

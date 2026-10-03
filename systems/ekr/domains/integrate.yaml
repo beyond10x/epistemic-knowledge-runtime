@@ -12,6 +12,49 @@ naming:
   display: Integrate
 
 types:
+  # E transports reuse declared proposal/review fields; they do not grant authority.
+  - name: ekr.integrate.SchemaProposalImport
+    kind: struct
+    fields:
+    - {name: proposal, type: ekr.integrate.SchemaProposalDocument}
+    - {name: payload, type: Bytes}
+  - name: ekr.integrate.SchemaProposalRead
+    kind: struct
+    fields:
+    - {name: proposal, type: ekr.integrate.SchemaProposalDocument}
+    - {name: proposal_digest, type: ekr.kernel.ContentHash}
+    - {name: preview, type: List<ekr.integrate.MappingPreview>}
+    - {name: reviews, type: List<ekr.integrate.ProposalReviewSnapshot>}
+    - {name: receipts, type: List<ekr.integrate.ApplicationReceiptSnapshot>}
+    - {name: basis, type: ekr.kernel.ReviewBasis}
+    - {name: expected_previous_decision, type: Optional<ekr.kernel.ContentHash>}
+  - name: ekr.integrate.RetainedSchemaProposal
+    kind: struct
+    fields:
+    - {name: proposal, type: ekr.integrate.SchemaProposalDocument}
+    - {name: proposal_digest, type: ekr.kernel.ContentHash}
+    - {name: payload, type: Bytes}
+  - name: ekr.integrate.SchemaProposalReviewApplication
+    kind: struct
+    fields:
+    - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
+    - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+    - {name: proposal_digest, type: ekr.kernel.ContentHash}
+    - {name: basis, type: ekr.kernel.ReviewBasis}
+    - {name: statement, type: Bytes}
+  - name: ekr.integrate.RetainedProposalReview
+    kind: struct
+    fields:
+    - {name: review, type: ekr.integrate.ProposalReviewSnapshot}
+    - {name: decision, type: ekr.kernel.HumanDecisionRecord}
+    - {name: proof, type: Bytes}
+    - {name: policy, type: Bytes}
+    - {name: statement, type: ekr.kernel.EvidenceAdditionProjection}
+    # Exact proof/policy codec bytes and statement evidence are pinned independently.
+    # Recording a review does not add evidence to a canonical graph revision.
+    # Duplicated fields must agree wherever represented: proposal identity/digest, basis
+    # and decision match the signed target; operator, recording time and proof digest
+    # match HumanDecisionRecord. Evidence id/hash/payload agree, never granting authority.
   # Named transport and retention projections share the command's declared fields.
   # The retained document bytes, not a serialized TransientGraph, bind its identity.
   - name: ekr.integrate.InterpretationImport
@@ -268,6 +311,8 @@ types:
   - name: ekr.integrate.KnowledgeMapping
     kind: struct
     fields:
+    - name: source
+      type: ekr.integrate.InterpretationVersion
     - name: source_item
       type: String
     - name: source_type
@@ -278,6 +323,15 @@ types:
       type: String
     - name: value
       type: ekr.integrate.MappingValue
+    # source + source_item selects one facts[index] in one immutable document.
+    # Entity selectors are not mappings: unknown or ambiguous canonical subjects and
+    # relation objects remain blocked; mapping never silently creates a new entity.
+    # The version must occur in proposal.sources and the item in that source's selected items;
+    # duplicate source/item/target mappings and unknown paths are refused.
+    # source_type names its declared subject type. target_type names the canonical
+    # subject type; target_member names its property or an outgoing relation.
+    # CopyField/CopyRelation select declarations of that exact source item. Constants
+    # are explicit typed values; there is no expression or transformation language.
   - name: ekr.integrate.ProposalSource
     kind: struct
     fields:
@@ -1259,6 +1313,9 @@ commands:
       summary: Deterministically group recurring integration blockers by kind and declared
         source vocabulary. Return a typed request for a consumer-supplied agent; do
         not start a model provider or scheduler.
+    - name: refused
+      external: A canonical base schema is required; an unseeded or unverifiable store is refused.
+      error: ekr.integrate.KnowledgeRefused
   - name: ekr.integrate.SubmitSchemaProposal
     naming:
       wire: schema-proposal-submit
@@ -1288,11 +1345,16 @@ commands:
             generated: true
       summary: Retain the exact proposal and a mapping preview without changing ontology
         or claims. Retained observations and immutable source documents are sufficient support;
-        canonical evidence ids are optional additional citations before application.
+        canonical evidence ids are optional additional citations before application. The
+        payload must decode to the supplied proposal; the digest hashes the exact bytes.
+        Identical retries return the retained proposal; reusing its id with other bytes refuses.
     - name: refused
-      external: Refuse mutable or missing sources/evidence, nonadditive changes, required
+      external: Refuse unknown or incompatible base schemas, mutable or missing sources/evidence, nonadditive changes, required
         property additions, undeclared selectors, mismatched typed constants and enum
-        exhaustion inferred from observed values.
+        constraints whose complete variant set is not equal to a selected retained local
+        enum declaration. Subsets, unions of declarations, observed literals and prose alone
+        do not establish this support. Never
+        infer an exhaustive enum from observed fact values; the reviewer sees the explicit constraint.
       error: ekr.integrate.KnowledgeRefused
   - name: ekr.integrate.ShowSchemaProposal
     naming:
@@ -1311,6 +1373,8 @@ commands:
       type: List<ekr.integrate.ProposalReviewSnapshot>
     - name: receipts
       type: List<ekr.integrate.ApplicationReceiptSnapshot>
+    - {name: basis, type: ekr.kernel.ReviewBasis}
+    - {name: expected_previous_decision, type: Optional<ekr.kernel.ContentHash>}
     outcomes:
     - name: answered
       emits:
@@ -1327,8 +1391,15 @@ commands:
             generated: true
           receipts:
             generated: true
+          basis: {generated: true}
+          expected_previous_decision: {generated: true}
       summary: Show proposed additions, supporting observations, exact mappings and
-        review/application history through CLI, SDK and the read-only viewer.
+        review/application history through CLI, SDK and the read-only viewer. Expose
+        the current material review basis and the latest retained proof digest so a
+        human can sign the exact target and predecessor outside the runtime. The predecessor
+        is HumanDecisionRecord.proof_digest, not proof_object_hash. Recorded approval is a
+        decision on its observed basis; compare the current material basis to show when
+        renewed review is needed. An approval is not an unconditional applicability grant.
     - name: refused
       external: An unknown proposal is refused.
       error: ekr.integrate.KnowledgeRefused
@@ -1357,10 +1428,16 @@ commands:
           review_id:
             generated: true
       summary: Record the host-authenticated human decision and retain its statement
-        as evidence; approval includes additions, mappings and selected corrections.
+        as evidence; approval includes additions, mappings and selected corrections. Verify
+        material against one coherent canonical snapshot, then atomically retain the decision,
+        proof, policy and statement against the exact review predecessor. Canonical revisions
+        do not advance. A concurrent canonical change may immediately make this observed-basis
+        decision stale; application revalidates it. Exact retries retain the original review;
+        a reused decision identity with changed input refuses.
     - name: refused
       external: Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal,
-        reviewed evidence and intended effects must match. Agent-supplied content cannot
+        reviewed evidence and intended effects must match the verified observed snapshot.
+        Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot
         grant approval.
       error: ekr.integrate.KnowledgeRefused
   - name: ekr.integrate.RejectSchemaProposal
@@ -1388,10 +1465,14 @@ commands:
           review_id:
             generated: true
       summary: Record the host-authenticated human decision and retain its statement
-        as evidence; approval includes additions, mappings and selected corrections.
+        as evidence without advancing canonical revisions. Atomically retain rejection,
+        proof, policy and statement against the exact review predecessor. Rejection prevents
+        subsequent application writes while preserving committed history. Exact retries return
+        the retained decision; changed input under the same decision identity refuses.
     - name: refused
       external: Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal,
-        reviewed evidence and intended effects must match. Agent-supplied content cannot
+        reviewed evidence and intended effects must match the verified observed snapshot.
+        Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot
         grant approval.
       error: ekr.integrate.KnowledgeRefused
   - name: ekr.integrate.ApplySchemaProposal
@@ -1503,6 +1584,8 @@ events:
       type: List<ekr.integrate.ProposalReviewSnapshot>
     - name: receipts
       type: List<ekr.integrate.ApplicationReceiptSnapshot>
+    - {name: basis, type: ekr.kernel.ReviewBasis}
+    - {name: expected_previous_decision, type: Optional<ekr.kernel.ContentHash>}
   - name: ekr.integrate.ApproveSchemaProposalResult
     fields:
     - name: review_id

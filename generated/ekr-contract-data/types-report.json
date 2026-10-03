@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "source_digest": "f878e31bbf912e1096577aea52f5df406087b6610af3197f6839e5a414249291",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:d281a175b42a84f9ab5090dc1ce7281234533447a1ccc53b3289b454383b238c",
-    "projection_digest": "47be280235c25f32324f00130d2cc66659dbb9ec298c0af465b244dda91bfac2"
+    "contract_digest": "slice-sha256/2:3d42d49e01157f6748cc59ce3a15a1b661565ff6dff9a1286f7997d8df41222c",
+    "projection_digest": "f4ceba4ba2820268f5e0e9d8bbc9e81be749eaa22793eb60d1971e20c92db1d4"
   },
   "generator_version": "0.52.0",
   "target": "rust",
@@ -131,12 +131,17 @@
     "ekr.integrate.ResolutionRefusalCode",
     "ekr.integrate.ResolvedReference",
     "ekr.integrate.RetainedInterpretation",
+    "ekr.integrate.RetainedProposalReview",
+    "ekr.integrate.RetainedSchemaProposal",
     "ekr.integrate.ReviewDecision",
     "ekr.integrate.SchemaLearningRequest",
     "ekr.integrate.SchemaLearningResult",
     "ekr.integrate.SchemaProposal.State",
     "ekr.integrate.SchemaProposalDocument",
     "ekr.integrate.SchemaProposalId",
+    "ekr.integrate.SchemaProposalImport",
+    "ekr.integrate.SchemaProposalRead",
+    "ekr.integrate.SchemaProposalReviewApplication",
     "ekr.integrate.Split.State",
     "ekr.integrate.SplitId",
     "ekr.integrate.TypedReference",
@@ -579,12 +584,17 @@
     "ekr.integrate.ResolutionRefusalCode": "EkrIntegrateResolutionRefusalCode",
     "ekr.integrate.ResolvedReference": "EkrIntegrateResolvedReference",
     "ekr.integrate.RetainedInterpretation": "EkrIntegrateRetainedInterpretation",
+    "ekr.integrate.RetainedProposalReview": "EkrIntegrateRetainedProposalReview",
+    "ekr.integrate.RetainedSchemaProposal": "EkrIntegrateRetainedSchemaProposal",
     "ekr.integrate.ReviewDecision": "EkrIntegrateReviewDecision",
     "ekr.integrate.SchemaLearningRequest": "EkrIntegrateSchemaLearningRequest",
     "ekr.integrate.SchemaLearningResult": "EkrIntegrateSchemaLearningResult",
     "ekr.integrate.SchemaProposal.State": "EkrIntegrateSchemaProposalState",
     "ekr.integrate.SchemaProposalDocument": "EkrIntegrateSchemaProposalDocument",
     "ekr.integrate.SchemaProposalId": "EkrIntegrateSchemaProposalId",
+    "ekr.integrate.SchemaProposalImport": "EkrIntegrateSchemaProposalImport",
+    "ekr.integrate.SchemaProposalRead": "EkrIntegrateSchemaProposalRead",
+    "ekr.integrate.SchemaProposalReviewApplication": "EkrIntegrateSchemaProposalReviewApplication",
     "ekr.integrate.Split.State": "EkrIntegrateSplitState",
     "ekr.integrate.SplitId": "EkrIntegrateSplitId",
     "ekr.integrate.TypedReference": "EkrIntegrateTypedReference",
@@ -2922,6 +2932,51 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/properties/policy/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/properties/proof/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedSchemaProposal/properties/payload/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedSchemaProposal/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedSchemaProposal/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedSchemaProposal/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.ReviewDecision/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -3013,6 +3068,61 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.SchemaProposalId/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalImport/properties/payload/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalImport/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalImport/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalImport/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalRead/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalRead/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalRead/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalReviewApplication/properties/statement/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalReviewApplication/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalReviewApplication/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalReviewApplication/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -8829,7 +8939,32 @@
       "detail": "validate this constraint against the source schema at runtime"
     },
     {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/properties/policy/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedProposalReview/properties/proof/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedSchemaProposal/properties/payload/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.SchemaProposalId/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalImport/properties/payload/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaProposalReviewApplication/properties/statement/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
     },

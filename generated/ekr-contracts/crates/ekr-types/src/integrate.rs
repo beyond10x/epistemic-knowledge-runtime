@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345
-// contract digest c912d271f87a864612f374502cd6fa4cb6f3fdf9e053b40d4a559ab075e72cb5
+// model digest f878e31bbf912e1096577aea52f5df406087b6610af3197f6839e5a414249291
+// contract digest 097352d071d8f0f2e934bd80f62875125c884515adbd7a644cffa7a3492e0bd5
 // do not edit: regenerate with `ess synthesize`
 
 //! Integrate — `ekr.integrate`.
@@ -507,6 +507,8 @@ pub struct InterpretationVersion {
 /// KnowledgeMapping — `ekr.integrate.KnowledgeMapping`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KnowledgeMapping {
+    /// `source` — `ekr.integrate.InterpretationVersion`.
+    pub source: InterpretationVersion,
     /// `source_item` — `String`.
     pub source_item: String,
     /// `source_type` — `String`.
@@ -833,6 +835,32 @@ pub struct RetainedInterpretation {
     pub root: crate::graph::GraphRootRecord,
 }
 
+/// RetainedProposalReview — `ekr.integrate.RetainedProposalReview`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedProposalReview {
+    /// `review` — `ekr.integrate.ProposalReviewSnapshot`.
+    pub review: ProposalReviewSnapshot,
+    /// `decision` — `ekr.kernel.HumanDecisionRecord`.
+    pub decision: crate::kernel::HumanDecisionRecord,
+    /// `proof` — `Bytes`.
+    pub proof: Vec<u8>,
+    /// `policy` — `Bytes`.
+    pub policy: Vec<u8>,
+    /// `statement` — `ekr.kernel.EvidenceAdditionProjection`.
+    pub statement: crate::kernel::EvidenceAdditionProjection,
+}
+
+/// RetainedSchemaProposal — `ekr.integrate.RetainedSchemaProposal`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedSchemaProposal {
+    /// `proposal` — `ekr.integrate.SchemaProposalDocument`.
+    pub proposal: SchemaProposalDocument,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `payload` — `Bytes`.
+    pub payload: Vec<u8>,
+}
+
 /// ReviewDecision — `ekr.integrate.ReviewDecision`: one of a closed set of names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReviewDecision {
@@ -898,6 +926,49 @@ pub struct SchemaProposalDocument {
 /// SchemaProposalId — `ekr.integrate.SchemaProposalId`: a distinct wrapper around `Uuid`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaProposalId(pub crate::primitives::Uuid);
+
+/// SchemaProposalImport — `ekr.integrate.SchemaProposalImport`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaProposalImport {
+    /// `proposal` — `ekr.integrate.SchemaProposalDocument`.
+    pub proposal: SchemaProposalDocument,
+    /// `payload` — `Bytes`.
+    pub payload: Vec<u8>,
+}
+
+/// SchemaProposalRead — `ekr.integrate.SchemaProposalRead`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaProposalRead {
+    /// `proposal` — `ekr.integrate.SchemaProposalDocument`.
+    pub proposal: SchemaProposalDocument,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `preview` — `List<ekr.integrate.MappingPreview>`.
+    pub preview: Vec<MappingPreview>,
+    /// `reviews` — `List<ekr.integrate.ProposalReviewSnapshot>`.
+    pub reviews: Vec<ProposalReviewSnapshot>,
+    /// `receipts` — `List<ekr.integrate.ApplicationReceiptSnapshot>`.
+    pub receipts: Vec<ApplicationReceiptSnapshot>,
+    /// `basis` — `ekr.kernel.ReviewBasis`.
+    pub basis: crate::kernel::ReviewBasis,
+    /// `expected_previous_decision` — `Optional<ekr.kernel.ContentHash>`.
+    pub expected_previous_decision: Option<crate::kernel::ContentHash>,
+}
+
+/// SchemaProposalReviewApplication — `ekr.integrate.SchemaProposalReviewApplication`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaProposalReviewApplication {
+    /// `human_proof` — `ekr.kernel.SignedHumanDecision`.
+    pub human_proof: crate::kernel::SignedHumanDecision,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `basis` — `ekr.kernel.ReviewBasis`.
+    pub basis: crate::kernel::ReviewBasis,
+    /// `statement` — `Bytes`.
+    pub statement: Vec<u8>,
+}
 
 /// The states of `ekr.integrate.Split`, as runtime values.
 ///
@@ -2974,12 +3045,12 @@ pub struct ApproveSchemaProposalResponse {
 pub enum ApproveSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections.
+    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections. Verify material against one coherent canonical snapshot, then atomically retain the decision, proof, policy and statement against the exact review predecessor. Canonical revisions do not advance. A concurrent canonical change may immediately make this observed-basis decision stale; application revalidates it. Exact retries retain the original review; a reused decision identity with changed input refuses.
     Answered {
         /// The `ekr.integrate.ApproveSchemaProposalResult` this outcome publishes.
         approve_schema_proposal_result: ApproveSchemaProposalResult,
     },
-    /// `refused` — externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match. Agent-supplied content cannot grant approval.).
+    /// `refused` — externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.).
     Refused {
         /// Why it was refused: `ekr.integrate.KnowledgeRefused`.
         error: KnowledgeRefused,
@@ -3013,6 +3084,11 @@ pub enum DiscoverSchemaGapsOutcome {
     Answered {
         /// The `ekr.integrate.DiscoverSchemaGapsResult` this outcome publishes.
         discover_schema_gaps_result: DiscoverSchemaGapsResult,
+    },
+    /// `refused` — externally decided (A canonical base schema is required; an unseeded or unverifiable store is refused.).
+    Refused {
+        /// Why it was refused: `ekr.integrate.KnowledgeRefused`.
+        error: KnowledgeRefused,
     },
 }
 
@@ -3118,12 +3194,12 @@ pub struct RejectSchemaProposalResponse {
 pub enum RejectSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections.
+    /// Record the host-authenticated human decision and retain its statement as evidence without advancing canonical revisions. Atomically retain rejection, proof, policy and statement against the exact review predecessor. Rejection prevents subsequent application writes while preserving committed history. Exact retries return the retained decision; changed input under the same decision identity refuses.
     Answered {
         /// The `ekr.integrate.RejectSchemaProposalResult` this outcome publishes.
         reject_schema_proposal_result: RejectSchemaProposalResult,
     },
-    /// `refused` — externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match. Agent-supplied content cannot grant approval.).
+    /// `refused` — externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.).
     Refused {
         /// Why it was refused: `ekr.integrate.KnowledgeRefused`.
         error: KnowledgeRefused,
@@ -3193,6 +3269,10 @@ pub struct ShowSchemaProposalResponse {
     pub reviews: Vec<ProposalReviewSnapshot>,
     /// `receipts` — `List<ekr.integrate.ApplicationReceiptSnapshot>`.
     pub receipts: Vec<ApplicationReceiptSnapshot>,
+    /// `basis` — `ekr.kernel.ReviewBasis`.
+    pub basis: crate::kernel::ReviewBasis,
+    /// `expected_previous_decision` — `Optional<ekr.kernel.ContentHash>`.
+    pub expected_previous_decision: Option<crate::kernel::ContentHash>,
 }
 
 /// Everything `ekr.integrate.ShowSchemaProposal` can result in — one variant per declared outcome.
@@ -3204,7 +3284,7 @@ pub struct ShowSchemaProposalResponse {
 pub enum ShowSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Show proposed additions, supporting observations, exact mappings and review/application history through CLI, SDK and the read-only viewer.
+    /// Show proposed additions, supporting observations, exact mappings and review/application history through CLI, SDK and the read-only viewer. Expose the current material review basis and the latest retained proof digest so a human can sign the exact target and predecessor outside the runtime. The predecessor is HumanDecisionRecord.proof_digest, not proof_object_hash. Recorded approval is a decision on its observed basis; compare the current material basis to show when renewed review is needed. An approval is not an unconditional applicability grant.
     Answered {
         /// The `ekr.integrate.ShowSchemaProposalResult` this outcome publishes.
         show_schema_proposal_result: ShowSchemaProposalResult,
@@ -3247,12 +3327,12 @@ pub struct SubmitSchemaProposalResponse {
 pub enum SubmitSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Retain the exact proposal and a mapping preview without changing ontology or claims. Retained observations and immutable source documents are sufficient support; canonical evidence ids are optional additional citations before application.
+    /// Retain the exact proposal and a mapping preview without changing ontology or claims. Retained observations and immutable source documents are sufficient support; canonical evidence ids are optional additional citations before application. The payload must decode to the supplied proposal; the digest hashes the exact bytes. Identical retries return the retained proposal; reusing its id with other bytes refuses.
     Answered {
         /// The `ekr.integrate.SubmitSchemaProposalResult` this outcome publishes.
         submit_schema_proposal_result: SubmitSchemaProposalResult,
     },
-    /// `refused` — externally decided (Refuse mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum exhaustion inferred from observed values.).
+    /// `refused` — externally decided (Refuse unknown or incompatible base schemas, mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum constraints whose complete variant set is not equal to a selected retained local enum declaration. Subsets, unions of declarations, observed literals and prose alone do not establish this support. Never infer an exhaustive enum from observed fact values; the reviewer sees the explicit constraint.).
     Refused {
         /// Why it was refused: `ekr.integrate.KnowledgeRefused`.
         error: KnowledgeRefused,
@@ -3338,6 +3418,10 @@ pub struct ShowSchemaProposalResult {
     pub reviews: Vec<ProposalReviewSnapshot>,
     /// `receipts` — `List<ekr.integrate.ApplicationReceiptSnapshot>`.
     pub receipts: Vec<ApplicationReceiptSnapshot>,
+    /// `basis` — `ekr.kernel.ReviewBasis`.
+    pub basis: crate::kernel::ReviewBasis,
+    /// `expected_previous_decision` — `Optional<ekr.kernel.ContentHash>`.
+    pub expected_previous_decision: Option<crate::kernel::ContentHash>,
 }
 
 /// SubmitSchemaProposalResult — the event `ekr.integrate.SubmitSchemaProposalResult`.
@@ -3671,7 +3755,7 @@ pub mod obligations {
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
     ///
-    /// Contract: given `ekr.integrate.ApproveSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApproveSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`.
+    /// Contract: given `ekr.integrate.ApproveSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApproveSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`.
     pub trait ApproveSchemaProposalBehavior {
         /// Decides and enacts exactly one declared outcome of `ekr.integrate.ApproveSchemaProposal`.
         ///
@@ -3684,7 +3768,7 @@ pub mod obligations {
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
     ///
-    /// Contract: given `ekr.integrate.DiscoverSchemaGaps` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.DiscoverSchemaGapsResult`.
+    /// Contract: given `ekr.integrate.DiscoverSchemaGaps` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.DiscoverSchemaGapsResult`; `refused` externally decided (A canonical base schema is required; an unseeded or unverifiable store is refused.), error `ekr.integrate.KnowledgeRefused`.
     pub trait DiscoverSchemaGapsBehavior {
         /// Decides and enacts exactly one declared outcome of `ekr.integrate.DiscoverSchemaGaps`.
         ///
@@ -3723,7 +3807,7 @@ pub mod obligations {
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
     ///
-    /// Contract: given `ekr.integrate.RejectSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.RejectSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`.
+    /// Contract: given `ekr.integrate.RejectSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.RejectSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused`.
     pub trait RejectSchemaProposalBehavior {
         /// Decides and enacts exactly one declared outcome of `ekr.integrate.RejectSchemaProposal`.
         ///
@@ -3762,7 +3846,7 @@ pub mod obligations {
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
     ///
-    /// Contract: given `ekr.integrate.SubmitSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.SubmitSchemaProposalResult`; `refused` externally decided (Refuse mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum exhaustion inferred from observed values.), error `ekr.integrate.KnowledgeRefused`.
+    /// Contract: given `ekr.integrate.SubmitSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.SubmitSchemaProposalResult`; `refused` externally decided (Refuse unknown or incompatible base schemas, mutable or missing sources/evidence, nonadditive changes, required property additions, undeclared selectors, mismatched typed constants and enum constraints whose complete variant set is not equal to a selected retained local enum declaration. Subsets, unions of declarations, observed literals and prose alone do not establish this support. Never infer an exhaustive enum from observed fact values; the reviewer sees the explicit constraint.), error `ekr.integrate.KnowledgeRefused`.
     pub trait SubmitSchemaProposalBehavior {
         /// Decides and enacts exactly one declared outcome of `ekr.integrate.SubmitSchemaProposal`.
         ///

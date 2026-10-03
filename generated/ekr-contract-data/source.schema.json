@@ -1858,6 +1858,9 @@
     "ekr.integrate.KnowledgeMapping": {
       "additionalProperties": false,
       "properties": {
+        "source": {
+          "$ref": "#/$defs/ekr.integrate.InterpretationVersion"
+        },
         "source_item": {
           "type": "string"
         },
@@ -1875,6 +1878,7 @@
         }
       },
       "required": [
+        "source",
         "source_item",
         "source_type",
         "target_type",
@@ -2552,6 +2556,66 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.RetainedInterpretation"
     },
+    "ekr.integrate.RetainedProposalReview": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/ekr.kernel.HumanDecisionRecord"
+        },
+        "policy": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        },
+        "proof": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        },
+        "review": {
+          "$ref": "#/$defs/ekr.integrate.ProposalReviewSnapshot"
+        },
+        "statement": {
+          "$ref": "#/$defs/ekr.kernel.EvidenceAdditionProjection"
+        }
+      },
+      "required": [
+        "review",
+        "decision",
+        "proof",
+        "policy",
+        "statement"
+      ],
+      "title": "RetainedProposalReview",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedProposalReview"
+    },
+    "ekr.integrate.RetainedSchemaProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        },
+        "proposal": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalDocument"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        }
+      },
+      "required": [
+        "proposal",
+        "proposal_digest",
+        "payload"
+      ],
+      "title": "RetainedSchemaProposal",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedSchemaProposal"
+    },
     "ekr.integrate.ReviewDecision": {
       "enum": [
         "Approved",
@@ -2697,6 +2761,107 @@
       "type": "string",
       "x-ess-kind": "newtype",
       "x-ess-name": "ekr.integrate.SchemaProposalId"
+    },
+    "ekr.integrate.SchemaProposalImport": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        },
+        "proposal": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalDocument"
+        }
+      },
+      "required": [
+        "proposal",
+        "payload"
+      ],
+      "title": "SchemaProposalImport",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.SchemaProposalImport"
+    },
+    "ekr.integrate.SchemaProposalRead": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "$ref": "#/$defs/ekr.kernel.ReviewBasis"
+        },
+        "expected_previous_decision": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "preview": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.MappingPreview"
+          },
+          "type": "array"
+        },
+        "proposal": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalDocument"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "receipts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ApplicationReceiptSnapshot"
+          },
+          "type": "array"
+        },
+        "reviews": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ProposalReviewSnapshot"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "proposal",
+        "proposal_digest",
+        "preview",
+        "reviews",
+        "receipts",
+        "basis"
+      ],
+      "title": "SchemaProposalRead",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.SchemaProposalRead"
+    },
+    "ekr.integrate.SchemaProposalReviewApplication": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "$ref": "#/$defs/ekr.kernel.ReviewBasis"
+        },
+        "human_proof": {
+          "$ref": "#/$defs/ekr.kernel.SignedHumanDecision"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "proposal_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalId"
+        },
+        "statement": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "human_proof",
+        "proposal_id",
+        "proposal_digest",
+        "basis",
+        "statement"
+      ],
+      "title": "SchemaProposalReviewApplication",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.SchemaProposalReviewApplication"
     },
     "ekr.integrate.Split.State": {
       "enum": [
@@ -11154,8 +11319,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:d281a175b42a84f9ab5090dc1ce7281234533447a1ccc53b3289b454383b238c",
-    "source_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+    "contract_digest": "slice-sha256/2:3d42d49e01157f6748cc59ce3a15a1b661565ff6dff9a1286f7997d8df41222c",
+    "source_digest": "f878e31bbf912e1096577aea52f5df406087b6610af3197f6839e5a414249291",
     "specification_version": "v1",
     "system": "ekr"
   }

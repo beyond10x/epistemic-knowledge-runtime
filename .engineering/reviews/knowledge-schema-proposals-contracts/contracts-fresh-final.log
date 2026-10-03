@@ -1,0 +1,6 @@
+task: [contracts-check] cargo run --locked -p xtask --bin xtask -- contracts-check
+    Finished `dev` profile [unoptimized] target(s) in 0.11s
+     Running `<build>/target/debug/xtask contracts-check`
+generated contracts: both complete artifact trees match; synthesized workspace compiles
+task: [spec-check] ess specify validate --path systems/ekr
+ekr v1 — 9 file(s), valid
