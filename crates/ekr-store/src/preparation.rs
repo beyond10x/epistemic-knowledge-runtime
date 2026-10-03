@@ -29,6 +29,8 @@ pub enum PublicationCommandKind {
     Validate,
     /// One slot per retained validation.
     Commit,
+    /// One explicit authority transition attempt per reviewed stream prefix.
+    UpgradeAuthority,
 }
 impl PublicationCommandKey {
     fn check(&self) -> Result<(), StoreError> {
@@ -42,6 +44,11 @@ impl PublicationCommandKey {
                 self.transaction_id.is_some()
                     && self.predecessor_event_id.is_none()
                     && self.predecessor_record_hash.is_none()
+            }
+            PublicationCommandKind::UpgradeAuthority => {
+                self.transaction_id.is_none()
+                    && self.predecessor_event_id.is_some()
+                    && self.predecessor_record_hash.is_some()
             }
             PublicationCommandKind::Validate | PublicationCommandKind::Commit => {
                 self.transaction_id.is_some()
@@ -210,19 +217,32 @@ impl PublicationPreparationV1 {
     pub const FORMAT_V1: &'static str = "ekr.publication-preparation/1";
     /// The format a decision staging an evidence payload is elected in.
     pub const FORMAT_V3: &'static str = "ekr.publication-preparation/3";
+    /// Authority-transition recovery, carrying its version-three revision envelope.
+    pub const FORMAT_V4: &'static str = "ekr.publication-preparation/4";
     fn hash(&self) -> Result<ContentHash, StoreError> {
         Ok(ContentHash::of_bytes(
             &serde_json::to_vec(self).map_err(json_error)?,
         ))
     }
     fn is_supported(&self) -> bool {
+        if matches!(
+            self.command_key.kind,
+            PublicationCommandKind::UpgradeAuthority
+        ) {
+            return self.format == Self::FORMAT_V4;
+        }
         self.format == Self::FORMAT
             || self.format == Self::FORMAT_V1
             || self.format == Self::FORMAT_V3
     }
     /// The format a new attempt electing `decision` is written in.
     fn format_for(decision: &Publication) -> &'static str {
-        if decision.objects.values().any(stages) {
+        if matches!(
+            decision.event.payload,
+            RevisionPayload::AuthorityUpgraded { .. }
+        ) {
+            Self::FORMAT_V4
+        } else if decision.objects.values().any(stages) {
             Self::FORMAT_V3
         } else {
             Self::FORMAT
@@ -853,11 +873,15 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         require(request.group.tenant == self.tenant, "preparation-tenant")?;
         let decision = &prepared.decision;
         require(
-            decision.event.format == RevisionEvent::FORMAT && !decision.objects.is_empty(),
+            decision.event.supported() && !decision.objects.is_empty(),
             "preparation-decision",
         )?;
         let tx = prepared.command_key.transaction_id;
         let matches = match (&prepared.command_key.kind, &decision.event.payload) {
+            (
+                PublicationCommandKind::UpgradeAuthority,
+                RevisionPayload::AuthorityUpgraded { .. },
+            ) => decision.expected_version > 0,
             (PublicationCommandKind::Bootstrap, RevisionPayload::Seeded { .. }) => {
                 decision.expected_version == 0
             }
@@ -930,7 +954,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         let event = &first.events[0];
         require(
             event.name == decision.event.name()
-                && event.schema_version == 2
+                && event.schema_version == decision.event.schema_version()
                 && event.data == serde_json::to_value(&decision.event).map_err(json_error)?,
             "preparation-revision-event",
         )?;
@@ -1038,17 +1062,28 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     held.event.event_id == predecessor
                         && Some(held.event.record_hash)
                             == prepared.command_key.predecessor_record_hash
-                        && match held.event.payload {
-                            RevisionPayload::TransactionProposed { transaction_id, .. } => {
-                                prepared.command_key.kind == PublicationCommandKind::Validate
-                                    && tx == Some(transaction_id)
+                        && (if prepared.command_key.kind == PublicationCommandKind::UpgradeAuthority
+                        {
+                            held.version == decision.expected_version
+                        } else {
+                            match held.event.payload {
+                                RevisionPayload::TransactionProposed { transaction_id, .. } => {
+                                    prepared.command_key.kind == PublicationCommandKind::Validate
+                                        && tx == Some(transaction_id)
+                                }
+                                RevisionPayload::TransactionValidated {
+                                    transaction_id, ..
+                                } => {
+                                    prepared.command_key.kind == PublicationCommandKind::Commit
+                                        && tx == Some(transaction_id)
+                                }
+                                RevisionPayload::AuthorityUpgraded { .. } => {
+                                    prepared.command_key.kind == PublicationCommandKind::Validate
+                                        && tx.is_some()
+                                }
+                                _ => false,
                             }
-                            RevisionPayload::TransactionValidated { transaction_id, .. } => {
-                                prepared.command_key.kind == PublicationCommandKind::Commit
-                                    && tx == Some(transaction_id)
-                            }
-                            _ => false,
-                        }
+                        })
                 }),
                 "preparation-predecessor",
             )?;
@@ -1225,7 +1260,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             },
             events: vec![NewEvent::new(
                 decision.event.name(),
-                2,
+                decision.event.schema_version(),
                 serde_json::to_value(&decision.event).map_err(json_error)?,
             )?],
         }];

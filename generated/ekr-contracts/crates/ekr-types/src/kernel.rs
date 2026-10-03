@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
-// contract digest 2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
+// model digest 890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+// contract digest 281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
 // do not edit: regenerate with `ess synthesize`
 
 //! Kernel — `ekr.kernel`.
@@ -154,6 +154,29 @@ pub enum AuthorityTransitionFormat {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorityTransitionId(pub crate::primitives::Uuid);
 
+/// AuthorityTransitionRecord — `ekr.kernel.AuthorityTransitionRecord`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorityTransitionRecord {
+    /// `format` — `ekr.kernel.AuthorityTransitionFormat`.
+    pub format: AuthorityTransitionFormat,
+    /// `transition_id` — `ekr.kernel.AuthorityTransitionId`.
+    pub transition_id: AuthorityTransitionId,
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: EventId,
+    /// `revision_id` — `ekr.kernel.RevisionId`.
+    pub revision_id: RevisionId,
+    /// `preview` — `ekr.kernel.UpgradePreview`.
+    pub preview: UpgradePreview,
+    /// `result` — `ekr.graph.RevisionRoot`.
+    pub result: crate::graph::RevisionRoot,
+    /// `review` — `ekr.kernel.HumanDecisionRecord`.
+    pub review: HumanDecisionRecord,
+    /// `host_binding_object_hash` — `ekr.kernel.ContentHash`.
+    pub host_binding_object_hash: ContentHash,
+    /// `target_profile_object_hash` — `ekr.kernel.ContentHash`.
+    pub target_profile_object_hash: ContentHash,
+}
+
 /// AuthorityUpgradeTarget — `ekr.kernel.AuthorityUpgradeTarget`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorityUpgradeTarget {
@@ -161,6 +184,19 @@ pub struct AuthorityUpgradeTarget {
     pub preview_digest: ContentHash,
     /// `reviewer_policy_digest` — `ekr.kernel.ContentHash`.
     pub reviewer_policy_digest: ContentHash,
+}
+
+/// AuthorityUpgradedPayload — `ekr.kernel.AuthorityUpgradedPayload`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorityUpgradedPayload {
+    /// `transition_id` — `ekr.kernel.AuthorityTransitionId`.
+    pub transition_id: AuthorityTransitionId,
+    /// `revision_id` — `ekr.kernel.RevisionId`.
+    pub revision_id: RevisionId,
+    /// `number` — `ekr.kernel.RevisionNumber`.
+    pub number: RevisionNumber,
+    /// `knowledge_root` — `ekr.kernel.ContentHash`.
+    pub knowledge_root: ContentHash,
 }
 
 /// AuthorityVersion — `ekr.kernel.AuthorityVersion`.
@@ -1035,6 +1071,10 @@ pub enum RevisionState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevisionEventFormatV2(pub String);
 
+/// RevisionEventFormatV3 — `ekr.kernel.RevisionEventFormatV3`: a distinct wrapper around `String`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RevisionEventFormatV3(pub String);
+
 /// RevisionEventV2 — `ekr.kernel.RevisionEventV2`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevisionEventV2 {
@@ -1048,6 +1088,19 @@ pub struct RevisionEventV2 {
     pub payload: RevisionPayload,
 }
 
+/// RevisionEventV3 — `ekr.kernel.RevisionEventV3`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RevisionEventV3 {
+    /// `format` — `ekr.kernel.RevisionEventFormatV3`.
+    pub format: RevisionEventFormatV3,
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: EventId,
+    /// `record_hash` — `ekr.kernel.ContentHash`.
+    pub record_hash: ContentHash,
+    /// `payload` — `ekr.kernel.RevisionPayloadV3`.
+    pub payload: RevisionPayloadV3,
+}
+
 /// RevisionId — `ekr.kernel.RevisionId`: a distinct wrapper around `Uuid`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevisionId(pub crate::primitives::Uuid);
@@ -1059,6 +1112,25 @@ pub struct RevisionNumber(pub i64);
 /// RevisionPayload — `ekr.kernel.RevisionPayload`: one of a fixed set of shapes, tagged on the wire by `kind`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RevisionPayload {
+    /// Tagged `RevisionCommitted` — `ekr.kernel.CommittedPayload`.
+    RevisionCommitted(CommittedPayload),
+    /// Tagged `Seeded` — `ekr.kernel.SeededPayload`.
+    Seeded(SeededPayload),
+    /// Tagged `TransactionProposed` — `ekr.kernel.ProposedPayload`.
+    TransactionProposed(ProposedPayload),
+    /// Tagged `TransactionRejected` — `ekr.kernel.RejectedPayload`.
+    TransactionRejected(RejectedPayload),
+    /// Tagged `TransactionStale` — `ekr.kernel.StalePayload`.
+    TransactionStale(StalePayload),
+    /// Tagged `TransactionValidated` — `ekr.kernel.ValidatedPayload`.
+    TransactionValidated(ValidatedPayload),
+}
+
+/// RevisionPayloadV3 — `ekr.kernel.RevisionPayloadV3`: one of a fixed set of shapes, tagged on the wire by `kind`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RevisionPayloadV3 {
+    /// Tagged `AuthorityUpgraded` — `ekr.kernel.AuthorityUpgradedPayload`.
+    AuthorityUpgraded(AuthorityUpgradedPayload),
     /// Tagged `RevisionCommitted` — `ekr.kernel.CommittedPayload`.
     RevisionCommitted(CommittedPayload),
     /// Tagged `Seeded` — `ekr.kernel.SeededPayload`.
@@ -1351,6 +1423,10 @@ pub struct UpgradeContradiction {
 /// UpgradePreview — `ekr.kernel.UpgradePreview`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpgradePreview {
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `stream_digest` — `ekr.kernel.ContentHash`.
+    pub stream_digest: ContentHash,
     /// `reviewer_policy_digest` — `ekr.kernel.ContentHash`.
     pub reviewer_policy_digest: ContentHash,
     /// `head_revision` — `ekr.kernel.RevisionNumber`.
@@ -1675,9 +1751,11 @@ pub struct AuthorityTransitionData {
     /// Carries `human_proof`: `ekr.kernel.AuthorityTransition` references one `ekr.kernel.RetainedHumanDecision`.
     pub human_proof_digest: ContentHash,
     /// `target_profile_digest` — `ekr.kernel.ContentHash`.
+    pub target_profile_digest: ContentHash,
+    /// `target_profile_object_hash` — `ekr.kernel.ContentHash`.
     ///
     /// Carries `target_profile`: `ekr.kernel.AuthorityTransition` references one `ekr.store.StoredObject`.
-    pub target_profile_digest: ContentHash,
+    pub target_profile_object_hash: ContentHash,
     /// `format` — `ekr.kernel.AuthorityTransitionFormat`.
     pub format: AuthorityTransitionFormat,
     /// `seed_anchor` — `ekr.kernel.ContentHash`.
@@ -3150,6 +3228,8 @@ pub enum ApplyUpgradeOutcome {
     Answered {
         /// The `ekr.kernel.ApplyUpgradeResult` this outcome publishes.
         apply_upgrade_result: ApplyUpgradeResult,
+        /// The `ekr.kernel.AuthorityUpgraded` this outcome publishes.
+        authority_upgraded: AuthorityUpgraded,
     },
     /// `refused` — externally decided (Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported target, unauthenticated operator or incomplete historical verification.).
     Refused {
@@ -3614,6 +3694,23 @@ pub struct ApplyUpgradeResult {
     pub transition_id: AuthorityTransitionId,
 }
 
+/// AuthorityUpgraded — the event `ekr.kernel.AuthorityUpgraded`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorityUpgraded {
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: EventId,
+    /// `record_hash` — `ekr.kernel.ContentHash`.
+    pub record_hash: ContentHash,
+    /// `transition_id` — `ekr.kernel.AuthorityTransitionId`.
+    pub transition_id: AuthorityTransitionId,
+    /// `revision_id` — `ekr.kernel.RevisionId`.
+    pub revision_id: RevisionId,
+    /// `number` — `ekr.kernel.RevisionNumber`.
+    pub number: RevisionNumber,
+    /// `knowledge_root` — `ekr.kernel.ContentHash`.
+    pub knowledge_root: ContentHash,
+}
+
 /// Explained — the event `ekr.kernel.Explained`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Explained {
@@ -3847,6 +3944,8 @@ pub struct AuthorityTransitionRecords {
     pub human_proof_digest: ContentHash,
     /// `target_profile_digest` — `ekr.kernel.ContentHash`.
     pub target_profile_digest: ContentHash,
+    /// `target_profile_object_hash` — `ekr.kernel.ContentHash`.
+    pub target_profile_object_hash: ContentHash,
     /// `transition_id` — `ekr.kernel.AuthorityTransitionId`.
     pub transition_id: AuthorityTransitionId,
     /// `state` — `ekr.kernel.AuthorityTransition.State`.
@@ -4156,7 +4255,7 @@ pub mod obligations {
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
     ///
-    /// Contract: given `ekr.kernel.ApplyUpgrade` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ApplyUpgradeResult`; `refused` externally decided (Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported target, unauthenticated operator or incomplete historical verification.), error `ekr.kernel.KnowledgeRefused`.
+    /// Contract: given `ekr.kernel.ApplyUpgrade` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ApplyUpgradeResult`, emits `ekr.kernel.AuthorityUpgraded`; `refused` externally decided (Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported target, unauthenticated operator or incomplete historical verification.), error `ekr.kernel.KnowledgeRefused`.
     pub trait ApplyUpgradeBehavior {
         /// Decides and enacts exactly one declared outcome of `ekr.kernel.ApplyUpgrade`.
         ///

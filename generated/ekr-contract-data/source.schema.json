@@ -3025,6 +3025,53 @@
       "x-ess-kind": "newtype",
       "x-ess-name": "ekr.kernel.AuthorityTransitionId"
     },
+    "ekr.kernel.AuthorityTransitionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/ekr.kernel.EventId"
+        },
+        "format": {
+          "$ref": "#/$defs/ekr.kernel.AuthorityTransitionFormat"
+        },
+        "host_binding_object_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "preview": {
+          "$ref": "#/$defs/ekr.kernel.UpgradePreview"
+        },
+        "result": {
+          "$ref": "#/$defs/ekr.graph.RevisionRoot"
+        },
+        "review": {
+          "$ref": "#/$defs/ekr.kernel.HumanDecisionRecord"
+        },
+        "revision_id": {
+          "$ref": "#/$defs/ekr.kernel.RevisionId"
+        },
+        "target_profile_object_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "transition_id": {
+          "$ref": "#/$defs/ekr.kernel.AuthorityTransitionId"
+        }
+      },
+      "required": [
+        "format",
+        "transition_id",
+        "event_id",
+        "revision_id",
+        "preview",
+        "result",
+        "review",
+        "host_binding_object_hash",
+        "target_profile_object_hash"
+      ],
+      "title": "AuthorityTransitionRecord",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.kernel.AuthorityTransitionRecord"
+    },
     "ekr.kernel.AuthorityUpgradeTarget": {
       "additionalProperties": false,
       "properties": {
@@ -3043,6 +3090,33 @@
       "type": "object",
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.kernel.AuthorityUpgradeTarget"
+    },
+    "ekr.kernel.AuthorityUpgradedPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "knowledge_root": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "number": {
+          "$ref": "#/$defs/ekr.kernel.RevisionNumber"
+        },
+        "revision_id": {
+          "$ref": "#/$defs/ekr.kernel.RevisionId"
+        },
+        "transition_id": {
+          "$ref": "#/$defs/ekr.kernel.AuthorityTransitionId"
+        }
+      },
+      "required": [
+        "transition_id",
+        "revision_id",
+        "number",
+        "knowledge_root"
+      ],
+      "title": "AuthorityUpgradedPayload",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.kernel.AuthorityUpgradedPayload"
     },
     "ekr.kernel.AuthorityVersion": {
       "additionalProperties": false,
@@ -5117,6 +5191,12 @@
       "x-ess-kind": "newtype",
       "x-ess-name": "ekr.kernel.RevisionEventFormatV2"
     },
+    "ekr.kernel.RevisionEventFormatV3": {
+      "title": "RevisionEventFormatV3",
+      "type": "string",
+      "x-ess-kind": "newtype",
+      "x-ess-name": "ekr.kernel.RevisionEventFormatV3"
+    },
     "ekr.kernel.RevisionEventV2": {
       "additionalProperties": false,
       "properties": {
@@ -5143,6 +5223,33 @@
       "type": "object",
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.kernel.RevisionEventV2"
+    },
+    "ekr.kernel.RevisionEventV3": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/ekr.kernel.EventId"
+        },
+        "format": {
+          "$ref": "#/$defs/ekr.kernel.RevisionEventFormatV3"
+        },
+        "payload": {
+          "$ref": "#/$defs/ekr.kernel.RevisionPayloadV3"
+        },
+        "record_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        }
+      },
+      "required": [
+        "format",
+        "event_id",
+        "record_hash",
+        "payload"
+      ],
+      "title": "RevisionEventV3",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.kernel.RevisionEventV3"
     },
     "ekr.kernel.RevisionId": {
       "format": "uuid",
@@ -5272,6 +5379,140 @@
       "title": "RevisionPayload",
       "x-ess-kind": "union",
       "x-ess-name": "ekr.kernel.RevisionPayload",
+      "x-ess-union-tag": "kind"
+    },
+    "ekr.kernel.RevisionPayloadV3": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "AuthorityUpgraded",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.AuthorityUpgradedPayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "AuthorityUpgraded",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "RevisionCommitted",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.CommittedPayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "RevisionCommitted",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "Seeded",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.SeededPayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "Seeded",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "TransactionProposed",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.ProposedPayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "TransactionProposed",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "TransactionRejected",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.RejectedPayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "TransactionRejected",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "TransactionStale",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.StalePayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "TransactionStale",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "TransactionValidated",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.ValidatedPayload"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "TransactionValidated",
+          "type": "object"
+        }
+      ],
+      "title": "RevisionPayloadV3",
+      "x-ess-kind": "union",
+      "x-ess-name": "ekr.kernel.RevisionPayloadV3",
       "x-ess-union-tag": "kind"
     },
     "ekr.kernel.RulesetV1": {
@@ -5862,11 +6103,19 @@
         "reviewer_policy_digest": {
           "$ref": "#/$defs/ekr.kernel.ContentHash"
         },
+        "stream_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "stream_version": {
+          "type": "integer"
+        },
         "to": {
           "$ref": "#/$defs/ekr.kernel.AuthorityVersion"
         }
       },
       "required": [
+        "stream_version",
+        "stream_digest",
         "reviewer_policy_digest",
         "head_revision",
         "head_hash",
@@ -7190,7 +7439,7 @@
       "additionalProperties": false,
       "properties": {
         "event": {
-          "$ref": "#/$defs/ekr.kernel.RevisionEventV2"
+          "$ref": "#/$defs/ekr.kernel.RevisionEventV3"
         },
         "expected_version": {
           "type": "integer"
@@ -7242,7 +7491,8 @@
         "Bootstrap",
         "Propose",
         "Validate",
-        "Commit"
+        "Commit",
+        "UpgradeAuthority"
       ],
       "title": "PublicationCommandKind",
       "type": "string",
@@ -7279,7 +7529,8 @@
       "enum": [
         "ekr.publication-preparation/1",
         "ekr.publication-preparation/2",
-        "ekr.publication-preparation/3"
+        "ekr.publication-preparation/3",
+        "ekr.publication-preparation/4"
       ],
       "title": "PublicationPreparationFormatV1",
       "type": "string",
@@ -10540,8 +10791,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:e014d3db8013e817ff8a0fa74a7392db52960eaef9ff4a4ac98dc45199281c6c",
-    "source_digest": "11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07",
+    "contract_digest": "slice-sha256/2:524a5d8ca0cea5c63da0f068df3b8562747cacdff71f173b7606352deb7de520",
+    "source_digest": "890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601",
     "specification_version": "v1",
     "system": "ekr"
   }

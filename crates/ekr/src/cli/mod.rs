@@ -37,12 +37,14 @@
 //! (`session.rs`).
 
 mod agent;
+mod attention;
 mod code_names;
 mod commit;
 mod explain;
 mod extraction;
 mod hash;
 mod head;
+mod inbox;
 mod incubation;
 mod input;
 mod mcp;
@@ -74,6 +76,7 @@ use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
 pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
+pub use attention::{AttentionCommand, AttentionKind};
 pub use incubation::IncubateCommand;
 pub use mcp::serve_mcp;
 pub use observations::ObserveCommand;
@@ -132,6 +135,17 @@ pub enum Backend {
 /// The kernel verbs, by their ESS wire names, and the agent verbs that describe them.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Inspect unresolved knowledge questions (`ekr.kernel.ListAttention` and `ShowAttention`).
+    ///
+    /// A read-only store verb under the `ekr.cli-host/1` host. List and show return generated
+    /// `ekr.kernel.AttentionItem` records with claim/evidence identities and a review basis.
+    /// Start with `ekr attention list`; use its typed subject with `ekr attention show`.
+    #[command(after_help = SEE)]
+    Attention {
+        /// The inbox query.
+        #[command(subcommand)]
+        command: AttentionCommand,
+    },
     /// Import or inspect parked interpretations (`ekr.integrate`).
     ///
     /// A store verb under the `ekr.cli-host/1` host. Import reads an
@@ -539,7 +553,8 @@ impl Command {
             | Self::Validate { .. }
             | Self::Commit { .. }
             | Self::ApplyExtraction { .. } => Access::Write,
-            Self::Snapshot { .. }
+            Self::Attention { .. }
+            | Self::Snapshot { .. }
             | Self::Explain { .. }
             | Self::Resolve { .. }
             | Self::Guide
@@ -786,6 +801,10 @@ fn dispatch(
     stdin: &mut dyn Read,
 ) -> Result<Printed, Failure> {
     match command {
+        Command::Attention { command } => {
+            let runtime = source.resolve("attention")?.open()?;
+            attention::run(command, &runtime)
+        }
         Command::Observe { command } => {
             let runtime = source.resolve("observe")?.open()?;
             observations::run(command, &runtime, now, stdin)

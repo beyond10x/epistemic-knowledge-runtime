@@ -11,6 +11,57 @@ use ekr_graph::{
 use ekr_ontology::Cardinality;
 use std::collections::BTreeMap;
 
+/// Recompute assessments from admitted claims and retained validation attribution.
+/// Only the explicit knowledge authority calls this while constructing a new revision.
+pub(crate) fn recompute(
+    graph: &mut CanonicalGraph,
+    validators: &mut BTreeMap<ekr_core::AssertionId, std::collections::BTreeSet<ekr_core::AgentId>>,
+) -> Result<(), ekr_store::StoreError> {
+    for assertion in graph.assertions.values() {
+        if let Assessment::Accepted {
+            validators: accepted,
+        } = &assertion.assessment
+        {
+            validators.insert(assertion.id, accepted.clone());
+        }
+    }
+    let mut competitors: BTreeMap<ekr_core::AssertionId, Vec<ekr_core::AssertionId>> =
+        BTreeMap::new();
+    for pair in preview_contradictions(graph) {
+        let left = pair
+            .left
+            .0
+            .parse()
+            .map_err(|_| crate::replay::refuse("dispute-assertion-id"))?;
+        let right = pair
+            .right
+            .0
+            .parse()
+            .map_err(|_| crate::replay::refuse("dispute-assertion-id"))?;
+        competitors.entry(left).or_default().push(right);
+        competitors.entry(right).or_default().push(left);
+    }
+    for assertion in graph.assertions.values_mut() {
+        if let Some(ids) = competitors.get_mut(&assertion.id) {
+            ids.sort();
+            ids.dedup();
+            assertion.assessment = Assessment::Disputed {
+                competing_assertions: ids
+                    .iter()
+                    .map(|id| ekr_graph::CanonicalRef::new(*id))
+                    .collect(),
+            };
+        } else if matches!(assertion.assessment, Assessment::Disputed { .. }) {
+            assertion.assessment = Assessment::Accepted {
+                validators: validators.get(&assertion.id).cloned().ok_or_else(|| {
+                    crate::replay::refuse("dispute-validation-attribution-missing")
+                })?,
+            };
+        }
+    }
+    Ok(())
+}
+
 /// Preview conflicting active claims under declared One semantics in an admitted graph.
 ///
 /// Both accepted and already-disputed claims participate. Retracted, superseded, rejected and

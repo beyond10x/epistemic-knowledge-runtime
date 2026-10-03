@@ -230,6 +230,11 @@ impl CommitAuthority for Attesting {
                 break;
             }
             match occurrence.event.payload {
+                RevisionPayload::AuthorityUpgraded { .. } => {
+                    return Err(StoreError::Document(
+                        "fixture-authority-does-not-upgrade".into(),
+                    ))
+                }
                 RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
                 RevisionPayload::TransactionValidated { transaction_id, .. } => {
                     let record =

@@ -102,6 +102,8 @@
 //! ```
 
 mod apply;
+mod attention;
+mod attention_behavior;
 pub mod authority;
 mod checkpoint;
 pub mod commands;
@@ -128,6 +130,7 @@ pub mod runtime;
 pub mod schema;
 pub mod seed;
 pub mod transaction;
+mod upgrade;
 pub mod validate;
 mod yaml;
 

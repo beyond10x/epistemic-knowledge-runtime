@@ -442,8 +442,8 @@ impl Hooks {
     }
 }
 pub struct Probe<S> {
-    inner: S,
-    hooks: Hooks,
+    pub inner: S,
+    pub hooks: Hooks,
 }
 impl<S: ekr_store::RevisionLog> ekr_store::RevisionLog for Probe<S> {
     fn preparation(

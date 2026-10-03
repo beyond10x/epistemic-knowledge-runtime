@@ -90,43 +90,37 @@ fn declarations_with_fields() -> Vec<String> {
 
 /// The field names one declaration of the domain carries, in document order.
 fn fields_of(name: &str) -> Vec<String> {
-    let text = domain_text();
-    let mut lines = text
-        .lines()
-        .skip_while(|line| line.trim_start() != format!("- name: {name}"));
-    assert!(lines.next().is_some(), "the domain declares no {name}");
+    fields_in(&domain_text(), name)
+}
 
-    let mut fields = Vec::new();
-    let mut inside = false;
-    for line in lines {
-        let trimmed = line.trim();
-        // The next declaration ends this one. Checked before the field pattern, because a
-        // declaration head *is* a `- name:` line and reading it as a field is how the scan drifts:
-        // `ekr.graph.TypedValue` sits under `types:` and is followed straight by `entities:`, with
-        // no `relations:` or `lifecycle:` in between to stop at.
-        if trimmed.starts_with("- name: ekr.")
-            || matches!(
-                trimmed,
-                "relations:" | "lifecycle:" | "invariants:" | "views:" | "naming:" | "entities:"
-            )
-        {
-            if inside {
-                break;
-            }
-            continue;
-        }
-        if trimmed == "fields:" {
-            inside = true;
-            continue;
-        }
-        if inside {
-            if let Some(field) = trimmed.strip_prefix("- name: ") {
-                fields.push(field.to_owned());
-            }
-        }
-    }
+fn fields_in(text: &str, name: &str) -> Vec<String> {
+    let domain: serde_yaml_ng::Value = serde_yaml_ng::from_str(text).expect("valid domain YAML");
+    let declaration = ["types", "entities", "views"]
+        .into_iter()
+        .filter_map(|section| domain[section].as_sequence())
+        .flatten()
+        .find(|item| item["name"].as_str() == Some(name))
+        .unwrap_or_else(|| panic!("the domain declares no {name}"));
+    let fields: Vec<_> = declaration["fields"]
+        .as_sequence()
+        .expect("fields is a sequence")
+        .iter()
+        .map(|field| {
+            field["name"]
+                .as_str()
+                .expect("every field has a name")
+                .to_owned()
+        })
+        .collect();
     assert!(!fields.is_empty(), "the field scan is broken: {name}");
     fields
+}
+
+#[test]
+fn field_binding_reads_inline_and_block_fields_without_borrowing_a_neighbor() {
+    let input = "types:\n- name: ekr.graph.Fixture\n  fields:\n  - {name: first, type: String}\n  - name: second\n    type: String\n- name: ekr.graph.Neighbor\n  fields: [{name: unrelated, type: String}]\n";
+    assert_eq!(fields_in(input, "ekr.graph.Fixture"), ["first", "second"]);
+    assert_eq!(fields_in(input, "ekr.graph.Neighbor"), ["unrelated"]);
 }
 
 /// Every enumeration the domain declares, and the Rust type that carries it.
@@ -339,6 +333,13 @@ fn type_region(type_name: &str) -> String {
             name,
             vec![("snapshot.rs".into(), std::fs::read_to_string(path).unwrap())],
         )
+    } else if let Some(name) = type_name.strip_prefix("generated::") {
+        let path = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("../../generated/ekr-contract-data/types.rs");
+        (
+            name,
+            vec![("types.rs".into(), std::fs::read_to_string(path).unwrap())],
+        )
     } else {
         (type_name, crate_modules())
     };
@@ -502,12 +503,68 @@ const PROJECTIONS: &[(&str, &[&str])] = &[
         &["Observation", "ObservationContent"],
     ),
     ("ekr.graph.Assertions", &["Assertion", "TransactionTime"]),
+    (
+        "ekr.graph.SettledAssertions",
+        &["Assertion", "TemporalRange", "TransactionTime"],
+    ),
+    (
+        "ekr.graph.ObservationRecord",
+        &["generated::EkrGraphObservationRecord"],
+    ),
 ];
 
 /// Renamed/derived fields bind explicit tokens in their actual carrier instead of
 /// exempting a field from verification. Enum kinds are also checked against each
 /// declared arm above. No entry can match a field on an unrelated type.
 const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
+    (
+        "ekr.graph.SettledAssertions",
+        "assertion_id",
+        "Assertion",
+        &["pub id: AssertionId"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "subject_kind",
+        "Subject",
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "predicate_kind",
+        "Predicate",
+        &["Property(PropertyId)", "Relation(TypeId)"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "object_kind",
+        "Object",
+        &["Value(V)", "Node(R)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "object_value",
+        "Object",
+        &["Value(V)"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "object_ref",
+        "Object",
+        &["Node(R)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "valid_from",
+        "TemporalRange",
+        &["pub from: Option<Timestamp>"],
+    ),
+    (
+        "ekr.graph.SettledAssertions",
+        "valid_to",
+        "TemporalRange",
+        &["pub to: Option<Timestamp>"],
+    ),
     (
         "ekr.graph.EvidenceAttachment",
         "assertion_id",

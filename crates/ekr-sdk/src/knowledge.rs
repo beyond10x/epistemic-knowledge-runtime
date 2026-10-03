@@ -54,6 +54,47 @@ pub struct Knowledge<T: Transport> {
 }
 
 impl<T: Transport> Knowledge<T> {
+    /// Lists unresolved questions with the kernel's exact evidence-bound review basis.
+    /// # Errors
+    /// Transport failure, invalid retained state or an invalid response document.
+    pub fn attention(
+        &mut self,
+    ) -> Result<Vec<crate::contracts::EkrKernelAttentionItem>, ReadError> {
+        Reader::new(&mut self.transport).read_request(Request::new(["attention", "list"]))
+    }
+    /// Reads a current question by the typed subject returned by [`Self::attention`].
+    /// # Errors
+    /// Malformed, unknown or settled subject, transport failure or invalid response.
+    pub fn attention_item(
+        &mut self,
+        subject: &crate::contracts::EkrKernelAttentionSubject,
+    ) -> Result<crate::contracts::EkrKernelAttentionItem, ReadError> {
+        use crate::contracts::{EkrKernelAttentionKind as K, EssPresence as P};
+        let (kind, id) = match (
+            &*subject.kind,
+            &subject.dispute_id,
+            &subject.blocker_id,
+            &subject.proposal_id,
+        ) {
+            (K::V0, P::Absent, P::Present(id), P::Absent) => ("blocked-integration", id.0.clone()),
+            (K::V1, P::Present(id), P::Absent, P::Absent) => ("dispute", id.0.clone()),
+            (K::V2, P::Absent, P::Absent, P::Present(id)) => ("schema-proposal", id.0.clone()),
+            _ => {
+                return Err(ReadError::Document {
+                    verb: "attention show".into(),
+                    source: <serde_json::Error as serde::de::Error>::custom(
+                        "attention subject kind and identity disagree",
+                    ),
+                })
+            }
+        };
+        Reader::new(&mut self.transport).read_request(Request::new([
+            "attention".into(),
+            "show".into(),
+            kind.into(),
+            id,
+        ]))
+    }
     /// Retains a typed local interpretation and its exact bytes without committing its facts.
     /// # Errors
     /// Serialization, transport, runtime refusal or invalid response.

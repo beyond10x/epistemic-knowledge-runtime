@@ -181,6 +181,13 @@ impl KernelAuthority {
         history: &RetainedHistory,
         binding: ContentHash,
     ) -> Result<Option<ekr_graph::Root>, StoreError> {
+        if history
+            .occurrences
+            .iter()
+            .any(|o| matches!(o.event.payload, RevisionPayload::AuthorityUpgraded { .. }))
+        {
+            return Ok(None);
+        }
         let covered = history.occurrences.len();
         if covered == 0 {
             return Ok(None);
@@ -239,6 +246,9 @@ impl KernelAuthority {
         &self,
         state: &ReplayState,
     ) -> Result<Option<(u64, ContentHash, Vec<u8>)>, StoreError> {
+        if state.transition.is_some() {
+            return Ok(None);
+        }
         let Some(prefix) = state.digest else {
             return Ok(None);
         };
@@ -503,6 +513,9 @@ fn restored(
         version = occurrence.version;
         let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
         match event.payload {
+            RevisionPayload::AuthorityUpgraded { .. } => {
+                return Err(refuse("checkpoint-needs-authority-replay"))
+            }
             RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
             RevisionPayload::TransactionProposed { transaction_id, .. } => {
                 let proposal = ProposalRecordV1::from_bytes(bytes)?;
@@ -653,6 +666,9 @@ fn restored(
         );
     }
     Ok(ReplayState {
+        upgraded_authority: None,
+        transition: None,
+        assessment_validators: BTreeMap::new(),
         seed,
         revisions,
         transactions: Arc::new(

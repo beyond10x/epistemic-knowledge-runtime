@@ -1,0 +1,123 @@
+   Compiling ekr-graph v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-graph)
+    Finished `test` profile [unoptimized] target(s) in 0.43s
+     Running tests/current_vectors.rs (target/debug/deps/current_vectors-58d6c5be9151a6cc)
+
+running 7 tests
+test the_seed_root_matches_its_hand_derived_bytes ... ok
+test seed_and_successor_roots_have_fixed_addresses ... ok
+test every_current_event_payload_kind_has_a_fixed_envelope_address ... ok
+test a_rejected_event_matches_its_hand_derived_bytes ... ok
+test the_base_assertion_has_fixed_canonical_bytes ... ok
+test every_current_event_payload_kind_has_fixed_envelope_bytes ... ok
+test every_current_assessment_and_lifecycle_kind_has_a_fixed_assertion_address ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/domain_projection.rs (target/debug/deps/domain_projection-75e3c69c48e27add)
+
+running 6 tests
+test field_binding_reads_inline_and_block_fields_without_borrowing_a_neighbor ... ok
+test assessment_and_lifecycle_retain_independent_payloads ... ok
+test current_type_regions_cannot_borrow_legacy_or_unrelated_fields ... ok
+test property_maps_are_keyed_by_property_id_in_the_domain_and_the_crate ... ok
+test every_enumeration_the_domain_declares_is_carried_variant_for_variant ... ok
+test every_declaration_of_the_domain_is_carried_field_for_field ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/revision_events.rs (target/debug/deps/revision_events-8334eb90fec6e12e)
+
+running 9 tests
+test an_event_encodes_as_a_function_of_its_value ... ok
+test every_variant_carries_its_declared_index_and_domain_name ... ok
+test no_two_variants_share_an_encoding ... ok
+test proposal_payload_distinguishes_absent_and_present_operations_hashes ... ok
+test the_current_envelope_binds_format_occurrence_record_and_payload ... ok
+test the_variant_marker_and_not_the_payload_is_what_separates_two_events ... ok
+test transition_metadata_is_a_lossless_bridge_to_the_generated_contract ... ok
+test transition_requires_version_three_and_historical_payloads_keep_version_two ... ok
+test the_declaration_order_of_the_variants_equals_their_numbering ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/authority_upgrade.rs (target/debug/deps/authority_upgrade-9a644cbd383ea536)
+
+running 4 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/current_vectors.rs (target/debug/deps/current_vectors-920d6780398e3ff4)
+
+running 6 tests
+test the_complete_validation_basis_has_fixed_record_and_canonical_forms ... ok
+test the_host_anchor_and_its_profile_have_fixed_value_addresses ... ok
+test validation_material_has_a_fixed_value_address ... ok
+test every_retained_decision_record_has_fixed_bytes_and_address ... ok
+test a_real_seed_retains_a_fixed_envelope_and_produces_a_fixed_root_on_both_providers ... ok
+test the_base_kernels_v2_seed_keeps_its_fixed_envelope_and_root_on_both_providers ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/knowledge_retention.rs (target/debug/deps/knowledge_retention-159f5c5cffaf6648)
+
+running 8 tests
+test inconsistent_observation_is_refused_without_retaining_anything ... ok
+test retained_sources_pin_exact_bytes_on_both_providers ... ok
+test rejected_interpretation_retains_its_sources ... ok
+test observation_retry_is_idempotent ... ok
+test concurrent_imports_choose_one_immutable_record ... ok
+test generated_observation_commands_preserve_provider_faults ... ok
+test invalid_local_shape_and_evidence_are_refused_before_any_publication ... ok
+test unmapped_knowledge_survives_reopen ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/current_vectors.rs (target/debug/deps/current_vectors-bcf01e98c668b220)
+
+running 2 tests
+test the_command_key_has_fixed_slot_bytes ... ok
+test an_elected_bootstrap_preparation_has_fixed_bytes_on_both_providers ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/domain_projection.rs (target/debug/deps/domain_projection-69d8d4df1134df93)
+
+running 8 tests
+test the_retention_ladder_is_the_one_section_thirty_seven_describes ... ok
+test the_strongest_of_two_classes_does_not_depend_on_which_arrived_first ... ok
+test the_derived_ordering_is_not_the_retention_ordering ... ok
+test every_storage_class_has_its_own_retention_rank ... ok
+test the_storage_classes_are_the_ones_the_domain_declares ... ok
+test every_event_the_crate_writes_is_declared_by_the_domain ... ok
+test every_event_the_crate_writes_carries_the_fields_the_domain_declares ... ok
+test every_type_and_entity_the_domain_declares_names_a_rust_carrier ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/fold_rules.rs (target/debug/deps/fold_rules-93725e41f79200fc)
+
+running 10 tests
+test evidence_is_addressed_apart_from_knowledge ... ok
+test the_knowledge_root_is_a_function_of_the_graph_state ... ok
+test an_empty_log_has_no_head_and_does_not_fold ... ok
+test a_lineage_that_does_not_begin_at_a_seed_is_refused ... ok
+test a_second_seed_is_refused ... ok
+test a_seed_naming_bytes_the_store_does_not_hold_is_refused ... ok
+test a_commit_whose_validation_the_authority_stands_behind_advances_the_lineage ... ok
+test the_store_reports_the_sub_roots_its_authority_derived_and_writes_no_placeholder ... ok
+test a_store_with_no_commit_authority_refuses_to_say_what_canonical_state_is ... ok
+test a_commit_whose_validation_the_authority_does_not_stand_behind_is_refused_not_folded_away ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/knowledge_retention.rs (target/debug/deps/knowledge_retention-22bea647e285fbc6)
+
+running 1 test
+test incubation_port_pins_document_bytes_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

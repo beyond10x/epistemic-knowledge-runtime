@@ -183,6 +183,10 @@ types:
   - name: ekr.kernel.DisputeId
     kind: newtype
     of: Uuid
+    # For the read-only dispute projection, reuse the least assertion UUID in a connected
+    # component of active competing claims. This is a handle over already minted identities,
+    # not a newly persisted queue object or a UUID derived from a human-readable name.
+    # Component changes may change the handle; answers must also match the full review basis.
   - name: ekr.kernel.HumanAnswerId
     kind: newtype
     of: Uuid
@@ -211,6 +215,11 @@ types:
       type: String
   - name: ekr.kernel.ReviewBasis
     kind: struct
+    # observed_revision identifies the captured state, but is not part of the three material
+    # digests. Unrelated revisions must not invalidate a still-identical review. Dispute evidence
+    # includes the per-claim support links (including later attachments) and exact retained bytes,
+    # not just the union of evidence IDs. Options bind the active competing claims; effects bind
+    # their identities and applicable declaration. The kernel revalidates all three before action.
     fields:
     - name: observed_revision
       type: ekr.kernel.RevisionNumber
@@ -271,6 +280,8 @@ types:
   - name: ekr.kernel.UpgradePreview
     kind: struct
     fields:
+    - {name: stream_version, type: Integer}
+    - {name: stream_digest, type: ekr.kernel.ContentHash}
     - {name: reviewer_policy_digest, type: ekr.kernel.ContentHash}
     - name: head_revision
       type: ekr.kernel.RevisionNumber
@@ -1112,6 +1123,54 @@ types:
       TransactionStale: ekr.kernel.StalePayload
       RevisionCommitted: ekr.kernel.CommittedPayload
 
+  # Version 2 remains a closed historical vocabulary. Version 3 adds the explicit
+  # authority boundary; existing occurrences keep their original bytes and indices.
+  - name: ekr.kernel.AuthorityUpgradedPayload
+    kind: struct
+    fields:
+      - {name: transition_id, type: ekr.kernel.AuthorityTransitionId}
+      - {name: revision_id, type: ekr.kernel.RevisionId}
+      - {name: number, type: ekr.kernel.RevisionNumber}
+      - {name: knowledge_root, type: ekr.kernel.ContentHash}
+
+  - name: ekr.kernel.RevisionPayloadV3
+    kind: union
+    tag: kind
+    variants:
+      Seeded: ekr.kernel.SeededPayload
+      TransactionProposed: ekr.kernel.ProposedPayload
+      TransactionValidated: ekr.kernel.ValidatedPayload
+      TransactionRejected: ekr.kernel.RejectedPayload
+      TransactionStale: ekr.kernel.StalePayload
+      RevisionCommitted: ekr.kernel.CommittedPayload
+      AuthorityUpgraded: ekr.kernel.AuthorityUpgradedPayload
+
+  - name: ekr.kernel.RevisionEventV3
+    kind: struct
+    fields:
+      - {name: format, type: ekr.kernel.RevisionEventFormatV3}
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: record_hash, type: ekr.kernel.ContentHash}
+      - {name: payload, type: ekr.kernel.RevisionPayloadV3}
+
+  # Required literal: ekr.revision-event/3, native provider schema version 3.
+  - name: ekr.kernel.RevisionEventFormatV3
+    kind: newtype
+    of: String
+
+  - name: ekr.kernel.AuthorityTransitionRecord
+    kind: struct
+    fields:
+      - {name: format, type: ekr.kernel.AuthorityTransitionFormat}
+      - {name: transition_id, type: ekr.kernel.AuthorityTransitionId}
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: revision_id, type: ekr.kernel.RevisionId}
+      - {name: preview, type: ekr.kernel.UpgradePreview}
+      - {name: result, type: ekr.graph.RevisionRoot}
+      - {name: review, type: ekr.kernel.HumanDecisionRecord}
+      - {name: host_binding_object_hash, type: ekr.kernel.ContentHash}
+      - {name: target_profile_object_hash, type: ekr.kernel.ContentHash}
+
   - name: ekr.kernel.RevisionEventV2
     kind: struct
     fields:
@@ -1509,6 +1568,7 @@ entities:
     - {name: trust_enrollment, type: ekr.kernel.ReviewerTrustEnrollment}
     - {name: human_proof_digest, type: ekr.kernel.ContentHash}
     - {name: target_profile_digest, type: ekr.kernel.ContentHash}
+    - {name: target_profile_object_hash, type: ekr.kernel.ContentHash}
     - {name: format, type: ekr.kernel.AuthorityTransitionFormat}
     - name: seed_anchor
       type: ekr.kernel.ContentHash
@@ -1534,7 +1594,7 @@ entities:
     - {name: reviewer_host_binding, kind: references, target: ekr.store.StoredObject, cardinality: one, via: review_host_binding_object_hash}
     - {name: reviewer_policy, kind: references, target: ekr.store.StoredObject, cardinality: one, via: reviewer_policy_object_hash}
     - {name: human_proof, kind: references, target: ekr.kernel.RetainedHumanDecision, cardinality: one, via: human_proof_digest}
-    - {name: target_profile, kind: references, target: ekr.store.StoredObject, cardinality: one, via: target_profile_digest}
+    - {name: target_profile, kind: references, target: ekr.store.StoredObject, cardinality: one, via: target_profile_object_hash}
     lifecycle:
       initial: Recorded
       states:
@@ -1916,7 +1976,15 @@ commands:
     - name: answered
       emits:
       - ekr.kernel.ApplyUpgradeResult
+      - ekr.kernel.AuthorityUpgraded
       payload:
+        ekr.kernel.AuthorityUpgraded:
+          event_id: {generated: true}
+          record_hash: {generated: true}
+          transition_id: {generated: true}
+          revision_id: {generated: true}
+          number: {generated: true}
+          knowledge_root: {generated: true}
         ekr.kernel.ApplyUpgradeResult:
           transition_id:
             generated: true
@@ -2241,6 +2309,14 @@ commands:
 # named metadata payload for command/view projection. The actual strict wire envelope is
 # RevisionEventV2; record_hash selects the corresponding full retained record (§91).
 events:
+  - name: ekr.kernel.AuthorityUpgraded
+    fields:
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: record_hash, type: ekr.kernel.ContentHash}
+      - {name: transition_id, type: ekr.kernel.AuthorityTransitionId}
+      - {name: revision_id, type: ekr.kernel.RevisionId}
+      - {name: number, type: ekr.kernel.RevisionNumber}
+      - {name: knowledge_root, type: ekr.kernel.ContentHash}
   # Knowledge inbox and evidence-led schema learning, design § 105.
   - name: ekr.kernel.ListAttentionResult
     fields:
@@ -2434,6 +2510,7 @@ views:
     - {name: trust_enrollment, type: ekr.kernel.ReviewerTrustEnrollment}
     - {name: human_proof_digest, type: ekr.kernel.ContentHash}
     - {name: target_profile_digest, type: ekr.kernel.ContentHash}
+    - {name: target_profile_object_hash, type: ekr.kernel.ContentHash}
     - name: transition_id
       type: ekr.kernel.AuthorityTransitionId
     - name: state

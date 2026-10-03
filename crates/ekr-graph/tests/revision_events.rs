@@ -57,10 +57,16 @@ fn every_variant() -> Vec<RevisionEvent> {
             number,
             knowledge_root: hash,
         },
+        RevisionPayload::AuthorityUpgraded {
+            transition_id: event_id,
+            revision_id,
+            number,
+            knowledge_root: hash,
+        },
     ]
     .into_iter()
     .map(|payload| RevisionEvent {
-        format: RevisionEvent::FORMAT.into(),
+        format: payload.format().into(),
         event_id,
         record_hash: hash,
         payload,
@@ -70,14 +76,49 @@ fn every_variant() -> Vec<RevisionEvent> {
 
 /// The six `ekr.kernel` event names of `systems/ekr/domains/kernel.yaml`, in the order the story's
 /// scope lists them — which is the order the variant indices count in.
-const NAMES: [&str; 6] = [
+const NAMES: [&str; 7] = [
     "ekr.kernel.Seeded",
     "ekr.kernel.TransactionProposed",
     "ekr.kernel.TransactionValidated",
     "ekr.kernel.TransactionRejected",
     "ekr.kernel.TransactionStale",
     "ekr.kernel.RevisionCommitted",
+    "ekr.kernel.AuthorityUpgraded",
 ];
+
+#[test]
+fn transition_requires_version_three_and_historical_payloads_keep_version_two() {
+    for (index, event) in every_variant().into_iter().enumerate() {
+        assert!(event.supported());
+        assert_eq!(event.schema_version(), if index == 6 { 3 } else { 2 });
+        let mut wrong = event;
+        wrong.format = if index == 6 {
+            RevisionEvent::FORMAT
+        } else {
+            RevisionEvent::TRANSITION_FORMAT
+        }
+        .into();
+        assert!(!wrong.supported());
+    }
+}
+
+#[test]
+fn transition_metadata_is_a_lossless_bridge_to_the_generated_contract() {
+    let event = every_variant().pop().unwrap();
+    let mut payload = serde_json::to_value(&event.payload).unwrap();
+    payload.as_object_mut().unwrap().remove("event");
+    let generated: ekr_core::contract_data::EkrKernelAuthorityUpgradedPayload =
+        serde_json::from_value(payload.clone()).unwrap();
+    assert_eq!(serde_json::to_value(generated).unwrap(), payload);
+    let mut undeclared = payload;
+    undeclared["self_approved"] = true.into();
+    assert!(
+        serde_json::from_value::<ekr_core::contract_data::EkrKernelAuthorityUpgradedPayload>(
+            undeclared
+        )
+        .is_err()
+    );
+}
 
 #[test]
 fn every_variant_carries_its_declared_index_and_domain_name() {

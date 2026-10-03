@@ -196,7 +196,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-graph",
         &["schemars", "serde", "thiserror"],
-        &["serde_yaml_ng", "trybuild"],
+        &["serde_json", "serde_yaml_ng", "trybuild"],
     ),
     (
         "ekr-store",
@@ -900,7 +900,10 @@ fn seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer() {
         "publish writes before the kernel authority admits the staged candidate"
     );
     assert!(
-        store.contains("self.authority.as_deref().ok_or(StoreError::NoSeedAuthority)"),
+        store
+            .split_whitespace()
+            .collect::<String>()
+            .contains("self.authority.as_deref().ok_or(StoreError::NoSeedAuthority)"),
         "a store without an injected authority no longer refuses"
     );
     // The type-level `ValidatedSeed` capability was replaced in `edf4799` by crate-private seed

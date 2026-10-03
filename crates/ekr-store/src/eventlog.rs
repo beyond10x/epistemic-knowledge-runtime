@@ -204,8 +204,8 @@ impl HeldRevisions {
         let position = recorded.global_seq;
         let event: RevisionEvent = serde_json::from_value(recorded.data)
             .map_err(|e| StoreError::Document(e.to_string()))?;
-        if event.format != RevisionEvent::FORMAT
-            || recorded.schema_version != 2
+        if !event.supported()
+            || recorded.schema_version != event.schema_version()
             || recorded.name != event.name()
             || self.event_ids.contains(&event.event_id)
         {
@@ -226,7 +226,8 @@ impl HeldRevisions {
 fn makes(event: &RevisionEvent, revision: RevisionNumber) -> bool {
     match event.payload {
         RevisionPayload::Seeded { .. } => revision == RevisionNumber::SEED,
-        RevisionPayload::RevisionCommitted { number, .. } => number == revision,
+        RevisionPayload::RevisionCommitted { number, .. }
+        | RevisionPayload::AuthorityUpgraded { number, .. } => number == revision,
         _ => false,
     }
 }
@@ -669,7 +670,9 @@ impl<S: EventStore> EventlogStore<S> {
         let Some(record) = occurrences.iter().rev().find_map(|held| {
             matches!(
                 held.event.payload,
-                RevisionPayload::Seeded { .. } | RevisionPayload::RevisionCommitted { .. }
+                RevisionPayload::Seeded { .. }
+                    | RevisionPayload::RevisionCommitted { .. }
+                    | RevisionPayload::AuthorityUpgraded { .. }
             )
             .then_some(held.event.record_hash)
         }) else {
@@ -705,7 +708,17 @@ impl<S: EventStore> EventlogStore<S> {
         self
     }
     fn authority(&self) -> Result<&dyn CommitAuthority, StoreError> {
-        self.authority.as_deref().ok_or(StoreError::NoSeedAuthority)
+        let authority = self
+            .authority
+            .as_deref()
+            .ok_or(StoreError::NoSeedAuthority)?;
+        if authority
+            .tenant_audience()
+            .is_some_and(|tenant| tenant != self.tenant.as_str())
+        {
+            return Err(StoreError::Document("review-tenant-audience".into()));
+        }
+        Ok(authority)
     }
     fn revision_stream(&self) -> Result<StreamId, StoreError> {
         Ok(StreamId::new(
@@ -1789,7 +1802,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             if history.occurrences.len() as u64 != publication.expected_version {
                 return Err(StoreError::Conflict);
             }
-            if publication.event.format != RevisionEvent::FORMAT || publication.objects.is_empty() {
+            if !publication.event.supported() || publication.objects.is_empty() {
                 return Err(StoreError::Document("invalid-publication-envelope".into()));
             }
             for (hash, object) in &publication.objects {
@@ -1830,7 +1843,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                 },
                 events: vec![NewEvent::new(
                     publication.event.name(),
-                    2,
+                    publication.event.schema_version(),
                     serde_json::to_value(&publication.event).map_err(json_error)?,
                 )?],
             }];

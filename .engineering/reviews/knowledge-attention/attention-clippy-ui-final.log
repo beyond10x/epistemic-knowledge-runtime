@@ -1,0 +1,18 @@
+    Checking ekr-core v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-core)
+    Checking getrandom v0.3.4
+    Checking ahash v0.8.12
+    Checking bit-vec v0.8.0
+    Checking ekr-ontology v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-ontology)
+    Checking bit-set v0.8.0
+    Checking ekr-sdk v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-sdk)
+    Checking ekr-graph v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-graph)
+    Checking ekr-integrate v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-integrate)
+    Checking ekr-store v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-store)
+    Checking referencing v0.58.0
+    Checking jsonschema-value v0.58.0
+    Checking fancy-regex v0.19.2
+    Checking ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-kernel)
+    Checking jsonschema v0.58.0
+    Checking ekr-views v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-views)
+    Checking ekr v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr)
+    Finished `dev` profile [unoptimized] target(s) in 19.42s

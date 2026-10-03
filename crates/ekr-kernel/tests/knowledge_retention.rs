@@ -1,5 +1,5 @@
 //! Supplied observations are durable without a canonical revision, on both providers.
-use ekr_core::contract_data::EkrObserveObservationImport;
+use ekr_core::contract_data::{EkrKernelAttentionKind, EkrObserveObservationImport};
 use ekr_core::{bytes, AgentId, ContentHash, ObservationId, Timestamp};
 use ekr_kernel::{Agent, AuthorityStateV1, BootstrapContext, Runtime, ValidationProfileV1};
 use std::path::Path;
@@ -270,6 +270,18 @@ fn unmapped_knowledge_survives_reopen() {
         let before = runtime.interpretation(&first.version).unwrap();
         assert_eq!(before.document, input.document);
         assert_eq!(before.blockers.len(), 2);
+        let questions = runtime.attention().unwrap();
+        assert_eq!(questions.len(), before.blockers.len());
+        for question in &questions {
+            assert_eq!(*question.subject.kind, EkrKernelAttentionKind::V0);
+            assert_eq!(question.observations, input.document.observations);
+            assert!(!question.evidence.is_empty());
+            assert!(question.claims.is_empty());
+            assert_eq!(
+                runtime.attention_item(&question.subject).unwrap(),
+                *question
+            );
+        }
         assert_eq!(before.receipts.len(), 1);
         assert_eq!(
             serde_json::to_value(&before.receipts[0].disposition).unwrap(),
@@ -289,6 +301,7 @@ fn unmapped_knowledge_survives_reopen() {
             [*first.version.clone()]
         );
         assert_eq!(reopened.interpretation(&first.version).unwrap(), before);
+        assert_eq!(reopened.attention().unwrap(), questions);
         let retry = reopened
             .import_interpretation(&input, Timestamp::from_millis(33))
             .unwrap();

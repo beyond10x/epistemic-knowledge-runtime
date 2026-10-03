@@ -1,0 +1,13 @@
+6ff628e8b76a9badd62ab3867527405c9d766618
+spec_digest=890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+contract_digest=281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
+upgrade-kernel-final: passed=582 failed=0 ignored=6 groups=83
+upgrade-provider-final: passed=4 failed=0 ignored=0 groups=1
+upgrade-race-red: passed=0 failed=1 ignored=0 groups=1
+upgrade-cross-crate: passed=76 failed=1 ignored=0 groups=5
+9f4f41c55d380154927762cc808c0ea729ee3bf7ed14ff883a6588610e79e8f1  .engineering/reviews/knowledge-authority-upgrade/upgrade-cross-crate.log
+4511bfeb79c1067f038edfeb96af5382a4f16f72d71ca2104b1b9a6ec6e1e319  .engineering/reviews/knowledge-authority-upgrade/upgrade-drift-final.log
+5175f1fc2846e1168cb73cf9071c78b50a672729e6a52da19502a41c8661f67f  .engineering/reviews/knowledge-authority-upgrade/upgrade-kernel-final.log
+36e8a6da58fec740222b32a09be809bf3ba82fa978c379c47c7ce41ec4eb297c  .engineering/reviews/knowledge-authority-upgrade/upgrade-provider-final.log
+46ac23a22badbf0e44a4077a4886e71b3849a12e3c2c717cb75125fd315f39a6  .engineering/reviews/knowledge-authority-upgrade/upgrade-race-red.log
+f6900f5808bf8ba047379a039bb8fa45bc8d0e99abb8c564663a31024bc339f9  .engineering/reviews/knowledge-authority-upgrade/upgrade-spec-final.log

@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
-// contract digest 2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
+// model digest 890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601
+// contract digest 281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43
 // do not edit: regenerate with `ess synthesize`
 
 //! Semantic types synthesised from the `ekr` specification, v1.

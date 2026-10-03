@@ -121,6 +121,11 @@ pub struct AdmittedRevision {
 }
 /// Fallible kernel interpretation. Deserialized records never authorize themselves.
 pub trait CommitAuthority {
+    /// A host-bound tenant audience, if this authority requires one. Providers must compare it
+    /// with their actual tenant before admitting reads or publications.
+    fn tenant_audience(&self) -> Option<&str> {
+        None
+    }
     /// Additional payloads needed beyond event records and the seed envelope.
     /// # Errors
     /// Malformed retained records refuse discovery.

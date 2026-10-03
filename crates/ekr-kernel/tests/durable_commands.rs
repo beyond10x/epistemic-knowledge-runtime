@@ -1327,6 +1327,9 @@ fn all_six_occurrences_refuse_readdressed_forged_and_missing_records_on_both_pro
                         }
                         if mode == "semantics" {
                             match occurrence.event.payload {
+                                RevisionPayload::AuthorityUpgraded { .. } => {
+                                    panic!("this ordinary-command fixture never upgrades authority")
+                                }
                                 RevisionPayload::Seeded { .. } => {
                                     value["authority_root"] =
                                         serde_json::to_value(ContentHash::of_bytes(b"forged"))
