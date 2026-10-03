@@ -37,7 +37,7 @@ scope:
   path: systems/ekr
 - confidence: inferred
   path: xtask
-revision: 17
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"approval":1}}}
@@ -79,3 +79,5 @@ Raw generator output includes a machine-local .ess-output/state.json ownership j
 ## Single release carrier coordination
 
 The operator coordinated the existing ESS pull request #398 as the sole 0.52 release carrier and its integrator as the sole merge/tag owner. Our source branch fix/ekr-rust-generation is frozen at 26bef8f840032beb76b7cecb2eb939470011cf45, published with signed common evidence. Reviewed generator commits 09df87a6123a5ae50d752d2e3223fc19f596c9de and 126c2b3905d0f4279086b9d3030096147955dfec, sanitized adversary records, and final release tutorial corrections were handed off. ESS #403 is superseded only after all wanted source and evidence are published through #398. No duplicate merge, tag or full release gate will be started by this task. Adoption remains active until the sole carrier's released archives and exact checks are verified, then pinned and regenerated here.
+
+The sole release integrator confirmed publication of the full frozen source history and sanitized evidence through ESS #398 at 5a5ac7f74d0ffdfcb9d91d395053620729b78254, with merge b0db254c2. ESS #403 was then closed by the bot as superseded. No release tag was reported at this handoff, so the verified-release pin remains pending. This task's completed ESS compiler outputs were reclaimed; its source worktree remains recoverable.

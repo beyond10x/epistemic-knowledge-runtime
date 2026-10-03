@@ -11,6 +11,8 @@ relations:
 - depends_on: story:adopt-generated-knowledge-contracts
 scope:
 - confidence: cited
+  path: AGENTS.md
+- confidence: cited
   path: Cargo.lock
 - confidence: inferred
   path: crates/ekr
@@ -22,6 +24,8 @@ scope:
   path: crates/ekr-kernel
 - confidence: inferred
   path: crates/ekr-observe
+- confidence: cited
+  path: crates/ekr-ontology/tests/ontology_load.rs
 - confidence: inferred
   path: crates/ekr-sdk
 - confidence: inferred
@@ -31,10 +35,12 @@ scope:
 - confidence: cited
   path: docs/cli.md
 - confidence: cited
+  path: docs/sdk.md
+- confidence: cited
   path: generated
 - confidence: cited
   path: systems/ekr/domains/integrate.yaml
-revision: 15
+revision: 17
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -83,3 +89,9 @@ The kernel reuses ekr-integrate's local extraction shape checker through a new i
 The generated Timestamp projection is RFC 3339 text. The first observation builder incorrectly used decimal milliseconds; runtime ingress and SDK input now use the declared wire format, with format-aware JSON Schema and no-mutation refusal tests. Existing canonical timestamp bytes remain unchanged.
 
 Local review also found that the old preserving migrate command would omit independent streams. It now refuses unsupported stream kinds before destination publication; this delivery does not claim the separate general migration work is complete. Both findings belong to the coordinator acting as implementor; no independent review is claimed.
+
+## Compatibility checks during implementation
+
+Generated transport contracts enable serde_json arbitrary-precision numbers. Two older ontology fixtures passed serde_json::Value directly to a YAML serializer, which writes the number's private serde map instead of a numeric scalar under that feature. Their JSON-to-YAML fixture conversion now passes through serialized JSON text; the existing positive round trip and unknown-field/lifecycle refusal assertions remain unchanged. This was exposed by the generated-contract adoption dependency, and belongs to the coordinator's integration work. Production ontology serialization continues to use typed records.
+
+The SDK reference and repository agent guidance now describe independent observation and interpretation writes. Canonical writes still require ordinary kernel transactions. Generated command-behavior adapters, final released-generator pinning, bound conformance reports, native process-crash verification and the combined full gate remain acceptance work. Scoped runtime tests alone do not complete this story or the release plan.
