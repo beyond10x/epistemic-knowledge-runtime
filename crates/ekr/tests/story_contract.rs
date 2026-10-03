@@ -187,8 +187,10 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "eventlog-core",
             "eventlog-sqlite",
             "eventlog-file",
+            "eventlog-postgres",
             "rusqlite",
             "rustix",
+            "rustls",
             "serde",
             "serde_json",
             "tempfile",
@@ -473,7 +475,12 @@ fn only_the_kernel_implements_the_commit_authority() {
 ///
 /// Crate names are spelled with their hyphens and turned into paths at run time, so that no line of
 /// this file is itself a use site the scan would have to exempt.
-const EVENTLOG_CRATES: [&str; 3] = ["eventlog-core", "eventlog-file", "eventlog-sqlite"];
+const EVENTLOG_CRATES: [&str; 4] = [
+    "eventlog-core",
+    "eventlog-file",
+    "eventlog-sqlite",
+    "eventlog-postgres",
+];
 
 /// Every path one source opens into an eventlog crate, each described for a failure message.
 ///
@@ -506,12 +513,15 @@ fn eventlog_paths(text: &str) -> Vec<String> {
 /// words it must not mistake for one. Each sample is assembled from the table's own names.
 #[test]
 fn the_eventlog_scan_refuses_every_path_and_nothing_else() {
-    let [core, file, sqlite] = EVENTLOG_CRATES.map(|c| c.replace('-', "_"));
+    let [core, file, sqlite, postgres] = EVENTLOG_CRATES.map(|c| c.replace('-', "_"));
     for refused in [
         format!("use {core}::{{InspectHistory, InspectionLimits}};"),
         format!("use {file}::FileHistoryInspector;"),
         format!("use {file}::FileEventStore;"),
         format!("use {sqlite}::SqliteEventStore;"),
+        format!("use {postgres}::PostgresEventStore;"),
+        format!("use {postgres} as log;"),
+        format!("let s = {postgres}::PostgresEventStore::open(config);"),
         format!("use {core}::EventStore;"),
         format!("use {core}::{{AtomicBlobEventStore as Quiet}};"),
         format!("let s = {file}::FileEventStore::open(path);"),
@@ -710,7 +720,7 @@ fn every_crate_opts_into_workspace_lints() {
 ///
 /// `(name, [required substrings of the declaration])`, from the story's constraint list and the
 /// unit brief's eventlog pins.
-const QUALIFIED: [(&str, &[&str]); 5] = [
+const QUALIFIED: [(&str, &[&str]); 6] = [
     ("uuid", &["version = \"1\"", "features = [\"v7\"]"]),
     // The version eventlog-sqlite pins, so one libsqlite3 links; `serialize` reads a whole image.
     ("rusqlite", &["version = \"=0.40.2\"", "\"serialize\""]),
@@ -730,6 +740,13 @@ const QUALIFIED: [(&str, &[&str]); 5] = [
     ),
     (
         "eventlog-sqlite",
+        &[
+            "git = \"https://github.com/beyond10x/eventlog\"",
+            "rev = \"fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8\"",
+        ],
+    ),
+    (
+        "eventlog-postgres",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
             "rev = \"fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8\"",

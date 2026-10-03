@@ -9,6 +9,9 @@
 use std::os::unix::fs::MetadataExt as _;
 use std::path::Path;
 
+#[path = "support/inode_tempdir.rs"]
+mod inode_tempdir;
+
 /// Attempts at staging a freed inode; the variant under test makes one per run.
 const ATTEMPTS: usize = 10;
 
@@ -21,7 +24,7 @@ fn inode(path: &Path) -> (u64, u64) {
 /// temporary directory: delete it, then create up to 20 000 directories beside it looking for the
 /// inode it freed. Whether one was handed that inode.
 fn freed_inode_comes_back() -> bool {
-    let world = tempfile::tempdir().unwrap();
+    let world = inode_tempdir::temporary();
     let store = world.path().join("store");
     std::fs::create_dir_all(store.join("log")).unwrap();
     std::fs::write(store.join("log/0.yaml"), "x").unwrap();
@@ -52,7 +55,7 @@ fn the_replaced_store_variant_that_can_skip_is_staged_at_least_once_in_ten() {
     let staged = (0..ATTEMPTS).filter(|_| freed_inode_comes_back()).count();
     eprintln!(
         "freed inode handed back in {staged} of {ATTEMPTS} stagings under {}",
-        std::env::temp_dir().display()
+        inode_tempdir::root().display()
     );
     assert!(
         staged > 0,
@@ -60,6 +63,6 @@ fn the_replaced_store_variant_that_can_skip_is_staged_at_least_once_in_ten() {
          again\" variant of adversary_h_mcp_answers_from_a_file_store_replaced_under_the_same_\
          inode_without_a_restart skips on every run here and asserts nothing, while the file \
          passes",
-        std::env::temp_dir().display()
+        inode_tempdir::root().display()
     );
 }

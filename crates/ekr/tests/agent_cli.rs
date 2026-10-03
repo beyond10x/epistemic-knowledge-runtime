@@ -796,10 +796,20 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         (
             "migrate",
             &[
-                "ekr-seed-envelope/3",
+                "ekr-seed-envelope/4",
                 "ekr.store-migration/1",
                 "must hold no store",
                 store,
+            ],
+        ),
+        (
+            "postgres-schema",
+            &[
+                "ekr.postgres/1",
+                "ekr.postgres-schema/1",
+                "schema-management",
+                "Does not seed",
+                "connection file",
             ],
         ),
         (

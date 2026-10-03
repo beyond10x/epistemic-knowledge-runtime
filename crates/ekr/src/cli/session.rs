@@ -128,7 +128,7 @@ pub fn serve(
     let (configured, command) = Configured::split(cli);
     let create = matches!(command, Command::Session { create: true });
     let store = configured.resolve("session")?;
-    let opened = identity(&store.store);
+    let opened = store_identity(&store);
     let mut session = Session {
         runtime: store.open_if_any()?,
         store,
@@ -150,7 +150,7 @@ pub fn serve(
                 // when that head is past the retained one (design § 99.5) — into the store it
                 // opened only, never into one that replaced it at the path.
                 if let Some(runtime) = &session.runtime {
-                    if identity(&session.store.store) == watch.opened {
+                    if store_identity(&session.store) == watch.opened {
                         runtime.retain_checkpoint_at_rest();
                     }
                 }
@@ -328,7 +328,7 @@ fn answer(
     if seeds && session.runtime.is_none() {
         // Where this open fails, the seed's answer still stands and the session stays without a
         // store: each store verb then opens it as the one-shot verb does and says why it cannot.
-        let opened = identity(&session.store.store);
+        let opened = store_identity(&session.store);
         if let Ok(Some(runtime)) = session.store.open_if_any() {
             session.runtime = Some(runtime);
             watch.held = true;
@@ -384,7 +384,7 @@ fn read_views(
         return Err(option_refused());
     }
     if session.runtime.is_none() {
-        let opened = identity(&session.store.store);
+        let opened = store_identity(&session.store);
         session.runtime = Some(session.store.open()?);
         watch.held = true;
         watch.opened = opened;
@@ -419,7 +419,7 @@ fn follow(session: &mut Session, watch: &mut Watch, diverged: bool) -> Result<()
     if !watch.held {
         return Ok(());
     }
-    let now = check(&session.store.store);
+    let now = check_store(&session.store);
     if !diverged && now == watch.opened {
         if let Some(runtime) = &session.runtime {
             // A store held read-only is a copy: once the files at the path change, it is taken
@@ -557,6 +557,22 @@ fn check(path: &Path) -> Option<Identity> {
     identity(path)
 }
 
+fn store_identity(store: &Store) -> Option<Identity> {
+    if store.backend == super::Backend::Postgres {
+        None
+    } else {
+        identity(&store.store)
+    }
+}
+
+fn check_store(store: &Store) -> Option<Identity> {
+    if store.backend == super::Backend::Postgres {
+        None
+    } else {
+        check(&store.store)
+    }
+}
+
 /// Why a reader answered nothing from its store: the store at its path is not the one it opened
 /// and does not open. `message` names the path and why.
 #[derive(Debug)]
@@ -604,7 +620,7 @@ impl Held {
     ///
     /// What [`Store::open`] reports.
     pub(super) fn open(store: Store) -> Result<Self, Failure> {
-        let opened = identity(&store.store);
+        let opened = store_identity(&store);
         let runtime = store.open()?;
         Ok(Self {
             store,
@@ -620,7 +636,7 @@ impl Held {
     ///
     /// [`Replaced`] when that store does not open; the next call tries again.
     pub(super) fn current(&mut self) -> Result<Checked<'_>, Replaced> {
-        let now = check(&self.store.store);
+        let now = check_store(&self.store);
         // A store held read-only is a copy: once the files at the path change, it is opened again.
         let same = now == self.opened
             && self
@@ -722,6 +738,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::Session { .. } => Err(verb_refused("session")),
         Command::Mcp => Err(verb_refused("mcp")),
         Command::Migrate { .. } => Err(verb_refused("migrate")),
+        Command::PostgresSchema { .. } => Err(verb_refused("postgres-schema")),
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
@@ -786,7 +803,7 @@ pub(super) struct InProcess<'a> {
 impl<'a> InProcess<'a> {
     /// A session over `runtime`, opened from `store`, answering with `now` as its clock.
     pub(super) fn new(store: Store, runtime: Runtime, now: &'a dyn Fn() -> Timestamp) -> Self {
-        let opened = identity(&store.store);
+        let opened = store_identity(&store);
         Self {
             session: Session {
                 store,
@@ -807,7 +824,7 @@ impl<'a> InProcess<'a> {
     /// the head it reached, into the store it opened only.
     pub(super) fn close(self) {
         if let Some(runtime) = &self.session.runtime {
-            if identity(&self.session.store.store) == self.watch.opened {
+            if store_identity(&self.session.store) == self.watch.opened {
                 runtime.retain_checkpoint_at_rest();
             }
         }

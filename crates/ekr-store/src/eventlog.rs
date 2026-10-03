@@ -9,11 +9,12 @@ use ekr_core::{ContentHash, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, RevisionEvent, RevisionPayload, Root};
 use ekr_ontology::Ontology;
 use eventlog_core::{
-    AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CommandMeta, EventLogError,
-    EventStore, Expected, NewEvent, Read, ReadResult, RecordedEvent, StreamAppend, StreamId,
-    StreamSlice, TenantId, MAX_READ_LIMIT,
+    AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CaptureError, CaptureLimits,
+    CommandMeta, ConsistentTenantCapture, EventLogError, EventStore, Expected, NewEvent, Read,
+    ReadResult, RecordedEvent, StreamAppend, StreamId, StreamSlice, TenantId, MAX_READ_LIMIT,
 };
 use eventlog_file::FileEventStore;
+use eventlog_postgres::PostgresEventStore;
 use eventlog_sqlite::SqliteEventStore;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -54,6 +55,11 @@ mod reads;
 pub type SqliteStore = EventlogStore<SqliteEventStore>;
 /// File-backed synchronous runtime storage.
 pub type FileStore = EventlogStore<FileEventStore>;
+/// Hosted PostgreSQL-backed synchronous runtime storage.
+pub type PostgresStore = EventlogStore<PostgresEventStore>;
+
+/// Provider-specific authoritative tenant emptiness check.
+type EmptyCheck<S> = fn(&S, &Runtime, &TenantId) -> Result<bool, StoreError>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -152,6 +158,14 @@ pub struct EventlogStore<S: EventStore> {
     /// read and write (`replaced.rs`). A file replaced in place is refused as
     /// [`StoreError::Replaced`].
     at_path: Option<replaced::AtPath>,
+    /// Hosted read handles refuse all mutations, including replay checkpoints.
+    hosted_read_only: bool,
+    /// Hosted history needs an explicit provider capture before full inventory can be claimed.
+    inventory_requires_capture: bool,
+    /// Provider-specific bounded shutdown, before dropping the runtime that drives its clients.
+    shutdown: Option<fn(&S, &Runtime)>,
+    /// Authoritative emptiness where a provider feed can temporarily withhold committed events.
+    empty: Option<EmptyCheck<S>>,
     /// Set when the store was opened read-only: every write is refused and no checkpoint is
     /// written. Last, so that a File store's private copy is removed after the provider over it.
     read_only: Option<read_only::ReadOnly>,
@@ -526,6 +540,69 @@ impl EventlogStore<FileEventStore> {
         Ok(opened)
     }
 }
+impl EventlogStore<PostgresEventStore> {
+    /// Applies the provider schema with separately supplied schema-management credentials.
+    /// # Errors
+    /// Invalid configuration, TLS verification, incompatible schema or provider failure.
+    pub fn postgres_schema(
+        config: &crate::postgres::PostgresConfiguration,
+    ) -> Result<(), StoreError> {
+        let runtime = new_runtime()?;
+        runtime.block_on(PostgresEventStore::migrate(
+            config.provider()?,
+            config.options(),
+            &[],
+        ))?;
+        Ok(())
+    }
+
+    /// Opens an existing hosted owner schema, with verified TLS and bounded application-role
+    /// admission. It never provisions schema. A read handle refuses every store mutation.
+    /// # Errors
+    /// Invalid anchor inputs, configuration, role, budget, schema or provider failure.
+    pub fn postgres(
+        config: &crate::postgres::PostgresConfiguration,
+        tenant: &str,
+        reading: bool,
+    ) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
+        let store = runtime.block_on(PostgresEventStore::open(
+            config.provider()?,
+            config.options(),
+            config.database_connections,
+            config.replicas,
+            config.reserved_connections,
+        ))?;
+        let mut opened = Self::assemble(runtime, store, tenant, None);
+        opened.hosted_read_only = reading;
+        opened.inventory_requires_capture = true;
+        opened.empty = Some(|store, runtime, tenant| {
+            // A zero cap checks existence without loading arbitrary tenant payloads. Native
+            // capture waits for committed publishers, unlike the watermark-filtered feed.
+            let limits = CaptureLimits {
+                max_events: 0,
+                max_blobs: 0,
+                max_projection_rows: 0,
+                max_payload_bytes: 0,
+            };
+            // Provider publication does not itself allocate the capture identity. Ensure it
+            // exists before taking absence as evidence; this metadata is not canonical history.
+            runtime.block_on(store.stream_identity(tenant))?;
+            match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
+                Ok(_) => Ok(true),
+                Err(CaptureError::LimitExceeded { .. }) => Ok(false),
+                Err(CaptureError::Store(error)) => Err(error.into()),
+                Err(error) => Err(StoreError::Document(format!("postgres-capture: {error}"))),
+            }
+        });
+        opened.shutdown = Some(|store, runtime| {
+            let _ = runtime.block_on(store.shutdown());
+        });
+        Ok(opened)
+    }
+}
+
 fn ensure_sync_context() -> Result<(), StoreError> {
     if Handle::try_current().is_ok() {
         Err(StoreError::RuntimeContext)
@@ -545,6 +622,8 @@ impl<S: EventStore> Drop for EventlogStore<S> {
         if let Some(runtime) = self.runtime.take() {
             if Handle::try_current().is_ok() {
                 runtime.shutdown_background();
+            } else if let Some(shutdown) = self.shutdown {
+                shutdown(&self.store, &runtime);
             }
         }
     }
@@ -569,6 +648,10 @@ impl<S: EventStore> EventlogStore<S> {
             authorized: std::sync::Mutex::default(),
             pointer: std::sync::Mutex::default(),
             at_path: None,
+            hosted_read_only: false,
+            inventory_requires_capture: false,
+            shutdown: None,
+            empty: None,
             read_only: None,
         }
     }
@@ -608,7 +691,7 @@ impl<S: EventStore> EventlogStore<S> {
     /// [`EventlogStore::sqlite_read_only`]): every write through it is refused.
     #[must_use]
     pub fn is_read_only(&self) -> bool {
-        self.read_only.is_some()
+        self.hosted_read_only || self.read_only.is_some()
     }
     /// Whether this store was opened read-only and the files at its path have changed since it
     /// read them — another process committed, say. A long-lived reader then opens the store
@@ -1685,6 +1768,9 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     ) -> Result<eventlog_core::AppendGroupResult, StoreError> {
         // Every publication, object, preparation and checkpoint write reaches the provider here:
         // on a store opened read-only it is refused before anything is written, to the copy too.
+        if self.hosted_read_only {
+            return Err(StoreError::ReadOnly("hosted read handle".into()));
+        }
         if let Some(read_only) = &self.read_only {
             return Err(read_only.refusal());
         }
@@ -1919,7 +2005,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         self.entered()?;
         // A checkpoint is a cache of verified work: a store opened read-only keeps none, and a
         // read on it is answered exactly as without one.
-        if self.read_only.is_some() {
+        if self.is_read_only() {
             return Ok(false);
         }
         // This handle's own last append names the newest pointer and the stream's length, unless

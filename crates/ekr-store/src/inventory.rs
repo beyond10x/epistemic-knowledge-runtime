@@ -49,10 +49,34 @@ pub trait Inventory {
     /// # Errors
     /// Provider failure or an object, occurrence or preparation that does not verify.
     fn inventory(&self) -> Result<StoreInventory, StoreError>;
+
+    /// Whether the tenant holds no event or object. Providers whose change feeds lag committed
+    /// history must override this with an authoritative observation. A concurrent publisher can
+    /// still win after this check; initialization must claim its stream atomically.
+    /// # Errors
+    /// Provider failure or invalid retained material.
+    fn is_empty(&self) -> Result<bool, StoreError> {
+        let held = self.inventory()?;
+        Ok(held.events == 0 && held.objects.is_empty() && held.occurrences.is_empty())
+    }
 }
 impl<S: AtomicBlobEventStore> Inventory for EventlogStore<S> {
     fn inventory(&self) -> Result<StoreInventory, StoreError> {
         EventlogStore::inventory(self)
+    }
+
+    fn is_empty(&self) -> Result<bool, StoreError> {
+        self.entered()?;
+        if let Some(empty) = self.empty {
+            if self.hosted_read_only {
+                return Err(StoreError::ReadOnly(
+                    "tenant emptiness requires capture metadata".into(),
+                ));
+            }
+            return empty(&self.store, self.runtime(), &self.tenant);
+        }
+        let held = self.inventory()?;
+        Ok(held.events == 0 && held.objects.is_empty() && held.occurrences.is_empty())
     }
 }
 
@@ -68,9 +92,15 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     ///
     /// # Errors
     /// Runtime-context refusal, provider failure, a log that disagrees with itself, and any object
-    /// or preparation record that does not verify, by name.
+    /// or preparation record that does not verify, by name. PostgreSQL requires an explicit
+    /// snapshot capture and refuses `postgres-inventory-requires-capture`.
     pub fn inventory(&self) -> Result<StoreInventory, StoreError> {
         self.entered()?;
+        if self.inventory_requires_capture {
+            return Err(StoreError::Document(
+                "postgres-inventory-requires-capture".into(),
+            ));
+        }
         let events = self.published_events()?;
         let occurrences = self.occurrences(MAX_READ_LIMIT, None)?;
         let mut objects = BTreeMap::new();

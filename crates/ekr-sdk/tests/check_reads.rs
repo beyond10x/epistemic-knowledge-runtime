@@ -205,6 +205,7 @@ impl World {
         let store = match self.backend {
             Backend::File => "store",
             Backend::Sqlite => "state.db",
+            Backend::Postgres => panic!("local fixture requires a filesystem backend"),
         };
         StoreConfig {
             host: self.directory.path().join("host.json"),

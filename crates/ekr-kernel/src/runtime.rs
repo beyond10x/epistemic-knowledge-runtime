@@ -2,7 +2,9 @@
 use crate::{AuthorityStateV1, BootstrapContext, Commit, SeedDocument, SeedError, SeedResultV1};
 use ekr_core::{ContentHash, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, Root};
-use ekr_store::{FileStore, SqliteStore, StoreError};
+use ekr_store::{FileStore, PostgresStore, SqliteStore, StoreError};
+
+pub use ekr_store::postgres::{PostgresConfiguration, PostgresPool};
 use std::path::Path;
 
 /// One event the provider log published, as [`Runtime::published_events`] returns it.
@@ -15,8 +17,60 @@ pub struct Runtime {
 enum Backend {
     File(Box<Commit<FileStore>>),
     Sqlite(Box<Commit<SqliteStore>>),
+    Postgres(Box<Commit<PostgresStore>>),
 }
 impl Runtime {
+    /// Provisions the hosted provider's schema using separate schema-management credentials.
+    /// # Errors
+    /// Configuration, TLS, schema or provider refusal.
+    pub fn postgres_schema(config: &PostgresConfiguration) -> Result<(), StoreError> {
+        PostgresStore::postgres_schema(config)
+    }
+
+    /// Opens a hosted PostgreSQL store under the explicit trusted host anchor. `reading`
+    /// disables all mutations, including checkpoint writes. Schema is never created here.
+    /// # Errors
+    /// Anchor, configuration, role, TLS, budget or provider refusal.
+    pub fn postgres(
+        config: &PostgresConfiguration,
+        tenant: &str,
+        context: BootstrapContext,
+        anchor: AuthorityStateV1,
+        reading: bool,
+    ) -> Result<Self, StoreError> {
+        Ok(Self {
+            backend: Backend::Postgres(Box::new(Commit::over_with_authority(
+                context,
+                anchor,
+                |authority| {
+                    PostgresStore::postgres(config, tenant, reading)
+                        .map(|store| store.under(authority))
+                },
+            )?)),
+        })
+    }
+
+    /// Captures one consistent SQLite image even when the source is writable. Subsequent reads
+    /// stay on that image, and every write through this handle is refused.
+    /// # Errors
+    /// Invalid anchor, missing store, failed snapshot capture or provider refusal.
+    pub fn sqlite_snapshot(
+        path: &Path,
+        tenant: &str,
+        context: BootstrapContext,
+        anchor: AuthorityStateV1,
+    ) -> Result<Self, StoreError> {
+        Ok(Self {
+            backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
+                context,
+                anchor,
+                |authority| {
+                    SqliteStore::sqlite_read_only(path, tenant, None)
+                        .map(|store| store.under(authority))
+                },
+            )?)),
+        })
+    }
     /// Captures admitted graph, retained records and payloads at one verified history boundary.
     /// # Errors
     /// Missing seed/revision or invalid required history.
@@ -27,6 +81,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.read(revision),
             Backend::Sqlite(k) => k.read(revision),
+            Backend::Postgres(k) => k.read(revision),
         }
     }
     /// The graph at `revision` and the schema history of its lineage, from one verified replay.
@@ -39,6 +94,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.schema_history(revision),
             Backend::Sqlite(k) => k.schema_history(revision),
+            Backend::Postgres(k) => k.schema_history(revision),
         }
     }
     /// Bounded reader ingress using the same frozen parser and retained proposal handler.
@@ -53,6 +109,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.propose_reader(reader, actor, now),
             Backend::Sqlite(k) => k.propose_reader(reader, actor, now),
+            Backend::Postgres(k) => k.propose_reader(reader, actor, now),
         }
     }
     /// Reads every actual retained transaction record in one verified history capture. The
@@ -70,6 +127,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.transactions(),
             Backend::Sqlite(k) => k.transactions(),
+            Backend::Postgres(k) => k.transactions(),
         }
     }
     /// Reads requested transaction lifecycle states at one verified boundary. Unknown ids are
@@ -86,6 +144,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.transaction_states(ids),
             Backend::Sqlite(k) => k.transaction_states(ids),
+            Backend::Postgres(k) => k.transaction_states(ids),
         }
     }
     /// Publishes the exact submitted transaction document through the shared handler.
@@ -100,6 +159,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.propose(bytes, actor, now),
             Backend::Sqlite(k) => k.propose(bytes, actor, now),
+            Backend::Postgres(k) => k.propose(bytes, actor, now),
         }
     }
     /// Validates a retained proposal against the requested committed revision.
@@ -114,6 +174,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.validate(id, against, now),
             Backend::Sqlite(k) => k.validate(id, against, now),
+            Backend::Postgres(k) => k.validate(id, against, now),
         }
     }
     /// Applies or returns the actual retained decision under trusted host identity and lazy time.
@@ -128,6 +189,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.commit(id, actor, now),
             Backend::Sqlite(k) => k.commit(id, actor, now),
+            Backend::Postgres(k) => k.commit(id, actor, now),
         }
     }
     /// Opens the File provider under the explicit trusted host anchor.
@@ -257,6 +319,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.store.is_read_only(),
             Backend::Sqlite(kernel) => kernel.store.is_read_only(),
+            Backend::Postgres(kernel) => kernel.store.is_read_only(),
         }
     }
     /// Whether this runtime's store was opened read-only and the files at its path have changed
@@ -267,6 +330,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.store.source_changed(),
             Backend::Sqlite(kernel) => kernel.store.source_changed(),
+            Backend::Postgres(kernel) => kernel.store.source_changed(),
         }
     }
     /// Removes the private copy every read-only File store of this process reads, for a process
@@ -282,6 +346,7 @@ impl Runtime {
         match &mut self.backend {
             Backend::File(kernel) => kernel.store.set_full_replay(full),
             Backend::Sqlite(kernel) => kernel.store.set_full_replay(full),
+            Backend::Postgres(kernel) => kernel.store.set_full_replay(full),
         }
     }
     /// The check every constructor runs on the trusted host anchor before it touches a provider,
@@ -315,6 +380,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.seed(document, now),
             Backend::Sqlite(kernel) => kernel.seed(document, now),
+            Backend::Postgres(kernel) => kernel.seed(document, now),
         }
     }
     /// The complete verified current root.
@@ -324,6 +390,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.head(),
             Backend::Sqlite(kernel) => kernel.head(),
+            Backend::Postgres(kernel) => kernel.head(),
         }
     }
     /// The complete current canonical graph.
@@ -333,6 +400,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.snapshot(),
             Backend::Sqlite(kernel) => kernel.snapshot(),
+            Backend::Postgres(kernel) => kernel.snapshot(),
         }
     }
     /// Reconstructs exactly the selected committed revision.
@@ -342,6 +410,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.replay(revision),
             Backend::Sqlite(kernel) => kernel.replay(revision),
+            Backend::Postgres(kernel) => kernel.replay(revision),
         }
     }
     /// At rest — a session at the end of its input: writes the replay checkpoint of the newest
@@ -351,6 +420,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.retain_checkpoint_at_rest(),
             Backend::Sqlite(kernel) => kernel.retain_checkpoint_at_rest(),
+            Backend::Postgres(kernel) => kernel.retain_checkpoint_at_rest(),
         }
     }
     /// How many replays this runtime's kernel has begun at the seed since it was opened: every
@@ -361,6 +431,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.seed_replays(),
             Backend::Sqlite(kernel) => kernel.seed_replays(),
+            Backend::Postgres(kernel) => kernel.seed_replays(),
         }
     }
     /// How many times this runtime's kernel has decoded the retained seed envelope in full since
@@ -371,6 +442,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.seed_envelope_decodes(),
             Backend::Sqlite(kernel) => kernel.seed_envelope_decodes(),
+            Backend::Postgres(kernel) => kernel.seed_envelope_decodes(),
         }
     }
     /// Every event the provider log has published, in log order, through the provider handle
@@ -382,14 +454,16 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.store.published_events(),
             Backend::Sqlite(kernel) => kernel.store.published_events(),
+            Backend::Postgres(kernel) => kernel.store.published_events(),
         }
     }
-    /// The preserving migration (design § 100.3): this store's complete retained history
+    /// The preserving migration (design § 100.3): a local store's complete retained history
     /// re-published into `destination`, a store under the same host anchor that holds nothing yet,
     /// with its seed under `ekr-seed-envelope/3`. This store is only read; the destination is
     /// replayed in full and compared with it before the report is returned.
     /// # Errors
-    /// `migrate-destination-not-empty`, `migrate-unresolved-preparation`, any refusal of either
+    /// `migrate-source-not-supported` for PostgreSQL sources, `migrate-destination-not-empty`,
+    /// `migrate-unresolved-preparation`, any refusal of either
     /// store's replay, and `migrate-verification-disagrees`.
     pub fn migrate_into(
         &self,
@@ -400,6 +474,13 @@ impl Runtime {
             (Backend::File(source), Backend::Sqlite(into)) => source.migrate_into(into),
             (Backend::Sqlite(source), Backend::File(into)) => source.migrate_into(into),
             (Backend::Sqlite(source), Backend::Sqlite(into)) => source.migrate_into(into),
+            (Backend::File(source), Backend::Postgres(into)) => source.migrate_into(into),
+            (Backend::Sqlite(source), Backend::Postgres(into)) => source.migrate_into(into),
+            (Backend::Postgres(_), _) => Err(StoreError::Document(
+                "migrate-source-not-supported: PostgreSQL source snapshots are not supported"
+                    .into(),
+            )
+            .into()),
         }
     }
     /// Reads verified retained content through the shared handler.
@@ -409,6 +490,7 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.content(hash),
             Backend::Sqlite(kernel) => kernel.content(hash),
+            Backend::Postgres(kernel) => kernel.content(hash),
         }
     }
 }

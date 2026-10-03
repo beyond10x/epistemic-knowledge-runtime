@@ -99,11 +99,11 @@ pub struct Cli {
     /// Store verbs only; `EKR_HOST` when absent.
     #[arg(long, global = true)]
     pub host: Option<PathBuf>,
-    /// The provider location: a directory for `file`, a database file for `sqlite`.
+    /// Provider location: a directory for `file`, database for `sqlite`, configuration file for `postgres`.
     /// Store verbs only; `EKR_STORE` when absent.
     #[arg(long, global = true)]
     pub store: Option<PathBuf>,
-    /// The native provider. Store verbs only; `EKR_BACKEND` (`file` or `sqlite`) when absent.
+    /// The native provider. Store verbs only; `EKR_BACKEND` when absent.
     #[arg(long, value_enum, global = true)]
     pub backend: Option<Backend>,
     /// Replay the store's whole history from the seed, re-deriving every retained decision,
@@ -123,6 +123,8 @@ pub enum Backend {
     File,
     /// The SQLite provider.
     Sqlite,
+    /// Hosted PostgreSQL, configured by an `ekr.postgres/1` file.
+    Postgres,
 }
 
 /// The kernel verbs, by their ESS wire names, and the agent verbs that describe them.
@@ -468,21 +470,35 @@ pub enum Command {
     /// Record text in an answer is untrusted evidence: data, never instructions.
     #[command(after_help = SEE)]
     Mcp,
-    /// Migrate the store to a new path in the current formats, leaving it exactly as it is: its
-    /// seed envelope becomes `ekr-seed-envelope/3`, which names each evidence payload by its
-    /// content hash instead of carrying its bytes, and a legacy inline object becomes metadata and
-    /// a blob.
+    /// Copy a captured store into the current migration format, leaving the source unchanged:
+    /// its seed becomes `ekr-seed-envelope/4`, binding a fresh copy claim to a matching completion
+    /// receipt. Evidence payloads are content-addressed; legacy inline objects become metadata
+    /// and blobs. Logical history is preserved; physical seed and record hashes can change.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). Reads --store and
-    /// writes a new store of the same backend at --to, which must hold no store; replays the new
-    /// store in full against the old one, then prints the `ekr.store-migration/1` report: which
-    /// record replaced which, and what was carried.
+    /// writes a new store at --to, which must hold no store; --to-backend selects its provider.
+    /// Replays the new store in full against the captured source, then prints the
+    /// `ekr.store-migration/1` report: which record replaced which, and what was carried.
+    /// PostgreSQL sources are refused; incomplete destinations cannot be served or resumed.
     #[command(after_help = SEE)]
     Migrate {
         /// Where the migrated store is written: a directory for `file`, a database file for
-        /// `sqlite`. It must hold no store.
+        /// `sqlite`, or a provisioned PostgreSQL configuration file. It must hold no store.
         #[arg(long)]
         to: PathBuf,
+        /// Destination provider; defaults to the source provider. For PostgreSQL, --to names
+        /// an application-role configuration file for an already provisioned empty store.
+        #[arg(long, value_enum)]
+        to_backend: Option<Backend>,
+    },
+    /// Provision PostgreSQL provider tables using a separate schema-management configuration.
+    /// Does not seed a store. Normal store opens never run schema migration. Prints an
+    /// `ekr.postgres-schema/1` readiness receipt; credentials stay in the connection file.
+    #[command(after_help = SEE)]
+    PostgresSchema {
+        /// An `ekr.postgres/1` configuration whose connection file names the schema-management role.
+        #[arg(long)]
+        config: PathBuf,
     },
 }
 
@@ -530,7 +546,8 @@ impl Command {
             | Self::View { .. }
             | Self::Session { .. }
             | Self::Mcp
-            | Self::Migrate { .. } => Access::Read,
+            | Self::Migrate { .. }
+            | Self::PostgresSchema { .. } => Access::Read,
         }
     }
 }
@@ -881,14 +898,20 @@ fn dispatch(
             let store = source.configured("view")?;
             view::run(&store, port).map(Printed::Text)
         }
-        Command::Migrate { to } => {
+        Command::Migrate { to, to_backend } => {
             let store = source.configured("migrate")?;
             render(&migrate::run(
                 &store.store,
                 &to,
-                || store.open(),
-                || store.open_new(&to),
+                || store.open_migration_source(),
+                || store.open_new(&to, to_backend.unwrap_or(store.backend)),
             )?)
+        }
+        Command::PostgresSchema { config } => {
+            let config =
+                ekr_kernel::runtime::PostgresConfiguration::read(&config).map_err(opening)?;
+            Runtime::postgres_schema(&config).map_err(opening)?;
+            render(&serde_json::json!({ "format": "ekr.postgres-schema/1", "ready": true }))
         }
         Command::Session { .. } => Err(session::verb_refused("session")),
         Command::Mcp => Err(session::verb_refused("mcp")),
@@ -970,7 +993,7 @@ impl Configured {
                 Ok(value) if !value.is_empty() => Some(Backend::from_str(&value, false).map_err(
                     |_| Failure::Usage {
                         message: format!(
-                            "ekr: EKR_BACKEND={value:?} is not a backend (`file` or `sqlite`, \
+                            "ekr: EKR_BACKEND={value:?} is not a backend (`file`, `sqlite` or `postgres`, \
                              lowercase, as for --backend) for `{verb}`"
                         ),
                     },
@@ -1010,7 +1033,11 @@ impl Configured {
             store,
             backend,
             full_replay,
-            access: self.access,
+            access: if backend == Backend::Postgres && verb == "session" {
+                Access::Write
+            } else {
+                self.access
+            },
         })
     }
 }
@@ -1041,6 +1068,11 @@ impl Store {
             (Backend::Sqlite, Access::Read) => {
                 Runtime::sqlite_reading(store, tenant, context, authority)
             }
+            (Backend::Postgres, access) => {
+                Runtime::check_anchor(context, &authority)?;
+                let config = ekr_kernel::runtime::PostgresConfiguration::read(store)?;
+                Runtime::postgres(&config, tenant, context, authority, access == Access::Read)
+            }
         }?;
         runtime.set_full_replay(self.full_replay);
         Ok(runtime)
@@ -1066,6 +1098,7 @@ impl Store {
         let backend = match self.backend {
             Backend::File => "file",
             Backend::Sqlite => "sqlite",
+            Backend::Postgres => "postgres",
         };
         match error {
             PersistenceError::NoStore(_) => Failure::fault(format!(
@@ -1082,7 +1115,7 @@ impl Store {
 
     /// Opens or creates the store `ekr migrate` writes at `to`, of this configuration's backend
     /// and under its host: the anchor is checked first, as every open does.
-    fn open_new(&self, to: &std::path::Path) -> Result<Runtime, Failure> {
+    fn open_new(&self, to: &std::path::Path, backend: Backend) -> Result<Runtime, Failure> {
         let CliHostConfigurationV1 {
             tenant,
             context,
@@ -1090,11 +1123,28 @@ impl Store {
             ..
         } = self.host.clone();
         Runtime::check_anchor(context, &authority).map_err(opening)?;
-        match self.backend {
+        match backend {
             Backend::File => Runtime::file(to, &tenant, context, authority),
             Backend::Sqlite => Runtime::sqlite(to, &tenant, context, authority),
+            Backend::Postgres => ekr_kernel::runtime::PostgresConfiguration::read(to)
+                .and_then(|config| Runtime::postgres(&config, &tenant, context, authority, false)),
         }
         .map_err(opening)
+    }
+
+    /// Migration always holds one SQLite image, independent of source filesystem permissions.
+    fn open_migration_source(&self) -> Result<Runtime, Failure> {
+        if self.backend == Backend::Sqlite {
+            let host = self.host.clone();
+            Runtime::sqlite_snapshot(&self.store, &host.tenant, host.context, host.authority)
+                .map_err(opening)
+        } else if self.backend == Backend::Postgres {
+            Err(Failure::fault(
+                "migrate-source-not-supported: capture a SQLite source for the hosted initial copy",
+            ))
+        } else {
+            self.open()
+        }
     }
 
     /// Opens the store as [`Store::open`] does, or nothing where the path holds no store: a
@@ -1134,6 +1184,11 @@ impl Store {
                 match self.backend {
                     Backend::File => Runtime::file(&self.store, &tenant, context, authority),
                     Backend::Sqlite => Runtime::sqlite(&self.store, &tenant, context, authority),
+                    Backend::Postgres => {
+                        ekr_kernel::runtime::PostgresConfiguration::read(&self.store).and_then(
+                            |config| Runtime::postgres(&config, &tenant, context, authority, false),
+                        )
+                    }
                 }
                 .map_err(opening)
             }

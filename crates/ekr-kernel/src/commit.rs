@@ -76,7 +76,7 @@ impl CommitAuthority for KernelAuthority {
         // Until this authority has seen the store settled, the markers of a preserving migration
         // (design § 100.3) are read where held, so an unfinished one is refused by name.
         if !self.cache()?.migration_settled {
-            wanted.extend(crate::migrate::markers());
+            wanted.extend(crate::migrate::required_markers(self, history)?);
         }
         Ok(wanted)
     }
@@ -145,7 +145,7 @@ impl KernelAuthority {
     /// where that replay can continue from it, which needs the graph of every revision an
     /// occurrence after it is validated or rejected against; otherwise every payload is named, as
     /// a replay from the seed reads every one.
-    fn added_evidence_required(
+    pub(crate) fn added_evidence_required(
         &self,
         history: &RetainedHistory,
         replaying: bool,
@@ -560,6 +560,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             context: self.authority.context,
             authority: self.authority.anchor.clone(),
             committed_at,
+            migration: None,
         };
         let bytes = envelope.to_bytes()?;
         let seed_hash = ContentHash::of_bytes(&bytes);

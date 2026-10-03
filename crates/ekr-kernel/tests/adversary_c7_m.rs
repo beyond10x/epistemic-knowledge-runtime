@@ -7,7 +7,7 @@ use ekr_kernel::*;
 use ekr_ontology::{NodeType, PropertyDefinition, Value, ValueType};
 use ekr_store::{FileStore, ObjectStore, SqliteStore, StorageClass};
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::Path;
 
 fn context() -> BootstrapContext {
@@ -199,15 +199,42 @@ fn object_history(runtime: &Runtime, hash: ContentHash) -> Vec<(String, serde_js
         .collect()
 }
 
-/// The knowledge, evidence, ontology and agent roots of every revision.
-fn roots(runtime: &Runtime) -> BTreeMap<RevisionNumber, Root> {
-    runtime
-        .read(None)
-        .unwrap()
-        .revisions
-        .into_iter()
-        .map(|(number, revision)| (number, revision.root))
-        .collect()
+/// Every logical revision remains identical; the fresh migration claim changes the physical
+/// seed transaction and its descendants' parent hashes, recorded in the report's mapping.
+fn assert_migrated_roots(source: &Runtime, destination: &Runtime, report: &StoreMigrationV1) {
+    let before = source.read(None).unwrap();
+    let after = destination.read(None).unwrap();
+    assert_eq!(before.revisions.len(), after.revisions.len());
+    assert_eq!(before.seed.seed_hash, report.source_seed_hash);
+    assert_eq!(after.seed.seed_hash, report.destination_seed_hash);
+    assert_ne!(report.source_seed_hash, report.destination_seed_hash);
+    let mut parent = None;
+    for (number, revision) in &before.revisions {
+        let migrated = &after.revisions[number];
+        assert_eq!(migrated.revision_id, revision.revision_id);
+        assert_eq!(migrated.event_id, revision.event_id);
+        assert_eq!(migrated.committed_at, revision.committed_at);
+        assert_eq!(migrated.root.revision, revision.root.revision);
+        assert_eq!(migrated.root.knowledge_root, revision.root.knowledge_root);
+        assert_eq!(migrated.root.evidence_root, revision.root.evidence_root);
+        assert_eq!(migrated.root.ontology_root, revision.root.ontology_root);
+        assert_eq!(migrated.root.agent_root, revision.root.agent_root);
+        assert_eq!(migrated.root.parent, parent);
+        parent = Some(ContentHash::of(&migrated.root));
+        if *number == RevisionNumber::SEED {
+            assert_eq!(revision.root.transaction, report.source_seed_hash);
+            assert_eq!(migrated.root.transaction, report.destination_seed_hash);
+        } else {
+            assert_eq!(migrated.root.transaction, revision.root.transaction);
+        }
+        let mapping = report
+            .occurrences
+            .iter()
+            .find(|m| m.event_id == revision.event_id)
+            .unwrap();
+        assert_eq!(mapping.source_record_hash, revision.record_hash);
+        assert_eq!(mapping.destination_record_hash, migrated.record_hash);
+    }
 }
 
 /// Brief items 1, 2, 4 and 5 in one history, on both providers: a payload equal to a seeded one;
@@ -216,7 +243,7 @@ fn roots(runtime: &Runtime) -> BTreeMap<RevisionNumber, Root> {
 /// `!AddEvidence`; a validation against an earlier revision; and a retained checkpoint. The
 /// migration must succeed; every payload's object history (first class, `stored_at`, raises) must
 /// be the source's, logged once; no payload may be in `carried_objects`; and every revision's
-/// roots must be the source's.
+/// logical roots must be the source's, with physical lineage mapped to the claimed seed.
 #[test]
 fn a_history_of_every_added_evidence_shape_migrates_with_payloads_unchanged() {
     for file in [false, true] {
@@ -339,7 +366,7 @@ fn a_history_of_every_added_evidence_shape_migrates_with_payloads_unchanged() {
             assert_eq!(source.content(&hash).unwrap(), None, "file={file}");
             assert_eq!(destination.content(&hash).unwrap(), None, "file={file}");
         }
-        assert_eq!(roots(&destination), roots(&source), "file={file}");
+        assert_migrated_roots(&source, &destination, &report);
         let before = source.read(None).unwrap();
         let after = destination.read(None).unwrap();
         assert_eq!(after.graph.evidence, before.graph.evidence, "file={file}");
@@ -347,14 +374,11 @@ fn a_history_of_every_added_evidence_shape_migrates_with_payloads_unchanged() {
             after.graph.assertions, before.graph.assertions,
             "file={file}"
         );
+        let migrated_head = destination.head().unwrap();
         drop(destination);
         let mut reopened = open(&destination_path, file);
         reopened.set_full_replay(true);
-        assert_eq!(
-            reopened.head().unwrap(),
-            source.head().unwrap(),
-            "file={file}"
-        );
+        assert_eq!(reopened.head().unwrap(), migrated_head, "file={file}");
     }
 }
 
@@ -439,13 +463,9 @@ fn a_payload_stored_below_provenance_before_its_commit_migrates() {
 }
 
 /// An `!AddEvidence` whose payload is the byte string of the migration's started marker
-/// (`migrate.rs:92-95`). It validates; its commit is refused as `migrate-incomplete` before
-/// anything is published, because the history the commit checks would hold the started marker
-/// without the finished one (`migrate::finished`). The store stays readable, but the transaction
-/// can never commit and its refusal names a migration nobody ran. Not introduced by this unit: the
-/// markers are fixed bytes at fixed addresses, and a payload is any bytes.
+/// once falsely marked an ordinary commit as an incomplete migration. Marker-shaped evidence
+/// must remain admissible; only a seed-bound migration claim owns a new completion receipt.
 #[test]
-#[ignore = "task:migration-marker-cannot-be-evidence: a payload equal to the migration marker's bytes is refused at commit"]
 fn evidence_whose_payload_is_the_migration_marker_commits() {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
@@ -578,7 +598,7 @@ fn a_resumed_commit_preparation_that_added_evidence_migrates() {
             let destination_path = directory.path().join("destination");
             std::fs::create_dir_all(&destination_path).unwrap();
             let destination = open(&destination_path, file);
-            source
+            let report = source
                 .migrate_into(&destination)
                 .unwrap_or_else(|error| panic!("file={file}: {error}"));
             assert_eq!(
@@ -591,7 +611,7 @@ fn a_resumed_commit_preparation_that_added_evidence_migrates() {
                 object_history(&source, hash),
                 "file={file}"
             );
-            assert_eq!(roots(&destination), roots(&source), "file={file}");
+            assert_migrated_roots(&source, &destination, &report);
         }
     }
 }

@@ -1,6 +1,6 @@
 //! `story:seed-envelope-v3-references-payloads` and `task:object-payloads-belong-in-provider-blobs`:
 //! the preserving migration (design §§ 89, 90, 100). A `/2` store written by the base kernel
-//! (built at test time by `support/v2_store.rs`) becomes a `/3` store at a new
+//! (built at test time by `support/v2_store.rs`) becomes a claimed `/4` store at a new
 //! path whose snapshot — nodes, edges, assertions, evidence ids and payload hashes — and whose
 //! transaction decisions equal the source's; the source is left exactly as it was, so every original
 //! object is still retained; and a legacy `ObjectStored` schema-1 inline object is carried as
@@ -81,7 +81,8 @@ fn objects(runtime: &Runtime) -> BTreeMap<ContentHash, Vec<u8>> {
 }
 
 #[test]
-fn a_v2_store_migrates_to_a_v3_store_with_its_snapshot_and_decisions_and_the_source_unchanged() {
+fn a_v2_store_migrates_to_a_claimed_v4_store_with_its_snapshot_and_decisions_and_the_source_unchanged(
+) {
     for file in [false, true] {
         let source_directory = v2_store(file);
         let source_path = source_directory.path();
@@ -103,7 +104,7 @@ fn a_v2_store_migrates_to_a_v3_store_with_its_snapshot_and_decisions_and_the_sou
         assert_eq!(after.seed.seed_hash, report.destination_seed_hash);
         let envelope = destination.content(&after.seed.seed_hash).unwrap().unwrap();
         let envelope: serde_json::Value = serde_json::from_slice(&envelope).unwrap();
-        assert_eq!(envelope["format"], "ekr-seed-envelope/3", "file={file}");
+        assert_eq!(envelope["format"], "ekr-seed-envelope/4", "file={file}");
 
         // Its snapshot equals the source's: nodes, edges, assertions, evidence ids, payload hashes.
         assert_eq!(after.graph.nodes, before.graph.nodes, "file={file}");

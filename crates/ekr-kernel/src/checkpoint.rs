@@ -148,17 +148,34 @@ impl KernelAuthority {
     /// This authority's record of having verified the first `covered` occurrences, whose prefix
     /// digest is `prefix`: what a checkpoint pointer carries, so that a later open under the same
     /// host can recognise its own verification of exactly that prefix.
-    pub(crate) fn checkpoint_binding(&self, covered: u64, prefix: ContentHash) -> ContentHash {
-        struct Binding(ContentHash, u64, ContentHash);
+    pub(crate) fn checkpoint_binding(
+        &self,
+        covered: u64,
+        prefix: ContentHash,
+        migrated: bool,
+    ) -> ContentHash {
+        struct Binding(ContentHash, u64, ContentHash, bool);
         impl Canonical for Binding {
             fn encode(&self, out: &mut Encoder) {
-                "ekr.replay-checkpoint-binding/1".encode(out);
+                // Migrated seeds require completion admission before a head can be served.
+                // Older readers must not trust their fast-head shortcut for this binding.
+                if self.3 {
+                    "ekr.replay-checkpoint-binding/2"
+                } else {
+                    "ekr.replay-checkpoint-binding/1"
+                }
+                .encode(out);
                 self.0.encode(out);
                 self.1.encode(out);
                 self.2.encode(out);
             }
         }
-        ContentHash::of(&Binding(self.checkpoint_authority(), covered, prefix))
+        ContentHash::of(&Binding(
+            self.checkpoint_authority(),
+            covered,
+            prefix,
+            migrated,
+        ))
     }
 
     /// The occurrences `state` covers and this authority's binding of them, or `None` for a state
@@ -167,7 +184,7 @@ impl KernelAuthority {
         state.digest.map(|prefix| {
             (
                 state.version,
-                self.checkpoint_binding(state.version, prefix),
+                self.checkpoint_binding(state.version, prefix, state.migration_claim.is_some()),
             )
         })
     }
@@ -186,7 +203,11 @@ impl KernelAuthority {
             return Ok(None);
         }
         let prefix = prefix_digests(&history.occurrences)[covered];
-        if self.checkpoint_binding(covered as u64, prefix) != binding {
+        // Only legacy, unclaimed seeds use the constant-work fast head. The /2 binding of a
+        // migrated seed deliberately falls through to seed/receipt admission and checked replay
+        // (which may restore the retained checkpoint). This also protects an interrupted copy
+        // that wrote its checkpoint but never published its completion receipt.
+        if self.checkpoint_binding(covered as u64, prefix, false) != binding {
             return Ok(None);
         }
         let Some(head) = history.occurrences.iter().rev().find(|held| {
@@ -269,7 +290,7 @@ impl KernelAuthority {
             .map_err(|error| StoreError::Document(error.to_string()))?;
         Ok(Some((
             state.version,
-            self.checkpoint_binding(state.version, prefix),
+            self.checkpoint_binding(state.version, prefix, state.migration_claim.is_some()),
             bytes,
         )))
     }
@@ -332,6 +353,7 @@ impl KernelAuthority {
         let claimed = std::mem::take(&mut checkpoint.held);
         let retained = (checkpoint.covered, checkpoint.revision);
         let mut state = restored(history, covered, checkpoint)?;
+        state.migration_claim = envelope.migration_claim();
         // The identities the lineage held are what the seed's graph holds and what each commit
         // the prefix binds created, read from their receipts (§ 99.5): the checkpoint's list
         // must be exactly that, so that a changed cache cannot free an id for a new record.
@@ -653,6 +675,8 @@ fn restored(
         );
     }
     Ok(ReplayState {
+        // Filled from the admitted envelope by restore_checkpoint before this state is cached.
+        migration_claim: None,
         seed,
         revisions,
         transactions: Arc::new(

@@ -2,7 +2,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use ekr_core::{AgentId, ContentHash, GraphRootId, RevisionNumber, Timestamp, TransactionId};
+use ekr_core::{
+    AgentId, ContentHash, EventId, GraphRootId, RevisionNumber, Timestamp, TransactionId,
+};
 use ekr_graph::{
     Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Edge, EvidenceSource,
     GraphSnapshot, Node, Object, Space, Subject,
@@ -177,7 +179,7 @@ pub enum SeedError {
 }
 
 /// A retained seed envelope, decoded: `ekr-seed-envelope/2`, which carries the evidence payloads,
-/// or `ekr-seed-envelope/3`, which names them (design § 100.1).
+/// or `/3` and `/4`, which name them; `/4` also binds a migration claim.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SeedEnvelope {
     pub(crate) format: String,
@@ -185,6 +187,7 @@ pub(crate) struct SeedEnvelope {
     pub(crate) context: BootstrapContext,
     pub(crate) authority: AuthorityStateV1,
     pub(crate) committed_at: Timestamp,
+    pub(crate) migration: Option<EventId>,
 }
 
 /// The seed input an envelope retains: the admitted `ekr-seed/2` document, its evidence payloads
@@ -377,18 +380,23 @@ impl SeedEnvelope {
     /// An envelope whose format and payload holding disagree, or an encoding failure.
     pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, SeedError> {
         let encoded = match (&self.input.payloads, self.format.as_str()) {
-            (SeedPayloads::Named(keys), ENVELOPE_FORMAT) => serde_json::to_vec(&EnvelopeV3 {
-                format: self.format.clone(),
-                input: InputV3 {
-                    format: self.input.format.clone(),
-                    ontology: self.input.ontology.clone(),
-                    graph: self.input.graph.clone(),
-                    evidence_payloads: keys.clone(),
-                },
-                context: self.context,
-                authority: self.authority.clone(),
-                committed_at: self.committed_at,
-            }),
+            (SeedPayloads::Named(keys), ENVELOPE_FORMAT | MIGRATION_ENVELOPE_FORMAT)
+                if (self.format == MIGRATION_ENVELOPE_FORMAT) == self.migration.is_some() =>
+            {
+                serde_json::to_vec(&NamedEnvelope {
+                    format: self.format.clone(),
+                    input: InputV3 {
+                        format: self.input.format.clone(),
+                        ontology: self.input.ontology.clone(),
+                        graph: self.input.graph.clone(),
+                        evidence_payloads: keys.clone(),
+                    },
+                    context: self.context,
+                    authority: self.authority.clone(),
+                    committed_at: self.committed_at,
+                    migration: self.migration,
+                })
+            }
             (SeedPayloads::Carried(payloads), ENVELOPE_FORMAT_V2) => {
                 serde_json::to_vec(&EnvelopeV2 {
                     format: self.format.clone(),
@@ -420,16 +428,17 @@ struct EnvelopeV2 {
     committed_at: Timestamp,
 }
 
-/// `ekr-seed-envelope/3` as retained: the seed input with its payloads named, in the field order
-/// of `/2`.
+/// `/3` and `/4` named-payload layouts. Only `/4` carries a nonempty migration claim.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct EnvelopeV3 {
+struct NamedEnvelope {
     format: String,
     input: InputV3,
     context: BootstrapContext,
     authority: AuthorityStateV1,
     committed_at: Timestamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    migration: Option<EventId>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -454,11 +463,12 @@ impl From<EnvelopeV2> for SeedEnvelope {
             context: envelope.context,
             authority: envelope.authority,
             committed_at: envelope.committed_at,
+            migration: None,
         }
     }
 }
-impl From<EnvelopeV3> for SeedEnvelope {
-    fn from(envelope: EnvelopeV3) -> Self {
+impl From<NamedEnvelope> for SeedEnvelope {
+    fn from(envelope: NamedEnvelope) -> Self {
         Self {
             format: envelope.format,
             input: RetainedSeedInput {
@@ -470,6 +480,7 @@ impl From<EnvelopeV3> for SeedEnvelope {
             context: envelope.context,
             authority: envelope.authority,
             committed_at: envelope.committed_at,
+            migration: envelope.migration,
         }
     }
 }
@@ -580,6 +591,13 @@ impl SeedOutline {
             Self::View(view) => &view.input.graph,
         }
     }
+    /// The seed-bound migration claim; legacy envelopes have none.
+    pub(crate) fn migration_claim(&self) -> Option<EventId> {
+        match self {
+            Self::Full(envelope) => envelope.migration,
+            Self::View(_) => None,
+        }
+    }
     /// Whether the envelope names its evidence payloads (`ekr-seed-envelope/3`).
     pub(crate) fn names_payloads(&self) -> bool {
         matches!(self, Self::Full(envelope) if matches!(envelope.input.payloads, SeedPayloads::Named(_)))
@@ -595,6 +613,8 @@ impl SeedOutline {
 
 /// The envelope format every new seed retains (design § 100.1).
 pub(crate) const ENVELOPE_FORMAT: &str = "ekr-seed-envelope/3";
+/// A preserving migration binds its unique claim in the seed; older readers must refuse it.
+pub(crate) const MIGRATION_ENVELOPE_FORMAT: &str = "ekr-seed-envelope/4";
 /// The envelope format seeds before it retained, still replayed exactly.
 pub(crate) const ENVELOPE_FORMAT_V2: &str = "ekr-seed-envelope/2";
 
@@ -621,17 +641,24 @@ fn supported(format: &str, expected: &str) -> Result<(), StoreError> {
     Ok(())
 }
 
-/// Decodes bytes laid out as `ekr-seed-envelope/3`, if they are, and whatever their format says.
-fn as_v3(bytes: &[u8]) -> Option<EnvelopeV3> {
+/// Decodes the named-payload layout, with an optional migration claim.
+fn as_named(bytes: &[u8]) -> Option<NamedEnvelope> {
     serde_json::from_slice(bytes).ok()
 }
 
-/// Decodes a complete retained seed envelope by its exact format: `/3`'s layout for
-/// `ekr-seed-envelope/3`, and `/2`'s, payload bytes included, for `ekr-seed-envelope/2`. A layout
+/// Decodes a complete retained envelope: `/2` carries bytes, `/3` names them, and `/4`
+/// also binds a migration claim. A layout
 /// that disagrees with its format is `unsupported-seed-envelope`.
 pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
-    if let Some(envelope) = as_v3(bytes) {
-        supported(&envelope.format, ENVELOPE_FORMAT)?;
+    if let Some(envelope) = as_named(bytes) {
+        supported(
+            &envelope.format,
+            if envelope.migration.is_some() {
+                MIGRATION_ENVELOPE_FORMAT
+            } else {
+                ENVELOPE_FORMAT
+            },
+        )?;
         return Ok(envelope.into());
     }
     let envelope: EnvelopeV2 = decoded(bytes)?;
@@ -639,12 +666,19 @@ pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
     Ok(envelope.into())
 }
 
-/// What a checkpoint restore reads of a retained envelope: an `ekr-seed-envelope/3` in full,
+/// What a checkpoint restore reads of a retained envelope: `/3` and `/4` in full,
 /// since it carries no payload bytes, and a view of an `ekr-seed-envelope/2` without its payload
 /// bytes, refusing what [`envelope`] refuses, payload values that are not bytes included.
 pub(crate) fn outline(bytes: &[u8]) -> Result<SeedOutline, StoreError> {
-    if let Some(envelope) = as_v3(bytes) {
-        supported(&envelope.format, ENVELOPE_FORMAT)?;
+    if let Some(envelope) = as_named(bytes) {
+        supported(
+            &envelope.format,
+            if envelope.migration.is_some() {
+                MIGRATION_ENVELOPE_FORMAT
+            } else {
+                ENVELOPE_FORMAT
+            },
+        )?;
         return Ok(SeedOutline::Full(std::sync::Arc::new(envelope.into())));
     }
     let view: SeedEnvelopeView = decoded(bytes)?;
