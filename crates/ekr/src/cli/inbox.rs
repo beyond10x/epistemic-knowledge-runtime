@@ -306,7 +306,7 @@ pub(super) fn proposal(runtime: &Runtime, id: &str) -> Result<Vec<u8>, String> {
     }
     write!(
         page,
-        "<h2>Review material</h2><pre>{}</pre><h2>Review history</h2>",
+        "<h2>Review material</h2><pre>{}</pre><h2 id=\"review-history\">Review history</h2>",
         document(&shown.basis)?
     )
     .unwrap();

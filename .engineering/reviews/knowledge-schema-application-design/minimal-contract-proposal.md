@@ -35,7 +35,9 @@ retained semantic concepts are projected, not copied into handcrafted Rust model
 2. `ApplicationStep` tagged union: Schema (unit), Mapping(ApplicationItemKey), Corrections(unit).
    The correction step covers the ordered proposal.corrections list, including replacements.
    An empty correction list elects no correction step. Do not silently fold corrections into
-   arbitrary per-fact iterations.
+   arbitrary per-fact iterations. Ordering is schema, all elected selected mappings successfully
+   committed, then one atomic corrections transaction. Unresolved mappings cannot be dropped to
+   reach corrections. After that final commit no canonical work remains, only receipt recovery.
 
 3. `SchemaApplicationId` UUID newtype; `ApplicationElection` entity, identity application_id:
    proposal_id, proposal_digest, initial_review_id, initial_proof_digest, base_schema,
@@ -53,16 +55,26 @@ retained semantic concepts are projected, not copied into handcrafted Rust model
    application_id, step: ApplicationStep, transaction: CanonicalTransactionProjection,
    replacements: List<kernel.ClaimReplacement>, mapping_ids: List<MappingRecordId>,
    derivation_ids: List<Uuid>, elected_at.
-   Unique by application_id + exact step key. Frozen operation bytes bind allocated assertions
-   and evidence; replacements explicitly bind prior to new assertion IDs. Every step is elected
+   Unique by application_id + exact step key. The transaction is the initial attempt and immutable
+   operation/allocation template, not a promise that a terminal stale transaction can be revived.
+   Frozen operation bytes bind allocated assertions and evidence; replacements bind prior to new assertion IDs. Every step is elected
    BEFORE Propose/Validate/Commit, atomically with its pinned material. The schema step must equal
    ApplicationElection.schema_transaction. Other steps elect once when applicable. Unresolved
    mappings remain qualified pending items and have no fabricated transaction. Named retained
    projection required. Relation: application; no reference to a transaction before it exists.
 
+   `ApplicationStepAttempt` entity and `RetainedApplicationAttempt` project separately elected
+   transaction attempts, identified by transaction_id: step_election_id, optional predecessor
+   transaction and predecessor record hash, full transaction projection, and elected_at. Initial
+   attempts have no predecessor. A successor requires a verified terminal Stale predecessor and
+   resolves every uncertain predecessor publication first. Only the transaction identity changes;
+   schema, assertion, evidence, mapping, replacement and derivation identities and operation bytes
+   remain the elected template. Preserve the ordinary Proposed/Validated/Stale lifecycle and
+   immutable validation input binding. Receipts reference the actual committed attempt.
+
 5. `ApplicationPublicationGuard` struct:
    application_id, step_election_id, proposal_id, proposal_digest, review_id, human_proof_digest,
-   review_stream_version: Integer, step: ApplicationStep.
+   review_stream_version: Integer, step: ApplicationStep, attempt_transaction: TransactionId.
    `ApplicationPublicationRecord` struct adds transaction_id, event_id, record_hash and
    publication kind (reuse store.PublicationCommandKind where suitable). Its exact record is the
    nonempty shared-stream marker. It binds a real ordinary canonical occurrence, not a promise.
@@ -93,9 +105,9 @@ retained semantic concepts are projected, not copied into handcrafted Rust model
 ## Store declaration delta
 
 Add optional `review_guard: ApplicationPublicationGuard` to store.Publication, absent from ALL
-historical encodings. Add a new publication-preparation format (next after /5); only guarded
-publications use it. Its native_request carries revision + exact marker + object appends.
-Historical /1–/5 validation and bytes remain unchanged. Extend preparation validation to permit
+historical encodings. Allocate publication-preparation /7 after the existing signed-publication /6;
+only guarded publications use it. Its native_request carries revision + exact marker + object appends.
+Historical /1–/6 validation and bytes remain unchanged. Extend preparation validation to permit
 EXACTLY the typed marker stream/event under this guard, rather than arbitrary extra appends.
 Authorize both the existing revision and marker's proposal/review/application/transaction links
 through the existing kernel CommitAuthority. Existing Propose/Validate/Commit families can remain;
@@ -114,8 +126,10 @@ on full replay. A marker is not valid merely because it can deserialize.
 - ekr-store schema_proposals.rs: independent proposal retention. E review retention must fold the
   shared stream union and use native sequence, not number of review records, for Expected::Exact.
 - ekr-store preparation.rs::native_for: add the typed nonempty marker to the elected atomic group.
-- preparation.rs::authorize_preparation currently rejects EVERY non-object extra stream with
-  preparation-extra-stream; extend only the new guarded format, validate the exact marker.
+- preparation.rs::authorize_preparation already authenticates the mandatory audience-wide human
+  identity append for /6. Preserve that closed rule; /7 admits exactly its typed application marker
+  alongside ordinary revision/object appends. Any composition with a human identity append must be
+  explicitly declared and validated, never accepted as an arbitrary extra stream.
 - preparation.rs::resume_preparation retries exact native bytes, which is correct for response
   loss provided the marker was included when elected. Never attach a guard only at resume time.
 - ekr-kernel commands.rs::drive: conflicts reload both canonical state and proposal coordination
@@ -140,6 +154,14 @@ not duplicate the earlier schema or committed items. Each future marker binds th
 review. Full replay evaluates historical authorization at each marker prefix; a rejection today
 does not invalidate earlier approved commits.
 
+E Show/Approve and historical review verification must share application-aware material for that
+continuation. A new signature binds verified own-prefix references and the residual evidence and
+effects, while preserving the immutable proposal and its selected corrections. The original
+whole-plan applicability test is insufficient after committed schema/mapping steps. Corrections
+remain pending until the final atomic step; once it committed, completion is derived from linked
+canonical commits even if a reporting receipt was lost. A later rejection then permits only exact
+receipt recovery/reporting, not new canonical work.
+
 ## Required failure probes
 
 Approval read -> rejection append -> canonical commit must conflict/no new write. Canonical
@@ -147,4 +169,7 @@ publication winning before rejection remains recoverable. Crash before/after sch
 atomic groups yields frozen IDs/no duplicates. Marker append and canonical append are all-or-none
 on both providers. Marker insertion does not become a human predecessor. Generic commit cannot
 bypass the application guard. An unrelated ordinary commit can revalidate without another human
-answer; changed reviewed effects require review. Repeat after complete returns original results.
+answer by electing a successor after a verified stale attempt; changed reviewed effects require
+review. Exercise validate-T, unrelated-commit-U, commit-T, including crashes around the stale result
+and successor election. Preserve old /6 recovery as a compatibility control. Repeat after complete
+returns original results.

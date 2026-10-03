@@ -149,8 +149,8 @@
     }
   },
   "provenance": {
-    "contract_digest": "9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278",
-    "spec_digest": "7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11",
+    "contract_digest": "8d0aad69aca07fb6f5ae41a0ddb7cb31ca9eeb74bcd0c90f225a038d335271f5",
+    "spec_digest": "f356a296c15cb806b72a218ce953f41b3edb6194bcefd41f350d20df79d80073",
     "specification_version": "v1",
     "suite_version": "ess-conformance/19",
     "system": "ekr"
@@ -2199,61 +2199,230 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              },
+              {
+                "name": "schema-review-basis",
+                "type": "ekr.kernel.ReviewBasis"
+              },
+              {
+                "name": "schema-review-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              },
+              {
+                "name": "schema-review-proposal-digest",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "schema-review-statement",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.HumanReviewer",
           "command": "ekr.integrate.ApproveSchemaProposal",
           "input": {
             "basis": {
-              "kind": "literal",
-              "value": {
-                "effects_digest": "basis.effects_digest",
-                "evidence_digest": "basis.evidence_digest",
-                "observed_revision": 1.0,
-                "options_digest": "basis.options_digest"
-              }
+              "fixture": "schema-review-basis",
+              "kind": "fixture"
             },
             "human_proof": {
-              "kind": "literal",
-              "value": {
-                "algorithm": "Ed25519",
-                "intent": {
-                  "audience": {
-                    "seed_anchor": "human_proof.intent.audience.seed_anchor",
-                    "tenant": "human_proof.intent.audience.tenant"
-                  },
-                  "decision_id": "00000000-0000-4000-8000-ff87228dbe79",
-                  "expected_previous_decision": "human_proof.intent.expected_previous_decision",
-                  "format": "HumanDecision1",
-                  "reviewer_policy_digest": "human_proof.intent.reviewer_policy_digest",
-                  "signer_key_digest": "human_proof.intent.signer_key_digest",
-                  "statement_digest": "human_proof.intent.statement_digest",
-                  "target": {
-                    "kind": "AnswerAttention",
-                    "value": {
-                      "basis": {
-                        "effects_digest": "human_proof.intent.target.basis.effects_digest",
-                        "evidence_digest": "human_proof.intent.target.basis.evidence_digest",
-                        "observed_revision": 1.0,
-                        "options_digest": "human_proof.intent.target.basis.options_digest"
-                      },
-                      "corrections_digest": "human_proof.intent.target.corrections_digest",
-                      "dispute_id": "00000000-0000-4000-8000-79874d652d8a"
-                    }
-                  }
-                },
-                "signature": "AA=="
-              }
+              "fixture": "schema-review-proof",
+              "kind": "fixture"
             },
             "proposal_digest": {
-              "kind": "literal",
-              "value": "proposal_digest"
+              "fixture": "schema-review-proposal-digest",
+              "kind": "fixture"
             },
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             },
             "statement": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "schema-review-statement",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -2714,6 +2883,208 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              },
+              {
+                "name": "schema-review-basis",
+                "type": "ekr.kernel.ReviewBasis"
+              },
+              {
+                "name": "schema-review-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              },
+              {
+                "name": "schema-review-proposal-digest",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "schema-review-statement",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.ApproveSchemaProposal",
             "outcome": "refused"
@@ -2725,57 +3096,24 @@
           "command": "ekr.integrate.ApproveSchemaProposal",
           "input": {
             "basis": {
-              "kind": "literal",
-              "value": {
-                "effects_digest": "basis.effects_digest",
-                "evidence_digest": "basis.evidence_digest",
-                "observed_revision": 1.0,
-                "options_digest": "basis.options_digest"
-              }
+              "fixture": "schema-review-basis",
+              "kind": "fixture"
             },
             "human_proof": {
-              "kind": "literal",
-              "value": {
-                "algorithm": "Ed25519",
-                "intent": {
-                  "audience": {
-                    "seed_anchor": "human_proof.intent.audience.seed_anchor",
-                    "tenant": "human_proof.intent.audience.tenant"
-                  },
-                  "decision_id": "00000000-0000-4000-8000-ff87228dbe79",
-                  "expected_previous_decision": "human_proof.intent.expected_previous_decision",
-                  "format": "HumanDecision1",
-                  "reviewer_policy_digest": "human_proof.intent.reviewer_policy_digest",
-                  "signer_key_digest": "human_proof.intent.signer_key_digest",
-                  "statement_digest": "human_proof.intent.statement_digest",
-                  "target": {
-                    "kind": "AnswerAttention",
-                    "value": {
-                      "basis": {
-                        "effects_digest": "human_proof.intent.target.basis.effects_digest",
-                        "evidence_digest": "human_proof.intent.target.basis.evidence_digest",
-                        "observed_revision": 1.0,
-                        "options_digest": "human_proof.intent.target.basis.options_digest"
-                      },
-                      "corrections_digest": "human_proof.intent.target.corrections_digest",
-                      "dispute_id": "00000000-0000-4000-8000-79874d652d8a"
-                    }
-                  }
-                },
-                "signature": "AA=="
-              }
+              "fixture": "schema-review-proof",
+              "kind": "fixture"
             },
             "proposal_digest": {
-              "kind": "literal",
-              "value": "proposal_digest"
+              "fixture": "schema-review-proposal-digest",
+              "kind": "fixture"
             },
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             },
             "statement": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "schema-review-statement",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -4153,6 +4491,18 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {},
+            "fields": [
+              {
+                "name": "interpretation-payload",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.KnowledgeProposer",
           "command": "ekr.integrate.ImportInterpretation",
           "input": {
@@ -4175,8 +4525,8 @@
               }
             },
             "payload": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "interpretation-payload",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -4708,6 +5058,18 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {},
+            "fields": [
+              {
+                "name": "interpretation-payload",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.ImportInterpretation",
             "outcome": "refused"
@@ -4737,8 +5099,8 @@
               }
             },
             "payload": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "interpretation-payload",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -5608,61 +5970,230 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              },
+              {
+                "name": "schema-review-basis",
+                "type": "ekr.kernel.ReviewBasis"
+              },
+              {
+                "name": "schema-review-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              },
+              {
+                "name": "schema-review-proposal-digest",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "schema-review-statement",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.HumanReviewer",
           "command": "ekr.integrate.RejectSchemaProposal",
           "input": {
             "basis": {
-              "kind": "literal",
-              "value": {
-                "effects_digest": "basis.effects_digest",
-                "evidence_digest": "basis.evidence_digest",
-                "observed_revision": 1.0,
-                "options_digest": "basis.options_digest"
-              }
+              "fixture": "schema-review-basis",
+              "kind": "fixture"
             },
             "human_proof": {
-              "kind": "literal",
-              "value": {
-                "algorithm": "Ed25519",
-                "intent": {
-                  "audience": {
-                    "seed_anchor": "human_proof.intent.audience.seed_anchor",
-                    "tenant": "human_proof.intent.audience.tenant"
-                  },
-                  "decision_id": "00000000-0000-4000-8000-ff87228dbe79",
-                  "expected_previous_decision": "human_proof.intent.expected_previous_decision",
-                  "format": "HumanDecision1",
-                  "reviewer_policy_digest": "human_proof.intent.reviewer_policy_digest",
-                  "signer_key_digest": "human_proof.intent.signer_key_digest",
-                  "statement_digest": "human_proof.intent.statement_digest",
-                  "target": {
-                    "kind": "AnswerAttention",
-                    "value": {
-                      "basis": {
-                        "effects_digest": "human_proof.intent.target.basis.effects_digest",
-                        "evidence_digest": "human_proof.intent.target.basis.evidence_digest",
-                        "observed_revision": 1.0,
-                        "options_digest": "human_proof.intent.target.basis.options_digest"
-                      },
-                      "corrections_digest": "human_proof.intent.target.corrections_digest",
-                      "dispute_id": "00000000-0000-4000-8000-79874d652d8a"
-                    }
-                  }
-                },
-                "signature": "AA=="
-              }
+              "fixture": "schema-review-proof",
+              "kind": "fixture"
             },
             "proposal_digest": {
-              "kind": "literal",
-              "value": "proposal_digest"
+              "fixture": "schema-review-proposal-digest",
+              "kind": "fixture"
             },
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             },
             "statement": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "schema-review-statement",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -6123,6 +6654,208 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              },
+              {
+                "name": "schema-review-basis",
+                "type": "ekr.kernel.ReviewBasis"
+              },
+              {
+                "name": "schema-review-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              },
+              {
+                "name": "schema-review-proposal-digest",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "schema-review-statement",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.RejectSchemaProposal",
             "outcome": "refused"
@@ -6134,57 +6867,24 @@
           "command": "ekr.integrate.RejectSchemaProposal",
           "input": {
             "basis": {
-              "kind": "literal",
-              "value": {
-                "effects_digest": "basis.effects_digest",
-                "evidence_digest": "basis.evidence_digest",
-                "observed_revision": 1.0,
-                "options_digest": "basis.options_digest"
-              }
+              "fixture": "schema-review-basis",
+              "kind": "fixture"
             },
             "human_proof": {
-              "kind": "literal",
-              "value": {
-                "algorithm": "Ed25519",
-                "intent": {
-                  "audience": {
-                    "seed_anchor": "human_proof.intent.audience.seed_anchor",
-                    "tenant": "human_proof.intent.audience.tenant"
-                  },
-                  "decision_id": "00000000-0000-4000-8000-ff87228dbe79",
-                  "expected_previous_decision": "human_proof.intent.expected_previous_decision",
-                  "format": "HumanDecision1",
-                  "reviewer_policy_digest": "human_proof.intent.reviewer_policy_digest",
-                  "signer_key_digest": "human_proof.intent.signer_key_digest",
-                  "statement_digest": "human_proof.intent.statement_digest",
-                  "target": {
-                    "kind": "AnswerAttention",
-                    "value": {
-                      "basis": {
-                        "effects_digest": "human_proof.intent.target.basis.effects_digest",
-                        "evidence_digest": "human_proof.intent.target.basis.evidence_digest",
-                        "observed_revision": 1.0,
-                        "options_digest": "human_proof.intent.target.basis.options_digest"
-                      },
-                      "corrections_digest": "human_proof.intent.target.corrections_digest",
-                      "dispute_id": "00000000-0000-4000-8000-79874d652d8a"
-                    }
-                  }
-                },
-                "signature": "AA=="
-              }
+              "fixture": "schema-review-proof",
+              "kind": "fixture"
             },
             "proposal_digest": {
-              "kind": "literal",
-              "value": "proposal_digest"
+              "fixture": "schema-review-proposal-digest",
+              "kind": "fixture"
             },
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             },
             "statement": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "schema-review-statement",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -6719,16 +7419,50 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.InterpretationId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.integrate.InterpretationVersion": {
+                "fields": [
+                  {
+                    "name": "interpretation_id",
+                    "type": "ekr.integrate.InterpretationId"
+                  },
+                  {
+                    "name": "version",
+                    "type": "Integer"
+                  },
+                  {
+                    "name": "document_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              }
+            },
+            "fields": [
+              {
+                "name": "interpretation-version",
+                "type": "ekr.integrate.InterpretationVersion"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.KnowledgeProposer",
           "command": "ekr.integrate.ShowInterpretation",
           "input": {
             "version": {
-              "kind": "literal",
-              "value": {
-                "document_digest": "version.document_digest",
-                "interpretation_id": "00000000-0000-4000-8000-50ca44ff2763",
-                "version": 1.0
-              }
+              "fixture": "interpretation-version",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -7177,6 +7911,44 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.InterpretationId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.integrate.InterpretationVersion": {
+                "fields": [
+                  {
+                    "name": "interpretation_id",
+                    "type": "ekr.integrate.InterpretationId"
+                  },
+                  {
+                    "name": "version",
+                    "type": "Integer"
+                  },
+                  {
+                    "name": "document_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              }
+            },
+            "fields": [
+              {
+                "name": "interpretation-version",
+                "type": "ekr.integrate.InterpretationVersion"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.ShowInterpretation",
             "outcome": "refused"
@@ -7188,12 +7960,8 @@
           "command": "ekr.integrate.ShowInterpretation",
           "input": {
             "version": {
-              "kind": "literal",
-              "value": {
-                "document_digest": "version.document_digest",
-                "interpretation_id": "00000000-0000-4000-8000-50ca44ff2763",
-                "version": 1.0
-              }
+              "fixture": "interpretation-version",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -7748,12 +8516,29 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.KnowledgeProposer",
           "command": "ekr.integrate.ShowSchemaProposal",
           "input": {
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -8222,6 +9007,23 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.ShowSchemaProposal",
             "outcome": "refused"
@@ -8233,8 +9035,8 @@
           "command": "ekr.integrate.ShowSchemaProposal",
           "input": {
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -8741,12 +9543,24 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {},
+            "fields": [
+              {
+                "name": "schema-proposal-payload",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.KnowledgeProposer",
           "command": "ekr.integrate.SubmitSchemaProposal",
           "input": {
             "payload": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "schema-proposal-payload",
+              "kind": "fixture"
             },
             "proposal": {
               "kind": "literal",
@@ -9276,6 +10090,18 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {},
+            "fields": [
+              {
+                "name": "schema-proposal-payload",
+                "type": "Bytes"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.SubmitSchemaProposal",
             "outcome": "refused"
@@ -9287,8 +10113,8 @@
           "command": "ekr.integrate.SubmitSchemaProposal",
           "input": {
             "payload": {
-              "kind": "literal",
-              "value": "AA=="
+              "fixture": "schema-proposal-payload",
+              "kind": "fixture"
             },
             "proposal": {
               "kind": "literal",

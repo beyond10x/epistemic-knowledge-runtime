@@ -618,3 +618,88 @@ fn proposal_submission_refuses_inapplicable_corrections() {
         }
     }
 }
+
+#[test]
+fn correction_review_survives_unrelated_advancement_and_remains_historical_after_resolution() {
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("store");
+        let (store, human) = upgraded(&path, sqlite);
+        let question = store
+            .read(None)
+            .unwrap()
+            .dispute_attention()
+            .unwrap()
+            .remove(0);
+        let input = with_corrections(
+            proposal_input(&store),
+            serde_json::json!([
+                {"kind":"Choose","assertion_id":question.claims[0],"reason":"Reviewed supported ownership."}
+            ]),
+        );
+        let shown = store
+            .submit_schema_proposal(&input, Timestamp::from_millis(2))
+            .unwrap();
+        let approval = signed_review(
+            &human,
+            &shown,
+            true,
+            ekr_core::EventId::mint(),
+            b"Approve the selected correction and additions.",
+        );
+        let (id, bytes) = proposal(&store.read(None).unwrap().seed_input);
+        commit_document(&store, id, &bytes, 3);
+        let retained = store
+            .approve_schema_proposal(&approval, Timestamp::from_millis(4))
+            .unwrap();
+        assert_eq!(retained.basis, shown.basis);
+        let correction = answer(
+            &human,
+            &store.read(None).unwrap(),
+            m::ClaimCorrectionKind::Choose,
+        );
+        store
+            .answer_attention(&correction, || Timestamp::from_millis(5))
+            .unwrap();
+        assert!(store
+            .read(None)
+            .unwrap()
+            .dispute_attention()
+            .unwrap()
+            .is_empty());
+        let current = store.schema_proposal(&input.proposal.proposal_id).unwrap();
+        assert_eq!(current.reviews, [Box::new(retained.clone())]);
+        assert_ne!(current.basis.options_digest, retained.basis.options_digest);
+        // Exact recovery retains history without re-authorizing the now-inapplicable correction.
+        assert_eq!(
+            store
+                .approve_schema_proposal(&approval, Timestamp::from_millis(6))
+                .unwrap(),
+            retained
+        );
+        let invalid = signed_review(
+            &human,
+            &current,
+            true,
+            ekr_core::EventId::mint(),
+            b"The correction is no longer applicable.",
+        );
+        let events = store.published_events().unwrap();
+        assert!(store
+            .approve_schema_proposal(&invalid, Timestamp::from_millis(6))
+            .is_err());
+        assert_eq!(store.published_events().unwrap(), events);
+        drop(store);
+        let mut reopened = runtime(&path, sqlite)
+            .with_review_authority(human.binding)
+            .unwrap();
+        reopened.set_full_replay(true);
+        assert_eq!(
+            reopened
+                .schema_proposal(&input.proposal.proposal_id)
+                .unwrap()
+                .reviews,
+            [Box::new(retained)]
+        );
+    }
+}

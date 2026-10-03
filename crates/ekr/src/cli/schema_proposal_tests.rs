@@ -146,6 +146,19 @@ fn cli_dispatch_records_signed_approval_and_rejection_without_advancing_head() {
         assert!(page.contains("Reviewed &lt;proposal&gt; evidence &amp; additions."));
         assert!(page.contains("fixture-human"));
         assert!(!page.contains("Reviewed <proposal>"));
+        if let Some(output) = std::env::var_os("EKR_INBOX_INSPECTION_DIR") {
+            let output = std::path::Path::new(&output);
+            std::fs::create_dir_all(output).unwrap();
+            std::fs::write(
+                output.join(if sqlite {
+                    "sqlite-schema-reviews.html"
+                } else {
+                    "file-schema-reviews.html"
+                }),
+                &page,
+            )
+            .unwrap();
+        }
         assert_eq!(runtime.read(None).unwrap().root, read.root);
     }
 }

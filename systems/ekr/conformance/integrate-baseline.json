@@ -1,7 +1,7 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/integrate-suite.json",
-  "suite_version": "ess-conformance/5",
+  "suite_version": "ess-conformance/19",
   "component": "ekr-integrate",
   "providers": [
     "file",
@@ -64,14 +64,16 @@
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ApproveSchemaProposal/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.DiscoverSchemaGaps/outcome/answered": {
       "execute_command": 1,
@@ -90,14 +92,16 @@
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ImportInterpretation/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ListInterpretations/outcome/answered": {
       "execute_command": 1,
@@ -109,53 +113,61 @@
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.RejectSchemaProposal/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ShowInterpretation/outcome/answered": {
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ShowInterpretation/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ShowSchemaProposal/outcome/answered": {
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ShowSchemaProposal/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.SubmitSchemaProposal/outcome/answered": {
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.SubmitSchemaProposal/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     }
   }
 }

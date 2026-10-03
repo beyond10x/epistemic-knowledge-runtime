@@ -24,7 +24,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 10
+revision: 12
 ---
 ## Outcome
 
@@ -55,3 +55,15 @@ Before F implementation, author and generate durable application-election record
 ## Application atomicity design candidate
 
 A bounded read-only design review proposed a nonempty publication marker in the same per-proposal review stream and the same atomic group as each ordinary canonical publication. Physical sequence and effective human predecessor must remain distinct. This is compatible with the pinned Eventlog prohibition on empty append entries and does not introduce another canonical writer. Durable election freezes transaction documents/allocated identities before any publication; resume recognizes its own committed prefix rather than re-running initial additive admission against its already-applied schema. The unvalidated proposal and exact source seams are retained at .engineering/reviews/knowledge-schema-application-design/minimal-contract-proposal.md. Required entities/relations must validate in ESS and regenerate before implementation. Signed approval does not authorize conflicting retained/canonical evidence identities to be silently reused: application must retain admissible evidence or leave the fact blocked.
+
+## Specification prerequisite ownership
+
+Before implementation, author_contracts owns the bounded ESS refinement and generated-contract prerequisite in systems/ekr/domains/integrate.yaml and store.yaml, with related declarations only when validation requires them, and the two generated artifact trees. Use the retained design candidate and existing source seams, preserve serialized names and existing review behavior, and validate before runtime implementation. No kernel/store runtime code, CLI, SDK, conformance adapter, AEP or source publication belongs to this prerequisite unit. Root owns recorded scope, independent design review, integration and implementation scheduling. No Cargo build without explicit exclusive lane handoff. This unit establishes contracts only, not F acceptance or dependency completion.
+
+## Attempt recovery and independent review disposition
+
+Independent review schema-application-design-independent-r1 identified two protocol gaps and a stale preparation-format baseline. The design now separates the immutable semantic step from separately elected ordinary transaction attempts. A successor preserves all operation/allocation bytes and resolves uncertain publication before requiring a verified terminal Stale predecessor; it does not revive a stale transaction or change an elected validation input. The contract prerequisite must generate these records before runtime implementation.
+
+Ordering is schema, every elected selected mapping successfully committed, then one atomic selected-corrections transaction. Unresolved selected items cannot be dropped to reach corrections. Canonical completion follows linked actual commits even when the final reporting receipt was lost. After the correction commit, only exact recovery/reporting remains. New approval after partial schema/mapping progress must sign application-aware material binding the verified own prefix and residual evidence/effects in both E admission and historical review verification. Coincidental external changes are not own progress.
+
+Preparation /7 follows existing /6 and preserves its exact signed-publication identity binding/recovery. The new application marker uses a closed atomic append rule; arbitrary extra streams remain refused. Required regressions include validate-T, unrelated-commit-U, commit-T becoming stale, crash/retry and successor election; rejection versus publication CAS; strict correction-last ordering; reapproval of the verified residual plan; and old /6 exact recovery. These are accepted implementation requirements, not executed F evidence. The amended candidate is .engineering/reviews/knowledge-schema-application-design/minimal-contract-proposal.md.

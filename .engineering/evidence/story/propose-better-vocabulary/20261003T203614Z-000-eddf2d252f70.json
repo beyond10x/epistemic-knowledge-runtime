@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T20:36:14Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:propose-better-vocabulary",
+  "kind": "story",
+  "revision": 24,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test -p ekr-kernel; kernel-package.log: full package passed, six existing ignores; signed review source checkpoint ab6dcf888",
+    "reference": ".engineering/reviews/knowledge-schema-review-admission/kernel-package.log"
+  }
+}

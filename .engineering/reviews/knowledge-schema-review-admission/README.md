@@ -28,6 +28,16 @@ statements as escaped text. Application of approved proposals remains F work.
   corrections preserve assertions and use the already shared fixture module.
 - `contracts-check.log`: the pinned released ESS regenerated both complete artifact trees with
   no drift, and the generated semantic workspace compiled. This is not implementation conformance.
+- `kernel-package.log`: the complete ekr-kernel package passed 611 tests with six existing ignores,
+  including its compile-fail membrane cases. This run contains seven schema-review cases; the later
+  correction-history regression is verified separately.
+- `correction-history.log`: the additional review regression passed on file and SQLite. A signed
+  correction review survives unrelated advancement, remains historical after resolution, and
+  recovers its exact retry while a fresh inapplicable approval is refused.
+- `viewer-capture.log`: the real CLI dispatch fixture passed on both providers and saved its
+  Rust-rendered proposal HTML. `schema-review-history.png` is a headless Firefox rendering of the
+  file-provider HTML, visually inspected for both decisions, reviewer identity and escaped human
+  statement text. This is a saved-page rendering, not a live HTTP/browser write test.
 
 Red evidence is retained alongside green evidence. `historical-red-3.log` accepted an impossible
 historical review basis. `identity-red.log` accepted a reused upgrade decision UUID.
@@ -39,14 +49,22 @@ route was unreachable and is explicitly withdrawn by the review reports.
 
 Independent review reports record their source/log-only scope and do not claim independent test
 execution. The immutable planning records preserve original findings and subsequent corrections.
-Raw evidence remains outside disposable outputs; copies here replace local path prefixes only.
+Raw evidence remains outside disposable outputs; copies here replace local path prefixes and
+omit trailing empty log lines.
 
 ## Remaining delivery work
 
-The full kernel package run, final formatting, current conformance adapters and full task check
-remain separately recorded gates. Regeneration adds the already-declared discovery refusal scenario
+Final formatting, current conformance adapters and full task check remain separately recorded
+gates. Regeneration adds the already-declared discovery refusal scenario
 to the integrate inventory: its floor rises from 18 to 19 with a zero unavailable ceiling; existing
 floors are not weakened. This checkpoint is not full E/F acceptance or PR completion.
+
+The pinned ESS conformance compiler refuses recursive document/proposal fixture contracts;
+`fixture-generation/` preserves that refusal and supported-alternative probes. The current suite
+keeps finite fixture bindings and literal document/proposal inputs, preserving the same 19
+obligations. Synthesis succeeds but a generated proposal without supporting evidence cannot
+legitimately pass admission. The dependency blocker records this missing witness capability;
+neither successful synthesis nor authored coverage discharges the generated execution floor.
 
 Legacy published signed preparations retain exact receipts. Unpublished legacy signed preparations
 refuse human-decision-revalidation-required and retain their immutable command slot; automatic

@@ -1,0 +1,17 @@
+   Compiling ekr-contract-data v0.0.0 (<implementation-worktree>/generated/ekr-contract-data)
+   Compiling ekr-core v0.0.27 (<implementation-worktree>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<implementation-worktree>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<implementation-worktree>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<implementation-worktree>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<implementation-worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<implementation-worktree>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<implementation-worktree>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<implementation-worktree>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<implementation-worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 35.38s
+     Running unittests src/lib.rs (<owned-build-cache>/target/debug/deps/ekr-36f1557db15e028e)
+
+running 1 test
+test cli::schema_proposal_tests::cli_dispatch_records_signed_approval_and_rejection_without_advancing_head ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.31s

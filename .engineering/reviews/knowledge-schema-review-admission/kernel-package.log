@@ -1,0 +1,1162 @@
+   Compiling ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 1m 07s
+     Running unittests src/lib.rs (<owned-build>/target/debug/deps/ekr_kernel-d670326513b14901)
+
+running 28 tests
+test document::checked::tests::string_refusals_precede_the_allocating_application_visitor ... ok
+test document::checked::tests::mixed_accounting_refuses_before_allocating_a_coerced_string ... ok
+test incubation_value::tests::existing_canonical_encoder_is_the_oracle_for_every_value_kind ... ok
+test document::bounded_load::a_transaction_document_nested_past_the_depth_is_refused_at_the_first_container_past_it ... ok
+test replay::tests::retirement_requires_the_confirmed_occurrence_and_matching_prefix ... ok
+test checkpoint::tests::held_identities_are_read_from_each_receipt_without_parsing_its_proposal ... ok
+test seed::bounded_load::a_seed_nested_past_the_depth_is_refused_at_the_first_container_past_it ... ok
+test seed::shared_payloads::a_carried_payload_becomes_the_retained_allocation_only_for_verified_equal_bytes ... ok
+test validate::candidate::tests::a_candidate_borrows_existing_node_types_at_every_graph_size ... ok
+test replay::tests::node_only_commits_share_the_unchanged_assertion_edge_index ... ok
+test replay::tests::prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors ... ok
+test replay::tests::confirmed_commit_releases_the_previous_head_before_the_next_command ... ok
+test replay::tests::reusable_graph_belongs_to_the_authority_not_the_thread ... ok
+test checkpoint::tests::checkpoint_writer_matches_the_complete_owned_document_bytes ... ok
+test answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals ... ok
+test replay::tests::an_unpublished_candidate_cannot_seed_reuse ... ok
+test replay::tests::an_equal_root_replayed_by_another_authority_falls_back_to_clone ... ok
+test replay::tests::reused_graph_preserves_inherited_attachments_and_matches_forced_clone ... ok
+test checkpoint::tests::a_fresh_open_restores_the_head_and_replays_nothing_the_checkpoint_covers ... ok
+test replay::tests::readers_and_checkpoint_graphs_prevent_reuse_extraction ... ok
+test replay::tests::warm_alias_checks_visit_no_unchanged_nodes ... ok
+test replay::tests::a_new_checkpoint_releases_its_predecessors_graph_before_the_next_command ... ok
+test replay::tests::one_handle_holds_the_head_graph_and_not_one_graph_per_revision ... ok
+test replay::tests::one_handle_validates_against_an_earlier_revision_whose_graph_it_released ... ok
+test answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers ... ok
+test replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers ... ok
+test replay::tests::warm_validation_hashes_no_more_prefix_occurrences_as_history_grows ... ok
+test replay::tests::append_commits_copy_no_more_assertions_as_the_graph_grows ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s
+
+     Running tests/add_alias.rs (<owned-build>/target/debug/deps/add_alias-aaaea3e44b3bfcf1)
+
+running 3 tests
+test a_held_alias_a_repeated_alias_and_an_unknown_node_are_each_refused_by_name ... ok
+test a_node_created_without_an_alias_gains_one_the_next_head_resolves_and_replay_reproduces ... ok
+test alias_refusals_follow_peer_and_historical_revisions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+     Running tests/add_evidence.rs (<owned-build>/target/debug/deps/add_evidence-b8c667ffbbc128ba)
+
+running 11 tests
+test evidence_extracted_by_another_agent_than_the_proposer_is_misattributed ... ok
+test evidence_from_a_source_other_than_a_human_statement_is_refused_by_name ... ok
+test an_assertion_citing_evidence_no_revision_holds_is_refused_as_unresolved_evidence ... ok
+test a_payload_that_does_not_hash_to_its_entry_is_refused_as_evidence_payload_mismatch ... ok
+test a_reused_evidence_id_is_refused_by_name ... ok
+test added_evidence_and_the_assertion_citing_it_commit_and_replay_on_both_providers ... ok
+test adversary_empty_and_unknown_state_requests_still_refuse_withdrawn_history ... ok
+test a_verified_read_still_holds_every_added_payload ... ok
+test cached_commands_refuse_withdrawn_evidence_as_complete_history_does ... ok
+test adversary_peer_validation_at_an_old_basis_matches_full_replay ... ok
+test a_command_loads_the_same_objects_however_much_evidence_the_store_holds ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+
+     Running tests/adversary2_p1_14_exit_readback_and_assertion_refs.rs (<owned-build>/target/debug/deps/adversary2_p1_14_exit_readback_and_assertion_refs-d3a04d32589ebecf)
+
+running 6 tests
+test a_transient_identity_is_minted_into_every_canonical_reference_kind ... ok
+test a_typed_dispute_keeps_the_bare_id_bytes_and_wire_shape ... ok
+test a_typed_graph_assertion_source_keeps_the_frozen_bytes_and_wire_shape ... ok
+test a_typed_supersession_keeps_the_bare_id_bytes_and_wire_shape ... ok
+test a_refused_commit_publishes_nothing_a_fresh_runtime_reads_on_either_provider ... ok
+test the_physical_event_counter_the_exit_property_relies_on_can_see_a_publication ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/adversary2_p5_01_kernel.rs (<owned-build>/target/debug/deps/adversary2_p5_01_kernel-a4a3555a1e424ac7)
+
+running 8 tests
+test owned_and_ownerless_modifications_never_share_an_address ... ok
+test a_property_redeclared_twice_in_one_transaction_is_refused_as_a_conflicting_write ... ok
+test instance_state_reads_edges_edge_assertions_and_inherited_types ... ok
+test the_modify_property_parser_refuses_every_ambiguous_mapping ... ok
+test design_section_95_names_only_cases_that_exist ... ok
+test a_schema_commit_lost_before_its_write_resumes_in_a_fresh_runtime_on_both_providers ... ok
+test two_schema_changes_validated_against_one_head_commit_once_on_both_providers ... ok
+test a_property_redeclared_across_versions_replays_on_both_providers ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/adversary_add_alias_l.rs (<owned-build>/target/debug/deps/adversary_add_alias_l-67c958b19b6ced8a)
+
+running 6 tests
+test an_alias_added_to_a_node_created_in_the_same_transaction_is_appended_after_the_drafts ... ok
+test aliases_differing_in_case_normalisation_or_whitespace_are_distinct_and_each_resolves_to_one_node ... ok
+test an_admitted_transaction_never_makes_an_alias_identify_a_second_node ... ok
+test a_checkpoint_past_an_added_alias_restores_the_alias_for_resolve_and_for_validation ... ok
+test an_add_alias_and_a_create_node_racing_at_one_basis_commit_once_and_the_other_is_stale ... ok
+test a_v2_store_holding_an_added_alias_migrates_with_the_alias ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/adversary_add_evidence_1.rs (<owned-build>/target/debug/deps/adversary_add_evidence_1-ef450d6c701c3f83)
+
+running 13 tests
+test cold_open_time_by_number_of_add_evidence_commits ... ignored, measurement: run explicitly
+test two_transactions_adding_one_evidence_id_at_one_basis_commit_once ... ok
+test an_assertion_written_before_the_evidence_it_cites_commits_and_replays_on_both_providers ... ok
+test a_zero_byte_payload_commits_and_replays_on_both_providers ... ok
+test file_and_sqlite_reach_equal_roots_for_one_add_evidence_history ... ok
+test one_payload_under_two_evidence_ids_in_one_transaction_commits_and_replays ... ok
+test evidence_a_rejected_transaction_carried_is_neither_stored_nor_citable ... ok
+test a_payload_equal_to_a_canonical_object_the_store_retains_commits_and_replays ... ok
+test a_payload_already_retained_added_again_under_new_ids_commits_and_replays ... ok
+test a_stale_add_evidence_stores_nothing_and_its_retry_stores_the_payload_once ... ok
+test add_evidence_commits_and_replays_under_each_validation_profile ... ok
+test a_checkpoint_covering_added_evidence_is_restored_and_agrees_with_full_replay ... ok
+test the_largest_payload_each_document_version_carries_commits_and_one_byte_more_is_refused ... ok
+
+test result: ok. 12 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+     Running tests/adversary_c7_b.rs (<owned-build>/target/debug/deps/adversary_c7_b-25f8fdce8cf9f700)
+
+running 11 tests
+test an_alias_free_seed_under_the_byte_cap_is_not_refused_as_alias_expansion ... ignored, adversary c7-b F1: an alias-free seed under the byte cap is refused as seed-alias-expansion (\L decodes 2 bytes to 3)
+test a_recursive_alias_stays_seed_decode ... ok
+test depth_through_an_alias_is_exact_at_the_boundary ... ok
+test the_repository_seed_fixtures_are_not_refused_by_the_new_limits ... ok
+test block_style_depth_is_counted_like_flow_style_at_the_boundary ... ok
+test a_second_document_is_bounded_too ... ok
+test the_text_limit_is_exact_and_counts_multibyte_scalars_in_bytes ... ok
+test merge_keys_are_charged_as_the_alias_they_are ... ok
+test a_redefined_anchor_is_charged_as_the_node_it_now_names ... ok
+test the_node_limit_is_exact ... ok
+test scalar_aliases_and_aliases_as_keys_are_charged ... ok
+
+test result: ok. 10 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/adversary_c7_m.rs (<owned-build>/target/debug/deps/adversary_c7_m-46163259fdef5cb2)
+
+running 5 tests
+test evidence_whose_payload_is_the_migration_marker_commits ... ignored, task:migration-marker-cannot-be-evidence: a payload equal to the migration marker's bytes is refused at commit
+test a_payload_raised_after_its_commit_keeps_its_class_history ... ok
+test a_payload_stored_below_provenance_before_its_commit_migrates ... ok
+test a_resumed_commit_preparation_that_added_evidence_migrates ... ok
+test a_history_of_every_added_evidence_shape_migrates_with_payloads_unchanged ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/adversary_checkpoint_by_size_p2.rs (<owned-build>/target/debug/deps/adversary_checkpoint_by_size_p2-289e31d81aed8822)
+
+running 7 tests
+test a_receipt_whose_created_list_lies_changes_no_answer_and_frees_no_identity ... ok
+test a_handle_that_admitted_no_checkpoint_leaves_one_at_rest ... ok
+test a_handle_at_rest_does_not_move_the_retained_checkpoint_back_behind_another_writers ... ok
+test a_handle_at_rest_after_an_early_basis_validation_leaves_a_checkpoint_covering_it ... ok
+test after_sessions_of_0_to_4_commits_at_rest_a_fresh_open_answers_as_a_full_replay ... ok
+test after_0_to_12_commits_a_fresh_open_answers_as_a_full_replay_under_every_profile ... ok
+test documents_of_exactly_the_byte_bound_write_a_checkpoint ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 39.46s
+
+     Running tests/adversary_checkpoint_cadence_p1.rs (<owned-build>/target/debug/deps/adversary_checkpoint_cadence_p1-bf2e30e0dcbd634e)
+
+running 6 tests
+test adversary_checkpoint_cadence_a_full_replay_handle_writes_a_checkpoint_at_its_first_commit ... ok
+test adversary_checkpoint_cadence_an_early_basis_validation_is_covered_by_the_next_commit ... ok
+test adversary_checkpoint_cadence_crash_states_reopen_as_a_full_replay ... ok
+test adversary_checkpoint_cadence_mixed_history_v1 has been running for over 60 seconds
+test adversary_checkpoint_cadence_mixed_history_v2 has been running for over 60 seconds
+test adversary_checkpoint_cadence_mixed_history_v3 has been running for over 60 seconds
+test adversary_checkpoint_cadence_mixed_history_v2 ... ok
+test adversary_checkpoint_cadence_mixed_history_v1 ... ok
+test adversary_checkpoint_cadence_mixed_history_v3 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 98.24s
+
+     Running tests/adversary_envelope_once_p1.rs (<owned-build>/target/debug/deps/adversary_envelope_once_p1-8ccb2ea4e7a76de6)
+
+running 2 tests
+test a_seed_whose_envelope_bytes_do_not_decode_is_never_published ... ok
+test a_checkpoint_over_an_envelope_with_non_byte_payloads_answers_as_a_full_replay ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/adversary_legacy_freeze.rs (<owned-build>/target/debug/deps/adversary_legacy_freeze-674e22f0ceea3a0b)
+
+running 6 tests
+test adversary_noncanonical_identity_spelling_and_escaped_duplicate_keys_refuse ... ok
+test adversary_nested_original_fields_refuse_unknown_semantics ... ok
+test adversary_nonproposed_seed_states_never_receive_reconstructed_acceptance ... ok
+test adversary_seed_attribution_preserves_input_and_refuses_mismatched_original_contexts ... ok
+test adversary_frozen_serializers_preserve_all_original_capture_bytes ... ok
+test adversary_validation_receipts_refuse_identical_bytes_in_wrong_hash_domain_and_order ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/adversary_membrane.rs (<owned-build>/target/debug/deps/adversary_membrane-2f25c7f2d557293a)
+
+running 5 tests
+test an_assertion_whose_only_evidence_the_proposer_invented_is_refused ... ok
+test an_add_assertion_over_an_id_canonical_state_already_holds_is_refused ... ok
+test a_node_created_under_a_graph_root_that_does_not_exist_is_refused ... ok
+test a_create_node_over_an_id_canonical_state_already_holds_is_refused ... ok
+test reordering_the_operations_of_one_transaction_does_not_change_the_verdict ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_membrane_pass_two.rs (<owned-build>/target/debug/deps/adversary_membrane_pass_two-1332931d1015e845)
+
+running 4 tests
+test a_node_is_not_merged_into_itself ... ok
+test a_type_the_ontology_already_declares_is_not_declared_again ... ok
+test a_proposer_cannot_mark_its_own_assertion_accepted ... ok
+test an_assertion_naming_a_type_the_ontology_does_not_declare_is_refused ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_p1_07.rs (<owned-build>/target/debug/deps/adversary_p1_07-9083cef696ec390a)
+
+running 5 tests
+test inherited_opaque_constraints_are_refused_on_child_node_properties ... ok
+test retracting_a_retained_edge_assertion_does_not_erase_its_reference ... ok
+test cancellation_cannot_leave_a_new_assertion_referring_to_the_cancelled_edge ... ok
+test independent_property_and_lifecycle_writes_are_order_invariant ... ok
+test assertion_subject_predicate_object_cross_product_obeys_declarations ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_p1_08_seed.rs (<owned-build>/target/debug/deps/adversary_p1_08_seed-2c3117768a3ce7fb)
+
+running 4 tests
+test seed_ontology_property_definitions_must_be_filed_under_their_own_ids ... ok
+test inherited_record_properties_remain_typed_and_constraints_cannot_disappear ... ok
+test losing_cached_seed_keeps_its_original_retention_class ... ok
+test persisted_seed_format_and_context_fields_refuse_before_admission ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/adversary_p1_12_recovery_1.rs (<owned-build>/target/debug/deps/adversary_p1_12_recovery_1-61b7c9842d9cc13b)
+
+running 9 tests
+test adv1_a_pending_bootstrap_under_a_changed_host_anchor_is_a_publication_input_conflict ... ok
+test adv1_a_pending_bootstrap_with_a_different_seed_document_is_a_publication_input_conflict ... ok
+test adv1_a_validate_preparation_in_the_commit_slot_is_refused_by_name_and_changes_nothing ... ok
+test adv1_an_unresolved_commit_overtaken_by_a_competing_commit_becomes_stale_at_its_elected_time ... ok
+test adv1_a_forged_successor_under_a_new_occurrence_id_is_refused_and_changes_nothing ... ok
+test adv1_unrelated_movement_during_uncertainty_keeps_the_elected_occurrence_for_every_kind ... ok
+test adv1_two_unresolved_revision_one_commits_resolve_to_one_commit_in_either_order ... ok
+test adv1_reads_over_a_pending_preparation_write_nothing_for_every_kind ... ok
+test adv1_two_processes_racing_for_revision_one_commit_it_exactly_once ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+
+     Running tests/adversary_p1_12_recovery_r2_anchor_race.rs (<owned-build>/target/debug/deps/adversary_p1_12_recovery_r2_anchor_race-421f39649aee5856)
+
+running 1 test
+test adv2_a_bootstrap_elected_under_another_anchor_during_the_clock_sample_is_an_input_conflict ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/adversary_p1_12_replay_consistent_lie.rs (<owned-build>/target/debug/deps/adversary_p1_12_replay_consistent_lie-87b6f16ca1f792f9)
+
+running 4 tests
+test commands_over_a_forged_lineage_refuse_and_write_nothing ... ok
+test a_commit_whose_receipt_and_payload_both_publish_an_unreached_knowledge_root_is_refused ... ok
+test a_commit_of_a_never_validated_proposal_is_refused_as_validation_missing ... ok
+test a_commit_whose_receipt_and_payload_both_claim_a_skipped_revision_is_refused_out_of_order ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/adversary_p1_12_replay_r2_named_order.rs (<owned-build>/target/debug/deps/adversary_p1_12_replay_r2_named_order-85b0da75ba05229f)
+
+running 8 tests
+test a_second_commit_reclaiming_revision_one_is_refused_out_of_order ... ok
+test a_receipt_only_revision_lie_is_refused_out_of_order_naming_the_receipt_claim ... ok
+test a_receipt_only_knowledge_root_lie_is_refused_naming_the_receipt_claim ... ok
+test a_receipt_whose_result_hash_alone_lies_is_refused_as_commit_result_disagrees ... ok
+test selected_reads_of_a_forged_lineage_carry_the_named_refusal ... ok
+test a_commit_claiming_the_seed_or_the_maximum_revision_is_refused_out_of_order ... ok
+test several_lies_at_once_report_the_revision_and_the_payload_claim_first ... ok
+test every_other_root_field_lied_consistently_is_still_refused_as_commit_result_disagrees ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/adversary_p1_12_vectors_seed_envelope.rs (<owned-build>/target/debug/deps/adversary_p1_12_vectors_seed_envelope-f05acfcd49bf2259)
+
+running 1 test
+test the_retained_seed_envelope_nests_the_documented_layers_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/adversary_p1_12_vectors_seed_sensitivity.rs (<owned-build>/target/debug/deps/adversary_p1_12_vectors_seed_sensitivity-c8e09d9434249543)
+
+running 1 test
+test further_seed_inputs_move_exactly_the_sub_roots_they_feed_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/adversary_p1_13_explain_1.rs (<owned-build>/target/debug/deps/adversary_p1_13_explain_1-1231454b24f67a92)
+
+running 5 tests
+test a_snapshot_never_pairs_a_root_with_a_graph_it_does_not_commit_to ... ok
+test a_lifecycle_transaction_contributes_its_own_evidence_set ... ok
+test a_consistent_forgery_of_the_captured_graph_is_refused_by_explain ... ok
+test the_carriers_serialise_with_the_names_and_kind_tags_kernel_yaml_declares ... ok
+test a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revision ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/adversary_p1_13_explain_r2_bound.rs (<owned-build>/target/debug/deps/adversary_p1_13_explain_r2_bound-8e81cdf36f9f4b58)
+
+running 6 tests
+test a_seed_only_lineage_is_admitted_across_a_reopen ... ok
+test a_rewritten_graph_root_is_refused_by_snapshot ... ok
+test missing_revision_coordinates_are_refused_by_both_projections ... ok
+test a_root_forged_with_its_coordinate_is_refused_by_the_retained_record ... ok
+test a_forged_seed_result_is_refused_by_both_projections ... ok
+test earlier_revisions_after_a_supersession_are_admitted_and_bounded ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/adversary_p1_14_exit_wire_shape.rs (<owned-build>/target/debug/deps/adversary_p1_14_exit_wire_shape-9330f9ec9c6c6fd9)
+
+running 3 tests
+test a_canonical_assertion_citing_one_evidence_twice_is_still_refused_on_decode ... ok
+test a_typed_evidence_set_keeps_the_frozen_bytes_order_and_wire_shape ... ok
+test a_typed_edge_subject_keeps_the_frozen_bytes_and_wire_shape ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_p5_01_kernel.rs (<owned-build>/target/debug/deps/adversary_p5_01_kernel-87a058349810931c)
+
+running 1 test
+test data_after_a_schema_change_is_held_to_it_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/adversary_perf01_r_shared_reads.rs (<owned-build>/target/debug/deps/adversary_perf01_r_shared_reads-b6c8c99f2b7e411a)
+
+running 7 tests
+test a_seed_payload_withdrawn_after_a_read_is_answered_as_a_fresh_handle_answers_it ... ok
+test the_alias_index_matches_aliases_byte_for_byte ... ok
+test a_capture_changed_by_its_owner_leaves_the_kernel_state_untouched ... ok
+test a_head_restored_from_a_checkpoint_indexes_its_own_graph ... ok
+test a_capture_answers_what_it_answered_when_taken_through_later_decisions ... ok
+test a_past_revision_reads_the_same_before_and_after_later_commits ... ok
+test a_reader_racing_a_committing_handle_sees_one_state_per_capture ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/adversary_perf02_m_head_graph.rs (<owned-build>/target/debug/deps/adversary_perf02_m_head_graph-6f866cf29c06b597)
+
+running 4 tests
+test a_read_of_an_earlier_revision_leaves_its_graph_unheld_once_it_returned ... ok
+test a_store_with_pending_validations_against_early_revisions_migrates ... ok
+test a_validation_against_an_earlier_revision_is_decided_on_that_revisions_graph ... ok
+test a_long_session_holds_a_bounded_number_of_graphs ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.89s
+
+     Running tests/adversary_perf02_memo_across_stores.rs (<owned-build>/target/debug/deps/adversary_perf02_memo_across_stores-69e957540fc5d8ca)
+
+running 1 test
+test a_remembered_root_never_crosses_to_another_store_on_the_same_thread ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/adversary_perf_01_validation_scans.rs (<owned-build>/target/debug/deps/adversary_perf_01_validation_scans-71dc7cd0906bc64c)
+
+running 7 tests
+test an_edge_deleted_in_the_transaction_resolves_for_no_assertion ... ok
+test evidence_added_and_cited_in_one_transaction_resolves ... ok
+test a_retraction_beside_a_named_operation_is_still_checked ... ok
+test deleting_an_edge_and_recreating_it_is_refused_as_base_refused_it ... ok
+test aliases_collide_byte_for_byte_and_not_by_case_or_normalisation ... ok
+test a_one_limit_counts_the_graph_after_the_transaction_in_either_order ... ok
+test the_pipeline_says_what_base_said_over_seeded_transactions ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+
+     Running tests/adversary_retained_bytes_shared_p1.rs (<owned-build>/target/debug/deps/adversary_retained_bytes_shared_p1-a118fdc73742f822)
+
+running 4 tests
+test dropping_the_runtime_and_its_reads_frees_the_seed_input_it_kept ... ok
+test the_seed_inputs_payloads_are_the_retained_allocations_not_a_resident_copy ... ok
+test a_seed_payload_damaged_on_disk_is_refused_while_a_verified_copy_is_still_held ... ok
+test a_runtime_holding_the_seed_input_sees_another_runtimes_commit_while_threads_read ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/adversary_sdk03_p.rs (<owned-build>/target/debug/deps/adversary_sdk03_p-575d90a65128244a)
+
+running 4 tests
+test a_validate_command_builds_its_candidate_view_once ... ok
+test a_commit_overtaken_between_its_read_and_its_decision_is_stale_and_later_commits_apply_once ... ok
+test every_operation_kind_commits_with_one_apply_and_every_root_replays ... ok
+test a_validation_against_an_older_revision_commits_stale_and_the_next_commits_apply_once ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.91s
+
+     Running tests/adversary_seed_envelope_v3.rs (<owned-build>/target/debug/deps/adversary_seed_envelope_v3-ea794a504de6b21f)
+
+running 7 tests
+test a_named_payload_blob_replaced_by_other_bytes_is_refused_by_every_read_on_both_providers ... ok
+test a_v3_envelope_is_byte_identical_on_both_providers_for_every_evidence_shape ... ok
+test a_seed_without_evidence_names_an_empty_list_replays_and_migrates_on_both_providers ... ok
+test one_payload_cited_by_two_evidence_ids_is_named_and_retained_once_and_migrates ... ok
+test a_named_payload_blob_deleted_after_seeding_is_refused_by_every_read_on_both_providers ... ok
+test an_interrupted_migration_leaves_no_store_that_opens_as_if_it_were_the_migrated_one ... ok
+test no_retained_byte_but_the_payload_blob_holds_the_payload_after_a_commit_or_a_migration ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/adversary_seed_envelope_v3_elected.rs (<owned-build>/target/debug/deps/adversary_seed_envelope_v3_elected-ada2e47b07894050)
+
+running 2 tests
+test an_elected_seed_never_published_leaves_its_payload_bound_but_unreadable_and_unmigratable ... ok
+test migrate_refuses_an_elected_unpublished_decision_writes_nothing_and_succeeds_once_it_is_resumed ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/adversary_transaction_document.rs (<owned-build>/target/debug/deps/adversary_transaction_document-318d1bc11bd65867)
+
+running 5 tests
+test duplicate_refusal_precedes_expansion_of_a_recursive_second_value ... ok
+test unsupported_operation_nested_containers_keep_required_and_optional_shapes ... ok
+test supported_scalar_and_record_spellings_keep_direct_typed_semantics ... ok
+test tags_and_typed_scalar_strings_share_one_expanded_string_budget ... ok
+test coerced_numeric_strings_charge_each_alias_without_tag_help ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_transaction_document_r2.rs (<owned-build>/target/debug/deps/adversary_transaction_document_r2-cc5aadf6bb45ca06)
+
+running 6 tests
+test unknown_alias_after_an_otherwise_complete_document_never_disappears ... ok
+test tagged_alias_keys_refuse_duplicates_before_malformed_values ... ok
+test assertion_object_enum_boundaries_contribute_semantic_depth ... ok
+test reordered_enum_content_matches_the_shared_typed_decoder ... ok
+test directive_expanded_tags_and_aliases_share_an_exact_total ... ok
+test percent_decoded_utf8_tag_bytes_have_their_own_inclusive_limit ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_validate_once.rs (<owned-build>/target/debug/deps/adversary_validate_once-8f9e15f01f84fa5e)
+
+running 7 tests
+test a_validate_command_against_an_older_released_revision_builds_one_candidate_view ... ignored, rebuilding a released revision revalidates its history; task:rebuilt-revision-reuses-retained-verdicts
+test a_verdict_a_validate_command_decided_and_did_not_take_is_released_when_the_command_ends ... ok
+test a_validate_command_retried_after_an_unrelated_proposal_builds_one_candidate_view ... ok
+test a_validation_another_writer_lands_between_decision_and_admission_is_not_given_this_verdict ... ok
+test an_edge_assertion_invalidates_the_shared_index_without_changing_older_verdicts ... ok
+test a_revisions_edge_index_is_released_with_its_graph ... ok
+test a_session_says_what_a_fresh_pipeline_says_over_seeded_histories ... ok
+
+test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.51s
+
+     Running tests/adversary_x6_x.rs (<owned-build>/target/debug/deps/adversary_x6_x-154eb30f71dc77a1)
+
+running 9 tests
+test an_origin_receipt_with_an_altered_instant_is_refused_as_base_refused_it ... ok
+test a_forged_retraction_of_an_active_assertion_is_not_read ... ok
+test a_duplicated_origin_record_is_refused_as_ambiguous ... ok
+test a_forged_second_origin_at_another_instant_is_not_read ... ok
+test a_commit_at_the_seed_instant_does_not_take_the_seed_origin ... ok
+test a_clock_that_goes_backwards_is_refused_before_it_reaches_the_index ... ok
+test two_commits_at_one_instant_each_explain_from_their_own_commit ... ok
+test a_supersession_chain_of_three_is_walked_from_each_steps_own_commit ... ok
+test a_claim_restated_after_its_retraction_explains_both_assertions_apart ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/attach_evidence.rs (<owned-build>/target/debug/deps/attach_evidence-4873faad1b5eb4e3)
+
+running 8 tests
+test a_thousand_attachments_against_seventy_thousand_assertions_commit ... ignored, builds a 70,000-assertion store; run by hand to record the time
+test adversary_duplicate_attachment_members_are_refused_by_the_graph_decoder ... ok
+test adversary_equivalent_attachment_spellings_are_duplicate_records ... ok
+test adversary_a_validated_attachment_loses_to_a_committed_retraction ... ok
+test a_supersession_leaves_attachments_with_the_superseded_assertion ... ok
+test adversary_checkpoint_explanations_do_not_import_peer_attachments ... ok
+test evidence_added_and_attached_in_one_transaction_commits_and_explain_lists_it_from_then_on ... ok
+test each_attachment_refusal_is_named_and_moves_nothing ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.26s
+
+     Running tests/attachment_base_store.rs (<owned-build>/target/debug/deps/attachment_base_store-976b3d401eeb83e0)
+
+running 2 tests
+test write_base_store ... ignored, writes the base fixture; run by hand at the base commit
+test a_store_written_before_attachments_keeps_every_recorded_root_and_graph_document ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.65s
+
+     Running tests/attention_answers_recovery.rs (<owned-build>/target/debug/deps/attention_answers_recovery-40f7c736636c59b1)
+
+running 2 tests
+test answer_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test answer_native_process_death_resumes_without_partial_corrections ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s
+
+     Running tests/attention_explanations.rs (<owned-build>/target/debug/deps/attention_explanations-c65a11d0be17228c)
+
+running 1 test
+test all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/authority_upgrade.rs (<owned-build>/target/debug/deps/authority_upgrade-ed98ec8049a9f7be)
+
+running 7 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust ... ok
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/base_era_v1_replay.rs (<owned-build>/target/debug/deps/base_era_v1_replay-cd4e6bca2be21c52)
+
+running 4 tests
+test a_modify_property_mixing_the_two_shapes_is_refused ... ok
+test the_p1_shape_encodes_exactly_as_the_base_kernel_encoded_it ... ok
+test every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes ... ok
+test a_base_era_v1_sqlite_store_holding_an_ownerless_modify_property_rejection_still_reopens ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/candidate_built_once.rs (<owned-build>/target/debug/deps/candidate_built_once-19ae6ea126e410cc)
+
+running 2 tests
+test assertions_about_missing_edges_are_refused_in_the_order_canonical_state_holds_them ... ok
+test every_profile_builds_one_candidate_per_validation_whatever_the_verdict ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/commit_applies_once.rs (<owned-build>/target/debug/deps/commit_applies_once-679883d3efebc578)
+
+running 3 tests
+test a_graph_a_commit_decided_and_did_not_take_is_released_when_the_command_ends ... ok
+test a_commit_clones_and_applies_the_head_graph_once ... ok
+test roots_are_the_ones_the_kernel_reached_before_the_change_and_replay_reaches_them ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/commit_hashes_once.rs (<owned-build>/target/debug/deps/commit_hashes_once-9f3281ab38c16403)
+
+running 1 test
+test a_commit_hashes_the_graph_once ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/commit_path.rs (<owned-build>/target/debug/deps/commit_path-ebc45bca8b402436)
+
+running 5 tests
+test a_commit_into_an_unseeded_lineage_is_refused ... ok
+test a_validated_transaction_commits_and_the_lineage_advances ... ok
+test the_same_lineage_written_by_hand_does_not_advance_anything ... ok
+test the_kernels_authority_stands_behind_exactly_what_it_validated ... ok
+test a_transaction_validated_against_a_revision_the_lineage_moved_past_is_refused ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/current_records.rs (<owned-build>/target/debug/deps/current_records-a0d70b87e53a5b6f)
+
+running 11 tests
+test event_occurrence_and_record_addresses_contribute_independently ... ok
+test proposal_record_is_strict ... ok
+test complete_validation_basis_is_strict ... ok
+test nested_record_versions_and_validator_duplicates_refuse ... ok
+test seed_result_is_strict ... ok
+test rejection_record_is_strict ... ok
+test validation_receipt_is_strict ... ok
+test stale_record_is_strict ... ok
+test commit_receipt_is_strict ... ok
+test only_a_current_commit_receipt_names_the_identities_it_created ... ok
+test each_proposal_format_admits_only_its_own_document_spelling ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/current_root_sensitivity.rs (<owned-build>/target/debug/deps/current_root_sensitivity-779bd408fbdd1513)
+
+running 8 tests
+test every_field_of_the_revision_root_reaches_its_address ... ok
+test every_field_of_a_transaction_reaches_the_transaction_root ... ok
+test every_field_of_the_authority_anchor_reaches_agent_root ... ok
+test every_field_of_the_validation_basis_reaches_the_validation_hash ... ok
+test every_field_of_the_ontology_reaches_ontology_root ... ok
+test the_kernel_computes_every_sub_root_from_its_documented_input_on_both_providers ... ok
+test each_transaction_input_moves_exactly_the_sub_roots_it_feeds ... ok
+test each_seed_input_moves_exactly_the_sub_roots_it_feeds_on_both_providers ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/current_validation_hash.rs (<owned-build>/target/debug/deps/current_validation_hash-611a1cac1e9a714b)
+
+running 4 tests
+test the_validation_hash_is_the_value_address_of_the_complete_basis ... ok
+test the_validation_hash_is_deterministic_for_one_transaction_and_revision ... ok
+test the_validation_hash_moves_with_the_transaction ... ok
+test the_validation_hash_moves_with_the_revision_validated_against ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/current_vectors.rs (<owned-build>/target/debug/deps/current_vectors-8c4efd9dc5fce0fa)
+
+running 6 tests
+test the_host_anchor_and_its_profile_have_fixed_value_addresses ... ok
+test validation_material_has_a_fixed_value_address ... ok
+test the_complete_validation_basis_has_fixed_record_and_canonical_forms ... ok
+test every_retained_decision_record_has_fixed_bytes_and_address ... ok
+test a_real_seed_retains_a_fixed_envelope_and_produces_a_fixed_root_on_both_providers ... ok
+test the_base_kernels_v2_seed_keeps_its_fixed_envelope_and_root_on_both_providers ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/disputes.rs (<owned-build>/target/debug/deps/disputes-845798ec7b5b23f2)
+
+running 7 tests
+test equivalent_node_reference_property_encodings_are_equal ... ok
+test edge_properties_conflict_but_different_subjects_and_predicates_do_not ... ok
+test only_active_accepted_or_disputed_claims_participate ... ok
+test equal_disjoint_empty_and_many_claims_do_not_conflict ... ok
+test overlapping_one_claims_return_every_pair_in_identity_order_without_mutation ... ok
+test relation_claims_use_declared_cardinality_and_distinct_targets ... ok
+test temporal_extremes_match_point_membership_without_sentinel_collisions ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/durable_commands.rs (<owned-build>/target/debug/deps/durable_commands-a4c170d166a82fc8)
+
+running 13 tests
+test unresolved_publication_cannot_be_replaced_by_a_new_occurrence ... ok
+test published_different_seed_refuses_already_seeded_without_publication_or_clock ... ok
+test pending_different_seed_refuses_input_conflict_without_publication_or_clock ... ok
+test bounded_proposal_ingress_and_typed_input_refusals_leave_no_partial_record ... ok
+test changed_knowledge_reconstructs_in_a_fresh_process_on_both_providers ... ok
+test backwards_trusted_times_refuse_without_new_objects_or_decisions ... ok
+test admitted_operation_permutations_apply_equal_graphs_with_clear_edges_and_invocation ... ok
+test historical_capture_stops_loading_at_the_selected_revision_and_keeps_its_context ... ok
+test supersession_and_retraction_preserve_attribution_and_both_time_axes ... ok
+test invalid_lifecycle_candidates_are_rejected_before_sealing_on_both_providers ... ok
+test retained_terminal_states_exact_retries_and_absent_targets_survive_reopen ... ok
+test independent_handles_distinguish_noncanonical_contention_canonical_loss_and_lost_response ... ok
+test all_six_occurrences_refuse_readdressed_forged_and_missing_records_on_both_providers ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
+
+     Running tests/durable_seed.rs (<owned-build>/target/debug/deps/durable_seed-e2106c4abca21f95)
+
+running 9 tests
+test current_graph_document_has_an_explicit_versioned_outer_envelope ... ok
+test kernel_facade_refuses_an_entered_runtime_before_opening_provider_paths ... ok
+test graph_outer_empty_values_and_unversioned_documents_are_refused ... ok
+test exact_host_profile_and_complete_agent_registry_are_required ... ok
+test seed_two_decodes_only_with_the_complete_graph_two_envelope ... ok
+test identical_seed_retry_returns_the_retained_result_on_both_providers ... ok
+test seed_roots_bind_unused_ontology_declarations_on_both_providers ... ok
+test kernel_opening_facade_preserves_many_values_and_one_empty_list ... ok
+test missing_or_substituted_native_seed_and_receipt_blobs_refuse_reopen ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/edge_type_widening.rs (<owned-build>/target/debug/deps/edge_type_widening-eba5d0a679a80825)
+
+running 3 tests
+test a_widening_obeys_the_rules_every_schema_change_obeys ... ok
+test a_removed_end_an_unknown_type_and_a_widening_without_effect_are_each_refused_by_name ... ok
+test authored_widens_to_work_items_and_the_next_transaction_creates_person_to_work_item_edges ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/encoding_field_order.rs (<owned-build>/target/debug/deps/encoding_field_order-da07c43903128df2)
+
+running 2 tests
+test a_draft_without_aliases_encodes_to_the_bytes_it_had_before_the_field ... ok
+test every_field_of_the_kernels_encodings_is_written_in_declaration_order ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/explain.rs (<owned-build>/target/debug/deps/explain-a8602e120ca39d9b)
+
+running 11 tests
+test an_unknown_assertion_is_refused_with_its_identity ... ok
+test a_seeded_assertion_explains_through_the_retained_seed_to_its_evidence ... ok
+test a_committed_assertion_explains_through_its_proposal_validation_and_commit ... ok
+test a_supersession_follows_the_replacement_and_its_distinct_evidence ... ok
+test a_captured_read_explained_after_another_commit_does_not_show_the_later_change ... ok
+test a_replacement_accepted_before_the_supersession_is_explained_from_its_own_acceptance ... ok
+test every_selected_assertion_is_visited_once_in_stable_order ... ok
+test a_snapshot_carries_the_complete_graph_and_root_and_the_shared_valid_time_selection ... ok
+test a_retraction_keeps_the_original_acceptance_and_adds_the_lifecycle_change ... ok
+test missing_or_corrupt_required_support_refuses_the_whole_chain ... ok
+test every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/explain_index.rs (<owned-build>/target/debug/deps/explain_index-4f0789fe01e91ad4)
+
+running 2 tests
+test explain_reads_only_the_documents_of_its_own_chain ... ok
+test an_explanation_does_not_grow_with_its_origin_transaction ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+
+     Running tests/human_review.rs (<owned-build>/target/debug/deps/human_review-fac8632e8ef1662d)
+
+running 18 tests
+test independent_binding_refuses_substituted_policy_and_store ... ok
+test correction_codec_preserves_order_every_field_and_millisecond_instants ... ok
+test signing_message_matches_the_fixed_binary_layout_vector ... ok
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... ok
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... ok
+test policy_key_order_is_checked_and_an_empty_policy_never_authorizes ... ok
+test human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor ... ok
+test forged_truncated_and_altered_signatures_refuse ... ok
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... ok
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... ok
+test exact_human_answer_survives_only_unrelated_basis_advancement ... ok
+test retained_proof_and_every_review_basis_field_are_bound ... ok
+test generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_scalars ... ok
+test canonical_readers_refuse_every_truncation_and_trailing_byte ... ok
+test all_four_targets_verify_only_in_their_own_enrolled_scope ... ok
+test schema_review_binds_exact_proposal_and_material_without_binding_unrelated_revisions ... ok
+test protocol_digests_and_object_addresses_resolve_the_same_bytes_after_both_provider_reopens ... ok
+test no_single_byte_change_in_retained_proof_can_replay_as_approved ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/identity_history.rs (<owned-build>/target/debug/deps/identity_history-544dff20d812bd40)
+
+running 4 tests
+test one_id_created_as_a_node_and_an_edge_in_one_transaction_is_refused ... ok
+test fresh_ids_are_accepted ... ok
+test a_deleted_edges_id_is_not_created_again ... ok
+test a_node_or_edge_id_is_not_created_again_as_the_other_kind ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/identity_history_replay.rs (<owned-build>/target/debug/deps/identity_history_replay-97e733092fd07716)
+
+running 4 tests
+test only_the_v3_profile_keeps_identities ... ok
+test v3_holds_an_id_from_the_revision_that_first_held_it ... ok
+test v3_refuses_a_deleted_edges_id_and_keeps_refusing_after_a_checkpointed_reopen ... ok
+test v1_and_v2_still_admit_the_reuse_and_replay_it_on_both_providers ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/knowledge_retention.rs (<owned-build>/target/debug/deps/knowledge_retention-890fb8e08289f3c2)
+
+running 14 tests
+test inconsistent_observation_is_refused_without_retaining_anything ... ok
+test retained_sources_pin_exact_bytes_on_both_providers ... ok
+test generated_observation_commands_preserve_provider_faults ... ok
+test rejected_interpretation_retains_its_sources ... ok
+test observation_retry_is_idempotent ... ok
+test concurrent_imports_choose_one_immutable_record ... ok
+test invalid_local_shape_and_evidence_are_refused_before_any_publication ... ok
+test unmapped_knowledge_survives_reopen ... ok
+test schema_proposal_submission_retains_exact_bytes_without_admitting_facts ... ok
+test schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history ... ok
+test schema_proposal_refuses_unreviewable_sources_selectors_and_constants_before_retention ... ok
+test schema_gap_discovery_is_stable_after_replay_and_does_not_mutate_canonical_state ... ok
+test schema_proposal_schema_dependencies_change_review_material_but_unrelated_schema_does_not ... ok
+test schema_proposal_remains_inspectable_after_a_mapped_property_changes_kind ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/legacy.rs (<owned-build>/target/debug/deps/legacy-9a560bed6f3ee13f)
+
+running 13 tests
+test all_six_original_event_discriminants_and_fields_are_fixed ... ok
+test original_revision_root_fields_are_fixed ... ok
+test user_record_discriminator_keys_survive_and_floats_do_not_gain_an_encoding ... ok
+test original_value_scalar_node_and_edge_bytes_are_fixed ... ok
+test missing_and_corrupt_original_evidence_are_named_refusals ... ok
+test seed_envelope_reproduces_actual_original_bootstrap_attribution ... ok
+test every_original_combined_assertion_state_and_evidence_source_is_fixed ... ok
+test all_original_operations_include_transitive_ontology_and_assertion_bytes ... ok
+test historical_claims_require_the_supplied_bytes_and_revision ... ok
+test withdrawn_legacy_assertions_never_acquire_invented_acceptance_history ... ok
+test frozen_contracts_refuse_unknown_fields_and_duplicate_set_members ... ok
+test original_formats_unknown_fields_and_duplicate_semantic_identities_refuse ... ok
+test original_transaction_validation_uses_payload_domain_and_ordered_operations ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/migrate_store.rs (<owned-build>/target/debug/deps/migrate_store-528a3759d383c816)
+
+running 2 tests
+test a_legacy_inline_object_is_carried_as_schema_two_metadata_and_a_blob_on_both_providers ... ok
+test a_v2_store_migrates_to_a_v3_store_with_its_snapshot_and_decisions_and_the_source_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/p1_exit_properties.rs (<owned-build>/target/debug/deps/p1_exit_properties-8e20629e7118ad9b)
+
+running 2 tests
+test no_transaction_naming_an_absent_identity_commits_on_either_provider ... ok
+test replay_from_the_seed_reproduces_every_root_of_a_generated_lineage_on_both_providers ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.18s
+
+     Running tests/recovery.rs (<owned-build>/target/debug/deps/recovery-9a0b7601c5cb8db4)
+
+running 5 tests
+test a_lost_response_after_the_native_write_reports_the_original_decision_in_a_fresh_process ... ok
+test an_elected_unpublished_decision_resumes_exactly_in_a_fresh_process_for_every_kind ... ok
+test two_handles_racing_for_revision_one_commit_it_exactly_once_on_both_providers ... ok
+test missing_corrupt_and_forged_private_preparations_refuse_by_name_and_change_nothing ... ok
+test same_slot_contention_elects_one_preparation_and_the_loser_binds_nothing ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.11s
+
+     Running tests/replay_checkpoint.rs (<owned-build>/target/debug/deps/replay_checkpoint-f0968e285cb2543c)
+
+running 15 tests
+test retained_records_and_preparations_hold_each_payload_once_as_base64 ... ok
+test a_handle_at_rest_writes_the_checkpoint_of_a_head_past_the_retained_one ... ok
+test a_handle_that_restored_no_checkpoint_writes_one_at_its_next_commit ... ok
+test a_checkpoint_the_store_did_not_write_is_written_at_the_next_commit ... ok
+test a_commit_receipt_names_the_identities_its_transaction_created ... ok
+test a_verb_that_moves_no_head_appends_no_pointer ... ok
+test head_answers_from_the_pointer_alone_after_a_commit_and_replays_after_a_proposal ... ok
+test validating_against_a_revision_the_checkpoint_holds_no_graph_of_replays_in_full ... ok
+test one_runtime_serving_every_command_writes_checkpoints_at_the_same_revisions ... ok
+test a_commit_after_a_checkpoint_with_another_graph_root_replays_in_full ... ok
+test a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full ... ok
+test a_fresh_open_continues_from_the_checkpoint_with_the_answers_of_a_full_replay ... ok
+test a_v3_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full ... ok
+test commits_of_many_small_operations_write_a_checkpoint_only_at_the_commit_bound ... ok
+test a_commit_that_reaches_the_byte_bound_writes_a_checkpoint has been running for over 60 seconds
+test a_commit_that_reaches_the_byte_bound_writes_a_checkpoint ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 66.44s
+
+     Running tests/replay_forgery.rs (<owned-build>/target/debug/deps/replay_forgery-ea5b4765dec7f1dd)
+
+running 9 tests
+test the_unforged_source_lineage_reopens_on_both_providers ... ok
+test a_first_occurrence_that_is_not_a_seed_is_refused_as_not_seeded ... ok
+test a_decision_with_no_retained_proposal_is_refused_as_proposal_missing ... ok
+test a_second_seed_occurrence_is_refused_as_seed_is_not_first ... ok
+test a_commit_receipt_whose_created_identities_are_not_its_transactions_is_refused ... ok
+test a_commit_whose_revision_does_not_follow_its_parent_is_refused_out_of_order ... ok
+test a_commit_payload_knowledge_root_that_disagrees_with_its_receipt_is_refused ... ok
+test a_commit_after_a_stale_decision_is_refused_as_validation_missing ... ok
+test a_commit_after_a_rejected_decision_is_refused_as_validation_missing ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/retained_bytes_shared.rs (<owned-build>/target/debug/deps/retained_bytes_shared-8ca3d64f9c3332c5)
+
+running 1 test
+test a_request_copies_no_retained_object_on_either_provider_or_envelope ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/runtime_published_events.rs (<owned-build>/target/debug/deps/runtime_published_events-ed15249a5d2555db)
+
+running 1 test
+test a_seeded_runtime_publishes_its_whole_log_in_order_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/schema_evidence.rs (<owned-build>/target/debug/deps/schema_evidence-513e65a9c974d27a)
+
+running 3 tests
+test schema_support_survives_sqlite_reopen_and_full_replay ... ok
+test schema_support_survives_file_reopen_and_full_replay ... ok
+test native_knowledge_one_upgrades_without_rewriting_its_rejection_or_roots ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/schema_evolution.rs (<owned-build>/target/debug/deps/schema_evolution-d2ef40fac6fd0501)
+
+running 15 tests
+test a_transaction_without_a_version_id_encodes_byte_identically_to_before ... ok
+test a_data_document_without_the_key_reads_as_before ... ok
+test a_type_defined_twice_in_one_transaction_is_refused_under_profile_two ... ok
+test an_ownerless_modify_property_is_refused_under_profile_two ... ok
+test a_schema_change_mixed_with_another_kind_is_refused ... ok
+test a_version_id_already_on_the_lineage_is_refused ... ok
+test a_value_type_change_is_refused_when_an_active_assertion_object_would_break ... ok
+test a_change_canonical_state_would_violate_is_refused_with_a_named_issue ... ok
+test the_modify_property_owner_reaches_the_encoding ... ok
+test profile_one_still_refuses_the_three_schema_kinds ... ok
+test evolve_refusals_arrive_as_ontology_issues_with_the_ontologys_codes ... ok
+test requiring_a_property_held_only_through_assertions_is_refused ... ok
+test each_schema_change_kind_validates_under_profile_two ... ok
+test the_version_id_is_required_exactly_when_a_schema_change_is_present ... ok
+test the_transaction_document_takes_one_optional_version_key ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/schema_evolution_replay.rs (<owned-build>/target/debug/deps/schema_evolution_replay-3cf574ae7f5949fe)
+
+running 5 tests
+test a_profile_mixing_the_two_rulesets_is_refused ... ok
+test a_store_keeps_the_profile_it_was_seeded_under_on_both_providers ... ok
+test a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers ... ok
+test replay_reproduces_every_root_across_schema_versions_on_both_providers ... ok
+test schema_history_answers_a_revision_and_its_schema_versions_from_one_replay_on_both_providers ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/schema_proposal_reviews.rs (<owned-build>/target/debug/deps/schema_proposal_reviews-7e75166974ccd353)
+
+running 7 tests
+test schema_review_cannot_reuse_an_authority_upgrade_decision_identity ... ok
+test proposal_submission_refuses_inapplicable_corrections ... ok
+test proposal_correction_review_binds_the_full_competing_component ... ok
+test concurrent_identical_schema_reviews_return_one_elected_record ... ok
+test schema_reviews_and_attention_answers_share_decision_identity_in_both_directions ... ok
+test schema_proposal_requires_exact_human_approval ... ok
+test schema_review_revalidates_material_and_replays_the_original_review_revision ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/seed.rs (<owned-build>/target/debug/deps/seed-52e1b7caad36c000)
+
+running 31 tests
+test a_seed_nested_past_the_depth_is_refused_as_seed_too_deep ... ok
+test a_seed_whose_aliases_stay_inside_the_limits_decodes ... ok
+test legitimate_record_keys_remain_data_in_strict_seed_decoding ... ok
+test a_seed_with_a_caller_verdict_is_refused_by_both_backends ... ok
+test a_seed_ontology_cannot_claim_a_later_version ... ok
+test a_seed_with_a_dangling_edge_is_refused_by_both_backends ... ok
+test a_seed_with_an_undeclared_type_is_refused_by_both_backends ... ok
+test seed_decoding_refuses_unknown_semantic_fields_at_every_record_boundary ... ok
+test a_seed_ontology_cannot_claim_a_predecessor ... ok
+test a_valid_seed_has_a_positive_control ... ok
+test empty_bootstrap_does_not_make_empty_transactions_valid ... ok
+test concurrent_independent_handles_publish_exactly_one_seed_and_no_losing_object ... ok
+test initialization_reuses_exact_cached_seed_bytes_atomically ... ok
+test repeated_initialization_preserves_the_lineage_and_writes_no_second_object ... ok
+test required_properties_and_unsupported_constraints_keep_their_refusals ... ok
+test actual_bootstrap_identities_refuse_self_validation_and_false_attribution ... ok
+test a_seed_alias_bomb_is_refused_as_seed_alias_expansion ... ok
+test the_versioned_minimal_yaml_fixture_initializes_both_real_providers ... ok
+test seed_multiplicity_and_property_types_are_checked ... ok
+test named_seed_refusals_write_neither_the_object_nor_the_revision ... ok
+test seed_lifecycle_is_the_declared_initial_state_and_is_preserved ... ok
+test floats_are_refused_in_seed_nodes_edges_and_assertion_objects ... ok
+test reopen_checks_full_ontology_and_execution_context ... ok
+test canonical_seed_root_filing_schema_and_genesis_are_mandatory ... ok
+test a_missing_payload_names_the_entry_hash_and_the_keys_no_entry_names ... ok
+test an_evidence_seed_reopens_with_identical_roots_fields_and_retained_bytes ... ok
+test a_payload_mismatch_names_the_expected_and_the_found_content_hash ... ok
+test every_seed_entity_map_checks_key_and_root_identity ... ok
+test seed_support_checks_missing_uncited_and_unsupported_evidence ... ok
+test legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted ... ok
+test a_seed_over_the_size_cap_is_refused_as_seed_too_large ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/seed_envelope_once.rs (<owned-build>/target/debug/deps/seed_envelope_once-4912900b4d1d2d33)
+
+running 3 tests
+test a_runtime_that_writes_the_seed_decodes_the_staged_envelope_once ... ok
+test one_runtime_decodes_the_seed_envelope_once_across_restore_read_and_commit ... ok
+test a_full_replay_also_decodes_the_seed_envelope_once ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/seed_envelope_v3.rs (<owned-build>/target/debug/deps/seed_envelope_v3-1a6a601e6b43dced)
+
+running 4 tests
+test a_v3_envelope_naming_a_payload_the_store_does_not_hold_is_refused_by_name_on_both_providers ... ok
+test a_v2_store_written_before_this_story_reopens_and_replays_with_identical_roots_on_both_providers ... ok
+test no_retained_blob_or_event_but_the_payload_blobs_holds_the_payload_bytes_on_both_providers ... ok
+test a_seed_with_ten_megabytes_of_evidence_retains_an_envelope_under_one_megabyte_on_both_providers ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.56s
+
+     Running tests/store_open.rs (<owned-build>/target/debug/deps/store_open-7a3bca5c391a7d60)
+
+running 3 tests
+test check_anchor_refuses_exactly_what_every_constructor_refuses_first ... ok
+test admit_seed_refuses_exactly_what_seeding_a_new_store_refuses ... ok
+test the_existing_only_constructors_create_nothing_and_open_what_a_seed_created ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/transaction_document.rs (<owned-build>/target/debug/deps/transaction_document-6ed812877817145d)
+
+running 38 tests
+test a_second_document_has_a_named_refusal_even_when_it_is_empty ... ok
+test arbitrary_record_keys_are_data_and_explicit_empty_containers_survive ... ok
+test a_host_upload_cap_does_not_redefine_historical_parsing ... ok
+test duplicate_lists_and_ordered_outer_property_values_survive ... ok
+test exact_original_bytes_and_payload_domain_hash_are_retained ... ok
+test current_withdrawal_operations_require_complete_payloads ... ok
+test duplicate_typed_ids_are_refused_before_decoding_the_duplicate_value ... ok
+test duplicate_keys_and_unknown_fields_are_not_ignored ... ok
+test a_create_node_carries_the_aliases_it_names_and_none_when_it_names_none ... ok
+test only_one_utf8_document_and_the_named_format_are_admitted ... ok
+test nonfinite_floats_survive_without_json_round_tripping ... ok
+test explicit_enum_boundaries_and_alias_positions_count_toward_depth ... ok
+test assertion_payloads_preserve_typed_enums_and_checked_temporal_ranges ... ok
+test ignored_collection_tags_and_directives_preserve_direct_typed_behavior ... ok
+test only_the_canonical_id_spelling_is_admitted_and_yaml_escapes_do_not_hide_duplicates ... ok
+test current_operation_payloads_use_the_shared_decoder_without_shape_loss ... ok
+test builtin_tags_do_not_override_actual_typed_string_and_numeric_decoding ... ok
+test required_collections_refuse_null_and_wrong_nesting ... ok
+test scalar_null_cannot_supply_top_level_or_schema_collections ... ok
+test nested_ontology_carriers_remain_strict_even_for_unsupported_operations ... ok
+test unknown_and_recursive_aliases_refuse_without_process_failure ... ok
+test text_that_looks_like_an_id_remains_a_distinct_record_key ... ok
+test typed_yaml_tags_and_json_compatible_collection_syntax_are_distinct ... ok
+test a_numeric_lexeme_is_not_charged_as_a_fictitious_string ... ok
+test decoded_string_and_key_limits_are_inclusive_in_bytes ... ok
+test explicit_key_tags_also_share_the_expanded_string_budget ... ok
+test observable_local_tags_and_coerced_strings_are_counted_once_together ... ok
+test mixed_tag_and_coerced_string_accounting_is_exact_at_the_shared_limit ... ok
+test expanded_string_budget_is_inclusive_and_not_reset_at_an_alias ... ok
+test original_document_byte_limit_is_inclusive_and_counts_utf8_bytes ... ok
+test operations_and_input_evidence_have_independent_inclusive_limits ... ok
+test tagged_key_totals_are_exact_for_global_and_local_tags ... ok
+test read_ingress_handles_short_reads_and_stops_after_limit_plus_one ... ok
+test a_full_collection_refuses_before_expanding_the_next_child ... ok
+test ignored_local_tag_on_a_requested_string_at_the_node_limit_is_metadata ... ok
+test expanded_node_boundary_counts_every_alias_occurrence ... ok
+test ignored_value_and_key_tags_add_no_enum_nodes_or_depth ... ok
+test one_mapping_and_sequence_have_independent_inclusive_limits ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/transaction_document_v2.rs (<owned-build>/target/debug/deps/transaction_document_v2-f472c8f432f8491b)
+
+running 6 tests
+test the_two_profiles_are_frozen_and_the_second_contains_the_first ... ok
+test a_v1_document_over_256_operations_is_still_refused_with_its_own_bound ... ok
+test a_format_not_on_its_own_line_selects_its_profile_under_the_v1_byte_cap ... ok
+test a_v2_document_holds_10000_operations_and_refuses_the_10001st_naming_the_bound ... ok
+test the_byte_cap_is_the_declared_versions_and_the_refusal_names_it ... ok
+test a_v2_document_of_10000_operations_validates_and_commits_on_both_providers ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.29s
+
+     Running tests/validate_once_per_command.rs (<owned-build>/target/debug/deps/validate_once_per_command-df6fdae048b22eff)
+
+running 2 tests
+test a_validate_command_builds_one_candidate_view_whatever_the_verdict ... ok
+test a_session_builds_each_revisions_edge_index_once ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/validate_properties.rs (<owned-build>/target/debug/deps/validate_properties-e96d81ce7108a09b)
+
+running 6 tests
+test the_two_walks_of_one_rule_agree ... ok
+test the_encoding_separates_transactions_that_differ ... ok
+test no_transaction_is_ever_validated_by_its_own_proposer ... ok
+test a_float_anywhere_is_always_refused ... ok
+test validating_twice_gives_the_same_answer ... ok
+test alias_and_edge_count_refusals_are_the_ones_whole_graph_scans_gave ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/validation.rs (<owned-build>/target/debug/deps/validation-90a4d094da71d2bc)
+
+running 53 tests
+test a_node_of_an_abstract_type_is_refused ... ok
+test a_transaction_with_no_operations_is_refused_by_the_structural_validator ... ok
+test a_merge_names_two_nodes ... ok
+test a_canonical_assertion_without_evidence_is_refused_by_the_provenance_validator ... ok
+test a_reference_to_something_the_same_transaction_creates_resolves ... ok
+test a_type_the_ontology_already_declares_is_not_declared_again ... ok
+test a_transaction_whose_validator_is_its_proposer_is_refused ... ok
+test a_value_canonical_state_does_not_admit_is_refused_with_its_path ... ok
+test a_record_under_another_graph_root_is_refused ... ok
+test a_valid_transaction_validates ... ok
+test a_valid_transaction_validates_to_the_same_hash_twice ... ok
+test a_value_that_fails_its_type_is_refused_by_the_type_validator ... ok
+test an_edge_cardinality_the_type_forbids_is_refused_by_the_cardinality_validator ... ok
+test an_edge_endpoint_of_the_wrong_type_is_refused ... ok
+test a_created_node_does_not_take_an_alias_its_type_already_identifies ... ok
+test an_empty_property_assignment_still_requires_a_declared_property ... ok
+test an_evidence_id_the_transaction_declares_does_not_make_it_exist ... ok
+test an_invoke_the_lifecycle_does_not_declare_is_refused_by_the_ontology_validator ... ok
+test an_identity_created_twice_in_one_transaction_is_refused ... ok
+test an_operation_the_type_does_not_declare_is_refused ... ok
+test an_unresolvable_reference_is_refused_by_the_reference_validator ... ok
+test an_invocation_carries_exactly_the_arguments_its_operation_declares ... ok
+test an_added_alias_is_held_to_the_rules_a_created_nodes_aliases_are_held_to ... ok
+test an_assertion_cannot_arrive_carrying_its_own_verdict ... ok
+test competing_lifecycle_writes_are_refused ... ok
+test an_unresolved_assertion_endpoint_does_not_acquire_an_unrelated_type_refusal ... ok
+test an_identity_canonical_state_already_holds_is_not_created_again ... ok
+test an_assertions_types_are_resolved_whatever_shape_its_object_has ... ok
+test an_attachment_is_refused_by_name_for_each_way_it_can_be_wrong ... ok
+test deleting_an_edge_referenced_by_a_new_or_retained_assertion_is_refused ... ok
+test applicable_opaque_property_constraints_refuse_all_node_write_paths ... ok
+test every_type_refusal_the_validator_can_make_is_reachable ... ok
+test every_alias_and_edge_count_refusal_of_one_batch_keeps_its_message_and_order ... ok
+test opaque_edge_property_constraints_refuse_creation_and_assertions ... ok
+test competing_property_writes_are_refused_in_every_order ... ok
+test every_kind_of_dangling_reference_is_refused ... ok
+test property_cardinality_and_required_presence_are_refused ... ok
+test property_cardinality_uses_the_candidate_node ... ok
+test opaque_preconditions_and_emissions_are_not_silently_accepted ... ok
+test relation_assertions_check_both_endpoint_types_and_allow_inherited_types ... ok
+test property_assertions_check_type_objects_edge_properties_and_type_subjects ... ok
+test the_pipeline_runs_the_seven_deterministic_validators_in_order ... ok
+test every_field_of_every_encoded_type_reaches_its_encoding ... ok
+test relation_assertions_require_compatible_node_endpoints ... ok
+test the_validation_hash_covers_the_revision_it_was_validated_against ... ok
+test unsupported_schema_changes_and_merges_refuse_explicitly ... ok
+test two_transactions_that_differ_validate_to_different_hashes ... ok
+test the_encoding_writes_id_bearing_fields_in_declaration_order ... ok
+test the_declared_evidence_set_is_the_evidence_the_assertions_cite ... ok
+test a_serialized_lifecycle_invokes_but_unsupported_sets_refuse_at_decode ... ok
+test the_twelve_current_operation_numbers_are_the_domains_and_the_declarations ... ok
+test every_issue_code_the_kernel_can_raise_is_raised_by_a_case ... ok
+   Compiling ring v0.17.14
+    Checking serde_yaml_ng v0.10.0 (<proposal-worktree>/vendor/serde_yaml_ng)
+    Checking ekr-contract-data v0.0.0 (<proposal-worktree>/generated/ekr-contract-data)
+    Checking ekr-types v1.0.0 (<proposal-worktree>/generated/ekr-contracts/crates/ekr-types)
+    Checking ekr-core v0.0.27 (<proposal-worktree>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<proposal-worktree>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<proposal-worktree>/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<proposal-worktree>/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<proposal-worktree>/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<proposal-worktree>/crates/ekr-kernel)
+    Checking ekr-kernel-tests v0.0.0 (<owned-build>/target/tests/trybuild/ekr-kernel)
+    Finished `dev` profile [unoptimized] target(s) in 19.19s
+
+
+test tests/compile_fail/validated_transaction_cannot_be_deserialised.rs ... ok
+test tests/compile_fail/validated_transaction_has_no_constructor_outside_the_kernel.rs ... ok
+
+
+test only_the_kernel_constructs_a_validated_transaction ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 38.05s
+
+     Running tests/verified_read.rs (<owned-build>/target/debug/deps/verified_read-1c708ea1c1a1a964)
+
+running 8 tests
+test recorded_validation_issues_are_the_pipeline_findings_under_retained_identities ... ok
+test the_alias_index_is_built_once_per_head_and_indexes_the_captured_graph ... ok
+test validation_material_addresses_exactly_the_transaction_basis_and_validators ... ok
+test read_verbs_copy_no_transaction_record_and_no_graph ... ok
+test a_historical_read_reports_each_record_as_it_stood_at_that_boundary ... ok
+test a_verified_read_carries_every_committed_record_on_both_providers ... ok
+test adversary_selected_states_follow_peer_decisions_without_mutating_held_snapshots ... ok
+test a_live_handle_keeps_the_alias_index_of_its_current_head_only ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+   Doc-tests ekr_kernel
+
+running 2 tests
+test crates/ekr-kernel/src/human_review.rs - human_review::VerifiedDecision (line 342) - compile fail ... ok
+test crates/ekr-kernel/src/lib.rs - (line 46) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s

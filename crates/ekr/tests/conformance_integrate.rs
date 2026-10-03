@@ -56,6 +56,17 @@ fn fixtures() -> PathBuf {
     workspace_root().join("crates/ekr/tests/fixtures/conformance")
 }
 
+fn signed_target(provider: Provider, work: &std::path::Path) -> IntegrateTarget {
+    use ring::signature::{Ed25519KeyPair, KeyPair};
+    // Synthetic test identity is supplied independently of all command inputs.
+    let key = Ed25519KeyPair::from_seed_unchecked(&[71; 32]).unwrap();
+    IntegrateTarget::new(provider, &fixtures(), work)
+        .unwrap()
+        .with_fixture_reviewer(key.public_key().as_ref().to_vec(), move |message| {
+            key.sign(message).as_ref().to_vec()
+        })
+}
+
 /// The committed integrate baseline, in the views baseline's shape.
 struct Baseline {
     suite_version: String,
@@ -249,15 +260,28 @@ fn findings(run: &ExecutedRun) -> String {
     text
 }
 
+fn record_report(provider: Provider, label: &str, report: &CountReport) {
+    if let Some(directory) = std::env::var_os("EKR_INTEGRATE_REPORT_DIR") {
+        let directory = PathBuf::from(directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join(format!("{label}-{provider:?}.json")),
+            report.to_canonical_json().unwrap(),
+        )
+        .unwrap();
+    }
+}
+
 /// Runs the admitted committed suite through a fresh [`IntegrateTarget`] over `provider`: every
 /// selected scenario ran and passed, and the run holds the baseline's set, total and floor.
 fn passes_every_admitted_scenario(provider: Provider) {
     let baseline = baseline();
     let admitted = admitted();
     let work = tempfile::tempdir().unwrap();
-    let target = IntegrateTarget::new(provider, &fixtures(), work.path()).unwrap();
+    let target = signed_target(provider, work.path());
     let run = Runner::for_suite(admitted.suite()).run_admitted(&admitted, &target);
     let report = CountReport::from_run(&run, &admitted).expect("report/2 pairs with the suite");
+    record_report(provider, "full", &report);
     let counts = report.counts();
     println!(
         "{provider:?} provider: selected {} total {} passed {} failed {} error {} unsupported {} \
@@ -401,5 +425,204 @@ fn the_integrate_target_answers_both_branches_of_apply_extraction() {
             "{provider:?}: {error:?}"
         );
         assert!(refused.direct_events.is_empty(), "{provider:?}");
+    }
+}
+
+/// Partial delivery stays visibly nonconformant until F supplies its two apply scenarios.
+#[test]
+fn implemented_knowledge_commands_answer_seventeen_scenarios_on_both_providers() {
+    let mut failures = Vec::new();
+    for provider in [Provider::File, Provider::Sqlite] {
+        let admitted = admitted();
+        let work = tempfile::tempdir().unwrap();
+        let target = signed_target(provider, work.path());
+        let run = Runner::for_suite(admitted.suite()).run_admitted(&admitted, &target);
+        let report = CountReport::from_run(&run, &admitted).unwrap();
+        record_report(provider, "partial", &report);
+        let counts = report.counts();
+        let actual = (
+            counts.passed,
+            counts.failed,
+            counts.error,
+            counts.unsupported,
+            counts.skipped,
+        );
+        println!("{provider:?}: partial counts {actual:?}");
+        if actual != (17, 0, 0, 2, 0) {
+            failures.push(format!("{provider:?}: {actual:?}: {}", findings(&run)));
+        }
+        assert!(
+            !run.is_conformant(),
+            "F application is not implemented in this slice"
+        );
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Mutation controls run the same admitted suite and actual adapter. They alter only the boundary
+/// being tested, so a scenario must witness the real command result or its emitted event.
+struct BrokenKnowledge<'a> {
+    inner: &'a IntegrateTarget,
+    drop_events: bool,
+}
+impl ConformanceTarget for BrokenKnowledge<'_> {
+    fn identity(
+        &self,
+    ) -> Result<ess_conformance::target::ImplementationIdentity, ess_conformance::target::TargetError>
+    {
+        self.inner.identity()
+    }
+    fn fixture_values(
+        &self,
+        scenario: &ScenarioContext,
+        contract: &ess_conformance::fixtures::Contract,
+    ) -> Result<BTreeMap<String, Node>, ess_conformance::target::TargetError> {
+        self.inner.fixture_values(scenario, contract)
+    }
+    fn begin_scenario(
+        &self,
+        scenario: &ScenarioContext,
+    ) -> Result<(), ess_conformance::target::TargetError> {
+        self.inner.begin_scenario(scenario)
+    }
+    fn execute_command(
+        &self,
+        mut request: SemanticCommandRequest,
+    ) -> Result<SemanticCommandResult, ess_conformance::target::TargetError> {
+        if !self.drop_events
+            && matches!(
+                request.command.to_string().as_str(),
+                "ekr.integrate.ApproveSchemaProposal" | "ekr.integrate.RejectSchemaProposal"
+            )
+        {
+            let Some(Node::Map(proof)) = request.input.get_mut("human_proof") else {
+                panic!("the review fixture supplies a typed proof")
+            };
+            proof.insert(
+                "signature".into(),
+                Node::Text(ekr_core::bytes::encode(&[0; 64])),
+            );
+        }
+        let mut result = self.inner.execute_command(request)?;
+        if self.drop_events {
+            result.direct_events.clear();
+            result.response = None;
+        }
+        Ok(result)
+    }
+    fn query_view(
+        &self,
+        request: ess_conformance::target::SemanticViewRequest,
+    ) -> Result<ess_conformance::target::SemanticViewResult, ess_conformance::target::TargetError>
+    {
+        self.inner.query_view(request)
+    }
+    fn observe_events(
+        &self,
+        request: EventObservationRequest,
+    ) -> Result<Vec<ess_conformance::target::ObservedEvent>, ess_conformance::target::TargetError>
+    {
+        if self.drop_events {
+            Ok(vec![])
+        } else {
+            self.inner.observe_events(request)
+        }
+    }
+    fn configure_external_outcome(
+        &self,
+        request: ExternalOutcomeControl,
+    ) -> Result<(), ess_conformance::target::TargetError> {
+        self.inner.configure_external_outcome(request)
+    }
+    fn redeliver_event(
+        &self,
+        request: ess_conformance::target::RedeliveryRequest,
+    ) -> Result<(), ess_conformance::target::TargetError> {
+        self.inner.redeliver_event(request)
+    }
+    fn end_scenario(
+        &self,
+        scenario: &ScenarioContext,
+    ) -> Result<(), ess_conformance::target::TargetError> {
+        self.inner.end_scenario(scenario)
+    }
+}
+fn existing_failures(provider: Provider, suite: &AdmittedSuite) -> BTreeSet<String> {
+    let work = tempfile::tempdir().unwrap();
+    let target = signed_target(provider, work.path());
+    let run = Runner::for_suite(suite.suite()).run_admitted(suite, &target);
+    let report = CountReport::from_run(&run, suite).unwrap();
+    assert_eq!(report.counts().error, 0, "{}", findings(&run));
+    run.scenarios
+        .iter()
+        .filter(|s| s.status.to_string() == "failed")
+        .map(|s| s.scenario.to_string())
+        .collect()
+}
+#[test]
+fn knowledge_scenarios_detect_missing_observable_results() {
+    for provider in [Provider::File, Provider::Sqlite] {
+        let suite = admitted();
+        let prior = existing_failures(provider, &suite);
+        let work = tempfile::tempdir().unwrap();
+        let target = signed_target(provider, work.path());
+        let broken = BrokenKnowledge {
+            inner: &target,
+            drop_events: true,
+        };
+        let run = Runner::for_suite(suite.suite()).run_admitted(&suite, &broken);
+        let report = CountReport::from_run(&run, &suite).unwrap();
+        record_report(provider, "event-suppression", &report);
+        assert_eq!(report.counts().error, 0, "{}", findings(&run));
+        let names: BTreeSet<_> = run
+            .scenarios
+            .iter()
+            .filter(|s| s.status.to_string() == "failed")
+            .map(|s| s.scenario.to_string())
+            .filter(|name| !prior.contains(name))
+            .collect();
+        let expected: BTreeSet<_> = baseline()
+            .scenarios
+            .into_iter()
+            .filter(|s| {
+                !s.contains("ApplySchemaProposal")
+                    && !prior.contains(s)
+                    && (s.ends_with("/answered") || s.ends_with("/applied"))
+            })
+            .collect();
+        assert_eq!(names, expected, "{provider:?}: {}", findings(&run));
+    }
+}
+#[test]
+fn exact_review_scenarios_fail_when_the_signed_proof_is_corrupted() {
+    for provider in [Provider::File, Provider::Sqlite] {
+        let suite = admitted();
+        let prior = existing_failures(provider, &suite);
+        let work = tempfile::tempdir().unwrap();
+        let target = signed_target(provider, work.path());
+        let broken = BrokenKnowledge {
+            inner: &target,
+            drop_events: false,
+        };
+        let run = Runner::for_suite(suite.suite()).run_admitted(&suite, &broken);
+        let report = CountReport::from_run(&run, &suite).unwrap();
+        record_report(provider, "signature-corruption", &report);
+        assert_eq!(report.counts().error, 0, "{}", findings(&run));
+        let names: BTreeSet<_> = run
+            .scenarios
+            .iter()
+            .filter(|s| s.status.to_string() == "failed")
+            .map(|s| s.scenario.to_string())
+            .filter(|name| !prior.contains(name))
+            .collect();
+        assert_eq!(
+            names,
+            BTreeSet::from([
+                "ekr.integrate.ApproveSchemaProposal/outcome/answered".to_owned(),
+                "ekr.integrate.RejectSchemaProposal/outcome/answered".to_owned()
+            ]),
+            "{provider:?}: {}",
+            findings(&run)
+        );
     }
 }

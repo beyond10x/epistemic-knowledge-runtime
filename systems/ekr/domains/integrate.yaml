@@ -1232,6 +1232,8 @@ commands:
       type: ekr.integrate.InterpretationDocument
     - name: payload
       type: Bytes
+    fixture_inputs:
+      payload: interpretation-payload
     response:
     - name: receipt
       type: ekr.integrate.IncubationImportReceipt
@@ -1275,6 +1277,8 @@ commands:
     input:
     - name: version
       type: ekr.integrate.InterpretationVersion
+    fixture_inputs:
+      version: interpretation-version
     response:
     - name: document
       type: ekr.integrate.InterpretationDocument
@@ -1330,6 +1334,8 @@ commands:
       type: ekr.integrate.SchemaProposalDocument
     - name: payload
       type: Bytes
+    fixture_inputs:
+      payload: schema-proposal-payload
     response:
     - name: proposal_id
       type: ekr.integrate.SchemaProposalId
@@ -1368,6 +1374,8 @@ commands:
     input:
     - name: proposal_id
       type: ekr.integrate.SchemaProposalId
+    fixture_inputs:
+      proposal_id: schema-proposal-id
     response:
     - name: proposal
       type: ekr.integrate.SchemaProposalDocument
@@ -1422,6 +1430,12 @@ commands:
       type: ekr.kernel.ReviewBasis
     - name: statement
       type: Bytes
+    fixture_inputs:
+      proposal_id: schema-proposal-id
+      proposal_digest: schema-review-proposal-digest
+      basis: schema-review-basis
+      human_proof: schema-review-proof
+      statement: schema-review-statement
     response:
     - name: review_id
       type: ekr.integrate.ProposalReviewId
@@ -1460,6 +1474,12 @@ commands:
       type: ekr.kernel.ReviewBasis
     - name: statement
       type: Bytes
+    fixture_inputs:
+      proposal_id: schema-proposal-id
+      proposal_digest: schema-review-proposal-digest
+      basis: schema-review-basis
+      human_proof: schema-review-proof
+      statement: schema-review-statement
     response:
     - name: review_id
       type: ekr.integrate.ProposalReviewId

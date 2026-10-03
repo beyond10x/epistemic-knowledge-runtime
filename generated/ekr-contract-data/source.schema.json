@@ -8016,7 +8016,8 @@
         "ekr.publication-preparation/2",
         "ekr.publication-preparation/3",
         "ekr.publication-preparation/4",
-        "ekr.publication-preparation/5"
+        "ekr.publication-preparation/5",
+        "ekr.publication-preparation/6"
       ],
       "title": "PublicationPreparationFormatV1",
       "type": "string",
@@ -11319,8 +11320,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:3d42d49e01157f6748cc59ce3a15a1b661565ff6dff9a1286f7997d8df41222c",
-    "source_digest": "7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11",
+    "contract_digest": "slice-sha256/2:dddcfc604d2164a1e501866da6c842ad59bd04dcb3dad7f6c25f7252501e603f",
+    "source_digest": "f356a296c15cb806b72a218ce953f41b3edb6194bcefd41f350d20df79d80073",
     "specification_version": "v1",
     "system": "ekr"
   }

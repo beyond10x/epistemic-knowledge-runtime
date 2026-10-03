@@ -34,7 +34,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 23
+revision: 25
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -114,3 +114,15 @@ Observed review defects and corrections remain independently attributable. The h
 Actual focused results are retained under <retained-evidence>/schema-review-admission: component-red.log, correction-applicability-red-2.log, corrections-green-2.log and their statuses; the correction/submission/exact-approval cases pass on both providers. cli-ui-red.log reproduced rejected proposals remaining in attention; cli-ui-green.log passes the real signed approval/rejection dispatch, idempotent retry, rejected-item filtering, escaped human statement rendering and unchanged canonical head on both providers. Child-session SDK tests and full component gates still need the final integrated source.
 
 Audience-wide decision binding is being integrated from the serialized store worker. Independent physical-port review found a checkpoint shortcut omission, now under correction. The original admission identity regression remains the end-to-end gate; no full gate, final E approval or F delivery is claimed. The source specification digest is 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11; ESS regenerated both contract trees after an explicit verified output-ownership repair, with drift checking still required.
+
+## Conformance adapter ownership
+
+The signed review source checkpoint is ab6dcf888; the serialized store correction is 8369cb18b, merged at 21668c56c. scope_retention next owns only crates/ekr/src/conformance/integrate.rs and a sibling knowledge adapter module plus crates/ekr/tests/conformance_integrate.rs and test fixtures it needs. The task exercises existing A/E operations through real native Runtime/CLI behavior; F application remains unsupported until its implementation exists. No specification, generated model, AEP, kernel, public CLI or SDK edits belong to this unit. Root retains baseline/freshness files, named authored scenarios, integration and the one Cargo lane. Implementor waits for explicit exclusive lane handoff. New refusal coverage must reflect actual implementation refusal; outcomes/events are derived from actual returned state, never the forced-outcome flag.
+
+## Native integration conformance checkpoint
+
+The native adapter now executes retained interpretation operations, discovery, submission/show and independently signed approval/rejection on both file and SQLite. Source and exact report/2 documents are retained in .engineering/reviews/knowledge-integrate-adapter/. On each provider the measured report is 16 passed, one failed, zero errors/skips and two unsupported, total 19. The original floor 19 and zero-unavailable ceiling remain red. SubmitSchemaProposal/answered has an inadmissible generated literal and requires upstream finite recursive fixture support; F apply outcomes remain unimplemented.
+
+The event-suppression control adds eight failures and signature corruption adds exactly the two approval/rejection positive failures, measured against the existing Submit failure. Review IDs and decisions are independently read after reopen/full replay. The full Rust target has five passing and three failing tests; bounded clippy/format checks pass. Fixed report fixture-clock timestamps are not execution UTC and are not imported as fresh conformance evidence.
+
+Independent source review identified an additional observation gap: the adapter must compare verified canonical head and actual canonical publication occurrences before and after every A/E result, including refusals. The scoped correction is being implemented with a real-write negative control. This checkpoint records partial execution, not global conformance or E completion. F design review is separate and does not authorize reporting runtime application as implemented.
