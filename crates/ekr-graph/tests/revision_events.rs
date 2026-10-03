@@ -458,12 +458,16 @@ fn the_declaration_order_of_the_variants_equals_their_numbering() {
 #[test]
 fn answer_metadata_is_generated_checked_and_version_four_only() {
     let event = every_variant().pop().unwrap();
+    assert_eq!(event.format, RevisionEvent::ANSWER_FORMAT);
     let mut value = serde_json::to_value(&event.payload).unwrap();
     value.as_object_mut().unwrap().remove("event");
     let generated: ekr_core::contract_data::EkrKernelAttentionAnsweredPayload =
         serde_json::from_value(value.clone()).unwrap();
     let checked = ekr_graph::AnswerOccurrence::try_from(generated).unwrap();
     assert_eq!(serde_json::to_value(&checked).unwrap(), value);
+    let identity: ekr_graph::HumanAnswerId = checked.answer_id().into();
+    assert_eq!(serde_json::to_value(identity).unwrap(), value["answer_id"]);
+    assert!(serde_json::from_value::<ekr_graph::HumanAnswerId>(serde_json::json!("bad")).is_err());
     for (field, invalid) in [
         ("answer_id", serde_json::json!("bad")),
         ("knowledge_root", serde_json::json!("bad")),

@@ -1,0 +1,24 @@
+{
+  "parent": "a16311f83e880870ef3717d29bcc93b77212636d",
+  "observed_at": "2026-10-03T11:55:48.260Z",
+  "files": [
+    {
+      "path": "crates/ekr-graph/tests/revision_events.rs",
+      "sha256": "5580978fdd05e1af5db35a8371e9572e1e456dde9c8efbba00f6c316cecee2eb"
+    }
+  ],
+  "rows": [
+    {
+      "status": "ok",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "status": "ok",
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0
+    }
+  ]
+}
