@@ -131,6 +131,9 @@ types:
   - name: ekr.kernel.HumanDecisionRecord
     kind: struct
     fields:
+    - {name: proof_object_hash, type: ekr.kernel.ContentHash}
+    - {name: policy_object_hash, type: ekr.kernel.ContentHash}
+    - {name: statement_object_hash, type: ekr.kernel.ContentHash}
     - name: decision_id
       type: Uuid
     - name: proof_digest
@@ -1366,6 +1369,11 @@ entities:
       name: proof_digest
       type: ekr.kernel.ContentHash
     fields:
+    # Protocol digests are plain SHA-256; StoredObject addresses include the payload domain.
+    # These explicit addresses retain the corresponding bytes without conflating the hashes.
+    - {name: proof_object_hash, type: ekr.kernel.ContentHash}
+    - {name: policy_object_hash, type: ekr.kernel.ContentHash}
+    - {name: statement_object_hash, type: ekr.kernel.ContentHash}
     - name: decision_id
       type: Uuid
     - name: policy_digest
@@ -1381,17 +1389,17 @@ entities:
       kind: references
       target: ekr.store.StoredObject
       cardinality: one
-      via: proof_digest
+      via: proof_object_hash
     - name: policy_bytes
       kind: references
       target: ekr.store.StoredObject
       cardinality: one
-      via: policy_digest
+      via: policy_object_hash
     - name: statement_bytes
       kind: references
       target: ekr.store.StoredObject
       cardinality: one
-      via: statement_digest
+      via: statement_object_hash
     lifecycle:
       initial: Verified
       states:
@@ -1494,6 +1502,8 @@ entities:
       name: transition_id
       type: ekr.kernel.AuthorityTransitionId
     fields:
+    - {name: review_host_binding_object_hash, type: ekr.kernel.ContentHash}
+    - {name: reviewer_policy_object_hash, type: ekr.kernel.ContentHash}
     - {name: review_host_binding_digest, type: ekr.kernel.ContentHash}
     - {name: reviewer_policy_digest, type: ekr.kernel.ContentHash}
     - {name: trust_enrollment, type: ekr.kernel.ReviewerTrustEnrollment}
@@ -1521,8 +1531,8 @@ entities:
     # effect only after this boundary; pending validations under the old authority are
     # invalidated and must be revalidated.
     relations:
-    - {name: reviewer_host_binding, kind: references, target: ekr.store.StoredObject, cardinality: one, via: review_host_binding_digest}
-    - {name: reviewer_policy, kind: references, target: ekr.store.StoredObject, cardinality: one, via: reviewer_policy_digest}
+    - {name: reviewer_host_binding, kind: references, target: ekr.store.StoredObject, cardinality: one, via: review_host_binding_object_hash}
+    - {name: reviewer_policy, kind: references, target: ekr.store.StoredObject, cardinality: one, via: reviewer_policy_object_hash}
     - {name: human_proof, kind: references, target: ekr.kernel.RetainedHumanDecision, cardinality: one, via: human_proof_digest}
     - {name: target_profile, kind: references, target: ekr.store.StoredObject, cardinality: one, via: target_profile_digest}
     lifecycle:
@@ -2347,6 +2357,9 @@ views:
     source: ekr.kernel.RetainedHumanDecision
     consistency: read_your_writes
     fields:
+    - {name: proof_object_hash, type: ekr.kernel.ContentHash}
+    - {name: policy_object_hash, type: ekr.kernel.ContentHash}
+    - {name: statement_object_hash, type: ekr.kernel.ContentHash}
     - name: proof_digest
       type: ekr.kernel.ContentHash
     - name: state
@@ -2414,6 +2427,8 @@ views:
     source: ekr.kernel.AuthorityTransition
     consistency: read_your_writes
     fields:
+    - {name: review_host_binding_object_hash, type: ekr.kernel.ContentHash}
+    - {name: reviewer_policy_object_hash, type: ekr.kernel.ContentHash}
     - {name: review_host_binding_digest, type: ekr.kernel.ContentHash}
     - {name: reviewer_policy_digest, type: ekr.kernel.ContentHash}
     - {name: trust_enrollment, type: ekr.kernel.ReviewerTrustEnrollment}

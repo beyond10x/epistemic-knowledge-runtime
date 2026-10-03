@@ -1,0 +1,6 @@
+disputes-kernel-regression: passed=575 failed=0 ignored=6 groups=82
+disputes-focused-final: passed=20 failed=0 ignored=0 groups=2
+disputes-doctests-final: passed=2 failed=0 ignored=0 groups=1
+disputes-cross-crate-final: passed=77 failed=0 ignored=0 groups=5
+spec_digest=11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
+contract_digest=2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d

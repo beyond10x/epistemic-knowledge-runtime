@@ -394,6 +394,7 @@ JSON envelope: `document` contains the typed interpretation and `payload` contai
 encoding of that document's exact JSON bytes. Each source observation must already be retained.
 Local declarations and references are checked independently of the canonical schema. Unknown
 canonical vocabulary produces retained blockers; import does not commit facts or change the schema.
+`ekr incubate --help` names the input format and directs callers to `ekr incubate import --help`.
 
 `ekr incubate list` returns immutable coordinates and byte digests. Pass all three fields to
 `ekr incubate show <interpretation-id> <version> <document-digest>` to inspect local declarations,
@@ -414,11 +415,12 @@ ekr observe show <observation-id>
 
 `import` reads one generated `ekr.observe.ObservationImport` JSON document, from a file or `-`
 for stdin, up to eight MiB. It carries `observation`, `key` and a padded standard-base64 `payload`.
-The key contains `source`, optional `source_native_id` and the SHA-256 `content_hash` of the
+The key contains `source`, optional `source_native_id` and the payload-domain SHA-256 `content_hash` of the
 decoded payload. The observation repeats those source fields and digest, plus `observation_id`,
 `kind` and `captured_at` as an RFC 3339 timestamp, as the generated ESS schema requires. The identity must be the existing
 `ObservationIdempotencyKey::observation_id()` result; use the SDK's `knowledge::observation_import`
 builder to construct these fields from source metadata and exact payload bytes.
+`ekr observe --help` names the input format and directs callers to `ekr observe import --help`.
 
 A first import returns `outcome: Retained`; an identical retry returns `AlreadyRetained` and
 `already_retained: true` with the same identity. A conflicting identity, source key or content

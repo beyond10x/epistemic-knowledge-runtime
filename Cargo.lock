@@ -604,6 +604,7 @@ dependencies = [
  "eventlog-file",
  "eventlog-sqlite",
  "proptest",
+ "ring",
  "schemars 1.2.2",
  "serde",
  "serde_json",

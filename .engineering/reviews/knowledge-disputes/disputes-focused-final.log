@@ -1,0 +1,34 @@
+   Compiling ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 0.34s
+     Running tests/disputes.rs (target/debug/deps/disputes-348c1b1d8f7ccf47)
+
+running 7 tests
+test edge_properties_conflict_but_different_subjects_and_predicates_do_not ... ok
+test only_active_accepted_or_disputed_claims_participate ... ok
+test equivalent_node_reference_property_encodings_are_equal ... ok
+test relation_claims_use_declared_cardinality_and_distinct_targets ... ok
+test overlapping_one_claims_return_every_pair_in_identity_order_without_mutation ... ok
+test equal_disjoint_empty_and_many_claims_do_not_conflict ... ok
+test temporal_extremes_match_point_membership_without_sentinel_collisions ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/human_review.rs (target/debug/deps/human_review-2d78586e92a24f81)
+
+running 13 tests
+test independent_binding_refuses_substituted_policy_and_store ... ok
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... ok
+test policy_key_order_is_checked_and_an_empty_policy_never_authorizes ... ok
+test signing_message_matches_the_fixed_binary_layout_vector ... ok
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... ok
+test forged_truncated_and_altered_signatures_refuse ... ok
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... ok
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... ok
+test retained_proof_and_every_review_basis_field_are_bound ... ok
+test canonical_readers_refuse_every_truncation_and_trailing_byte ... ok
+test all_four_targets_verify_only_in_their_own_enrolled_scope ... ok
+test protocol_digests_and_object_addresses_resolve_the_same_bytes_after_both_provider_reopens ... ok
+test no_single_byte_change_in_retained_proof_can_replay_as_approved ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

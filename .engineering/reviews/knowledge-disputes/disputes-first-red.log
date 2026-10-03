@@ -1,0 +1,161 @@
+   Compiling libc v0.2.189
+   Compiling cfg-if v1.0.5
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.26
+   Compiling quote v1.0.47
+   Compiling syn v3.0.6
+   Compiling getrandom v0.4.3
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling cc v1.5.1
+   Compiling serde v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde_derive v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling itoa v1.0.18
+   Compiling foldhash v0.2.0
+   Compiling version_check v0.9.5
+   Compiling memchr v2.8.3
+   Compiling generic-array v0.14.7
+   Compiling hashbrown v0.17.1
+   Compiling thiserror v2.0.21
+   Compiling thiserror-impl v2.0.21
+   Compiling typenum v1.20.1
+   Compiling uuid v1.26.1
+   Compiling bitflags v2.13.2
+   Compiling ring v0.17.14
+   Compiling equivalent v1.0.2
+   Compiling indexmap v2.14.2
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling getrandom v0.2.17
+   Compiling ryu v1.0.23
+   Compiling vcpkg v0.2.15
+   Compiling unsafe-libyaml v0.2.11
+   Compiling pkg-config v0.3.34
+   Compiling untrusted v0.9.0
+   Compiling getrandom v0.3.4
+   Compiling rustix v1.1.5
+   Compiling libsqlite3-sys v0.38.2
+   Compiling serde_yaml_ng v0.10.0 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/vendor/serde_yaml_ng)
+   Compiling digest v0.10.7
+   Compiling ekr-contract-data v0.0.0 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/generated/ekr-contract-data)
+   Compiling deranged v0.5.8
+   Compiling hex v0.4.3
+   Compiling ekr-types v1.0.0 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/generated/ekr-contracts/crates/ekr-types)
+   Compiling num-conv v0.2.2
+   Compiling powerfmt v0.2.0
+   Compiling cfg_aliases v0.2.2
+   Compiling linux-raw-sys v0.12.1
+   Compiling cpufeatures v0.2.17
+   Compiling time-core v0.1.9
+   Compiling time v0.3.55
+   Compiling sha2 v0.10.9
+   Compiling nix v0.30.1
+   Compiling fastrand v2.5.0
+   Compiling zerocopy v0.8.59
+   Compiling once_cell v1.21.4
+   Compiling pin-project-lite v0.2.17
+   Compiling tokio v1.53.1
+   Compiling tempfile v3.27.0
+   Compiling rand_core v0.9.5
+   Compiling eventlog-core v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+   Compiling hashlink v0.12.2
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling autocfg v1.5.1
+   Compiling fallible-iterator v0.3.0
+   Compiling smallvec v1.16.2
+   Compiling rusqlite v0.40.2
+   Compiling num-traits v0.2.19
+   Compiling target-tuple v1.0.2
+   Compiling ekr-core v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-core)
+   Compiling winnow v1.0.4
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling eventlog-sqlite v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+   Compiling ekr-ontology v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-graph)
+   Compiling eventlog-file v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling wait-timeout v0.2.1
+   Compiling quick-error v1.2.3
+   Compiling bit-vec v0.8.0
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling fnv v1.0.7
+   Compiling rusty-fork v0.3.1
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling bit-set v0.8.0
+   Compiling ekr-integrate v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-integrate)
+   Compiling rand_chacha v0.9.0
+   Compiling rand_xorshift v0.4.0
+   Compiling rand v0.9.5
+   Compiling unarray v0.1.4
+   Compiling regex-syntax v0.8.11
+   Compiling glob v0.3.4
+   Compiling termcolor v1.4.1
+   Compiling trybuild v1.0.121
+   Compiling proptest v1.11.0
+   Compiling ekr-store v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-store)
+   Compiling ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 39.52s
+     Running tests/disputes.rs (target/debug/deps/disputes-c4b203a0d1e1a7a3)
+
+running 6 tests
+test edge_properties_conflict_but_different_subjects_and_predicates_do_not ... FAILED
+test relation_claims_use_declared_cardinality_and_distinct_targets ... FAILED
+test only_active_accepted_or_disputed_claims_participate ... FAILED
+test overlapping_one_claims_return_every_pair_in_identity_order_without_mutation ... FAILED
+test equivalent_node_reference_property_encodings_are_equal ... FAILED
+test equal_disjoint_empty_and_many_claims_do_not_conflict ... ok
+
+failures:
+
+---- edge_properties_conflict_but_different_subjects_and_predicates_do_not stdout ----
+
+thread 'edge_properties_conflict_but_different_subjects_and_predicates_do_not' (873072) panicked at crates/ekr-kernel/tests/disputes.rs:126:5:
+assertion `left == right` failed
+  left: []
+ right: [(AssertionId(2165190231183805279071943170402728822), AssertionId(2165190231183805279071943174675664544))]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- relation_claims_use_declared_cardinality_and_distinct_targets stdout ----
+
+thread 'relation_claims_use_declared_cardinality_and_distinct_targets' (873077) panicked at crates/ekr-kernel/tests/disputes.rs:108:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- only_active_accepted_or_disputed_claims_participate stdout ----
+
+thread 'only_active_accepted_or_disputed_claims_participate' (873075) panicked at crates/ekr-kernel/tests/disputes.rs:152:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- overlapping_one_claims_return_every_pair_in_identity_order_without_mutation stdout ----
+
+thread 'overlapping_one_claims_return_every_pair_in_identity_order_without_mutation' (873076) panicked at crates/ekr-kernel/tests/disputes.rs:77:5:
+assertion `left == right` failed
+  left: []
+ right: [(AssertionId(2165190231183805279071943502407758160), AssertionId(2165190231183805279071943517703289832)), (AssertionId(2165190231183805279071943502407758160), AssertionId(2165190231183805279071943524978870033)), (AssertionId(2165190231183805279071943517703289832), AssertionId(2165190231183805279071943524978870033))]
+
+---- equivalent_node_reference_property_encodings_are_equal stdout ----
+
+thread 'equivalent_node_reference_property_encodings_are_equal' (873074) panicked at crates/ekr-kernel/tests/disputes.rs:140:5:
+assertion `left == right` failed
+  left: {}
+ right: {(AssertionId(2165190231183805279071943596334545768), AssertionId(2165190231183805279071943604637639033)), (AssertionId(2165190231183805279071943600974668006), AssertionId(2165190231183805279071943604637639033))}
+
+
+failures:
+    edge_properties_conflict_but_different_subjects_and_predicates_do_not
+    equivalent_node_reference_property_encodings_are_equal
+    only_active_accepted_or_disputed_claims_participate
+    overlapping_one_claims_return_every_pair_in_identity_order_without_mutation
+    relation_claims_use_declared_cardinality_and_distinct_targets
+
+test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-kernel --test disputes`

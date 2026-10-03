@@ -133,6 +133,11 @@ pub enum Backend {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Import or inspect parked interpretations (`ekr.integrate`).
+    ///
+    /// A store verb under the `ekr.cli-host/1` host. Import reads an
+    /// `ekr.integrate.InterpretationImport` JSON envelope with the document's exact bytes as
+    /// base64, up to eight MiB. Start with `ekr incubate import --help`; input examples and SDK
+    /// builders are in docs/cli.md. List and show inspect immutable versions and blockers.
     #[command(after_help = SEE)]
     Incubate {
         /// The interpretation operation.
@@ -140,6 +145,11 @@ pub enum Command {
         command: IncubateCommand,
     },
     /// Import or inspect independently retained observations (`ekr.observe`).
+    ///
+    /// A store verb under the `ekr.cli-host/1` host. Import reads an
+    /// `ekr.observe.ObservationImport` JSON envelope with exact source bytes as base64, up to
+    /// eight MiB. Start with `ekr observe import --help`; input examples and SDK builders are
+    /// in docs/cli.md. List and show retain visibility when interpretation fails.
     #[command(after_help = SEE)]
     Observe {
         /// The observation operation.

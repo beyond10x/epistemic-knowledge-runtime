@@ -742,6 +742,28 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             ],
         ),
         ("mint", &["node", "assertion", "transaction"]),
+        (
+            "observe",
+            &[
+                "ekr.observe.ObservationImport",
+                "base64",
+                "eight MiB",
+                "ekr observe import --help",
+                "docs/cli.md",
+                store,
+            ],
+        ),
+        (
+            "incubate",
+            &[
+                "ekr.integrate.InterpretationImport",
+                "base64",
+                "eight MiB",
+                "ekr incubate import --help",
+                "docs/cli.md",
+                store,
+            ],
+        ),
         ("head", &["revision", store]),
         ("transactions", &["Proposed", "Committed", store]),
         (

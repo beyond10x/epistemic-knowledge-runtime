@@ -1,0 +1,57 @@
+   Compiling ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-disputes-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 5.98s
+     Running tests/human_review.rs (target/debug/deps/human_review-2d78586e92a24f81)
+
+running 6 tests
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... FAILED
+test independent_binding_refuses_substituted_policy_and_store ... FAILED
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... FAILED
+test forged_truncated_and_altered_signatures_refuse ... FAILED
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... FAILED
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... FAILED
+
+failures:
+
+---- even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor stdout ----
+
+thread 'even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor' (1021174) panicked at crates/ekr-kernel/tests/human_review.rs:95:9:
+mutation 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- independent_binding_refuses_substituted_policy_and_store stdout ----
+
+thread 'independent_binding_refuses_substituted_policy_and_store' (1021176) panicked at crates/ekr-kernel/tests/human_review.rs:57:5:
+assertion failed: Reviewer::from_host(&f.binding, policy).is_err()
+
+---- policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order stdout ----
+
+thread 'policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order' (1021177) panicked at crates/ekr-kernel/tests/human_review.rs:115:9:
+mutation 0
+
+---- forged_truncated_and_altered_signatures_refuse stdout ----
+
+thread 'forged_truncated_and_altered_signatures_refuse' (1021175) panicked at crates/ekr-kernel/tests/human_review.rs:77:35:
+assertion failed: reviewer.verify(&candidate, &f.intent.target, b"reviewed", None).is_err()
+
+---- signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars stdout ----
+
+thread 'signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars' (1021178) panicked at crates/ekr-kernel/tests/human_review.rs:127:5:
+assertion failed: message.starts_with(&prefix)
+
+---- verified_operator_comes_from_policy_and_statement_and_target_are_bound stdout ----
+
+thread 'verified_operator_comes_from_policy_and_statement_and_target_are_bound' (1021179) panicked at crates/ekr-kernel/tests/human_review.rs:45:5:
+assertion failed: reviewer.verify(&proof, &f.intent.target, b"changed", None).is_err()
+
+
+failures:
+    even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor
+    forged_truncated_and_altered_signatures_refuse
+    independent_binding_refuses_substituted_policy_and_store
+    policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order
+    signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars
+    verified_operator_comes_from_policy_and_statement_and_target_are_bound
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-kernel --test human_review`

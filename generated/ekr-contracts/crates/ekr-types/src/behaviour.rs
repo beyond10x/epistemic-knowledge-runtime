@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa
-// contract digest 8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca
+// model digest 11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
+// contract digest 2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
 // do not edit: regenerate with `ess synthesize`
 
 //! What the specification fully determines, generated: the behaviour of every command the plan
@@ -1009,6 +1009,8 @@ where
         Ok(admitted
             .into_iter()
             .map(|held| crate::kernel::AuthorityTransitionRecords {
+                review_host_binding_object_hash: held.data.review_host_binding_object_hash,
+                reviewer_policy_object_hash: held.data.reviewer_policy_object_hash,
                 review_host_binding_digest: held.data.review_host_binding_digest,
                 reviewer_policy_digest: held.data.reviewer_policy_digest,
                 trust_enrollment: held.data.trust_enrollment,
@@ -1122,6 +1124,9 @@ where
         Ok(admitted
             .into_iter()
             .map(|held| crate::kernel::HumanDecisionRecords {
+                proof_object_hash: held.data.proof_object_hash,
+                policy_object_hash: held.data.policy_object_hash,
+                statement_object_hash: held.data.statement_object_hash,
                 proof_digest: held.data.proof_digest,
                 state: held.state,
                 decision_id: held.data.decision_id,

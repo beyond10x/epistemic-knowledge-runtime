@@ -1,0 +1,5 @@
+task: [contracts-check] cargo run --locked -p xtask --bin xtask -- contracts-check
+    Finished `dev` profile [unoptimized] target(s) in 0.06s
+     Running `target/debug/xtask contracts-check`
+xtask: generator is a development candidate; adoption requires a verified published release pin
+task: Failed to run task "contracts-check": exit status 1
