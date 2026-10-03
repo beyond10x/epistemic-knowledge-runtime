@@ -5460,3 +5460,105 @@ wire labels. Recursive by-value optional layouts in `ValueSpec` and `ValueTypePr
 a generator prerequisite until a verified ESS release represents them. Runtime models must be
 generated from the contracts; no silent manual transcription is authorized by this amendment.
 The verified generator release and regeneration checks are part of implementation delivery.
+
+## 105.6 Human decision proofs and reviewer trust (2026-10-03)
+
+A configured operator UUID establishes attribution, not human approval. The current CLI host
+file, a caller's `--host` path, an agent capability string and a HumanStatement evidence entry
+cannot grant review authority. The approval, rejection, attention-answer and authority-upgrade
+commands therefore require a generated `SignedHumanDecision` document in addition to their
+existing target, basis and statement inputs. None of these commands signs a decision. The SDK
+transports the proof and can expose its deterministic signing bytes, but holds no signing key
+and offers no unattended signing path. The verifier belongs to the kernel and is shared by
+one-shot CLI, sessions and their typed SDK operations; a CLI-only signature check is insufficient.
+
+`ReviewerTrustPolicy` maps Ed25519 verification keys to trusted operator identities and explicit
+allowed decision scopes. The key digest is SHA-256 of the exact 32-byte public key; duplicate keys
+and duplicate scopes are refused. The operator and authentication subject in the decision record
+come from the verified policy entry, never from agent input. Successful structural decoding of a
+proof, trust policy or `TrustedReviewHostBinding` does not create a trusted capability. Only a
+kernel verifier holding the independently established policy can construct the private,
+non-deserializable capability consumed by a decision's mutating path.
+
+For an existing store with no reviewer policy, the trusted deployment/host setup must first
+provision an expected `TrustedReviewHostBinding`: the exact tenant, original seed anchor and
+policy digest. This provisioning is outside untrusted agent write control and is not an agent
+request or a field whose presence makes an arbitrary CLI host file trusted. Provisioning does
+not alter the old seed or activate new authority. `upgrade preview` reads this independently
+selected policy digest and includes it in the preview. `upgrade apply` verifies the exact
+UpgradeAuthority proof against that preselected policy, then atomically records its retained
+policy bytes, host-binding bytes, signed proof and `ReviewerTrustEnrollment` with the authority
+transition. Its duplicated policy, host-binding and proof digests must agree. Absence of an
+independent binding refuses before mutation; a public key or policy supplied only by the
+requester cannot bootstrap itself into trust.
+
+After enrollment the transition's policy digest is the store's reviewer trust anchor. Reopening
+checks the independently configured binding against the retained enrollment rather than
+silently replacing the policy from a different host file. Subsequent verification uses retained
+policy bytes and the authority applicable at the decision's position. Cold/full replay needs no
+private key, online signer or current operator identity: it verifies the retained enrollment,
+proofs and historical public policy under that initial trust boundary. Reviewer-key rotation and
+general policy replacement are outside this bounded delivery; an existing enrollment cannot be
+changed by submitting another review or swapping a host file. Historical seed authority remains
+unchanged until the recorded upgrade boundary.
+
+A `HumanDecisionIntent` binds one decision id, tenant and seed-anchor audience, policy digest,
+signer-key digest, exact operation, exact target, statement digest and expected previous decision.
+Its target is a tagged union: AnswerAttention binds the dispute, review basis and corrections
+digest; ApproveSchemaProposal and RejectSchemaProposal each bind the proposal id, proposal digest
+and review basis; UpgradeAuthority binds the preview digest and selected reviewer-policy digest.
+An approval proof cannot be reused as an answer, rejection or upgrade. The command's target,
+statement and proposed corrections must match the signed target exactly. Review evidence digests
+cover retained evidence bytes and immutable observation/document versions, not merely their ids.
+The kernel recomputes evidence/options/effects from the actual store before admission.
+
+The signature message is the ASCII bytes `ekr.human-decision/1`, one zero byte, and the canonical
+binary encoding of `HumanDecisionIntent`. Newtypes encode their underlying scalar. Ed25519 is the only admitted signature algorithm; a
+signature is exactly 64 bytes. The encoding is explicit, independent of JSON spelling and of Rust
+Debug/serde layout: structs encode fields in their ESS declaration order; UUIDs encode 16 raw
+bytes; ContentHash values encode 32 raw bytes; strings and Bytes encode an unsigned 64-bit
+big-endian byte length then UTF-8 or raw bytes; nonnegative revision numbers encode unsigned
+64-bit big-endian values; lists encode their unsigned 64-bit length then their elements;
+Optional values encode one byte (0 absent, 1 present) followed by a present value; enums encode
+their wire label as a string; tagged unions encode the exact variant wire label as a string then
+its typed payload. Unsupported formats, unknown fields, repeated fields, invalid scalars and
+noncanonical key/scope ordering are refused. Policy keys are ordered by key digest; scopes are
+ordered by their exact wire-label UTF-8 bytes. This is a format contract, not a claim that the
+current generator emits its binary codec.
+
+Policy and host-binding digests are SHA-256 of their respective canonical binary encodings under
+the same field/scalar rules. The corrections digest is SHA-256 of the canonical ordered list of
+ClaimCorrection values: timestamps in those corrections encode existing epoch-millisecond i64
+values as eight big-endian two's-complement bytes. Statement digest is SHA-256 of the exact
+statement bytes. Proof digest is SHA-256 of the canonical SignedHumanDecision envelope, including
+its intent, algorithm and signature. None of these documents contains its own digest or signature
+inside the signed intent. The exact canonical proof, policy, host-binding and statement bytes are
+retained as Provenance-or-stronger StoredObjects and verified by digest before admission/replay.
+The human-readable input serialization may vary; the signing bytes and retained canonical bytes
+may not. Signing a different interpretation of the input document is never accepted.
+
+An expected predecessor is the proof digest of the latest effective decision for the same
+audience and subject: dispute id for answers, proposal id for approval/rejection, or the store's
+authority transition chain for upgrades. It is absent only when that subject has no predecessor.
+The verified publication checks this predecessor atomically, so a delayed approval cannot
+override a later rejection. Decision ids are unique within the audience. An exact already-recorded
+proof returns its original receipt without appending a new review; reusing a decision id with
+other content refuses. Deduplication does not make an older approval effective again. Application
+still checks the latest effective review before each canonical write and reports confirmed
+partial progress if rejection stops it. Unrelated revision changes alone do not invalidate an
+answer's signed evidence/options/effects basis; changed reviewed content requires another proof.
+Upgrades continue to require the exact preview head.
+
+This boundary protects against agent-submitted content authorizing itself. It assumes the host
+trust setup and human signing path are outside the agent's write/control authority. A malicious
+actor with unrestricted host/store access, or an agent given the same unattended signing key as
+the human, is outside that boundary. A valid signature proves that the authorized key endorsed
+the exact intent; the signing path must obtain the human's review. EKR cannot infer human presence
+from a terminal, environment flag, process name, configured UUID or a claim in the signed text.
+
+Required real-provider checks include an agent-created HumanStatement with no proof, a forged
+host identity, an untrusted requester key, a wrong-store proof, changed proposal/evidence/options/
+corrections, a mismatched approve-versus-reject operation, stale predecessor, proof retry after
+rejection, missing independent enrollment, and cold/full replay from retained public proof bytes.
+These are deterministic verifier and atomic publication obligations; ESS validation and suite
+synthesis alone do not demonstrate them.

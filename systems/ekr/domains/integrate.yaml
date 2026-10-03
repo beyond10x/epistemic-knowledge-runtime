@@ -51,6 +51,7 @@ types:
   - name: ekr.integrate.ProposalReviewSnapshot
     kind: struct
     fields:
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
     - name: review_id
       type: ekr.integrate.ProposalReviewId
     - name: proposal_id
@@ -946,6 +947,7 @@ entities:
       name: review_id
       type: ekr.integrate.ProposalReviewId
     fields:
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
     - name: proposal_id
       type: ekr.integrate.SchemaProposalId
     - name: proposal_digest
@@ -964,6 +966,7 @@ entities:
     # or actor supplied inside agent content. Approval records exact proposal and reviewed
     # evidence; rejection preserves all sources.
     relations:
+    - {name: human_proof, kind: references, target: ekr.kernel.RetainedHumanDecision, cardinality: one, via: human_proof_digest}
     - name: proposal
       kind: references
       target: ekr.integrate.SchemaProposal
@@ -1313,6 +1316,7 @@ commands:
     naming:
       wire: schema-proposal-approve
     input:
+    - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
     - name: proposal_id
       type: ekr.integrate.SchemaProposalId
     - name: proposal_digest
@@ -1335,7 +1339,7 @@ commands:
       summary: Record the host-authenticated human decision and retain its statement
         as evidence; approval includes additions, mappings and selected corrections.
     - name: refused
-      external: The host must authenticate a trusted human operator, and exact proposal,
+      external: Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal,
         reviewed evidence and intended effects must match. Agent-supplied content cannot
         grant approval.
       error: ekr.integrate.KnowledgeRefused
@@ -1343,6 +1347,7 @@ commands:
     naming:
       wire: schema-proposal-reject
     input:
+    - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
     - name: proposal_id
       type: ekr.integrate.SchemaProposalId
     - name: proposal_digest
@@ -1365,7 +1370,7 @@ commands:
       summary: Record the host-authenticated human decision and retain its statement
         as evidence; approval includes additions, mappings and selected corrections.
     - name: refused
-      external: The host must authenticate a trusted human operator, and exact proposal,
+      external: Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal,
         reviewed evidence and intended effects must match. Agent-supplied content cannot
         grant approval.
       error: ekr.integrate.KnowledgeRefused
@@ -1643,6 +1648,7 @@ views:
     source: ekr.integrate.ProposalReview
     consistency: read_your_writes
     fields:
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
     - name: review_id
       type: ekr.integrate.ProposalReviewId
     - name: state
