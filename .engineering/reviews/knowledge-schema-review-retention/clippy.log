@@ -1,0 +1,19 @@
+    Checking serde_yaml_ng v0.10.0 (<review-retention-worktree>/vendor/serde_yaml_ng)
+    Checking ekr-contract-data v0.0.0 (<review-retention-worktree>/generated/ekr-contract-data)
+    Checking ekr-types v1.0.0 (<review-retention-worktree>/generated/ekr-contracts/crates/ekr-types)
+    Checking ekr-core v0.0.27 (<review-retention-worktree>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<review-retention-worktree>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<review-retention-worktree>/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<review-retention-worktree>/crates/ekr-store)
+error: creating a new box
+   --> crates/ekr-store/tests/proposal_review_retention.rs:270:9
+    |
+270 |         changed.review.decision = Box::new(ekr_core::contract_data::EkrIntegrateReviewDecision::V1);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace existing content with inner value instead: `*changed.review.decision = ekr_core::contract_data::EkrIntegrateReviewDecision::V1`
+    |
+    = note: this creates a needless allocation
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#replace_box
+    = note: `-D clippy::replace-box` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::replace_box)]`
+
+error: could not compile `ekr-store` (test "proposal_review_retention") due to 1 previous error

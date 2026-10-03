@@ -1,0 +1,278 @@
+//! Physical human-review retention; authentication and semantic admission belong to the kernel.
+use super::*;
+use ekr_core::contract_data::{EkrIntegrateRetainedProposalReview, EkrIntegrateSchemaProposalId};
+use ekr_core::generated_identity::{Identity, ProposalReviewId, SchemaProposalId};
+
+const STREAM: &str = "ekr.integrate.proposal-reviews";
+const IDENTITIES: &str = "ekr.integrate.proposal-review-identities";
+const RECORDED: &str = "ekr.integrate.ProposalReviewRetained";
+const BOUND: &str = "ekr.integrate.ProposalReviewIdentityBound";
+
+/// Immutable physical review records and pinned input bytes, not decision authority.
+/// Protocol digests, signatures, targets and operator authentication are verified by the kernel;
+/// this port checks object addresses and duplicated fields. The kernel verifies the proof's
+/// predecessor against the explicit expected predecessor passed to this port.
+/// Human protocol digests are not the domain-addressed hashes of stored objects.
+pub trait ProposalReviewRetention {
+    /// Reads the verified physical records of one retained proposal, in publication order.
+    /// # Errors
+    /// Missing proposal, corrupt records or pinned bytes, or provider failure.
+    fn retained_proposal_reviews(
+        &self,
+        proposal_id: &EkrIntegrateSchemaProposalId,
+    ) -> Result<Vec<EkrIntegrateRetainedProposalReview>, StoreError>;
+    /// Atomically binds both identities and pins the exact proof, policy and statement bytes.
+    /// Exact retries return the original before checking the current human predecessor.
+    /// # Errors
+    /// Inconsistent input, changed identity input, stale predecessor or provider failure.
+    fn retain_proposal_review(
+        &self,
+        record: &EkrIntegrateRetainedProposalReview,
+        expected_previous: Option<ContentHash>,
+        at: Timestamp,
+    ) -> Result<(EkrIntegrateRetainedProposalReview, bool), StoreError>;
+}
+
+fn invalid(detail: impl std::fmt::Display) -> StoreError {
+    StoreError::Document(format!("proposal-review: {detail}"))
+}
+fn hash(text: &str) -> Result<ContentHash, StoreError> {
+    text.parse().map_err(invalid)
+}
+fn uuid(text: &str) -> Result<(), StoreError> {
+    text.parse::<ekr_core::AgentId>()
+        .map(|_| ())
+        .map_err(invalid)
+}
+fn payloads(
+    record: &EkrIntegrateRetainedProposalReview,
+) -> Result<BTreeMap<ContentHash, Vec<u8>>, StoreError> {
+    let review = &record.review;
+    let decision = &record.decision;
+    let evidence = &record.statement.evidence;
+    SchemaProposalId::parse_identity(&review.proposal_id.0).map_err(invalid)?;
+    ProposalReviewId::parse_identity(&review.review_id.0).map_err(invalid)?;
+    uuid(&decision.decision_id)?;
+    uuid(&decision.operator.actor.0)?;
+    uuid(&review.operator.actor.0)?;
+    uuid(&evidence.id.0)?;
+    uuid(&evidence.extracted_by.0)?;
+    for text in [
+        &review.proposal_digest.0,
+        &review.human_proof_digest.0,
+        &review.basis.evidence_digest.0,
+        &review.basis.options_digest.0,
+        &review.basis.effects_digest.0,
+        &decision.proof_digest.0,
+        &decision.policy_digest.0,
+        &decision.statement_digest.0,
+    ] {
+        hash(text)?;
+    }
+    if review.operator != decision.operator
+        || review.recorded_at != decision.recorded_at
+        || review.human_proof_digest != decision.proof_digest
+        || review.evidence_id != evidence.id
+        || evidence.content_hash != decision.statement_object_hash
+    {
+        return Err(invalid("inconsistent review projection"));
+    }
+    let mut result = BTreeMap::new();
+    for (encoded, address) in [
+        (&record.proof, &decision.proof_object_hash.0),
+        (&record.policy, &decision.policy_object_hash.0),
+        (&record.statement.payload, &decision.statement_object_hash.0),
+    ] {
+        let bytes = ekr_core::bytes::decode(encoded).map_err(invalid)?;
+        let address = hash(address)?;
+        if ContentHash::of_bytes(&bytes) != address {
+            return Err(invalid("object hash mismatch"));
+        }
+        result.insert(address, bytes);
+    }
+    Ok(result)
+}
+fn identity_keys(record: &EkrIntegrateRetainedProposalReview) -> [String; 2] {
+    [
+        format!("review-{}", record.review.review_id.0),
+        format!("decision-{}", record.decision.decision_id),
+    ]
+}
+
+impl<S: AtomicBlobEventStore> EventlogStore<S> {
+    fn review_identity(
+        &self,
+        key: &str,
+    ) -> Result<Option<EkrIntegrateRetainedProposalReview>, StoreError> {
+        let stream = StreamId::new(self.tenant.clone(), IDENTITIES, key)?;
+        let events = self.read_all(&stream, MAX_READ_LIMIT)?;
+        match events.as_slice() {
+            [] => Ok(None),
+            [event] if event.name == BOUND && event.schema_version == 1 => {
+                serde_json::from_value(event.data.clone())
+                    .map(Some)
+                    .map_err(json_error)
+            }
+            _ => Err(invalid("identity envelope")),
+        }
+    }
+}
+
+impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
+    fn retained_proposal_reviews(
+        &self,
+        proposal_id: &EkrIntegrateSchemaProposalId,
+    ) -> Result<Vec<EkrIntegrateRetainedProposalReview>, StoreError> {
+        self.entered()?;
+        SchemaProposalId::parse_identity(&proposal_id.0).map_err(invalid)?;
+        let proposal = self
+            .retained_schema_proposals()?
+            .into_iter()
+            .find(|record| *record.proposal.proposal_id == *proposal_id)
+            .ok_or_else(|| invalid("unknown proposal"))?;
+        let stream = StreamId::new(self.tenant.clone(), STREAM, &proposal_id.0)?;
+        let mut identities = BTreeSet::new();
+        let mut proofs = BTreeSet::new();
+        let mut records = Vec::new();
+        for event in self.read_all(&stream, MAX_READ_LIMIT)? {
+            // Future application markers need a physical cursor independent of the latest human
+            // predecessor. Until their format is implemented, unknown events fail closed.
+            if event.name != RECORDED || event.schema_version != 1 {
+                return Err(invalid("review envelope"));
+            }
+            let record: EkrIntegrateRetainedProposalReview =
+                serde_json::from_value(event.data).map_err(json_error)?;
+            if *record.review.proposal_id != *proposal_id
+                || record.review.proposal_digest != proposal.proposal_digest
+            {
+                return Err(invalid("proposal mismatch"));
+            }
+            for key in identity_keys(&record) {
+                if !identities.insert(key.clone()) {
+                    return Err(invalid("duplicate identity"));
+                }
+                if self.review_identity(&key)?.as_ref() != Some(&record) {
+                    return Err(invalid("identity binding mismatch"));
+                }
+            }
+            if !proofs.insert(record.decision.proof_digest.0.clone()) {
+                return Err(invalid("duplicate proof digest"));
+            }
+            for (address, bytes) in payloads(&record)? {
+                let held = self
+                    .object(address)?
+                    .ok_or_else(|| invalid("missing pinned bytes"))?;
+                if *held.bytes != bytes
+                    || held.metadata.storage_class.retention_rank()
+                        < StorageClass::Provenance.retention_rank()
+                {
+                    return Err(invalid("changed or unpinned bytes"));
+                }
+            }
+            records.push(record);
+        }
+        Ok(records)
+    }
+
+    fn retain_proposal_review(
+        &self,
+        record: &EkrIntegrateRetainedProposalReview,
+        expected_previous: Option<ContentHash>,
+        at: Timestamp,
+    ) -> Result<(EkrIntegrateRetainedProposalReview, bool), StoreError> {
+        self.entered()?;
+        let payloads = payloads(record)?;
+        let proposal_id = &record.review.proposal_id;
+        // Retained proposals are immutable; observing this exact binding needs no mutable-head CAS.
+        if !self.retained_schema_proposals()?.iter().any(|proposal| {
+            proposal.proposal.proposal_id == *proposal_id
+                && proposal.proposal_digest == record.review.proposal_digest
+        }) {
+            return Err(invalid("unknown proposal or changed digest"));
+        }
+        for _ in 0..16 {
+            let held = self.retained_proposal_reviews(proposal_id)?;
+            if let Some(previous) = held.iter().find(|previous| {
+                previous.review.review_id == record.review.review_id
+                    || previous.decision.decision_id == record.decision.decision_id
+                    || previous.decision.proof_digest == record.decision.proof_digest
+            }) {
+                return if previous == record {
+                    Ok((previous.clone(), false))
+                } else {
+                    Err(StoreError::PublicationInputConflict)
+                };
+            }
+            let keys = identity_keys(record);
+            for key in &keys {
+                if self.review_identity(key)?.is_some() {
+                    return Err(StoreError::PublicationInputConflict);
+                }
+            }
+            let latest = held
+                .last()
+                .map(|previous| hash(&previous.decision.proof_digest.0))
+                .transpose()?;
+            if latest != expected_previous {
+                return Err(StoreError::Conflict);
+            }
+            let data = serde_json::to_value(record).map_err(json_error)?;
+            let mut appends = vec![StreamAppend {
+                stream: StreamId::new(self.tenant.clone(), STREAM, &proposal_id.0)?,
+                expected: if held.is_empty() {
+                    Expected::NoStream
+                } else {
+                    Expected::Exact(held.len() as u64)
+                },
+                events: vec![NewEvent::new(RECORDED, 1, data.clone())?],
+            }];
+            for key in &keys {
+                appends.push(StreamAppend {
+                    stream: StreamId::new(self.tenant.clone(), IDENTITIES, key)?,
+                    expected: Expected::NoStream,
+                    events: vec![NewEvent::new(BOUND, 1, data.clone())?],
+                });
+            }
+            let mut blobs = Vec::new();
+            for (address, bytes) in &payloads {
+                let object = crate::PublicationObject {
+                    bytes: bytes.clone(),
+                    storage_class: StorageClass::Provenance,
+                    stored_at: at,
+                };
+                if let Some(append) = self.object_append(*address, &object)? {
+                    appends.push(append);
+                }
+                blobs.push(BlobWrite {
+                    digest: address.to_hex(),
+                    bytes: bytes.clone(),
+                });
+            }
+            let mut meta = envelope(
+                "ekr.proposal-review.request",
+                record.decision.proof_digest.0.clone(),
+            );
+            meta.occurred_at =
+                OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.millis()) * 1_000_000)
+                    .map_err(invalid)?;
+            let mut request = BlobAppendGroup {
+                group: AppendGroup {
+                    tenant: self.tenant.clone(),
+                    appends,
+                    meta,
+                },
+                blobs,
+            };
+            let key = format!("ekr.proposal-review.{}", request.fingerprint()?);
+            request.group.meta.idempotency_key = key.clone();
+            request.group.meta.request_id = key.clone();
+            request.group.meta.trace_id = key;
+            match self.atomic(&request) {
+                Ok(result) => return Ok((record.clone(), !result.deduplicated)),
+                Err(StoreError::Conflict) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(StoreError::Conflict)
+    }
+}
