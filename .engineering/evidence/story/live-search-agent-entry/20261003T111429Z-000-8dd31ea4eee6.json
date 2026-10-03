@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T11:14:29Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 15,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Corrected live browser suite: seven executed, zero failures or ignores; required Chromium; original quota-failed attempt retained separately",
+    "reference": "review-result:live-browser-review-2"
+  }
+}

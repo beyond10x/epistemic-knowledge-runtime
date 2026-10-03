@@ -54,7 +54,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: xtask/src
-revision: 15
+revision: 16
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
@@ -114,3 +114,11 @@ Proceed with Rust browser implementation under the existing scope. This result p
 ## Release preparation
 
 The coordinator prepared the next source version and its changelog while the implementation completes verification in its own tree. This is an unreleased candidate: independent browser review, integration, the full repository gate, exact-head required checks, annotated tag and published release readback remain required. Nothing in this preparation changes a consumer deployment or supplies missing authentication.
+
+## Live implementation and review
+
+The Rust/WASM implementation checkpoint is 5ebde9dafdfde90cfad192c7abd16c38e670c49c. Its retained live/report.md records real browser behavior, unchanged native installation without external browser tooling, independent-path byte reproducibility and artifact drift refusal. These are scoped verification results, not the full repository gate.
+
+The first live review added two browser cases and found an intermittent document-lifecycle failure in the candidate's no-script acceptance harness. review-result:live-browser-review-1 records the failing runner. Correction1203a043b252816ae094ba8c9bd602971a3980a8 waits for a new loader's load event without suppressing protocol errors or changing product behavior. The second review reran the complete browser target successfully; review-result:live-browser-review-2 retains that outcome and the separate temporary-filesystem quota failure. The first finding's outcome is recorded as fixed. No further finding was returned in the bounded follow-up.
+
+Proceed to integration with the prepared source version and complete repository gate. Exact-head required checks, published tag/release, consumer adoption and deployment remain pending.
