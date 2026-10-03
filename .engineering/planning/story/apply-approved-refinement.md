@@ -26,7 +26,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 14
+revision: 15
 ---
 ## Outcome
 
@@ -81,3 +81,7 @@ Physical persistence unit owns crates/ekr-store, the existing RevisionEvent appl
 Root owns kernel application orchestration and replay/admission verification, shared human-review integration and cross-package constructor changes. Frozen IDs precede ordinary Propose; unresolved outcomes precede successor attempts; rejected reviews defeat later writes atomically; verified own progress never counts external coincidental changes as completion. CLI/SDK and viewer application presentation follow the verified kernel path. Shared kernel, specification, CLI and gate edits remain serialized. One Cargo lane is explicitly handed off; no concurrent builds in the shared target.
 
 This scope is implementation work authorized by the operator's original execution request. It is not an approval produced by an agent and does not mark E/F or PR64 complete. The generated Submit witness blocker remains separate. Full task check, the two demonstrations and actual provider conformance are still required.
+
+## Runtime unit coordination
+
+The F generated prerequisite is committed at 8ec17507fd8c24175100bae9318d9a8b7196c2b7. Runtime units continue the accepted implementation scope: scope_retention owns store persistence and graph event codec in managed tree ekr-schema-application-store-20261003; author_contracts owns only the new kernel application_transaction module and its module-registration line in ekr-application-transaction-codec-20261003. The latter is a checked codec between existing canonical GraphTransaction and the generated CanonicalTransactionProjection, not a new model or admission path. Root retains all other kernel orchestration, replay, review material and cross-package constructor work. Both delegated trees start at the exact prerequisite commit. The durable wave page is .engineering/waves/knowledge-schema-proposals.md. One Cargo lane is handed off explicitly; source-only work proceeds independently. These are unfinished parts of F under the original execution authorization, not a story acceptance, successful full gate or publication.

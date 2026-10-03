@@ -213,5 +213,8 @@ pub(super) fn candidate(
         properties.insert(property.id, property);
         candidate = Ontology::load(document).map_err(error)?;
     }
+    // The eventual elected transaction uses these exact declarations and identities. Checking
+    // its delta here also keeps preview admission within the same additive operation boundary.
+    super::application_plan::schema_operations(base, &candidate)?;
     Ok(candidate)
 }

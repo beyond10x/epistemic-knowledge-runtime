@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T21:45:38Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 15,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-kernel --lib --test schema_proposal_reviews -- --nocapture",
+    "reference": ".engineering/reviews/knowledge-application-plan/schema-plan-regression.log"
+  }
+}

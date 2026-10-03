@@ -1,0 +1,10 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 6.43s
+     Running unittests src/lib.rs (<build>/debug/deps/ekr_kernel-d670326513b14901)
+
+running 2 tests
+test application_plan::tests::application_schema_plan_refuses_destructive_changes_and_empty_effects ... ok
+test application_plan::tests::frozen_schema_plan_preserves_allocations_and_existing_declarations ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+

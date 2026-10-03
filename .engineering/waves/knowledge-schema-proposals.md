@@ -37,3 +37,24 @@ The detailed requirement is recorded in F's AEP story.
 Native file/SQLite tests, reopened full replay, exact generated conformance, mutation controls,
 CLI/SDK examples, visual inspection, both demonstrations and the integrated full gate remain
 required. Do not lower the existing zero-unavailable component floors or mark PR64 ready early.
+
+## F runtime continuation
+
+The generated F prerequisite is committed as 8ec17507fd8c24175100bae9318d9a8b7196c2b7.
+Current implementing skill is 0.19.2. The operator's original execution request authorizes
+this continuation; no new release or PR is requested. The older prerequisite paragraph above
+records the earlier state, not the current contract coverage. The F story records the reviewed
+protocol and exclusive ownership.
+
+| Unit | Managed tree / branch | Owner / scope | Evidence directory | Stage |
+|---|---|---|---|---|
+| Physical application persistence | `<worktrees>/ekr-schema-application-store-20261003`, `ekr/schema-application-store-20261003` | scope_retention; store, graph event codec and corresponding tests | `<retained-evidence>/schema-application-store` | baseline and implementation |
+| Generated canonical transaction codec | `<worktrees>/ekr-application-transaction-codec-20261003`, `ekr/application-transaction-codec-20261003` | author_contracts; new kernel application_transaction module; one module-registration line | `<retained-evidence>/application-transaction-codec` | tests and source; awaiting compiler lane |
+| Kernel application orchestration | existing `ekr-schema-proposals-20261003` / `ekr/schema-proposals-20261003` | root; all other kernel and cross-package constructor changes | `<retained-evidence>/schema-application-kernel` | implementation |
+
+Each delegated tree starts at the exact prerequisite commit. Each owner takes its named
+codex-ekr lease. The one existing bounded compiler directory remains sequential; handoffs are
+explicit and a terminal process is observed before another tree compiles. No concurrent build
+lane or disposable cleanup is authorized by this continuation. Briefs live in each assigned
+retained-evidence directory. Runtime tests, independent review and the full integration gate
+remain outstanding. These units implement parts of F, not separate stories or completion claims.

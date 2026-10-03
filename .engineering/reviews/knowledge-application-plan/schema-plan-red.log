@@ -1,0 +1,21 @@
+   Compiling ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 7.46s
+     Running unittests src/lib.rs (<build>/debug/deps/ekr_kernel-d670326513b14901)
+
+running 2 tests
+
+thread 'application_plan::tests::frozen_schema_plan_preserves_allocations_and_existing_declarations' (4047841) panicked at crates/ekr-kernel/src/application_plan.rs:49:63:
+called `Result::unwrap()` on an `Err` value: Document("application-schema-plan-unimplemented")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test application_plan::tests::application_schema_plan_refuses_destructive_changes_and_empty_effects ... ok
+test application_plan::tests::frozen_schema_plan_preserves_allocations_and_existing_declarations ... FAILED
+
+failures:
+
+failures:
+    application_plan::tests::frozen_schema_plan_preserves_allocations_and_existing_declarations
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-kernel --lib`

@@ -1,0 +1,53 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 14.11s
+     Running unittests src/lib.rs (<build>/debug/deps/ekr_kernel-d670326513b14901)
+
+running 31 tests
+test application_plan::tests::application_schema_plan_refuses_destructive_changes_and_empty_effects ... ok
+test application_plan::tests::application_schema_plan_cannot_redeclare_an_existing_property ... ok
+test application_plan::tests::frozen_schema_plan_preserves_allocations_and_existing_declarations ... ok
+test document::checked::tests::string_refusals_precede_the_allocating_application_visitor ... ok
+test document::checked::tests::mixed_accounting_refuses_before_allocating_a_coerced_string ... ok
+test incubation_value::tests::existing_canonical_encoder_is_the_oracle_for_every_value_kind ... ok
+test document::bounded_load::a_transaction_document_nested_past_the_depth_is_refused_at_the_first_container_past_it ... ok
+test replay::tests::retirement_requires_the_confirmed_occurrence_and_matching_prefix ... ok
+test checkpoint::tests::held_identities_are_read_from_each_receipt_without_parsing_its_proposal ... ok
+test seed::bounded_load::a_seed_nested_past_the_depth_is_refused_at_the_first_container_past_it ... ok
+test seed::shared_payloads::a_carried_payload_becomes_the_retained_allocation_only_for_verified_equal_bytes ... ok
+test validate::candidate::tests::a_candidate_borrows_existing_node_types_at_every_graph_size ... ok
+test replay::tests::prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors ... ok
+test replay::tests::confirmed_commit_releases_the_previous_head_before_the_next_command ... ok
+test replay::tests::node_only_commits_share_the_unchanged_assertion_edge_index ... ok
+test replay::tests::reusable_graph_belongs_to_the_authority_not_the_thread ... ok
+test checkpoint::tests::checkpoint_writer_matches_the_complete_owned_document_bytes ... ok
+test answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals ... ok
+test replay::tests::an_equal_root_replayed_by_another_authority_falls_back_to_clone ... ok
+test replay::tests::reused_graph_preserves_inherited_attachments_and_matches_forced_clone ... ok
+test replay::tests::an_unpublished_candidate_cannot_seed_reuse ... ok
+test replay::tests::readers_and_checkpoint_graphs_prevent_reuse_extraction ... ok
+test checkpoint::tests::a_fresh_open_restores_the_head_and_replays_nothing_the_checkpoint_covers ... ok
+test replay::tests::warm_alias_checks_visit_no_unchanged_nodes ... ok
+test replay::tests::one_handle_holds_the_head_graph_and_not_one_graph_per_revision ... ok
+test replay::tests::a_new_checkpoint_releases_its_predecessors_graph_before_the_next_command ... ok
+test replay::tests::one_handle_validates_against_an_earlier_revision_whose_graph_it_released ... ok
+test answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers ... ok
+test replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers ... ok
+test replay::tests::warm_validation_hashes_no_more_prefix_occurrences_as_history_grows ... ok
+test replay::tests::append_commits_copy_no_more_assertions_as_the_graph_grows ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.54s
+
+     Running tests/schema_proposal_reviews.rs (<build>/debug/deps/schema_proposal_reviews-7e75166974ccd353)
+
+running 8 tests
+test proposal_submission_refuses_inapplicable_corrections ... ok
+test schema_review_cannot_reuse_an_authority_upgrade_decision_identity ... ok
+test proposal_correction_review_binds_the_full_competing_component ... ok
+test concurrent_identical_schema_reviews_return_one_elected_record ... ok
+test schema_reviews_and_attention_answers_share_decision_identity_in_both_directions ... ok
+test correction_review_survives_unrelated_advancement_and_remains_historical_after_resolution ... ok
+test schema_review_revalidates_material_and_replays_the_original_review_revision ... ok
+test schema_proposal_requires_exact_human_approval ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
