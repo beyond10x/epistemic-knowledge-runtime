@@ -1,0 +1,889 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/19",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
+    "contract_digest": "b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6"
+  },
+  "implementation": {
+    "name": "EKR native Runtime File, no-op=true",
+    "version": "0.0.27"
+  },
+  "started_at": 1791020410584,
+  "completed_at": 1791020410615,
+  "status": "failed",
+  "scenarios": [
+    {
+      "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.PreviewUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.PreviewUpgradeResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.PreviewUpgradeResult"
+              }
+            ],
+            "input": "ekr.kernel.PreviewUpgrade(target = {\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"})",
+            "expected": [
+              "event ekr.kernel.PreviewUpgradeResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ApplyUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ApplyUpgradeResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ApplyUpgradeResult"
+              }
+            ],
+            "input": "ekr.kernel.ApplyUpgrade(human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"9789a956a58ac5b39230e226dcdf3ea41fdfb7353833ec64f1ea2af4a58037bf\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000800\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"45f6080f7235437fa182bcf244b8fc8f3a671d4d228773e1147228ab342d892d\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"f94fc1f51d2e721688a60fcf9eedeec1ee410e3eaf356a10b5ca23f687beca80\",\"target\":{\"kind\":\"UpgradeAuthority\",\"value\":{\"preview_digest\":\"e6e4a2862263d93631490fd5123674804a2163fac54dc01b5a1554734d0da0f0\",\"reviewer_policy_digest\":\"45f6080f7235437fa182bcf244b8fc8f3a671d4d228773e1147228ab342d892d\"}}},\"signature\":\"zl3oX8FK3t1itiuuFMgf/r6eTYcA4/tObqHHSNVbXpUPhPJv0TX0sjY/W8yxZQdC71Ccsg9NP9jpWDWWQIoRDQ==\"}, preview = {\"contradictions\":[],\"from\":{\"application\":\"ekr.p1-apply/1\",\"profile_digest\":\"737bca2f945739ce127141686114487183f3793fb9c83caabf50ac8599851645\",\"ruleset\":\"ekr.p1-deterministic/1\"},\"head_hash\":\"1be04ffd53875727f46135fac345b40896e82a265ee9811b7b8149324566d1ea\",\"head_revision\":0.0,\"pending_revalidation\":[],\"preview_digest\":\"e6e4a2862263d93631490fd5123674804a2163fac54dc01b5a1554734d0da0f0\",\"reviewer_policy_digest\":\"45f6080f7235437fa182bcf244b8fc8f3a671d4d228773e1147228ab342d892d\",\"stream_digest\":\"3f79d30291d8c24494bd54759ec12c9c5cb9aeb8f2c10b7594d05ea501de8f8a\",\"stream_version\":1.0,\"to\":{\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"}}, statement = \"cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl\")",
+            "expected": [
+              "event ekr.kernel.ApplyUpgradeResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AuthorityUpgraded",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.AuthorityUpgraded"
+              }
+            ],
+            "input": "ekr.kernel.ApplyUpgrade(human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"9789a956a58ac5b39230e226dcdf3ea41fdfb7353833ec64f1ea2af4a58037bf\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000800\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"45f6080f7235437fa182bcf244b8fc8f3a671d4d228773e1147228ab342d892d\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"f94fc1f51d2e721688a60fcf9eedeec1ee410e3eaf356a10b5ca23f687beca80\",\"target\":{\"kind\":\"UpgradeAuthority\",\"value\":{\"preview_digest\":\"e6e4a2862263d93631490fd5123674804a2163fac54dc01b5a1554734d0da0f0\",\"reviewer_policy_digest\":\"45f6080f7235437fa182bcf244b8fc8f3a671d4d228773e1147228ab342d892d\"}}},\"signature\":\"zl3oX8FK3t1itiuuFMgf/r6eTYcA4/tObqHHSNVbXpUPhPJv0TX0sjY/W8yxZQdC71Ccsg9NP9jpWDWWQIoRDQ==\"}, preview = {\"contradictions\":[],\"from\":{\"application\":\"ekr.p1-apply/1\",\"profile_digest\":\"737bca2f945739ce127141686114487183f3793fb9c83caabf50ac8599851645\",\"ruleset\":\"ekr.p1-deterministic/1\"},\"head_hash\":\"1be04ffd53875727f46135fac345b40896e82a265ee9811b7b8149324566d1ea\",\"head_revision\":0.0,\"pending_revalidation\":[],\"preview_digest\":\"e6e4a2862263d93631490fd5123674804a2163fac54dc01b5a1554734d0da0f0\",\"reviewer_policy_digest\":\"45f6080f7235437fa182bcf244b8fc8f3a671d4d228773e1147228ab342d892d\",\"stream_digest\":\"3f79d30291d8c24494bd54759ec12c9c5cb9aeb8f2c10b7594d05ea501de8f8a\",\"stream_version\":1.0,\"to\":{\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"}}, statement = \"cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl\")",
+            "expected": [
+              "event ekr.kernel.AuthorityUpgraded published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAttention()",
+            "expected": [
+              "event ekr.kernel.ListAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000405\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000406\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000407\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000408\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000409\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000410\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000411\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000412\", assessment = {\"kind\":\"Accepted\",\"validators\":[\"00000000-0000-4000-8000-000000000004\"]}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds exactly 12 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.SettledAssertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.SettledAssertions holds exactly 12 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where number = 1.0"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        }
+      ],
+      "duration_ms": 16
+    },
+    {
+      "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.PreviewUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.PreviewUpgradeResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.PreviewUpgradeResult"
+              }
+            ],
+            "input": "ekr.kernel.PreviewUpgrade(target = {\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"})",
+            "expected": [
+              "event ekr.kernel.PreviewUpgradeResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ApplyUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ApplyUpgradeResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ApplyUpgradeResult"
+              }
+            ],
+            "input": "ekr.kernel.ApplyUpgrade(human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"725e93206ed89ce7d38f91b2fb6fabf8da43cd83bee33133f6d2cc214371d110\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000800\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"f94fc1f51d2e721688a60fcf9eedeec1ee410e3eaf356a10b5ca23f687beca80\",\"target\":{\"kind\":\"UpgradeAuthority\",\"value\":{\"preview_digest\":\"26d19963260164e537e2757d5b083220673b137c010fd522c4129a1f971781c4\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\"}}},\"signature\":\"SH+iUmqAtVRohm0giXpkagK6LsA9HFiLU/LkL9G2kB2t9boMeHyLYEhQXUbbrsiJJYCxmuQ31KCcZ/5IXcLICA==\"}, preview = {\"contradictions\":[{\"left\":\"00000000-0000-4000-8000-000000000401\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000110\",\"kind\":\"Property\"},\"right\":\"00000000-0000-4000-8000-000000000402\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}},{\"left\":\"00000000-0000-4000-8000-000000000403\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000120\",\"kind\":\"Relation\"},\"right\":\"00000000-0000-4000-8000-000000000404\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}}],\"from\":{\"application\":\"ekr.p1-apply/1\",\"profile_digest\":\"737bca2f945739ce127141686114487183f3793fb9c83caabf50ac8599851645\",\"ruleset\":\"ekr.p1-deterministic/1\"},\"head_hash\":\"993d4e594ed7fd3d12e3efafa6c4b71b00397cfd71db24ded09a7d74eedc6f25\",\"head_revision\":0.0,\"pending_revalidation\":[],\"preview_digest\":\"26d19963260164e537e2757d5b083220673b137c010fd522c4129a1f971781c4\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"stream_digest\":\"53fd560be19373865e5bc39419e788a03ea8d4e9af2e9f39d7608a5a6ccfee3f\",\"stream_version\":1.0,\"to\":{\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"}}, statement = \"cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl\")",
+            "expected": [
+              "event ekr.kernel.ApplyUpgradeResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AuthorityUpgraded",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.AuthorityUpgraded"
+              }
+            ],
+            "input": "ekr.kernel.ApplyUpgrade(human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"725e93206ed89ce7d38f91b2fb6fabf8da43cd83bee33133f6d2cc214371d110\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000800\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"f94fc1f51d2e721688a60fcf9eedeec1ee410e3eaf356a10b5ca23f687beca80\",\"target\":{\"kind\":\"UpgradeAuthority\",\"value\":{\"preview_digest\":\"26d19963260164e537e2757d5b083220673b137c010fd522c4129a1f971781c4\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\"}}},\"signature\":\"SH+iUmqAtVRohm0giXpkagK6LsA9HFiLU/LkL9G2kB2t9boMeHyLYEhQXUbbrsiJJYCxmuQ31KCcZ/5IXcLICA==\"}, preview = {\"contradictions\":[{\"left\":\"00000000-0000-4000-8000-000000000401\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000110\",\"kind\":\"Property\"},\"right\":\"00000000-0000-4000-8000-000000000402\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}},{\"left\":\"00000000-0000-4000-8000-000000000403\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000120\",\"kind\":\"Relation\"},\"right\":\"00000000-0000-4000-8000-000000000404\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}}],\"from\":{\"application\":\"ekr.p1-apply/1\",\"profile_digest\":\"737bca2f945739ce127141686114487183f3793fb9c83caabf50ac8599851645\",\"ruleset\":\"ekr.p1-deterministic/1\"},\"head_hash\":\"993d4e594ed7fd3d12e3efafa6c4b71b00397cfd71db24ded09a7d74eedc6f25\",\"head_revision\":0.0,\"pending_revalidation\":[],\"preview_digest\":\"26d19963260164e537e2757d5b083220673b137c010fd522c4129a1f971781c4\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"stream_digest\":\"53fd560be19373865e5bc39419e788a03ea8d4e9af2e9f39d7608a5a6ccfee3f\",\"stream_version\":1.0,\"to\":{\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"}}, statement = \"cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl\")",
+            "expected": [
+              "event ekr.kernel.AuthorityUpgraded published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAttention()",
+            "expected": [
+              "event ekr.kernel.ListAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000401\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000402\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000402\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000401\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000403\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000404\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds a row where assertion_id = \"00000000-0000-4000-8000-000000000404\", assessment = {\"competing_assertions\":[\"00000000-0000-4000-8000-000000000403\"],\"kind\":\"Disputed\"}, lifecycle = {\"kind\":\"Active\"}"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.graph.Assertions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.graph.Assertions holds exactly 4 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 7
+    },
+    {
+      "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.PreviewUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.PreviewUpgradeResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.PreviewUpgradeResult"
+              }
+            ],
+            "input": "ekr.kernel.PreviewUpgrade(target = {\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"})",
+            "expected": [
+              "event ekr.kernel.PreviewUpgradeResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ApplyUpgrade/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ApplyUpgradeResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ApplyUpgradeResult"
+              }
+            ],
+            "input": "ekr.kernel.ApplyUpgrade(human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"725e93206ed89ce7d38f91b2fb6fabf8da43cd83bee33133f6d2cc214371d110\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000800\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"f94fc1f51d2e721688a60fcf9eedeec1ee410e3eaf356a10b5ca23f687beca80\",\"target\":{\"kind\":\"UpgradeAuthority\",\"value\":{\"preview_digest\":\"5fb79dc81949d24dc2e6cf1cd8d211a31913e773fcddf8a333d6fccc35302032\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\"}}},\"signature\":\"tsSXTKVyzVrfBhNvLbCIDC+S+MJv7ZGsO0/ZTqIyS/k5bPk/+mmwRJ6a2venj5IFLbeunjZd2bD18DBLeeJjCQ==\"}, preview = {\"contradictions\":[{\"left\":\"00000000-0000-4000-8000-000000000401\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000110\",\"kind\":\"Property\"},\"right\":\"00000000-0000-4000-8000-000000000402\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}},{\"left\":\"00000000-0000-4000-8000-000000000403\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000120\",\"kind\":\"Relation\"},\"right\":\"00000000-0000-4000-8000-000000000404\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}}],\"from\":{\"application\":\"ekr.p1-apply/1\",\"profile_digest\":\"737bca2f945739ce127141686114487183f3793fb9c83caabf50ac8599851645\",\"ruleset\":\"ekr.p1-deterministic/1\"},\"head_hash\":\"993d4e594ed7fd3d12e3efafa6c4b71b00397cfd71db24ded09a7d74eedc6f25\",\"head_revision\":0.0,\"pending_revalidation\":[],\"preview_digest\":\"5fb79dc81949d24dc2e6cf1cd8d211a31913e773fcddf8a333d6fccc35302032\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"stream_digest\":\"427c84639711b7ba063515d1aeac743bdfd30ec88de8f111a8942748f9069401\",\"stream_version\":1.0,\"to\":{\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"}}, statement = \"cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl\")",
+            "expected": [
+              "event ekr.kernel.ApplyUpgradeResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AuthorityUpgraded",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.AuthorityUpgraded"
+              }
+            ],
+            "input": "ekr.kernel.ApplyUpgrade(human_proof = {\"algorithm\":\"Ed25519\",\"intent\":{\"audience\":{\"seed_anchor\":\"725e93206ed89ce7d38f91b2fb6fabf8da43cd83bee33133f6d2cc214371d110\",\"tenant\":\"upgrade-conformance\"},\"decision_id\":\"00000000-0000-4000-8000-000000000800\",\"format\":\"HumanDecision1\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"signer_key_digest\":\"3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425\",\"statement_digest\":\"f94fc1f51d2e721688a60fcf9eedeec1ee410e3eaf356a10b5ca23f687beca80\",\"target\":{\"kind\":\"UpgradeAuthority\",\"value\":{\"preview_digest\":\"5fb79dc81949d24dc2e6cf1cd8d211a31913e773fcddf8a333d6fccc35302032\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\"}}},\"signature\":\"tsSXTKVyzVrfBhNvLbCIDC+S+MJv7ZGsO0/ZTqIyS/k5bPk/+mmwRJ6a2venj5IFLbeunjZd2bD18DBLeeJjCQ==\"}, preview = {\"contradictions\":[{\"left\":\"00000000-0000-4000-8000-000000000401\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000110\",\"kind\":\"Property\"},\"right\":\"00000000-0000-4000-8000-000000000402\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}},{\"left\":\"00000000-0000-4000-8000-000000000403\",\"predicate\":{\"id\":\"00000000-0000-4000-8000-000000000120\",\"kind\":\"Relation\"},\"right\":\"00000000-0000-4000-8000-000000000404\",\"subject\":{\"id\":\"00000000-0000-4000-8000-000000000200\",\"kind\":\"Node\"}}],\"from\":{\"application\":\"ekr.p1-apply/1\",\"profile_digest\":\"737bca2f945739ce127141686114487183f3793fb9c83caabf50ac8599851645\",\"ruleset\":\"ekr.p1-deterministic/1\"},\"head_hash\":\"993d4e594ed7fd3d12e3efafa6c4b71b00397cfd71db24ded09a7d74eedc6f25\",\"head_revision\":0.0,\"pending_revalidation\":[],\"preview_digest\":\"5fb79dc81949d24dc2e6cf1cd8d211a31913e773fcddf8a333d6fccc35302032\",\"reviewer_policy_digest\":\"0796d15038c04bb37a05c47009b9649b811657a0814ef910d1c2149c0bb34af8\",\"stream_digest\":\"427c84639711b7ba063515d1aeac743bdfd30ec88de8f111a8942748f9069401\",\"stream_version\":1.0,\"to\":{\"application\":\"ekr.knowledge-apply/1\",\"profile_digest\":\"afabab3f130194c3414d7a91da8b679927706f975b4c54f9da118d4b1fc9bc31\",\"ruleset\":\"ekr.knowledge-deterministic/1\"}}, statement = \"cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl\")",
+            "expected": [
+              "event ekr.kernel.AuthorityUpgraded published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.ListAttentionResult"
+              }
+            ],
+            "input": "ekr.kernel.ListAttention()",
+            "expected": [
+              "event ekr.kernel.ListAttentionResult published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.SnapshotTaken"
+              }
+            ],
+            "input": "ekr.kernel.Snapshot(at = 0.0)",
+            "expected": [
+              "event ekr.kernel.SnapshotTaken published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where agent_root = \"83b879543aca1de8448f7e8681efca1c0d6c188c77c814215568e03951a0e01f\", evidence_root = \"70e085b7a1f87f32149f5d76b7193581b7390c9a7d89e81461d7427f4c9b12d4\", knowledge_root = \"c3a81c576f86bfee8a4d89cda169e330eda315d1dd35e120beef54b80ffe1527\", number = 0.0"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where number = 1.0"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds exactly 2 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        }
+      ],
+      "duration_ms": 4
+    }
+  ]
+}

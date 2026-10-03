@@ -5,8 +5,10 @@ use super::knowledge_target::{json_input, node, unavailable};
 use ekr::conformance::Provider;
 use ekr_core::{contract_data as wire, ContentHash, RevisionNumber, Timestamp};
 use ekr_graph::{Assertion, AssertionLifecycle, Assessment, RevisionEvent, RevisionPayload};
-use ekr_kernel::{human_review, PublishedEvent, Runtime, VerifiedRead};
+use ekr_kernel::runtime::PublishedEvent;
+use ekr_kernel::{human_review, Runtime, VerifiedRead};
 use ess_conformance::target::*;
+use ess_primitives::consistency::{ConsistencyToken, QueryConsistency};
 use ess_primitives::node::Node;
 use serde_json::{json, Value};
 use std::{
@@ -50,6 +52,41 @@ fn instant(at: Timestamp) -> Result<String, TargetError> {
         at.second(),
         at.millisecond()
     ))
+}
+fn consistency(read: &VerifiedRead) -> Result<ConsistencyToken, TargetError> {
+    let revision = read.root.revision;
+    ConsistencyToken::new(format!(
+        "revision:{}:{}",
+        revision.get(),
+        read.revisions[&revision].record_hash
+    ))
+    .map_err(|e| unavailable("capturing verified read boundary", e))
+}
+fn check_consistency(read: &VerifiedRead, requested: &QueryConsistency) -> Result<(), TargetError> {
+    if let QueryConsistency::AtLeast { token } = requested {
+        let (number, hash) = token
+            .as_str()
+            .strip_prefix("revision:")
+            .and_then(|token| token.split_once(':'))
+            .ok_or_else(|| unavailable("reading a consistent view", "unknown token format"))?;
+        let number = number
+            .parse::<u64>()
+            .map_err(|e| unavailable("reading token revision", e))?;
+        let hash: ContentHash = hash
+            .parse()
+            .map_err(|e| unavailable("reading token record hash", e))?;
+        if !read
+            .revisions
+            .get(&RevisionNumber::new(number))
+            .is_some_and(|held| held.record_hash == hash)
+        {
+            return Err(unavailable(
+                "reading a consistent view",
+                "verified history does not contain the requested boundary",
+            ));
+        }
+    }
+    Ok(())
 }
 impl UpgradeTarget {
     pub fn new(provider: Provider, work: &Path, no_op: bool) -> Self {
@@ -256,11 +293,15 @@ impl ConformanceTarget for UpgradeTarget {
         );
         // Instrument check only: this deliberately lying target accepts everything, does nothing
         // and returns no state. Its reports are required to fail all named scenarios.
-        if self.no_op {
-            return Ok(result);
-        }
         let state = self.state()?;
         let runtime = self.open(&state)?;
+        if self.no_op {
+            result.consistency =
+                Some(consistency(&runtime.read(None).map_err(|e| {
+                    unavailable("reading inert fixture boundary", e)
+                })?)?);
+            return Ok(result);
+        }
         let input = |name: &str| {
             request
                 .input
@@ -371,12 +412,13 @@ impl ConformanceTarget for UpgradeTarget {
         let observed = self.event(&request, event, payload)?;
         result.response = Some(observed.payload.clone());
         result.direct_events.push(observed);
+        result.consistency =
+            Some(consistency(&runtime.read(None).map_err(|e| {
+                unavailable("reading completed command boundary", e)
+            })?)?);
         Ok(result)
     }
     fn query_view(&self, request: SemanticViewRequest) -> Result<SemanticViewResult, TargetError> {
-        if self.no_op {
-            return Ok(SemanticViewResult::default());
-        }
         if !request.params.is_empty() {
             return Err(TargetError::unsupported(
                 request.view.to_string(),
@@ -388,6 +430,10 @@ impl ConformanceTarget for UpgradeTarget {
             .open(&state)?
             .read(None)
             .map_err(|e| unavailable("replaying persisted view", e))?;
+        check_consistency(&read, &request.consistency)?;
+        if self.no_op {
+            return Ok(SemanticViewResult::default());
+        }
         let rows = match request.view.to_string().as_str() {
             "ekr.graph.Assertions" | "ekr.graph.SettledAssertions" => {
                 let settled = request.view.to_string() == "ekr.graph.SettledAssertions";
@@ -568,4 +614,50 @@ fn revision_rows(read: &VerifiedRead) -> Result<Vec<ViewRow>, TargetError> {
         parent = Some(revision.revision_id.to_string());
         row
     }).collect()
+}
+
+#[test]
+fn consistency_requires_the_same_verified_revision_record() {
+    for provider in [Provider::File, Provider::Sqlite] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("store");
+        let runtime = match provider {
+            Provider::File => Runtime::file(
+                &path,
+                fixture::TENANT,
+                fixture::context(),
+                fixture::anchor(),
+            ),
+            Provider::Sqlite => Runtime::sqlite(
+                &path,
+                fixture::TENANT,
+                fixture::context(),
+                fixture::anchor(),
+            ),
+        }
+        .unwrap();
+        runtime
+            .seed(fixture::seed(false), || Timestamp::EPOCH)
+            .unwrap();
+        let read = runtime.read(None).unwrap();
+        check_consistency(
+            &read,
+            &QueryConsistency::at_least(consistency(&read).unwrap()),
+        )
+        .unwrap();
+        for token in [
+            "unrecognized".to_owned(),
+            format!(
+                "revision:1:{}",
+                read.revisions[&RevisionNumber::SEED].record_hash
+            ),
+            format!("revision:0:{}", ContentHash::of_bytes(b"different history")),
+        ] {
+            assert!(check_consistency(
+                &read,
+                &QueryConsistency::at_least(ConsistencyToken::new(token).unwrap())
+            )
+            .is_err());
+        }
+    }
 }

@@ -1,17 +1,55 @@
-# Upgrade conformance: authored, not executed
+# Native upgrade conformance verification
 
-The three named B scenarios are authored under `crates/ekr/tests/fixtures/conformance/upgrade-scenarios/`. `upgrade-suite.json` was synthesized by the recorded development ESS generator. The existing A retention suite was refreshed to the same current specification digest. `conformance_knowledge` selects the three authored upgrade scenarios and retains per-provider report, exact suite-input and run documents when `EKR_KNOWLEDGE_REPORT_DIR` is set. The existing conformance task includes this test target; the freshness task now also compares a newly synthesized upgrade suite.
+Specification source digest: 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+Contract digest: b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6.
+Authored source checkpoint: 36739a32eee65d70be5c0e46c6ac36af0c0c4df4; the adapter corrections and these results follow it.
 
-The native Runtime target creates its fixture through ordinary historical seed admission. Fixture facts and expected assessments are separate: stable source IDs and independent input data are in Rust; the expected competitor pairs, accepted claims, settled counts and historical root comparisons are in ESS. The externally signed exact upgrade preview is supplied before scenario execution. The only semantic/wire conversion is the declared HumanDecision1 enum label; proof bytes are unchanged. The test key cannot authorize anything outside these disposable fixture stores.
+## What executes
 
-Every real command and view query reopens the selected file or SQLite provider with full replay. The target reads actual assertion assessments, active settled claims, historical revision roots, attention and the durable authority event. Teardown compares the original event prefix and original retained seed/receipt/evidence bytes. It does not determine success from a flag indicating that an operation was requested. A deliberately inert target accepts commands but supplies no events or state; each selected scenario is required to fail against it.
+`conformance_knowledge` selects the three authored upgrade scenarios from `upgrade-suite.json` and the three retention scenarios from `knowledge-suite.json`. Every real upgrade command and view query reopens the file or SQLite provider with full replay. Commands return a consistency token identifying a verified revision record; a subsequent view must find that same record in its verified lineage. Unknown tokens, absent future revisions and different record hashes are refused by an executed control.
 
-The exclusions cover both properties and relations: equal overlapping One values, differing half-open disjoint One intervals, and differing overlapping Many values. The conflict case checks symmetric competitors for both property and relation claims and absence from settled results. The history case checks original roots at revision zero and the new revision one. Existing kernel authority tests separately cover stale previews, pending validations, exact retries and provider interruption seams.
+The fixture enters through historical seed admission. Independent input facts have stable IDs; expected competitor pairs, accepted claims, settled counts and historical-root comparisons come from authored ESS. The exact signed upgrade preview is supplied before scenario execution. The test-only human key grants no authority outside the disposable fixture stores. The semantic HumanDecision1 member is converted to its declared wire label without changing signature bytes.
 
-## Actual verification and remaining work
+The adapter reads real assertion assessments, settled claims, historical roots, attention and the durable authority event. Teardown compares original retained seed/receipt/evidence bytes and the original published-event prefix. The exclusions cover properties and relations independently: equal overlapping One values, different disjoint half-open One intervals, and different overlapping Many values. The conflict scenario checks symmetric competitors and exclusion from settled results. The history scenario checks the original revision and the new authority revision.
 
-Only specification synthesis, member rustfmt and whitespace validation have run for this increment. Synthesis is not implementation conformance. No pass count, mutation detection or recovery result is claimed. The inert target still needs to be executed; it is an instrument test, not an independently reviewed production mutation campaign. Production mutations must also be observed red once the real cases are green.
+## Observed failures and corrections
 
-The shared disk remains constrained and the coordinator requested no additional large build lanes. Our completed target directories are already absent; no other owner's cache or process was changed. Compile and run the upgrade surface tests, this conformance target on both providers, and then the affected combined checks when storage permits. Preserve raw reports outside target before any later cleanup.
+The first compile failed because PublishedEvent is exported under ekr_kernel::runtime. The import was corrected; this was a compilation defect, not a behavioral red test.
 
-The new suite is ess-conformance/19; the unchanged A suite is /13. The final gate's old ESS 0.36.0 prerequisite still requires coordinated released-generator adoption. Do not substitute a version claim or publish an unverified generator pin. C–F, native crash recovery, the public disputed-viewer demonstration, the two end-to-end demonstrations and the full task gate remain outstanding. This is an unverified local checkpoint, not readiness for PR64.
+The first runtime run failed all three upgrade scenarios on File because the adapter supplied no consistency token. Command and event checks passed, but the runner correctly refused to weaken read_your_writes to Current. SQLite positive execution was not reached in that first run. The adapter now supplies a verified boundary and checks it after reopen. The runner records both provider results before failing its outer test, so a failure on File no longer suppresses SQLite evidence. Expectations and consistency requirements were preserved.
+
+## Local report counts
+
+Three consecutive restored-source runs produced identical counts. The Rust target passed seven tests each run, including the exact-integer and consistency controls. Each provider separately reported:
+
+| Selection / target | Passed | Failed | Error / unsupported / skipped |
+| --- | ---: | ---: | ---: |
+| A retention, actual CLI | 3 | 0 | 0 / 0 / 0 |
+| A retention, discarded-state target | 0 | 3 | 0 / 0 / 0 |
+| B upgrade, actual Runtime | 3 | 0 | 0 / 0 / 0 |
+| B upgrade, inert target | 0 | 3 | 0 / 0 / 0 |
+
+These are selected local conformance counts, not coverage of the generated scenarios outside the selection or a CI-image result. `measurements.json` reads the report counts and binds each report to its exact input bytes. The two suite-input documents are deduplicated only after comparing their SHA-256 digests. Final-run and mutation run documents retain the individual check diagnostics.
+
+## Production mutations, observed on both providers
+
+Each temporary production mutation made exactly its expected named scenario fail, while the other two B scenarios passed; there were no errors, skips or unsupported results. Both native providers were executed for every mutation.
+
+| Mutation | Named scenario that failed |
+| --- | --- |
+| Ignore property contradictions | overlapping-single-value-claims-become-disputed |
+| Ignore relation contradictions | overlapping-single-value-claims-become-disputed |
+| Treat equal values as unequal | equal-disjoint-and-many-claims-do-not-conflict |
+| Ignore interval separation | equal-disjoint-and-many-claims-do-not-conflict |
+| Treat Many declarations as single-valued | equal-disjoint-and-many-claims-do-not-conflict |
+| Runtime reads current state for a historical request | upgrade-preserves-historical-rules-and-hashes |
+
+The property mutation added `matches!(predicate, Predicate::Property(_))` to the skip condition in `preview_contradictions`; its reports retain the observed failure. The other exact patches are included. Both production files were restored byte for byte before the three clean runs. This is a root-local mutation check, not independent review.
+
+## Resource handling and remaining work
+
+Persistent-disk pressure initially prevented compilation. Read-only inspection found a separate executable tmpfs with sufficient capacity, so one job with incremental compilation and debug symbols disabled used a private temporary target. Raw evidence stayed outside that disposable directory. No other owner's process or cache was modified, and no new persistent build cache was started.
+
+The existing conformance task runs this Rust target; freshness now also checks the upgrade suite. It is ess-conformance/19, while A remains /13. The old ESS 0.36.0 gate prerequisite still needs coordinated adoption of a verified published generator; v0.52.0 was not yet published when checked. No version claim or release pin was substituted.
+
+Workspace Clippy and the focused kernel/CLI upgrade-surface checks also passed; their logs and measured execution counts are retained in ../knowledge-upgrade-surface/. The job's CI image, final task check, native process-crash coverage, public disputed-viewer demonstration, C–F and both end-to-end demonstrations remain outstanding. These local conformance results do not establish PR64 completion.

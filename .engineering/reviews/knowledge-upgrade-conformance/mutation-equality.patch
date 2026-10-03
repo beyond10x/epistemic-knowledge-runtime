@@ -1,0 +1,13 @@
+diff --git a/crates/ekr-kernel/src/disputes.rs b/crates/ekr-kernel/src/disputes.rs
+index 76ca6f2ab..b018165e3 100644
+--- a/crates/ekr-kernel/src/disputes.rs
++++ b/crates/ekr-kernel/src/disputes.rs
+@@ -153,7 +153,7 @@ fn same_value(left: &Object, right: &Object) -> bool {
+     match (left, right) {
+         (Object::Node(left), Object::Value(CanonicalValue::NodeRef(right)))
+         | (Object::Value(CanonicalValue::NodeRef(left)), Object::Node(right)) => left == right,
+-        _ => left == right,
++        _ => false,
+     }
+ }
+ fn overlaps(left: TemporalRange, right: TemporalRange) -> bool {

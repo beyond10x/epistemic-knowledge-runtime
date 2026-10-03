@@ -115,6 +115,7 @@ fn every_retention_scenario_detects_discarded_state() {
 fn run_upgrade(no_op: bool) {
     let input = select("upgrade-suite.json", UPGRADE_SCENARIOS);
     let selected = input.selected();
+    let mut failures = Vec::new();
     for provider in [Provider::File, Provider::Sqlite] {
         let work = tempfile::tempdir().unwrap();
         let target = upgrade_target::UpgradeTarget::new(provider, work.path(), no_op);
@@ -158,26 +159,15 @@ fn run_upgrade(no_op: bool) {
             .unwrap();
         }
         let counts = report.counts();
-        assert_eq!(counts.total, 3);
-        assert_eq!(
-            counts.error + counts.unsupported + counts.skipped,
-            0,
-            "{:#?}",
-            run.report()
-        );
-        assert_eq!(
-            counts.passed,
-            if no_op { 0 } else { 3 },
-            "{:#?}",
-            run.report()
-        );
-        assert_eq!(
-            counts.failed,
-            if no_op { 3 } else { 0 },
-            "{:#?}",
-            run.report()
-        );
+        if counts.total != 3
+            || counts.error + counts.unsupported + counts.skipped != 0
+            || counts.passed != if no_op { 0 } else { 3 }
+            || counts.failed != if no_op { 3 } else { 0 }
+        {
+            failures.push(format!("{provider:?}: {:#?}", run.report()));
+        }
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 #[test]
 fn disputes_and_upgrades_conform_after_reopen_and_full_replay() {

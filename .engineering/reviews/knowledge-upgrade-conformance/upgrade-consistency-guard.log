@@ -1,0 +1,9 @@
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 1.11s
+     Running tests/conformance_knowledge.rs (<temporary-target>/target/debug/deps/conformance_knowledge-c9a0ab6889e17589)
+
+running 1 test
+test upgrade_target::consistency_requires_the_same_verified_revision_record ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.02s
+

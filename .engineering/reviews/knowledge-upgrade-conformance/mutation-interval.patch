@@ -1,0 +1,13 @@
+diff --git a/crates/ekr-kernel/src/disputes.rs b/crates/ekr-kernel/src/disputes.rs
+index 76ca6f2ab..a3d37c01f 100644
+--- a/crates/ekr-kernel/src/disputes.rs
++++ b/crates/ekr-kernel/src/disputes.rs
+@@ -166,7 +166,7 @@ fn overlaps(left: TemporalRange, right: TemporalRange) -> bool {
+         (left, None) => left,
+         (None, right) => right,
+     };
+-    to.is_none_or(|to| from < to)
++    { let _ = (from, to); true }
+ }
+ fn project_subject(subject: Subject) -> EkrGraphSubjectProjection {
+     let (kind, id) = match subject {

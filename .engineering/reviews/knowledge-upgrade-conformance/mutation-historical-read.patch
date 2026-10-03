@@ -1,0 +1,15 @@
+diff --git a/crates/ekr-kernel/src/runtime.rs b/crates/ekr-kernel/src/runtime.rs
+index 12707e74c..72f4cd2e7 100644
+--- a/crates/ekr-kernel/src/runtime.rs
++++ b/crates/ekr-kernel/src/runtime.rs
+@@ -196,8 +196,8 @@ impl Runtime {
+         revision: Option<RevisionNumber>,
+     ) -> Result<crate::VerifiedRead, crate::CommitError> {
+         match &self.backend {
+-            Backend::File(k) => k.read(revision),
+-            Backend::Sqlite(k) => k.read(revision),
++            Backend::File(k) => k.read(revision.filter(|_| false)),
++            Backend::Sqlite(k) => k.read(revision.filter(|_| false)),
+         }
+     }
+     /// The graph at `revision` and the schema history of its lineage, from one verified replay.
