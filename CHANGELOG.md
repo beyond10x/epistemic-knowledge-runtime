@@ -4,6 +4,28 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **Hosted PostgreSQL stores** are available through the runtime, SDK and CLI. An
+  `ekr.postgres/1` file references connection credentials and trusted CA certificates;
+  connections verify the server name and certificate and use bounded pools and deadlines.
+  `ekr postgres-schema` initializes provider tables under separate schema-management
+  credentials. Application opens require the provider's restricted-role admission.
+- **Initial SQLite-to-PostgreSQL copy** uses one captured SQLite image and the existing
+  preserving-copy authority. `ekr migrate --to-backend postgres --to <config>` preserves
+  logical revision roots, schema history, identities and retained evidence. Occupied
+  destinations are refused; interrupted destinations remain unreadable. PostgreSQL source
+  inventory/copy is explicitly unsupported until a consistent capture API is exposed.
+
+### Compatibility
+
+- Preserving copies now write `ekr-seed-envelope/4`, with a fresh copy identity and a
+  completion receipt bound to that identity and the destination seed. Readers from earlier
+  releases refuse this format. Ordinary seeds remain `/3`, and existing `/2` and `/3` stores
+  remain readable. Copy reports map rewritten physical record hashes; logical content roots
+  and retained evidence remain unchanged. Copy into a fresh destination and retain the source
+  when planning rollback; changing the binary does not downgrade a `/4` store.
+
 ### Fixed
 
 - **Ontology YAML is bounded before decoding.** `Ontology::from_yaml` caps input at 16 MiB,
