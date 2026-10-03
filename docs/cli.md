@@ -921,19 +921,30 @@ then answers:
 
 | request | answer |
 |---|---|
+| `GET /find[?q=<text>][&revision=N]` | an HTML search form and at most 20 matching nodes, using the same name/alias ranking as `/search`; no JavaScript or external assets required. An empty query shows the form; a missing revision returns 404 and an unavailable store returns 503, both with a useful HTML page |
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /healthz` | `{"healthy":true}`, process liveness with no store work, 200 |
 | `GET /readyz` | `{"ready":true}`, 200 only after admitting a seeded complete store, including seed revision zero; unavailable, unseeded or incomplete stores return 503 |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
-| `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
+| `GET /evidence/<evidence id>[?revision=N]` | that evidence's retained bytes at revision `N` (the head when absent): `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an absent revision, an id that revision does not hold or bytes the store did not retain |
 | `GET /overview[?revision=N&limit=L]` | the `ekr.graph-overview/1` document of revision `N` (the head when absent), listing the `L` highest-degree nodes (1 to 500, 300 when absent), `application/json` |
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
 | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) — nodes of an event type, by the one rule in § `ekr ocel` — counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
+
+Open `/find` for a text-first entry. It searches parts of names and aliases, including folded
+case matches, and does not search evidence text or generate answers. Search text is limited to
+2,048 characters. The page displays its revision and pins graph detail and evidence links to
+that revision; an explicit `revision` also stays on the form when searching again. Each result
+shows at most three retained evidence links from that node's assertion history at the displayed
+revision. These links do not imply that a historical assertion is currently accepted. The page
+renders escaped text and fixed local links, with no evidence previews or per-result payload reads.
+Names and aliases are shortened to 256 characters for display; matching uses their full values.
+The graph remains at `/` and the JSON API remains at `/search`.
 
 **A property two types define differently.** A type may redeclare a property it inherits with
 another name or value kind; a `ModifyProperty` on a child type does. The projection and the
@@ -980,10 +991,11 @@ it then opens the store at the path once and answers the request from it. A SQLi
 over the file in place, which keeps its device and inode too, is refused by the reader as
 `store-replaced` — its log, read from the file, is not the one the reader opened — and is followed
 the same way. `ekr view` answers
-`store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` reads no store and is
+`store-replaced` 503 with `{"refusal": "store-replaced", …}` (the `/find` entry instead renders
+its unavailable HTML page); `GET /` reads no store and is
 served throughout. Move or copy a SQLite database together with its `-wal` and `-shm` files.
 
-The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
+The query of `/find`, `/evidence/<id>`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
 percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`,
 `depth` and `limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by

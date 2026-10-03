@@ -55,13 +55,14 @@
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
+//! | `GET /find[?q=<text>][&revision=N]` | a script-free HTML search entry, at most 20 name/alias matches in index order, with graph and retained evidence links pinned to its revision; unavailable stores answer an HTML 503 |
 //! | `GET /healthz` | process liveness without store work, 200 |
 //! | `GET /readyz` | admitted seeded complete store, 200; unavailable, incomplete or unseeded, 503 |
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`ekr_views::Index::view_roles_document`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
-//! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
+//! | `GET /evidence/<evidence id>[?revision=N]` | that revision's evidence's retained bytes (head when absent), `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown revision, id or bytes not retained |
 //! | `GET /overview[?revision=N&limit=L]` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes, `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
@@ -69,7 +70,7 @@
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A]` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes: the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
-//! Those six read their query with [`Query`]: `name=value` pairs, each name one the path takes
+//! The bounded read endpoints read their query with [`Query`]: `name=value` pairs, each name one the path takes
 //! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. Then, in
 //! the order views.yaml gives: a revision since below 0 is 400 `ekr.views.SinceMalformed` and a
 //! bound out of range 400 `ekr.views.LimitExceeded`, before any store call; an unseeded store 404
@@ -103,6 +104,7 @@ use ekr_views::{
     OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SliceEdge, SliceMeta,
     SliceNode, SlicePage, SliceRecord, TimelineRequest,
 };
+use serde::Deserialize;
 use serde::Serialize;
 
 use super::session::{Checked, Held, Replaced, STORE_REPLACED};
@@ -118,6 +120,7 @@ const CACHE_LIMIT: usize = 8;
 const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
 /// Refuses framing, so another page cannot overlay the viewer.
 const FRAME_POLICY: &str = "; frame-ancestors 'none'";
+const SEARCH_POLICY: &str = "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
 
 const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
@@ -202,10 +205,11 @@ pub(super) fn run(
         }
         let answered = match held.as_mut() {
             Some(held) => answer_configured(held, &mut memory, &authorities, &job.request),
-            None => Answered::Whole(Reply::text(
-                503,
-                "store is not admitted, seeded and available",
-            )),
+            None => Answered::Whole(if let Some(query) = find_query(&job.request.target) {
+                find(None, &mut memory.indexes, query).unwrap_or_else(|reply| reply)
+            } else {
+                Reply::text(503, "store is not admitted, seeded and available")
+            }),
         };
         let _ = job.reply.try_send(answered);
     }
@@ -574,6 +578,7 @@ struct Reply {
     status: u16,
     content_type: &'static str,
     body: Vec<u8>,
+    policy: Option<&'static str>,
 }
 
 impl Reply {
@@ -582,6 +587,7 @@ impl Reply {
             status: 200,
             content_type,
             body,
+            policy: None,
         }
     }
 
@@ -592,6 +598,7 @@ impl Reply {
             status,
             content_type: TEXT,
             body,
+            policy: None,
         }
     }
 
@@ -602,6 +609,7 @@ impl Reply {
             status,
             content_type: JSON,
             body: body.to_string().into_bytes(),
+            policy: None,
         }
     }
 
@@ -623,7 +631,10 @@ impl Reply {
             ""
         };
         let policy = if self.content_type == HTML {
-            format!("Content-Security-Policy: {PAGE_POLICY}{FRAME_POLICY}\r\n")
+            format!(
+                "Content-Security-Policy: {}{FRAME_POLICY}\r\n",
+                self.policy.unwrap_or(PAGE_POLICY)
+            )
         } else {
             String::new()
         };
@@ -645,6 +656,7 @@ impl Reply {
 #[derive(Clone, Copy)]
 enum Route<'a> {
     Page,
+    Find,
     Head,
     Ready,
     Projection,
@@ -665,6 +677,7 @@ fn route(path: &str) -> Option<Route<'_>> {
     };
     match path {
         "/" => Some(Route::Page),
+        "/find" => Some(Route::Find),
         "/head" => Some(Route::Head),
         "/readyz" => Some(Route::Ready),
         "/projection" => Some(Route::Projection),
@@ -729,6 +742,14 @@ fn immediate(asked: &Asked, authorities: &super::http::Authorities) -> Option<Re
         .target
         .split_once('?')
         .map_or(asked.target.as_str(), |(path, _)| path);
+    if path == "/find" {
+        if asked.method != "GET" {
+            return Some(Reply::text(405, "only GET"));
+        }
+        if asked.announces_body {
+            return Some(Reply::text(413, "request-body-refused"));
+        }
+    }
     if asked.target == "/healthz" || path == "/" {
         return Some(if asked.method != "GET" {
             Reply::text(405, "only GET")
@@ -808,11 +829,19 @@ fn route_answer(
             runtime
         }
         Some(Err(replaced)) => {
-            return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message))
+            if let Route::Find = route {
+                return Answered::Whole(
+                    find(None, &mut memory.indexes, query).unwrap_or_else(|reply| reply),
+                );
+            }
+            return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message));
         }
     };
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
+        Route::Find => {
+            find(Some(runtime), &mut memory.indexes, query).unwrap_or_else(|reply| reply)
+        }
         Route::Head => head(runtime, query),
         Route::Ready => {
             if !query.is_empty() {
@@ -826,7 +855,7 @@ fn route_answer(
         }
         Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
-        Route::Evidence(id) => evidence(runtime, id),
+        Route::Evidence(id) => evidence(runtime, id, query),
         Route::Overview => overview(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
         Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
@@ -1020,6 +1049,142 @@ fn node(
 /// Why an id that is no node id names no node: [`NODE_NOT_FOUND`]'s message for it.
 pub(super) fn not_a_node_id(id: &str) -> String {
     format!("{id:?} is not a node id")
+}
+
+/// Recognizes the HTML entry when lazy store admission has not yet succeeded.
+fn find_query(target: &str) -> Option<&str> {
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    (path == "/find").then_some(query)
+}
+
+/// A plain GET search form; one existing index supplies ranking and evidence references.
+fn find(runtime: Option<&Runtime>, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
+    use super::search_page::{self, EvidenceLink, Page, SearchResult, State};
+    let query = Query::parse(query, &["q", "revision"]).map_err(invalid_query)?;
+    let text = query.get("q").unwrap_or("");
+    if text.chars().count() > search_page::QUERY_LIMIT {
+        return Err(invalid_query("search text exceeds 2048 characters"));
+    }
+    let at = query.revision().map_err(invalid_query)?;
+    let html = |status, revision, state| Reply {
+        status,
+        content_type: HTML,
+        policy: Some(SEARCH_POLICY),
+        body: search_page::render(&Page {
+            query: text,
+            revision,
+            requested_revision: at.map(RevisionNumber::get),
+            state,
+        })
+        .into_bytes(),
+    };
+    let Some(runtime) = runtime else {
+        return Ok(html(503, None, State::Unavailable));
+    };
+    // The empty form needs a head, not an index of the graph.
+    if text.trim().is_empty() {
+        return Ok(match runtime.head() {
+            Ok(Some(head)) if at.is_none_or(|at| at <= head.revision) => {
+                html(200, Some(at.unwrap_or(head.revision).get()), State::Initial)
+            }
+            Ok(Some(_)) => html(404, None, State::MissingRevision),
+            _ => html(503, None, State::Unavailable),
+        });
+    }
+    let index = match indexes.index(runtime, at) {
+        Ok(index) => index,
+        Err(ProjectError::RevisionNotFound { .. }) => {
+            return Ok(html(404, None, State::MissingRevision))
+        }
+        Err(_) => return Ok(html(503, None, State::Unavailable)),
+    };
+    #[derive(Deserialize)]
+    struct Meta {
+        revision: u64,
+        total: u64,
+    }
+    #[derive(Deserialize)]
+    struct Hit {
+        id: NodeId,
+        name: String,
+        alias: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct Matches {
+        meta: Meta,
+        matches: Vec<Hit>,
+    }
+    let request = SearchRequest::new(
+        text.to_owned(),
+        i64::try_from(search_page::RESULT_LIMIT).expect("small result limit"),
+    )
+    .map_err(|error| limit_exceeded(&error))?;
+    let answer = index
+        .search(&request)
+        .map_err(|error| refused("find", error))?;
+    let answer: Matches = serde_json::from_slice(&answer.bytes)
+        .map_err(|_| Reply::text(500, "cannot read search result document"))?;
+    let loaded = index.loaded();
+    let mut evidence: std::collections::BTreeMap<NodeId, Vec<EvidenceId>> = answer
+        .matches
+        .iter()
+        .map(|hit| (hit.id, Vec::new()))
+        .collect();
+    // Scan the already loaded graph once, with bounded output; never fetch payload bytes to
+    // draw result cards, and never issue a provider read for every result.
+    for assertion in loaded.graph.assertions.values() {
+        let ekr_graph::Subject::Node(subject) = &assertion.subject else {
+            continue;
+        };
+        let Some(links) = evidence.get_mut(&subject.id()) else {
+            continue;
+        };
+        if links.len() == search_page::EVIDENCE_LIMIT {
+            continue;
+        }
+        for reference in &assertion.evidence {
+            let id = reference.id();
+            if !links.contains(&id)
+                && loaded
+                    .graph
+                    .evidence
+                    .get(&id)
+                    .is_some_and(|item| loaded.retained.contains(&item.content_hash))
+            {
+                links.push(id);
+                if links.len() == search_page::EVIDENCE_LIMIT {
+                    break;
+                }
+            }
+        }
+    }
+    let matches: Vec<_> = answer
+        .matches
+        .into_iter()
+        .map(|hit| SearchResult {
+            id: hit.id.to_string(),
+            name: hit.name,
+            alias: hit.alias,
+            evidence: evidence
+                .remove(&hit.id)
+                .unwrap_or_default()
+                .into_iter()
+                .enumerate()
+                .map(|(position, id)| EvidenceLink {
+                    id: id.to_string(),
+                    label: format!("Retained evidence {}", position + 1),
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(html(
+        200,
+        Some(answer.meta.revision),
+        State::Results {
+            matches: &matches,
+            total: answer.meta.total,
+        },
+    ))
 }
 
 /// `/search?q=<text>[&limit=L][&revision=N]`.
@@ -1351,15 +1516,26 @@ fn refused(what: &str, error: ProjectError) -> Reply {
     }
 }
 
-/// The retained bytes of the evidence the head holds under `id`, never as HTML.
-fn evidence(runtime: &Runtime, id: &str) -> Reply {
+/// Retained evidence bytes from the requested revision (head when absent), never as HTML.
+fn evidence(runtime: &Runtime, id: &str, query: &str) -> Reply {
+    let query = match Query::parse(query, &["revision"]) {
+        Ok(query) => query,
+        Err(error) => return invalid_query(error),
+    };
+    let at = match query.revision() {
+        Ok(at) => at,
+        Err(error) => return invalid_query(error),
+    };
     let not_found = || Reply::text(404, format!("evidence-not-found: {id}"));
     let Ok(id) = id.parse::<EvidenceId>() else {
         return not_found();
     };
-    let read = match runtime.read(None) {
+    let read = match runtime.read(at) {
         Ok(read) => read,
-        Err(error) => return Reply::text(500, format!("reading the head: {error}")),
+        Err(ekr_kernel::CommitError::RevisionNotFound { .. }) => {
+            return Reply::text(404, "evidence revision not found")
+        }
+        Err(error) => return Reply::text(500, format!("reading evidence revision: {error}")),
     };
     let Some(item) = read.graph.evidence.get(&id) else {
         return not_found();
