@@ -391,9 +391,11 @@ fn ekr_view_on_a_read_only_file_store_removes_its_copy_when_terminated() {
     assert!(url.contains("http://127.0.0.1:"), "{url:?}");
     // Binding precedes lazy store admission. Prove it serves the store before
     // checking that the private copy is held and then cleaned up on termination.
-    let authority = url
-        .split_whitespace()
-        .find_map(|part| part.strip_prefix("http://"))
+    let announcement: Value = serde_json::from_str(&url).unwrap();
+    let authority = announcement["url"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("http://")
         .unwrap()
         .trim_end_matches('/');
     let mut request = std::net::TcpStream::connect(authority).unwrap();
