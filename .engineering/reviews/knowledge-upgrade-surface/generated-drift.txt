@@ -1,0 +1,1 @@
+Fresh runtime synthesis and named-data generation match all 36 tracked generated files byte for byte. Complete artifact trees also match with only .ess-output excluded, as declared in generated/README.md. Local ownership journals are not source artifacts. This used the recorded development generator and is not verification of a released pin.
