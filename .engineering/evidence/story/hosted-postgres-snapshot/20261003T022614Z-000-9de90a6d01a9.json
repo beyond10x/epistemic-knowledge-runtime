@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T02:26:14Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-postgres-snapshot",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "focused-corrections2.log: 119 passed, zero failed or ignored across 14 targets; required PostgreSQL and previous-release probes; final targeted clippy/fmt exit 0; broad run incomplete exit 143, combined workspace gate pending",
+    "reference": "<cache>/ekr-hosted-runtime/postgres/report.md"
+  }
+}

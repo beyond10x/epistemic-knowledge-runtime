@@ -38,10 +38,19 @@ Codex native agents run the `aep:implementor` and `aep:adversary` reference proc
 does not expose plugin-specific subagent types. Root is the sole AEP writer. All committed
 running code is Rust. No consumer identity, data or operational hostname enters this tree.
 
-Current stage: PostgreSQL implementation under real-provider tests and independent review.
-Initial CLI lane passed three cases; kernel lane passed six of seven and exposed a destination
-emptiness observation issue. Review exposed fixed completion-marker/evidence collision.
-Corrections and final gates remain pending; neither result is completed acceptance.
+PostgreSQL unit `bf94be06bc` is integrated at `37763e2ed2`. Its implementor report records
+119 passing focused cases across 14 targets, zero failures or ignored cases, including 13 real
+PostgreSQL cases and required previous-release compatibility. Final touched-package clippy and
+format checks passed. Independent review is `review-result:hosted-postgres-final-2`; its earlier
+direct provider rerun executed 12 cases, and its final correction review inspected the later logs.
+The broader collection was stopped at a completed target boundary with exit 143 after 712 passes,
+five failures and five existing ignores. All discovered failures have focused green corrections;
+that partial run is not a full gate. The combined workspace gate remains required before landing.
+
+The copy corrections bind completion to a fresh seed claim and prevent checkpoint shortcuts from
+admitting incomplete copies or letting older readers bypass the new format. Regression corrections
+verify logical content and physical hash mappings separately. The previously ignored marker-shaped
+evidence case now executes and passes. HTTP integration may proceed on this reviewed foundation.
 
 ## HTTP unit preparation
 

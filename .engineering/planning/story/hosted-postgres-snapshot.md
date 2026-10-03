@@ -41,7 +41,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 5}
@@ -78,3 +78,16 @@ Real PostgreSQL testing exposed that the datafeed watermark is not a valid negat
 
 ## Compatibility execution finding
 The required previous-release probe executed against 0.0.27 and observed an old reader returning a head for a /4 destination through its checkpoint shortcut. Envelope rejection alone was insufficient. Corrective contract: derive a /4-state flag from admitted seed on replay and checkpoint restore, emit checkpoint-binding/2 for all such states including later commits, and keep legacy fast-head limited to /1 so new-format reads pass through seed/completion admission. Test both old-reader rejection and an interrupted copy whose final receipt was not published after its checkpoint. Ordinary /3 fast-head remains unchanged. checkpoint.rs and replay.rs are additional paths within the existing kernel scope. This finding remains pending a green execution result.
+
+
+## Reviewed integration result
+
+Unit bf94be06bc is integrated at 37763e2ed2. The implementor report at
+`<cache>/ekr-hosted-runtime/postgres/report.md` records 119 focused passes across 14 targets,
+zero failed or ignored, including 13 real-provider cases and the required previous-release probe.
+This resolves the pending copy-claim and checkpoint-admission findings above. Final formatting
+and touched-package clippy passed. `review-result:hosted-postgres-final-2` records independent
+inspection of the final corrections and the earlier direct provider rerun, without claiming
+independent execution of the entire focused set. The broad collection was intentionally stopped
+at a completed target boundary, exit 143; full combined workspace acceptance remains pending.
+The corrected marker-evidence case also covers task:migration-marker-cannot-be-evidence.
