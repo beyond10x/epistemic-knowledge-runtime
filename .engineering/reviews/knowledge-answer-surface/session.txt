@@ -1,0 +1,9 @@
+   Compiling ekr v0.0.27 ($WORKTREE/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 4.10s
+     Running unittests src/lib.rs ($BUILD/target/debug/deps/ekr-7281d7560f073b95)
+
+running 2 tests
+test cli::attention::tests::answer_json_is_bounded_and_null_bounds_are_refused_before_kernel_admission ... ok
+test cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 62 filtered out; finished in 0.19s

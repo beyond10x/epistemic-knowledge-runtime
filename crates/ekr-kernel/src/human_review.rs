@@ -13,7 +13,8 @@ mod decode;
 mod wire;
 pub use attention::corrections_bytes;
 pub use decode::{read_host_binding, read_policy, read_proof};
-pub use wire::{policy_from_document, proof_from_document};
+pub(crate) use wire::correction_from_document;
+pub use wire::{answer_from_document, policy_from_document, proof_from_document};
 
 type Refusal = model::KnowledgeRefused;
 fn refuse(code: &str, reason: &str) -> Refusal {

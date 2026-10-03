@@ -1,0 +1,6 @@
+    Checking ekr-kernel v0.0.27 ($WORKTREE/crates/ekr-kernel)
+    Checking ekr-views v0.0.27 ($WORKTREE/crates/ekr-views)
+    Checking ekr-sdk v0.0.27 ($WORKTREE/crates/ekr-sdk)
+    Checking ekr v0.0.27 ($WORKTREE/crates/ekr)
+    Checking ekr-graph v0.0.27 ($WORKTREE/crates/ekr-graph)
+    Finished `dev` profile [unoptimized] target(s) in 49.90s

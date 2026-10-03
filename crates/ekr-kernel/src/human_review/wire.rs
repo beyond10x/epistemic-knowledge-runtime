@@ -21,7 +21,7 @@ fn bytes(value: &str) -> Result<Vec<u8>, Refusal> {
     })
 }
 fn basis(value: &w::EkrKernelReviewBasis) -> Result<m::ReviewBasis, Refusal> {
-    Ok(m::ReviewBasis {
+    let result = m::ReviewBasis {
         observed_revision: m::RevisionNumber(value.observed_revision.0.as_i64().ok_or_else(
             || {
                 refuse(
@@ -33,7 +33,9 @@ fn basis(value: &w::EkrKernelReviewBasis) -> Result<m::ReviewBasis, Refusal> {
         evidence_digest: hash(&value.evidence_digest),
         options_digest: hash(&value.options_digest),
         effects_digest: hash(&value.effects_digest),
-    })
+    };
+    super::Encoder::default().basis(&result)?;
+    Ok(result)
 }
 fn schema_target(value: &w::EkrKernelSchemaReviewTarget) -> Result<m::SchemaReviewTarget, Refusal> {
     Ok(m::SchemaReviewTarget {
@@ -144,4 +146,46 @@ pub fn proof_from_document(
     };
     proof_bytes(&proof)?;
     Ok(proof)
+}
+
+pub(crate) fn correction_from_document(value: &w::EkrKernelClaimCorrection) -> m::ClaimCorrection {
+    let timestamp = |value: &w::EssPresence<String>| match value {
+        w::EssPresence::Absent => None,
+        w::EssPresence::Present(value) => {
+            Some(ekr_core::contracts::primitives::Timestamp(value.clone()))
+        }
+    };
+    m::ClaimCorrection {
+        kind: match *value.kind {
+            w::EkrKernelClaimCorrectionKind::V0 => m::ClaimCorrectionKind::Choose,
+            w::EkrKernelClaimCorrectionKind::V1 => m::ClaimCorrectionKind::CorrectTime,
+            w::EkrKernelClaimCorrectionKind::V2 => m::ClaimCorrectionKind::Retract,
+            w::EkrKernelClaimCorrectionKind::V3 => m::ClaimCorrectionKind::Unresolved,
+        },
+        assertion_id: ekr_core::contracts::graph::AssertionId(Uuid(value.assertion_id.0.clone())),
+        reason: value.reason.clone(),
+        valid_from: timestamp(&value.valid_from),
+        valid_to: timestamp(&value.valid_to),
+    }
+}
+/// Decode a generated answer application without granting its claimed approval any authority.
+/// The runtime still verifies the signature, retained policy and current material review basis.
+/// # Errors
+/// Invalid proof encoding, correction scalars, revision range or noncanonical statement base64.
+pub fn answer_from_document(
+    value: &w::EkrKernelAttentionAnswerApplication,
+) -> Result<m::AttentionAnswerApplication, Refusal> {
+    let corrections: Vec<_> = value
+        .corrections
+        .iter()
+        .map(|v| correction_from_document(v))
+        .collect();
+    super::corrections_bytes(&corrections)?;
+    Ok(m::AttentionAnswerApplication {
+        human_proof: proof_from_document(&value.human_proof)?,
+        dispute_id: m::DisputeId(Uuid(value.dispute_id.0.clone())),
+        basis: basis(&value.basis)?,
+        corrections,
+        statement: bytes(&value.statement)?,
+    })
 }

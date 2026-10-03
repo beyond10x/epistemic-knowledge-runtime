@@ -84,6 +84,33 @@ impl<T: Transport> Knowledge<T> {
         Reader::new(&mut self.transport)
             .read_request(Request::new(["upgrade", "apply", "-"]).with_stdin(text))
     }
+    /// Submit an externally signed answer; an exact retry returns the original receipt.
+    /// # Errors
+    /// Invalid JSON, transport failure, invalid signature, changed review basis or runtime refusal.
+    pub fn answer_attention(
+        &mut self,
+        input: &crate::contracts::EkrKernelAttentionAnswerApplication,
+    ) -> Result<crate::contracts::EkrKernelAnswerReceipt, ReadError> {
+        let text = serde_json::to_string(input).map_err(|source| ReadError::Document {
+            verb: "attention answer".into(),
+            source,
+        })?;
+        Reader::new(&mut self.transport)
+            .read_request(Request::new(["attention", "answer", "-"]).with_stdin(text))
+    }
+    /// Read immutable authenticated answer history, optionally restricted to one dispute.
+    /// # Errors
+    /// Invalid dispute identity, transport failure, unverifiable history or invalid response.
+    pub fn answer_history(
+        &mut self,
+        dispute: Option<&crate::contracts::EkrKernelDisputeId>,
+    ) -> Result<Vec<crate::contracts::EkrKernelHumanAnswerRecord>, ReadError> {
+        let mut args = vec!["attention".to_owned(), "history".to_owned()];
+        if let Some(id) = dispute {
+            args.extend(["--dispute".into(), id.0.clone()]);
+        }
+        Reader::new(&mut self.transport).read_request(Request::new(args))
+    }
     /// Lists unresolved questions with the kernel's exact evidence-bound review basis.
     /// # Errors
     /// Transport failure, invalid retained state or an invalid response document.

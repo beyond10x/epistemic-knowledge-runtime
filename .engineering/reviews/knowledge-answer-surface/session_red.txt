@@ -1,0 +1,26 @@
+   Compiling ekr-kernel v0.0.27 ($WORKTREE/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 ($WORKTREE/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 ($WORKTREE/crates/ekr-sdk)
+   Compiling ekr v0.0.27 ($WORKTREE/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 18.07s
+     Running unittests src/lib.rs ($BUILD/target/debug/deps/ekr-7281d7560f073b95)
+
+running 1 test
+test cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay ... FAILED
+
+failures:
+
+---- cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay stdout ----
+
+thread 'cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay' (3545938) panicked at crates/ekr/src/cli/attention/tests.rs:214:9:
+assertion failed: matches!(knowledge.answer_attention(&changed),
+    Err(ekr_sdk::read::ReadError::Refused { .. }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 62 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p ekr --lib`

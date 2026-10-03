@@ -48,7 +48,7 @@ fn generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_sc
         (
             m::HumanDecisionTarget::AnswerAttention(m::AttentionAnswerTarget {
                 dispute_id: m::DisputeId(id()),
-                basis,
+                basis: basis.clone(),
                 corrections_digest: hash(b"corrections"),
             }),
             serde_json::json!({"kind": "AnswerAttention", "value": {"dispute_id": id().0, "basis": basis_json,
@@ -84,6 +84,46 @@ fn generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_sc
             review::proof_bytes(&actual).unwrap(),
             review::proof_bytes(&expected).unwrap()
         );
+        if matches!(
+            actual.intent.target,
+            m::HumanDecisionTarget::AnswerAttention(_)
+        ) {
+            let application = serde_json::json!({
+                "human_proof": wire, "dispute_id": id().0, "basis": basis_json,
+                "corrections": [{"kind": "CorrectTime", "assertion_id": id().0,
+                    "reason": "reviewed interval", "valid_from": "2000-01-01T00:00:00Z"}],
+                "statement": ekr_core::bytes::encode(b"reviewed interval")
+            });
+            let wire = serde_json::from_value(application.clone()).unwrap();
+            let decoded = review::answer_from_document(&wire).unwrap();
+            assert_eq!(decoded.human_proof, actual);
+            assert_eq!(decoded.basis, basis);
+            assert_eq!(decoded.statement, b"reviewed interval");
+            assert_eq!(
+                decoded.corrections[0].kind,
+                m::ClaimCorrectionKind::CorrectTime
+            );
+            assert_eq!(
+                decoded.corrections[0].valid_from.as_ref().unwrap().0,
+                "2000-01-01T00:00:00Z"
+            );
+            assert!(decoded.corrections[0].valid_to.is_none());
+            for (field, bad) in [
+                ("statement", serde_json::json!("bad-base64")),
+                (
+                    "basis",
+                    serde_json::json!({
+                        "observed_revision": -1, "evidence_digest": basis.evidence_digest.0,
+                        "options_digest": basis.options_digest.0, "effects_digest": basis.effects_digest.0
+                    }),
+                ),
+            ] {
+                let mut invalid = application.clone();
+                invalid[field] = bad;
+                let wire = serde_json::from_value(invalid).unwrap();
+                assert!(review::answer_from_document(&wire).is_err());
+            }
+        }
         json["intent"]["decision_id"] = "not-a-uuid".into();
         let wire = serde_json::from_value(json).unwrap();
         assert!(review::proof_from_document(&wire).is_err());

@@ -178,7 +178,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr observe` | writes / reads | `import <file or ->`, `list`, `show <observation-id>` | imports return a retention receipt; reads expose retained source records and exact bytes |
-| `ekr attention` | reads | `list`, `show <kind> <id>` | unresolved questions, claim/evidence identities and the exact review basis |
+| `ekr attention` | reads / writes | `list`, `show <kind> <id>`, `answer <file or ->`, `history [--dispute <id>]` | evidence-backed questions, a signed-answer receipt or immutable answer history |
 | `ekr upgrade` | reads / writes | `preview <policy-file or ->`, `apply <application-file or ->` | an exact authority preview or the retained signed transition record |
 | `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
@@ -478,8 +478,35 @@ the observed revision, without by itself changing evidence/options/effects diges
 interpretations remain visible even before a canonical seed exists. In that case the observed
 revision is zero, and the digests bind the retained document and evidence.
 
-This read surface does not activate authority or grant approval. Human answers and schema
-proposal decisions remain under development in this release.
+After reviewing the claims and retained evidence, submit an externally signed
+`ekr.kernel.AttentionAnswerApplication` JSON document with `ekr attention answer signed-answer.json`
+or `ekr attention answer -`. The input limit is eight MiB. Its `human_proof` carries the exact
+`AnswerAttention` target; `dispute_id` and `basis` repeat that signed target; `corrections` contains
+the reviewed effects; `statement` is the base64 human explanation. Operator identity comes from
+the independently provisioned reviewer policy, which must grant `AnswerAttention`. Neither a
+host operator UUID nor a request-supplied key grants approval. The CLI does not sign decisions.
+
+Each correction names an `assertion_id`, a `kind` and a nonempty `reason`. `Choose` retains a
+supported claim and retracts its direct competitors; `Retract` withdraws the named claim;
+`CorrectTime` supplies optional RFC 3339 `valid_from`/`valid_to` bounds and creates a supported
+replacement while retaining the original interval and explicit replacement link. `Unresolved`
+stands alone and records the explanation while leaving claims disputed. Null bounds are refused;
+omit a bound for an open interval. The corrections digest and statement digest must match the
+externally signed intent; the human proof also binds the preceding decision when one exists.
+
+The command returns a generated `ekr.kernel.AnswerReceipt` with answer and statement-evidence
+identities, committed transaction/revision, outcome and remaining affected questions. An exact
+retry returns the original receipt without another revision, even after a later answer settles
+the question. Unrelated revisions do not invalidate the signature; changed evidence, options or
+intended effects require renewed review. A publication conflict can be retried with the same proof.
+
+`ekr attention history` reads generated `ekr.kernel.HumanAnswerRecord` values in revision order;
+`--dispute <id>` restricts them to one question. History includes unresolved answers, signed review
+references, correction/replacement records and validation/result addresses. It remains available
+after a question disappears from the inbox. Both operations work through sessions. The typed SDK
+provides `Knowledge::answer_attention(&EkrKernelAttentionAnswerApplication)` and
+`Knowledge::answer_history(Option<&EkrKernelDisputeId>)`. Read-only sessions refuse answer writes.
+The viewer remains read-only; schema proposal decisions remain under development.
 
 ### `ekr incubate`
 
