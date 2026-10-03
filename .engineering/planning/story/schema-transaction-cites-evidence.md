@@ -26,7 +26,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 15
+revision: 16
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T14:55:25Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-10-03T14:55:26Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -72,10 +72,10 @@ Scoper source review: ekr-sdk/src/document/transaction.rs:60,115–128 currently
 
 ## Kernel checkpoint in progress
 
-Kernel authority/evidence commit dded81ab56351b2b705d62dd2d6b34732856780a and SDK builder commit 24002eeca1ca487671dde6c4146d33600c514a69 are retained on managed unit branch ekr/schema-evidence-20261003. Native compatibility fixtures were written by the previous implementation and upgraded by the new one; the original Gates hook admitted them after the operator's exact fixture-exception approval.
+Kernel authority/evidence and SDK builder checkpoints are retained on managed branch ekr/schema-evidence-20261003. Presentation and reviewed corrections are committed as 4f2c29ab82f72942aeba2a2aeabaa934a03a64cc. The ESS-generated SchemaEvidenceEntry carries immutable manifest citations through ontology CLI, SDK typed reads, graph projection, overview and Rust-rendered inbox. Both providers pass the named Rust case after reopening and full replay, including historical selection, retained bytes and HTML escaping.
 
-Presentation work now derives schema citations from verified immutable manifests through the ESS-generated SchemaEvidenceEntry declared in systems/ekr/domains/views.yaml. The ontology CLI, SDK typed reads, graph projection, overview and Rust-rendered inbox expose those records. The focused cli::ontology::tests::schema_change_exposes_supporting_evidence case passes after normal and full replay on both providers, including historical selection and HTML escaping. Broader regressions are in progress; this is not yet authored ESS conformance.
+Review-result:schema-evidence-kernel-independent-r1 found a masked mixed-data refusal test. Clearing its unrelated manifest mismatch and requiring mixed-schema-transaction exposes removal of the actual guard on both providers; restored code passes. Review-result:schema-evidence-presentation-independent-r2 found a real explanation failure after a second authority transition. The regression reproduced validation-profile-disagrees; verified authority boundaries are now retained and explanations select the boundary active at validation. Review-result:schema-evidence-authority-fix-independent-r3 approves the bounded correction. These are independent source/log reviews, not independent test executions.
 
-Independent review-result:schema-evidence-kernel-independent-r1 found a kernel test whose manifest mismatch masked removal of the mixed-data guard. The unit now clears that manifest and requires the named mixed-schema-transaction issue; execution and review disposition remain pending. The named ESS scenario, review closure, viewer inspection and complete integrated gate remain required. This partial checkpoint does not complete story D or PR64.
+Curated executable evidence, specification digests and inspected viewer screenshot are retained in .engineering/reviews/knowledge-schema-evidence-presentation/README.md and its adjacent logs. Fresh generated contracts, specification/suite regeneration, focused regressions, formatting and touched-crate clippy passed. The authored ESS schema-evidence scenario and complete integrated gate remain required; story D and PR64 are incomplete.
 
 Attribution correction: the earlier draft-to-proposed transition attributed to human:timo was issued by the coordinating agent without setting AEP_ACTOR. It relied on the existing operator execution request and was not a separate human action. The immutable transition is preserved; subsequent writes explicitly identify agent:codex-ekr-knowledge.

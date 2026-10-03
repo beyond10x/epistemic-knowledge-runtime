@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T16:24:52Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:schema-transaction-cites-evidence",
+  "kind": "story",
+  "revision": 16,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Focused presentation and authority-history verification at 4f2c29ab82f72942aeba2a2aeabaa934a03a64cc",
+    "reference": ".engineering/reviews/knowledge-schema-evidence-presentation/README.md"
+  }
+}
