@@ -1,0 +1,58 @@
+   Compiling serde_yaml_ng v0.10.0 (<answer-unit>/vendor/serde_yaml_ng)
+   Compiling ekr-contract-data v0.0.0 (<answer-unit>/generated/ekr-contract-data)
+   Compiling ekr-types v1.0.0 (<answer-unit>/generated/ekr-contracts/crates/ekr-types)
+   Compiling ekr-core v0.0.27 (<answer-unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<answer-unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<answer-unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<answer-unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<answer-unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 27.54s
+     Running tests/human_review.rs (<temporary-build>/target/debug/deps/human_review-c899dd72c88b1577)
+
+running 17 tests
+test correction_codec_preserves_order_every_field_and_millisecond_instants ... FAILED
+test exact_human_answer_survives_only_unrelated_basis_advancement ... FAILED
+test human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor ... FAILED
+test independent_binding_refuses_substituted_policy_and_store ... ok
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... ok
+test signing_message_matches_the_fixed_binary_layout_vector ... ok
+test policy_key_order_is_checked_and_an_empty_policy_never_authorizes ... ok
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... ok
+test forged_truncated_and_altered_signatures_refuse ... ok
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... ok
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... ok
+test generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_scalars ... ok
+test retained_proof_and_every_review_basis_field_are_bound ... ok
+test canonical_readers_refuse_every_truncation_and_trailing_byte ... ok
+test all_four_targets_verify_only_in_their_own_enrolled_scope ... ok
+test protocol_digests_and_object_addresses_resolve_the_same_bytes_after_both_provider_reopens ... ok
+test no_single_byte_change_in_retained_proof_can_replay_as_approved ... ok
+
+failures:
+
+---- correction_codec_preserves_order_every_field_and_millisecond_instants stdout ----
+
+thread 'correction_codec_preserves_order_every_field_and_millisecond_instants' (1267327) panicked at crates/ekr-kernel/tests/human_review.rs:849:73:
+called `Result::unwrap()` on an `Err` value: KnowledgeRefused { code: "answer-not-implemented", reason: "correction codec is not implemented" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- exact_human_answer_survives_only_unrelated_basis_advancement stdout ----
+
+thread 'exact_human_answer_survives_only_unrelated_basis_advancement' (1267329) panicked at crates/ekr-kernel/tests/human_review.rs:716:75:
+called `Result::unwrap()` on an `Err` value: KnowledgeRefused { code: "answer-not-implemented", reason: "correction codec is not implemented" }
+
+---- human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor stdout ----
+
+thread 'human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor' (1267332) panicked at crates/ekr-kernel/tests/human_review.rs:716:75:
+called `Result::unwrap()` on an `Err` value: KnowledgeRefused { code: "answer-not-implemented", reason: "correction codec is not implemented" }
+
+
+failures:
+    correction_codec_preserves_order_every_field_and_millisecond_instants
+    exact_human_answer_survives_only_unrelated_basis_advancement
+    human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor
+
+test result: FAILED. 14 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p ekr-kernel --test human_review`
