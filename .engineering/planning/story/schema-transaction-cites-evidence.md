@@ -26,7 +26,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 13
+revision: 14
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T14:55:25Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-10-03T14:55:26Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -68,3 +68,10 @@ Named scenario schema_change_exposes_supporting_evidence runs against both file 
 ## Scope
 
 Scoper source review: ekr-sdk/src/document/transaction.rs:60,115–128 currently derives assertion/attachment evidence and refuses mixed schema transactions; ekr-kernel/src/validate/provenance.rs:98 and reference.rs:25 admit evidence; read.rs:93 schema history lacks per-version evidence links. Inferred implementation: kernel admission/replay under new profile, schema metadata, SDK supporting-evidence builder, cli/ontology.rs:52, ekr-views/src/document.rs:238,499 and index.rs:356. Extend schema_evolution.rs:382, schema_evolution_replay.rs:455 and add_evidence.rs:204,436. Preserve old-profile refusals and all other mixed schema/data refusals.
+
+
+## Kernel checkpoint in progress
+
+The managed schema-evidence unit implements a new reviewed knowledge authority version, retaining the old version for replay. Its native compatibility fixtures were actually written by the previous implementation, then reopened and upgraded by the new one. Evidence and remaining work are recorded in `.engineering/reviews/knowledge-schema-evidence-kernel/README.md` on the unit branch; this remains a partial checkpoint, not completed story D. SDK construction, CLI/viewer schema support, the named ESS scenario, independent review and the complete integrated gate remain required.
+
+Attribution correction: the coordinator omitted AEP_ACTOR on the draft-to-proposed command, so the CLI recorded its default human actor. That command was executed by agent:codex-ekr-knowledge under the operator's existing execution request; it was not a separate human action. The retained transition is not rewritten. The subsequent activation and this correction use the explicit agent identity.
