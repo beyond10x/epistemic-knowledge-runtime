@@ -5384,6 +5384,13 @@ zero; an absent, unavailable or incomplete store fails readiness. Binding preced
 admission, and a later request may recover after the store becomes available. Readiness asks for
 the admitted head rather than building a graph index.
 
+`view --require-ready` instead admits the store and requires a seeded head before announcing
+the URL, then retains that same runtime for serving. Failure leaves no announced URL. The SDK
+selects this option only for engine versions 0.0.28 and newer, preserving its startup-refusal
+contract without sending an unsupported flag to older engines. The original SDK
+`viewer_spawn_zero_returns_a_url_whose_head_answers` case and the explicit startup cases in
+`hosted_http.rs` hold this alongside the unchanged lazy-recovery contract.
+
 MCP uses JSON POST responses and an empty accepted response for notifications. There is no SSE
 stream, server session identifier or session deletion. Unsupported methods and transport-policy
 refusals are determined before opening the store. After initialization, the client supplies one

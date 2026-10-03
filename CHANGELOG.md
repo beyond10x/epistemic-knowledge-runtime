@@ -28,6 +28,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Compatibility
 
+- Viewer listeners start independently of store availability by default. Use
+  `view --require-ready` to require a seeded complete store before its URL is announced.
+  The SDK requests this option with EKR 0.0.28 and newer, preserving startup refusal for an
+  unavailable store while retaining compatible arguments for older engines.
 - Preserving copies now write `ekr-seed-envelope/4`, with a fresh copy identity and a
   completion receipt bound to that identity and the destination seed. Readers from earlier
   releases refuse this format. Ordinary seeds remain `/3`, and existing `/2` and `/3` stores
