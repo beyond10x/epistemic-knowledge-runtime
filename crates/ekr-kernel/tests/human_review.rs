@@ -690,3 +690,197 @@ fn no_single_byte_change_in_retained_proof_can_replay_as_approved() {
         }
     }
 }
+
+fn answer_fixture() -> (Fixture, m::AttentionItem, Vec<m::ClaimCorrection>) {
+    let mut f = Fixture::new();
+    f.policy.keys[0].scopes = vec![m::HumanDecisionScope::AnswerAttention];
+    let policy_digest = hash(&review::policy_bytes(&f.policy).unwrap());
+    f.binding.reviewer_policy_digest = policy_digest.clone();
+    f.intent.reviewer_policy_digest = policy_digest;
+    let basis = m::ReviewBasis {
+        observed_revision: m::RevisionNumber(17),
+        evidence_digest: hash(b"original retained evidence"),
+        options_digest: hash(b"original competing claims"),
+        effects_digest: hash(b"original correction effects"),
+    };
+    let corrections = vec![m::ClaimCorrection {
+        kind: m::ClaimCorrectionKind::Choose,
+        assertion_id: ekr_core::contracts::graph::AssertionId(id()),
+        valid_from: None,
+        valid_to: None,
+        reason: "supported by retained evidence".into(),
+    }];
+    f.intent.target = m::HumanDecisionTarget::AnswerAttention(m::AttentionAnswerTarget {
+        dispute_id: m::DisputeId(id()),
+        basis: basis.clone(),
+        corrections_digest: hash(&review::corrections_bytes(&corrections).unwrap()),
+    });
+    let question = m::AttentionItem {
+        subject: m::AttentionSubject {
+            kind: m::AttentionKind::Dispute,
+            dispute_id: Some(m::DisputeId(id())),
+            blocker_id: None,
+            proposal_id: None,
+        },
+        question: "Which claim is supported?".into(),
+        basis,
+        claims: vec![corrections[0].assertion_id.clone()],
+        evidence: vec![],
+        observations: vec![],
+    };
+    (f, question, corrections)
+}
+
+#[test]
+fn exact_human_answer_survives_only_unrelated_basis_advancement() {
+    let (f, question, corrections) = answer_fixture();
+    let proof = f.proof();
+    let reviewer = f.reviewer();
+    assert!(reviewer
+        .verify_attention(&proof, &question, &corrections, b"reviewed", None)
+        .is_ok());
+    let mut advanced = question.clone();
+    advanced.basis.observed_revision.0 += 10;
+    // Presentation changes are not changes in retained claims, evidence or intended effects.
+    advanced.question = "A reformatted question".into();
+    let verified = reviewer
+        .verify_attention(&proof, &advanced, &corrections, b"reviewed", None)
+        .unwrap();
+    assert_eq!(
+        verified.canonical_proof(),
+        review::proof_bytes(&proof).unwrap()
+    );
+    assert_eq!(verified.operator(), &f.policy.keys[0].operator);
+    for changed in 0..4 {
+        let mut current = advanced.clone();
+        match changed {
+            0 => current.basis.evidence_digest = hash(b"new evidence"),
+            1 => current.basis.options_digest = hash(b"new claim"),
+            2 => current.basis.effects_digest = hash(b"new declaration"),
+            3 => current.basis.observed_revision = m::RevisionNumber(16),
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            reviewer
+                .verify_attention(&proof, &current, &corrections, b"reviewed", None)
+                .err()
+                .unwrap()
+                .code,
+            "answer-review-required"
+        );
+    }
+}
+
+#[test]
+fn human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor() {
+    let (mut f, question, corrections) = answer_fixture();
+    let reviewer = f.reviewer();
+    let proof = f.proof();
+    let mut changed = corrections.clone();
+    changed[0].kind = m::ClaimCorrectionKind::Retract;
+    assert!(reviewer
+        .verify_attention(&proof, &question, &changed, b"reviewed", None)
+        .is_err());
+    assert!(reviewer
+        .verify_attention(
+            &proof,
+            &question,
+            &corrections,
+            b"different statement",
+            None
+        )
+        .is_err());
+    assert!(reviewer
+        .verify_attention(
+            &proof,
+            &question,
+            &corrections,
+            b"reviewed",
+            Some(review::digest(b"prior"))
+        )
+        .is_err());
+    for mode in 0..4 {
+        let mut other = question.clone();
+        match mode {
+            0 => {
+                other.subject.dispute_id = Some(m::DisputeId(Uuid(
+                    "00000000-0000-0000-0000-000000000002".into(),
+                )))
+            }
+            1 => other.subject.kind = m::AttentionKind::BlockedIntegration,
+            2 => other.subject.blocker_id = Some(integrate::IntegrationBlockerId(id())),
+            3 => other.subject.proposal_id = Some(integrate::SchemaProposalId(id())),
+            _ => unreachable!(),
+        }
+        assert!(reviewer
+            .verify_attention(&proof, &other, &corrections, b"reviewed", None)
+            .is_err());
+    }
+    let mut forged = proof.clone();
+    forged.signature[0] ^= 1;
+    assert_eq!(
+        reviewer
+            .verify_attention(&forged, &question, &corrections, b"reviewed", None)
+            .err()
+            .unwrap()
+            .code,
+        "review-signature"
+    );
+    f.intent.target = m::HumanDecisionTarget::ApproveSchemaProposal(m::SchemaReviewTarget {
+        proposal_id: integrate::SchemaProposalId(id()),
+        proposal_digest: hash(b"proposal"),
+        basis: question.basis.clone(),
+    });
+    assert!(reviewer
+        .verify_attention(&f.proof(), &question, &corrections, b"reviewed", None)
+        .is_err());
+}
+
+#[test]
+fn correction_codec_preserves_order_every_field_and_millisecond_instants() {
+    use ekr_core::contracts::primitives::Timestamp;
+    let input = m::ClaimCorrection {
+        kind: m::ClaimCorrectionKind::CorrectTime,
+        assertion_id: ekr_core::contracts::graph::AssertionId(id()),
+        valid_from: Some(Timestamp("1969-12-31T23:59:59.999Z".into())),
+        valid_to: Some(Timestamp("1970-01-01T00:00:00.001Z".into())),
+        reason: "corrected".into(),
+    };
+    let bytes = review::corrections_bytes(std::slice::from_ref(&input)).unwrap();
+    assert_eq!(bytes.iter().fold(String::new(), |mut text, byte| {
+        use std::fmt::Write;
+        write!(text, "{byte:02x}").unwrap();
+        text
+    }), "0000000000000001000000000000000b436f727265637454696d650000000000000000000000000000000101ffffffffffffffff0100000000000000010000000000000009636f72726563746564");
+    assert_eq!(review::corrections_bytes(&[]).unwrap(), 0_u64.to_be_bytes());
+    for field in 0..5 {
+        let mut changed = input.clone();
+        match field {
+            0 => changed.kind = m::ClaimCorrectionKind::Choose,
+            1 => changed.assertion_id.0 .0 = "00000000-0000-0000-0000-000000000002".into(),
+            2 => changed.valid_from = None,
+            3 => changed.valid_to = None,
+            4 => changed.reason.push('!'),
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            review::corrections_bytes(&[changed.clone()]).unwrap(),
+            bytes
+        );
+        assert_ne!(
+            review::corrections_bytes(&[input.clone(), changed.clone()]).unwrap(),
+            review::corrections_bytes(&[changed, input.clone()]).unwrap()
+        );
+    }
+    for bad in ["not-time", "1970-01-01T00:00:00.0001Z"] {
+        let mut changed = input.clone();
+        changed.valid_to = Some(Timestamp(bad.into()));
+        assert!(review::corrections_bytes(&[changed]).is_err());
+    }
+    let mut offset = input.clone();
+    offset.valid_to = Some(Timestamp("1970-01-01T01:00:00.001+01:00".into()));
+    assert_eq!(review::corrections_bytes(&[offset]).unwrap(), bytes);
+    let mut invalid_id = input;
+    invalid_id.assertion_id.0 .0 = "invalid".into();
+    assert!(review::corrections_bytes(&[invalid_id]).is_err());
+}

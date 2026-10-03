@@ -1,0 +1,37 @@
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 2.44s
+     Running tests/authority_upgrade.rs (<temporary-build>/target/debug/deps/authority_upgrade-ddc90112102a91e8)
+
+running 6 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust ... ok
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/human_review.rs (<temporary-build>/target/debug/deps/human_review-c899dd72c88b1577)
+
+running 17 tests
+test correction_codec_preserves_order_every_field_and_millisecond_instants ... ok
+test independent_binding_refuses_substituted_policy_and_store ... ok
+test policy_key_order_is_checked_and_an_empty_policy_never_authorizes ... ok
+test forged_truncated_and_altered_signatures_refuse ... ok
+test even_valid_signatures_cannot_cross_audience_key_policy_or_predecessor ... ok
+test human_answer_cannot_change_its_corrections_subject_scope_statement_or_predecessor ... ok
+test signing_codec_has_explicit_domain_and_ess_field_order_and_refuses_invalid_scalars ... ok
+test exact_human_answer_survives_only_unrelated_basis_advancement ... ok
+test generated_json_review_documents_preserve_all_signed_targets_and_reject_bad_scalars ... ok
+test retained_proof_and_every_review_basis_field_are_bound ... ok
+test canonical_readers_refuse_every_truncation_and_trailing_byte ... ok
+test policy_refuses_duplicate_keys_scopes_wrong_key_digest_and_noncanonical_order ... ok
+test all_four_targets_verify_only_in_their_own_enrolled_scope ... ok
+test signing_message_matches_the_fixed_binary_layout_vector ... ok
+test verified_operator_comes_from_policy_and_statement_and_target_are_bound ... ok
+test protocol_digests_and_object_addresses_resolve_the_same_bytes_after_both_provider_reopens ... ok
+test no_single_byte_change_in_retained_proof_can_replay_as_approved ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

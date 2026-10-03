@@ -1,0 +1,22 @@
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 7.02s
+     Running tests/human_review.rs (<temporary-build>/target/debug/deps/human_review-c899dd72c88b1577)
+
+running 1 test
+test exact_human_answer_survives_only_unrelated_basis_advancement ... FAILED
+
+failures:
+
+---- exact_human_answer_survives_only_unrelated_basis_advancement stdout ----
+
+thread 'exact_human_answer_survives_only_unrelated_basis_advancement' (1297773) panicked at crates/ekr-kernel/tests/human_review.rs:767:18:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    exact_human_answer_survives_only_unrelated_basis_advancement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-kernel --test human_review`
