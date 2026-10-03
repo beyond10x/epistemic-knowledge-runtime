@@ -1327,8 +1327,9 @@ fn all_six_occurrences_refuse_readdressed_forged_and_missing_records_on_both_pro
                         }
                         if mode == "semantics" {
                             match occurrence.event.payload {
-                                RevisionPayload::AuthorityUpgraded { .. } => {
-                                    panic!("this ordinary-command fixture never upgrades authority")
+                                RevisionPayload::AuthorityUpgraded { .. }
+                                | RevisionPayload::AttentionAnswered(_) => {
+                                    panic!("this ordinary-command fixture never uses reviewed commands")
                                 }
                                 RevisionPayload::Seeded { .. } => {
                                     value["authority_root"] =

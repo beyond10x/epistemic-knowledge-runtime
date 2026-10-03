@@ -9,15 +9,15 @@ error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not 
    = help: the following other types implement trait `ekr_core::Canonical`:
              &T
              ()
-             AgentId
-             AssertionId
+             AnswerOccurrence
              AssertionLifecycle<A>
              Assessment<A>
              AttachedEvidence
-             AttachmentId
+             BTreeMap<K, V>
+             BTreeSet<T>
            and $N others
    = note: required for `ekr_graph::Node<ekr_ontology::Value>` to implement `ekr_core::Canonical`
-note: required by a bound in `ContentHash::of`
+note: required by a bound in `ekr_core::ContentHash::of`
   --> $WORKSPACE/crates/ekr-core/src/hash.rs
    |
    |     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
@@ -34,15 +34,15 @@ error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not 
    = help: the following other types implement trait `ekr_core::Canonical`:
              &T
              ()
-             AgentId
-             AssertionId
+             AnswerOccurrence
              AssertionLifecycle<A>
              Assessment<A>
              AttachedEvidence
-             AttachmentId
+             BTreeMap<K, V>
+             BTreeSet<T>
            and $N others
    = note: required for `ekr_graph::Edge<ekr_ontology::Value>` to implement `ekr_core::Canonical`
-note: required by a bound in `ContentHash::of`
+note: required by a bound in `ekr_core::ContentHash::of`
   --> $WORKSPACE/crates/ekr-core/src/hash.rs
    |
    |     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
@@ -59,15 +59,15 @@ error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not 
    = help: the following other types implement trait `ekr_core::Canonical`:
              &T
              ()
-             AgentId
-             AssertionId
+             AnswerOccurrence
              AssertionLifecycle<A>
              Assessment<A>
              AttachedEvidence
-             AttachmentId
+             BTreeMap<K, V>
+             BTreeSet<T>
            and $N others
    = note: required for `ekr_graph::Assertion<ekr_ontology::Value>` to implement `ekr_core::Canonical`
-note: required by a bound in `ContentHash::of`
+note: required by a bound in `ekr_core::ContentHash::of`
   --> $WORKSPACE/crates/ekr-core/src/hash.rs
    |
    |     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {

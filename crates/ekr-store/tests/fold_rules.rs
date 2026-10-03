@@ -230,9 +230,10 @@ impl CommitAuthority for Attesting {
                 break;
             }
             match occurrence.event.payload {
-                RevisionPayload::AuthorityUpgraded { .. } => {
+                RevisionPayload::AuthorityUpgraded { .. }
+                | RevisionPayload::AttentionAnswered(_) => {
                     return Err(StoreError::Document(
-                        "fixture-authority-does-not-upgrade".into(),
+                        "fixture-authority-does-not-review".into(),
                     ))
                 }
                 RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),

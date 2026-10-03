@@ -7,7 +7,7 @@ error[E0308]: mismatched types
    |                        arguments to this method are incorrect
    |
    = note: expected struct `CanonicalRef<ekr_graph::Evidence>`
-              found struct `EvidenceId`
+              found struct `ekr_core::EvidenceId`
 note: method defined here
   --> $RUST/alloc/src/collections/btree/set.rs
 

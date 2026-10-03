@@ -89,6 +89,7 @@ fn proposed(event: u64, transaction: u64, record: &[u8], at: u64) -> Publication
 
 fn propose_key(transaction: u64) -> PublicationCommandKey {
     PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Propose,
         transaction_id: Some(id(transaction)),
         predecessor_event_id: None,
@@ -115,6 +116,7 @@ fn seed(store: &dyn RevisionLog) {
         },
     );
     let key = PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Bootstrap,
         transaction_id: None,
         predecessor_event_id: None,
@@ -233,6 +235,7 @@ fn adv2_an_identical_retained_decision_under_another_slot_is_refused_as_already_
         // The Propose slot of 0x51 is taken; the second proposal goes through the legacy port.
         let _ = store.publish(&second_proposal).unwrap();
         let validate_key = |proposal: &Publication| PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::Validate,
             transaction_id: Some(id(0x51)),
             predecessor_event_id: Some(proposal.event.event_id),

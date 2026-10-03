@@ -646,6 +646,7 @@ fn adv1_a_validate_preparation_in_the_commit_slot_is_refused_by_name_and_changes
                 continue;
             }
             let commit_key = ekr_store::PublicationCommandKey {
+                answer_id: None,
                 kind: ekr_store::PublicationCommandKind::Commit,
                 transaction_id: Some(plan.tx),
                 predecessor_event_id: Some(validation.decision.event.event_id),

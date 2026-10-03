@@ -305,6 +305,7 @@ pub fn seed_v2(
         expected_version: 0,
     };
     let key = PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Bootstrap,
         transaction_id: None,
         predecessor_event_id: None,

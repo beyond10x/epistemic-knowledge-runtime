@@ -1,0 +1,25 @@
+   Compiling ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 11.58s
+     Running unittests src/lib.rs (<build>/target/debug/deps/ekr_kernel-e0ca0e018189ad43)
+
+running 1 test
+test answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers ... FAILED
+
+failures:
+
+---- answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers stdout ----
+
+thread 'answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers' (2756498) panicked at crates/ekr-kernel/src/answers/tests.rs:509:9:
+admitted forged /basis/evidence_digest
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    answers::tests::reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p ekr-kernel --lib`

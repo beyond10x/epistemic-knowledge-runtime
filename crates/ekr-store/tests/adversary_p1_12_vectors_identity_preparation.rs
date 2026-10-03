@@ -75,6 +75,7 @@ fn decision(event_id: u64, payload: RevisionPayload, record: &[u8], at: u64) -> 
 
 fn propose_key(transaction: u64) -> PublicationCommandKey {
     PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Propose,
         transaction_id: Some(id(transaction)),
         predecessor_event_id: None,
@@ -116,6 +117,7 @@ fn a_retained_event_id_with_changed_content_is_refused_on_the_preparation_path_o
             object(b"adversary seed envelope"),
         );
         let bootstrap = PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::Bootstrap,
             transaction_id: None,
             predecessor_event_id: None,
@@ -201,6 +203,7 @@ fn a_reused_event_id_after_a_retried_original_is_refused_and_history_stays_reada
             object(b"adversary seed envelope"),
         );
         let bootstrap = PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::Bootstrap,
             transaction_id: None,
             predecessor_event_id: None,

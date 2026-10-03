@@ -14,12 +14,12 @@ use ekr_core::{AgentId, ContentHash, EventId, RevisionId, RevisionNumber, Transa
 use serde::{Deserialize, Serialize};
 
 /// What happened to a transaction and the revision lineage: the historical six `ekr.kernel`
-/// events plus the explicit reviewed authority transition.
+/// events plus separately versioned authority transitions and reviewed answers.
 ///
 /// `ekr.kernel.SnapshotTaken` and `ekr.kernel.Explained` are declared in the same domain and are
 /// not here: neither moves the lineage — one records that a reader took a snapshot, the other that
 /// an explanation was produced — and `story:graph-model-and-assertions` scopes this type to the
-/// original six. The authority upgrade adds a separately versioned occurrence.
+/// original six. Authority upgrades and reviewed answers add separately versioned occurrences.
 ///
 /// # The first sum type this runtime content-addresses
 ///
@@ -102,13 +102,15 @@ pub enum RevisionPayload {
         /// Resulting knowledge root.
         knowledge_root: ContentHash,
     },
+    /// An atomic reviewed answer, in a version-four envelope only.
+    AttentionAnswered(crate::AnswerOccurrence),
 }
 
 /// A current occurrence and the address of its complete kernel-owned retained record.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RevisionEvent {
-    /// Exactly `ekr.revision-event/2` for historical kinds or `/3` for AuthorityUpgraded.
+    /// Exactly `ekr.revision-event/2` for historical kinds, `/3` for upgrades or `/4` for answers.
     pub format: String,
     /// Immutable occurrence identity, allocated independently of content.
     pub event_id: EventId,
@@ -122,6 +124,8 @@ impl RevisionEvent {
     pub const FORMAT: &'static str = "ekr.revision-event/2";
     /// Envelope for the explicit authority transition. Historical occurrences remain version 2.
     pub const TRANSITION_FORMAT: &'static str = "ekr.revision-event/3";
+    /// Envelope for reviewed answer publication.
+    pub const ANSWER_FORMAT: &'static str = "ekr.revision-event/4";
     /// Closed format dispatch; the new event cannot masquerade as a historical event.
     #[must_use]
     pub fn supported(&self) -> bool {
@@ -132,6 +136,7 @@ impl RevisionEvent {
     pub const fn schema_version(&self) -> u32 {
         match self.payload {
             RevisionPayload::AuthorityUpgraded { .. } => 3,
+            RevisionPayload::AttentionAnswered(_) => 4,
             _ => 2,
         }
     }
@@ -161,6 +166,7 @@ impl RevisionPayload {
     pub const fn format(&self) -> &'static str {
         match self {
             Self::AuthorityUpgraded { .. } => RevisionEvent::TRANSITION_FORMAT,
+            Self::AttentionAnswered(_) => RevisionEvent::ANSWER_FORMAT,
             _ => RevisionEvent::FORMAT,
         }
     }
@@ -181,6 +187,7 @@ impl RevisionPayload {
             Self::TransactionStale { .. } => 4,
             Self::RevisionCommitted { .. } => 5,
             Self::AuthorityUpgraded { .. } => 6,
+            Self::AttentionAnswered(_) => 7,
         }
     }
 
@@ -195,6 +202,7 @@ impl RevisionPayload {
             Self::TransactionStale { .. } => "ekr.kernel.TransactionStale",
             Self::RevisionCommitted { .. } => "ekr.kernel.RevisionCommitted",
             Self::AuthorityUpgraded { .. } => "ekr.kernel.AuthorityUpgraded",
+            Self::AttentionAnswered(_) => "ekr.kernel.AttentionAnswered",
         }
     }
 }
@@ -209,6 +217,7 @@ impl Canonical for RevisionPayload {
     fn encode(&self, out: &mut Encoder) {
         out.variant(self.variant_index());
         match self {
+            Self::AttentionAnswered(answer) => answer.encode(out),
             Self::Seeded {
                 revision_id,
                 seed_hash,

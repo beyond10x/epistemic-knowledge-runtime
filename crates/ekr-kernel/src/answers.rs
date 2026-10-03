@@ -21,11 +21,6 @@ impl KernelAuthority {
     /// Validates a derived ordinary transaction using only enrolled retained policy and the
     /// current verified stream state. Allocated IDs/time are fixed by the publication attempt.
     /// The returned sealed transaction is still not a publication or an answer receipt.
-    // Publication/replay wiring is the next part of C; this entry remains private meanwhile.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "answer publication/replay wiring is in progress")
-    )]
     pub(crate) fn validate_answer(
         &self,
         history: &RetainedHistory,
@@ -183,3 +178,8 @@ impl KernelAuthority {
 #[cfg(test)]
 #[allow(dead_code, unused_imports)]
 mod tests;
+
+mod durable;
+pub(crate) use durable::{replay_answer, required};
+
+mod publish;

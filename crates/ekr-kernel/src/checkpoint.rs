@@ -513,7 +513,7 @@ fn restored(
         version = occurrence.version;
         let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
         match event.payload {
-            RevisionPayload::AuthorityUpgraded { .. } => {
+            RevisionPayload::AuthorityUpgraded { .. } | RevisionPayload::AttentionAnswered(_) => {
                 return Err(refuse("checkpoint-needs-authority-replay"))
             }
             RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),

@@ -1,0 +1,13 @@
+    Checking serde_yaml_ng v0.10.0 (<unit>/vendor/serde_yaml_ng)
+    Checking ekr-core v0.0.27 (<unit>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<unit>/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Checking ekr-views v0.0.27 (<unit>/crates/ekr-views)
+    Checking ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+    Checking ekr v0.0.27 (<unit>/crates/ekr)
+    Checking ekr-observe v0.0.27 (<unit>/crates/ekr-observe)
+    Checking xtask v0.0.27 (<unit>/xtask)
+    Finished `dev` profile [unoptimized] target(s) in 1m 34s

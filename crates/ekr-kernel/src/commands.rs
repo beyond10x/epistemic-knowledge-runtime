@@ -276,6 +276,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             });
         }
         let key = PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::Propose,
             transaction_id: Some(id),
             predecessor_event_id: None,
@@ -331,6 +332,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let tx = target(&state, id)?;
         require_state(tx, TransactionState::Proposed)?;
         let key = PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::Validate,
             transaction_id: Some(id),
             predecessor_event_id: Some(state.transition.as_ref().map_or(
@@ -491,6 +493,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         require_state(tx, TransactionState::Validated)?;
         let validation = tx.validation.as_ref().expect("validated state");
         let key = PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::Commit,
             transaction_id: Some(id),
             predecessor_event_id: Some(validation.event_id),

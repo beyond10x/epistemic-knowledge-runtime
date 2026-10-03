@@ -162,7 +162,10 @@ impl Revision {
     /// This lookup records assertion identities by edge subject, including retracted assertions.
     /// Only adding an edge assertion changes it; node assertions, lifecycle changes and deleting
     /// an edge leave the lookup intact. A future operation must make an explicit choice here.
-    fn asserted_edges_after(&self, tx: &GraphTransaction<CanonicalValue>) -> AssertedEdgesCell {
+    pub(crate) fn asserted_edges_after(
+        &self,
+        tx: &GraphTransaction<CanonicalValue>,
+    ) -> AssertedEdgesCell {
         let changes = tx.operations.iter().any(|operation| match operation {
             GraphOperation::AddAssertion(assertion) => {
                 matches!(assertion.subject, ekr_graph::Subject::Edge(_))
@@ -1092,6 +1095,11 @@ impl KernelAuthority {
                 .unwrap_or(&self.anchor)
                 .clone();
             match event.payload {
+                RevisionPayload::AttentionAnswered(_) => {
+                    let superseded = state.head().root.revision;
+                    crate::answers::replay_answer(self, history, &mut state, occurrence)?;
+                    state.release(superseded, |number| kept(number, occurrence.version));
+                }
                 RevisionPayload::AuthorityUpgraded { .. } => {
                     crate::upgrade::replay_transition(self, history, &mut state, occurrence)?;
                 }
@@ -1118,7 +1126,10 @@ impl KernelAuthority {
                         "proposal-record-disagrees",
                     )?;
                     require(
-                        !state.transactions.contains_key(&transaction_id),
+                        !state.transactions.contains_key(&transaction_id)
+                            && !state.answers.values().any(|answer| {
+                                answer.transaction_id.0 == transaction_id.to_string()
+                            }),
                         "transaction-identity-reused",
                     )?;
                     state.documents.insert(transaction_id, Arc::new(document));

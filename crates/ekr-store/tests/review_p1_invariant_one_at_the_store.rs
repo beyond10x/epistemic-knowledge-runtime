@@ -329,6 +329,7 @@ fn a_commit_lands_with_no_validated_transaction_anywhere_in_the_process() {
         transaction_id: transaction,
     };
     let key = PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Commit,
         transaction_id: Some(transaction),
         predecessor_event_id: Some(validation.event.event_id),
