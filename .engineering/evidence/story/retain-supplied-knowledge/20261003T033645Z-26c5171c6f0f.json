@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T03:36:45Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:retain-supplied-knowledge",
+  "kind": "story",
+  "revision": 22,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr --test conformance_knowledge: four tests pass; three real CLI scenarios per provider; discard mutant fails all three per provider; ESS report ingestion remains refused by AEP 0.64",
+    "reference": ".engineering/reviews/knowledge-retention/knowledge-conformance-final.log"
+  }
+}

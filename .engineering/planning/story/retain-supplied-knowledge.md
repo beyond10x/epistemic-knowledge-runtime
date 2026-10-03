@@ -44,7 +44,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr/domains/integrate.yaml
-revision: 21
+revision: 22
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -115,3 +115,7 @@ The real CLI conformance target reopens each provider with full replay for every
 The development generator produces 118 scenarios, three authored sources and zero refusals; the committed suite matches fresh synthesis. Spec digest remains 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa, contract digest 8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca. The pinned ESS 0.36 runner admits the suite, while the old compiler refuses three newly declared identity-field relations. No contract is weakened to work around this. Taskfile freshness and conformance targets include the knowledge suite, but the combined task check awaits verified ESS release adoption.
 
 Final changed-crate Clippy, formatting and CLI/SDK surface checks pass. This is coordinator implementation and local review, not independent review. Story A stays active; the release pin, combined gate and delivery acceptance remain open. Stories B–F and both end-to-end demos are not delivered by this checkpoint.
+
+## Report ingestion compatibility
+
+The repository-pinned AEP 0.64 command `aep plan artifact evidence --from <report/2> --suite-input <original carrier>` refused the actual retained-knowledge report with `UnsupportedSuiteVersion at $suite.provenance.suite_version: coverage requires suite/5`. The suite is ess-conformance/13. No machine-ingested conformance acceptance is claimed or fabricated, no suite version is rewritten, and the story remains active. The actual reports and original complete-parent carrier remain committed for inspection and later compatible ingestion. Ordinary cargo-test execution evidence records only the observed test command and its report paths; it does not discharge the blocked ESS-report ingestion. Resolve compatible AEP report admission before final acceptance.

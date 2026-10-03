@@ -62,3 +62,9 @@ the recorded passing runs. Numeric transport conversion is explicitly lossless.
 Final released-generator adoption and the combined `task check` remain open.
 Stories B–F and the two end-to-end demonstrations are not delivered by this checkpoint.
 Raw logs remain in task scratch; published copies replace machine-local paths with placeholders.
+
+The repository-pinned AEP 0.64 report ingestion refused the suite/13 carrier:
+`UnsupportedSuiteVersion at $suite.provenance.suite_version: coverage requires suite/5`.
+The planning store records the observed cargo-test evidence and this compatibility gap;
+it does not claim machine-ingested ESS conformance. Its validation passes with 446 artifacts
+and 29 existing prose-only review warnings, retained in `aep-validation.log`.
