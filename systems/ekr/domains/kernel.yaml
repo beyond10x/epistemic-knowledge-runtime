@@ -466,7 +466,10 @@ types:
   # (profile v2, which admits schema changes) or "ekr.p3-deterministic/1" (profile v3: v2, and a
   # node or edge id any revision held is never created again), paired with the matching
   # application. Runtime version dispatch enforces it; a store keeps the profile its authority
-  # anchor named at seed.
+  # anchor named at seed. Reviewed transitions can activate ekr.knowledge-deterministic/1
+  # (disputes) or ekr.knowledge-deterministic/2 (disputes and schema supporting evidence).
+  # Knowledge/1 can transition to knowledge/2; neither transition rewrites the seed or
+  # historical decisions. The transition preview's from value names the active profile.
   - name: ekr.kernel.RulesetV1
     kind: newtype
     of: String
@@ -483,7 +486,9 @@ types:
 
   # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profiles v2 and v3, under
   # which a committed schema change replaces the ontology with the version it names). Runtime
-  # version dispatch enforces it.
+  # version dispatch enforces it. Reviewed knowledge profiles pair their matching
+  # ekr.knowledge-apply/1 or ekr.knowledge-apply/2 application; older decisions replay
+  # under their original validation and application rules.
   - name: ekr.kernel.ApplicationProfileV1
     kind: newtype
     of: String
@@ -1738,6 +1743,12 @@ entities:
     # Supporting evidence retained by an ordinary validated schema transaction
     # and exposed in schema history. Required evidence is checked by the kernel, whether
     # the transaction came from a proposal or directly through the SDK.
+    # Knowledge/2 admits a schema transaction's evidence manifest as its supporting
+    # evidence, resolved against canonical evidence plus AddEvidence in that transaction.
+    # Every inline AddEvidence must be cited. All other data operations remain mixed and
+    # refused. Ordinary data manifests and pre-knowledge/2 refusal rules stay unchanged.
+    # History projects these links from immutable committed transaction manifests; it
+    # does not change historical ontology bytes or their content addresses.
     relations:
     - name: transaction
       kind: references

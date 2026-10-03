@@ -103,8 +103,29 @@ impl KernelAuthority {
         state: &ReplayState,
         policy: &m::ReviewerTrustPolicy,
     ) -> Result<EkrKernelUpgradePreview, StoreError> {
+        self.preview_for(
+            history,
+            state,
+            policy,
+            &ValidationProfileV1::knowledge_evidence(self.context.validator),
+        )
+    }
+    fn preview_for(
+        &self,
+        history: &RetainedHistory,
+        state: &ReplayState,
+        policy: &m::ReviewerTrustPolicy,
+        destination: &ValidationProfileV1,
+    ) -> Result<EkrKernelUpgradePreview, StoreError> {
         self.reviewer(state, policy)?;
-        replay::require(state.transition.is_none(), "authority-already-upgraded")?;
+        let from = &state.active_authority(&self.anchor).validation_profile;
+        let legacy = ValidationProfileV1::knowledge(self.context.validator);
+        let latest = ValidationProfileV1::knowledge_evidence(self.context.validator);
+        replay::require(
+            (state.transition.is_none() && (*destination == legacy || *destination == latest))
+                || (*from == legacy && *destination == latest),
+            "authority-already-upgraded",
+        )?;
         let mut preview = EkrKernelUpgradePreview {
             stream_version: state.version.into(),
             stream_digest: hash(
@@ -115,10 +136,8 @@ impl KernelAuthority {
                 state.head().root.revision.get().into(),
             )),
             head_hash: hash(ContentHash::of(&state.head().root)),
-            from: Box::new(version(&self.anchor.validation_profile)),
-            to: Box::new(version(&ValidationProfileV1::knowledge(
-                self.context.validator,
-            ))),
+            from: Box::new(version(from)),
+            to: Box::new(version(destination)),
             preview_digest: hash(review::digest(b"")),
             contradictions: crate::disputes::preview_contradictions(state.head().graph()?)
                 .into_iter()
@@ -219,7 +238,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             replay::require(bytes(&current)? == bytes(preview)?, "upgrade-preview-stale")?;
             let at = now();
             replay::require(at >= state.head().committed_at, "upgrade-time-order")?;
-            let profile = ValidationProfileV1::knowledge(self.authority.context.validator);
+            let profile = ValidationProfileV1::knowledge_evidence(self.authority.context.validator);
             let binding = reviewed(review::host_binding_bytes(
                 self.authority
                     .review_host
@@ -365,7 +384,13 @@ pub(crate) fn replay_transition(
         content(&record.review.statement_object_hash)?,
         None,
     ))?;
-    let preview = authority.preview(history, state, &policy)?;
+    let profile: ValidationProfileV1 = decode(content(&record.target_profile_object_hash)?)?;
+    replay::require(
+        profile == ValidationProfileV1::knowledge(authority.context.validator)
+            || profile == ValidationProfileV1::knowledge_evidence(authority.context.validator),
+        "upgrade-target-profile",
+    )?;
+    let preview = authority.preview_for(history, state, &policy, &profile)?;
     replay::require(
         bytes(&preview)? == bytes(&record.preview)?,
         "upgrade-preview-stale",
@@ -375,11 +400,6 @@ pub(crate) fn replay_transition(
         at >= state.head().committed_at
             && bytes(&review_record(&verified, at)?)? == bytes(&record.review)?,
         "upgrade-review-record",
-    )?;
-    let profile: ValidationProfileV1 = decode(content(&record.target_profile_object_hash)?)?;
-    replay::require(
-        profile == ValidationProfileV1::knowledge(authority.context.validator),
-        "upgrade-target-profile",
     )?;
     let (mut graph, root) = upgraded_graph(state, &preview, &profile, &authority.anchor)?;
     let revision_id = record.revision_id.0.parse().map_err(error)?;

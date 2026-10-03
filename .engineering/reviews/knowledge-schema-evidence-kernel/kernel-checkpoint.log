@@ -1,0 +1,80 @@
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 5.15s
+     Running tests/add_evidence.rs (<build>/debug/deps/add_evidence-b8c667ffbbc128ba)
+
+running 11 tests
+test evidence_extracted_by_another_agent_than_the_proposer_is_misattributed ... ok
+test evidence_from_a_source_other_than_a_human_statement_is_refused_by_name ... ok
+test a_payload_that_does_not_hash_to_its_entry_is_refused_as_evidence_payload_mismatch ... ok
+test an_assertion_citing_evidence_no_revision_holds_is_refused_as_unresolved_evidence ... ok
+test a_reused_evidence_id_is_refused_by_name ... ok
+test added_evidence_and_the_assertion_citing_it_commit_and_replay_on_both_providers ... ok
+test adversary_empty_and_unknown_state_requests_still_refuse_withdrawn_history ... ok
+test a_verified_read_still_holds_every_added_payload ... ok
+test cached_commands_refuse_withdrawn_evidence_as_complete_history_does ... ok
+test adversary_peer_validation_at_an_old_basis_matches_full_replay ... ok
+test a_command_loads_the_same_objects_however_much_evidence_the_store_holds ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running tests/attention_explanations.rs (<build>/debug/deps/attention_explanations-c65a11d0be17228c)
+
+running 1 test
+test all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/authority_upgrade.rs (<build>/debug/deps/authority_upgrade-ed98ec8049a9f7be)
+
+running 7 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test reviewed_correction_derivation_is_exact_and_preserves_the_original_claims ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust ... ok
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/schema_evidence.rs (<build>/debug/deps/schema_evidence-513e65a9c974d27a)
+
+running 3 tests
+test schema_support_survives_sqlite_reopen_and_full_replay ... ok
+test native_knowledge_one_upgrades_without_rewriting_its_rejection_or_roots ... ok
+test schema_support_survives_file_reopen_and_full_replay ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/schema_evolution.rs (<build>/debug/deps/schema_evolution-d2ef40fac6fd0501)
+
+running 15 tests
+test a_transaction_without_a_version_id_encodes_byte_identically_to_before ... ok
+test a_type_defined_twice_in_one_transaction_is_refused_under_profile_two ... ok
+test an_ownerless_modify_property_is_refused_under_profile_two ... ok
+test the_modify_property_owner_reaches_the_encoding ... ok
+test a_data_document_without_the_key_reads_as_before ... ok
+test a_schema_change_mixed_with_another_kind_is_refused ... ok
+test a_version_id_already_on_the_lineage_is_refused ... ok
+test evolve_refusals_arrive_as_ontology_issues_with_the_ontologys_codes ... ok
+test a_value_type_change_is_refused_when_an_active_assertion_object_would_break ... ok
+test the_version_id_is_required_exactly_when_a_schema_change_is_present ... ok
+test requiring_a_property_held_only_through_assertions_is_refused ... ok
+test a_change_canonical_state_would_violate_is_refused_with_a_named_issue ... ok
+test each_schema_change_kind_validates_under_profile_two ... ok
+test the_transaction_document_takes_one_optional_version_key ... ok
+test profile_one_still_refuses_the_three_schema_kinds ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/schema_evolution_replay.rs (<build>/debug/deps/schema_evolution_replay-3cf574ae7f5949fe)
+
+running 5 tests
+test a_profile_mixing_the_two_rulesets_is_refused ... ok
+test a_store_keeps_the_profile_it_was_seeded_under_on_both_providers ... ok
+test a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers ... ok
+test replay_reproduces_every_root_across_schema_versions_on_both_providers ... ok
+test schema_history_answers_a_revision_and_its_schema_versions_from_one_replay_on_both_providers ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+

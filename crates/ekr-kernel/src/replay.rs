@@ -679,7 +679,9 @@ pub(crate) fn validate(
                 .map(|(_, revision)| &*revision.ontology),
         )
     };
-    let pipeline = if anchor.validation_profile.keeps_identities() {
+    let pipeline = if anchor.validation_profile.supports_schema_evidence() {
+        Pipeline::knowledge_evidence(validator, lineage(), held.at(prior.root.revision))
+    } else if anchor.validation_profile.keeps_identities() {
         Pipeline::identity_keeping(validator, lineage(), held.at(prior.root.revision))
     } else if anchor.validation_profile.admits_schema_changes() {
         Pipeline::schema_evolving(validator, lineage())

@@ -145,7 +145,7 @@ impl Check for Structural {
         tx: &GraphTransaction,
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
-        check(graph, tx, candidate, false, None)
+        check(graph, tx, candidate, false, false, None)
     }
 }
 
@@ -174,7 +174,7 @@ impl Check for SchemaStructural {
         tx: &GraphTransaction,
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
-        check(graph, tx, candidate, true, None)
+        check(graph, tx, candidate, true, false, None)
     }
 }
 
@@ -420,7 +420,12 @@ thread_local! {
 /// Under v1 only the first rule applies — a version on a transaction that changes no schema —
 /// because no transaction v1 ever retained carries a version: a v1 schema change without one is
 /// refused exactly as P1 refused it and by nothing else, so its retained rejection replays.
-fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<ValidationIssue>) {
+fn schema_shape(
+    tx: &GraphTransaction,
+    admits_schema: bool,
+    schema_evidence: bool,
+    issues: &mut Vec<ValidationIssue>,
+) {
     let changes = tx
         .operations
         .iter()
@@ -511,7 +516,8 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
             }
         }
     }
-    if admits_schema && changes > 0 && changes < tx.operations.len() {
+    let evidence_only_extras = schema_evidence && super::schema::supported_shape(tx);
+    if admits_schema && changes > 0 && changes < tx.operations.len() && !evidence_only_extras {
         issues.push(issue(
             tx,
             ValidatorName::Structural,
@@ -703,6 +709,7 @@ pub(crate) struct IdentityStructural {
     /// Every node and edge identity the lineage up to the snapshot held.
     pub(crate) held: HeldIdentities,
     pub(crate) reviewed_withdrawals: Option<BTreeSet<ekr_core::AssertionId>>,
+    pub(crate) schema_evidence: bool,
 }
 
 impl Validator for IdentityStructural {
@@ -731,6 +738,7 @@ impl Check for IdentityStructural {
             tx,
             candidate,
             true,
+            self.schema_evidence,
             self.reviewed_withdrawals.as_ref(),
         )
         .err()
@@ -826,6 +834,7 @@ fn check(
     tx: &GraphTransaction,
     candidate: &Candidate<'_>,
     admits_schema: bool,
+    schema_evidence: bool,
     reviewed_withdrawals: Option<&BTreeSet<ekr_core::AssertionId>>,
 ) -> Result<(), Vec<ValidationIssue>> {
     let mut issues = Vec::new();
@@ -963,7 +972,7 @@ fn check(
     }
 
     aliases(graph, tx, candidate, &mut issues);
-    schema_shape(tx, admits_schema, &mut issues);
+    schema_shape(tx, admits_schema, schema_evidence, &mut issues);
 
     // A transaction that attaches nothing is refused in the words it always was: replay compares
     // every retained rejection's message with what this ruleset says now.
@@ -972,7 +981,14 @@ fn check(
     } else {
         "its assertions cite"
     };
-    if cited != tx.evidence {
+    let supports_schema = schema_evidence && super::schema::supported_shape(tx);
+    if supports_schema {
+        for id in evidence.difference(&tx.evidence) {
+            issues.push(issue(tx, ValidatorName::Structural, "schema-evidence-not-cited",
+                format!("inline evidence {id} must be cited by the schema transaction's evidence manifest")));
+        }
+    }
+    if !supports_schema && cited != tx.evidence {
         issues.push(issue(
             tx,
             ValidatorName::Structural,

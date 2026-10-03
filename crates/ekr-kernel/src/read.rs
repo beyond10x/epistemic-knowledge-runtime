@@ -4,7 +4,9 @@ use crate::{
     AuthorityStateV1, BootstrapContext, Commit, CommitError, SeedDocument, SeedResultV1,
     TransactionRecord,
 };
-use ekr_core::{ContentHash, EventId, RevisionId, RevisionNumber, Timestamp, TransactionId};
+use ekr_core::{
+    ContentHash, EventId, EvidenceId, RevisionId, RevisionNumber, Timestamp, TransactionId,
+};
 use ekr_graph::{AliasIndex, CanonicalGraph, Root};
 use ekr_ontology::Ontology;
 use ekr_store::{ObjectStore, RevisionLog};
@@ -110,6 +112,9 @@ pub struct SchemaHistory {
     /// The ontology in force from each of those revisions whose ontology root differs from the
     /// revision before it: the seed's, and one more for each revision that changed the schema.
     pub schemas: BTreeMap<RevisionNumber, Ontology>,
+    /// Supporting evidence from the immutable transaction that introduced each schema version.
+    /// The seed has no schema transaction; reads never invent evidence for historical versions.
+    pub supporting_evidence: BTreeMap<RevisionNumber, BTreeSet<EvidenceId>>,
     /// The content hashes, among the chosen revision's evidence, whose bytes the same verified
     /// history holds as objects: answered from that one read, not one history read per entry.
     pub retained_evidence: BTreeSet<ContentHash>,
@@ -166,7 +171,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 },
             );
         }
-        let transactions = state
+        let transactions: BTreeMap<_, _> = state
             .transactions
             .iter()
             .filter_map(|(id, record)| {
@@ -177,6 +182,13 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             })
             .filter(|(number, _)| *number <= revision)
             .collect();
+        let mut supporting_evidence = BTreeMap::new();
+        for (number, id) in &transactions {
+            if schemas.contains_key(number) {
+                let document = state.document(&state.transactions[id].proposal)?;
+                supporting_evidence.insert(*number, document.transaction().evidence.clone());
+            }
+        }
         // The kernel requires every evidence payload of the lineage (seeded or added), so the
         // history just verified holds each one it retains, already checked against its address.
         let retained_evidence = graph
@@ -190,6 +202,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             revisions,
             transactions,
             schemas,
+            supporting_evidence,
             retained_evidence,
         })
     }

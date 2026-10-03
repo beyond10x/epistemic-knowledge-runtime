@@ -430,8 +430,10 @@ ekr upgrade preview policy.json > preview.json
 
 The generated `ekr.kernel.UpgradePreview` names the exact head and stream prefix, original and
 target rule versions, overlapping single-value claims, and pending transactions requiring
-revalidation. Preview does not publish a revision. The supported target is the knowledge ruleset
-`ekr.knowledge-deterministic/1`; changing the legacy host profile does not activate it.
+revalidation. Preview does not publish a revision. The current target is
+`ekr.knowledge-deterministic/2`, which supports evidence-backed schema transactions.
+A store already running knowledge/1 can explicitly upgrade to knowledge/2; the preview names
+its active predecessor. Changing the legacy host profile does not activate either version.
 
 Have the human reviewer inspect the preview and sign the exact `UpgradeAuthority` intent using
 their external Ed25519 signer. The intent binds the decision UUID, tenant, original seed hash,
@@ -1836,9 +1838,14 @@ A schema change adds one key, `schema_version`, after `evidence`: the id of the 
 produces, from `ekr mint schema-version` ([Evolve the schema](#evolve-the-schema)). Every other
 transaction omits it.
 
-`operations` is a non-empty list applied in order, all or nothing. `evidence` is exactly the set of
-evidence ids cited by the transaction's `!AddAssertion` operations — no more, no fewer
-(`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must be
+`operations` is a non-empty list applied all or nothing. For data transactions, `evidence` is
+exactly the set of evidence ids cited by `!AddAssertion` and attached by `!AttachEvidence` — no
+more, no fewer (`evidence-set-mismatch`) — and `[]` when neither operation cites evidence.
+Under reviewed knowledge/2 authority, a schema transaction may instead list the evidence
+supporting its declarations and carry `!AddEvidence` entries cited by that manifest. Every
+inline entry must be cited (`schema-evidence-not-cited`). Other data operations remain mixed
+and refused. Historical authority versions keep their original manifest rules.
+Every cited evidence id must be
 retained — seeded, or added by an earlier commit — or be added by an `!AddEvidence` of the same
 transaction ([Evidence after the seed](#evidence-after-the-seed)). `ekr example
 ekr.transaction-document/2` prints a complete document, and `ekr operations <Kind>` prints each
@@ -2696,11 +2703,13 @@ edge type's ends.
 
 Three rules decide whether a schema change is applied:
 
-- **The store runs profile v2.** A store keeps the profile it was seeded under, from the host
+- **The store runs a schema-capable profile.** A store keeps the profile it was seeded under, from the host
   document's `authority.validation_profile`. The worked example's store runs profile v1, so its
-  schema stays the seed's; nothing moves a store from v1 to v2.
+  schema stays the seed's until an explicit reviewed `ekr upgrade`. The original host anchor
+  and historical validation rules remain unchanged.
 - **A schema change travels alone.** A transaction that holds a schema change holds nothing but
-  schema changes (`mixed-schema-transaction`). Commit the change, then write data against it.
+  schema changes (`mixed-schema-transaction`). Reviewed knowledge/2 also permits cited
+  `AddEvidence` operations. Commit the change, then write facts against it.
 - **It names the version it produces.** The transaction carries `schema_version`, a fresh id from
   `ekr mint schema-version` (`schema-version-missing` without one, `schema-version-reused` for an
   id the lineage already has).
@@ -3099,6 +3108,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `invalid-supersession` | validation issue | 0 | a [supersession rule](#supersession) fails, most often a replacement `valid_time.from` that is not exactly `effective_from` | set the replacement's `from` to `effective_from` |
 | `supersession-cycle` | validation issue | 0 | supersessions would lead back to the assertion they started from | supersede toward a new assertion |
 | `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite and the `AttachEvidence` operations attach | list exactly those ids |
+| `schema-evidence-not-cited` | validation issue | 0 | knowledge/2 schema transaction adds evidence that its supporting manifest does not cite | include the added evidence id in `transaction.evidence` |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |

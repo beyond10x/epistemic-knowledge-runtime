@@ -1,0 +1,1 @@
+{"format":"ekr.p1-validation-profile/1","ruleset":"ekr.knowledge-deterministic/1","checks":["Structural","Reference","Type","Cardinality","OntologyConstraint","Provenance","Authorization"],"validator":"00000000-0000-4000-8000-000000000004","proposer_separation":"distinct-authenticated-actor/1","provenance":"retained-admissible-evidence/1","application":"ekr.knowledge-apply/1"}

@@ -503,7 +503,10 @@ fn apply_to_graph(
     // and the ontology root is what carries the version (wave p5-01, decision 4). Validation has
     // already evolved the same changes over the same ontology, so a refusal here is unreachable.
     if let Some(version) = tx.schema_version {
-        let changes = crate::validate::schema::changes(tx)
+        // Knowledge/2 admits inline evidence alongside declarations. Earlier profiles refuse
+        // it during replay validation, before this function receives a sealed transaction.
+        // Filtering those already applied evidence additions leaves historical changes identical.
+        let changes = crate::validate::schema::changes(tx, true)
             .ok_or_else(|| StoreError::Document("admitted-mixed-schema-transaction".into()))?;
         graph.ontology = graph
             .ontology
