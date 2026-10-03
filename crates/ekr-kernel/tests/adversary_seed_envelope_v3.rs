@@ -266,11 +266,12 @@ fn a_seed_without_evidence_names_an_empty_list_replays_and_migrates_on_both_prov
         let destination_directory = tempfile::tempdir().unwrap();
         let destination = open(destination_directory.path(), file, context(), anchor());
         let report = source.migrate_into(&destination).unwrap();
-        // The same input, context, authority and time: the same /3 envelope a fresh seed wrote.
-        assert_eq!(
+        // The same input, context, authority and time, with a fresh seed-bound copy claim.
+        assert_ne!(
             report.destination_seed_hash, result.seed_hash,
             "file={file}"
         );
+        assert_claimed_envelope(&destination, &reopened, &report);
     }
 }
 
@@ -310,10 +311,11 @@ fn one_payload_cited_by_two_evidence_ids_is_named_and_retained_once_and_migrates
         let destination_directory = tempfile::tempdir().unwrap();
         let destination = open(destination_directory.path(), file, context(), anchor());
         let report = source.migrate_into(&destination).unwrap();
-        assert_eq!(
+        assert_ne!(
             report.destination_seed_hash, result.seed_hash,
             "file={file}"
         );
+        assert_claimed_envelope(&destination, &reopened, &report);
         assert_eq!(
             destination.read(None).unwrap().seed_input,
             reopened.read(None).unwrap().seed_input,
@@ -323,6 +325,31 @@ fn one_payload_cited_by_two_evidence_ids_is_named_and_retained_once_and_migrates
 }
 
 // --- payload bytes retained once, after a commit and after a migration ------------------------
+
+fn assert_claimed_envelope(
+    destination: &Runtime,
+    ordinary: &Runtime,
+    report: &ekr_kernel::StoreMigrationV1,
+) {
+    let mut copied = envelope_json(destination);
+    assert_eq!(copied["format"], "ekr-seed-envelope/4");
+    copied["migration"]
+        .as_str()
+        .unwrap()
+        .parse::<ekr_core::EventId>()
+        .unwrap();
+    copied.as_object_mut().unwrap().remove("migration");
+    copied["format"] = serde_json::json!("ekr-seed-envelope/3");
+    assert_eq!(copied, envelope_json(ordinary));
+    let after = destination.read(None).unwrap();
+    let before = ordinary.read(None).unwrap();
+    assert_eq!(after.seed.seed_hash, report.destination_seed_hash);
+    assert_eq!(after.seed_input, before.seed_input);
+    assert_eq!(after.graph, before.graph);
+    let mut expected = before.root;
+    expected.transaction = report.destination_seed_hash;
+    assert_eq!(after.root, expected);
+}
 
 fn transaction(transaction: u64, node: u64, name: &str) -> String {
     let id = |n: u64| format!("00000000-0000-4000-8000-{n:012x}");

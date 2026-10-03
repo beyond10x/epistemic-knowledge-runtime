@@ -53,8 +53,8 @@ environment variable; the flag wins, and an empty variable counts as unset.
 | flag | variable | value |
 |---|---|---|
 | `--host` | `EKR_HOST` | path to the trusted host document, an `ekr.cli-host/1` JSON file (below) |
-| `--store` | `EKR_STORE` | where the data lives: a directory for `file`, a database file for `sqlite` |
-| `--backend` | `EKR_BACKEND` | `file` or `sqlite`, lowercase |
+| `--store` | `EKR_STORE` | a directory for `file`, database file for `sqlite`, configuration file for `postgres` |
+| `--backend` | `EKR_BACKEND` | `file`, `sqlite` or `postgres`, lowercase |
 | `--full-replay` | `EKR_FULL_REPLAY` | optional: replay from the seed (below); the variable is `1` or `true` for on, `0` or `false` for off |
 
 The store need not exist before `ekr seed`: the file provider creates the directory and any missing
@@ -173,7 +173,8 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
-| `ekr migrate` | reads, and writes a new store | `--to <path>`: where the migrated store is written, holding no store yet | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
+| `ekr migrate` | reads, and writes a new store | `--to <path>`, optional `--to-backend <provider>`: empty destination; PostgreSQL uses an application configuration file | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
+| `ekr postgres-schema` | provisions provider tables | `--config <file>`: schema-management configuration | `ekr.postgres-schema/1` with `ready: true`; no knowledge is seeded |
 
 Every verb has `--help`.
 
@@ -1353,18 +1354,20 @@ content hash instead and retains its bytes once; `ekr migrate` gives an existing
 same shape in a new store.
 
 ```console
-ekr migrate --to library-v3                       # the --store, --backend and --host of every verb
+ekr migrate --to library-copy                       # the --store, --backend and --host of every verb
 ```
 
 It only reads `--store`, so a store this process may not write migrates too, opened read-only
 ([Configuration](#configuration)); `--to` must be writable.
 
-`--to` is a directory for `file` and a database file for `sqlite`, of the same backend as
-`--store`, and must hold no store. The migration reads the whole store and replays it from its
+`--to` is a directory for `file`, a database file for `sqlite`, or an application configuration
+file for `postgres`. The destination defaults to the source backend; `--to-backend` selects another.
+The destination must hold no store. SQLite sources are always captured as a consistent in-memory
+image. The migration reads the whole captured store and replays it from its
 seed first, so a store that does not verify is refused and nothing is written. It then seeds the
-new store with the same seed — the same input, identities and time, the envelope naming its
-payloads — and publishes every later proposal, validation, rejection, commit and stale decision
-again with its original identity, actors and times. A proposal record is copied byte for byte; a
+new store with the same seed input, identities and time, its `/4` envelope naming the
+payloads and binding a fresh migration claim, and publishes every later proposal, validation,
+rejection, commit and stale decision again with its original identity, actors and times. A proposal record is copied byte for byte; a
 record that names the seed envelope or an earlier root is derived again for the new lineage, so
 its content hash changes. Every other object is copied with its class and time, and an object an
 old store holds inline in its log is written as a blob. The new store is replayed in full and
@@ -1395,11 +1398,19 @@ for a decision a command elected and never published — run that command again 
 
 A migration that stops after it began writing — `migrate-verification-disagrees`, a new store
 that does not replay to the old one's state, a full disk, an interrupted process — leaves the store
-at `--to` as it is, and that store is not the migrated one: the migration marks it as begun before
-its first write and as finished after its last, the report included, and every verb refuses a
+at `--to` as it is, and that store is not the migrated one: the migration marks it as begun atomically
+in its copied seed and writes the matching completion receipt after its last write, the report included, and every verb refuses a
 store marked begun and not finished as `migrate-incomplete` (exit 1). A second `ekr migrate` to
 the same path refuses it as `migrate-destination-not-empty`: remove it, then migrate again.
 `ekr migrate` is not served in `ekr session`.
+
+### `ekr postgres-schema`
+
+`ekr postgres-schema --config owner.json` provisions provider tables through a separately supplied
+schema-management connection, using verified TLS. It prints `ekr.postgres-schema/1` with
+`ready: true` on success and seeds no knowledge. It needs no `--host`, `--store` or `--backend`,
+and is refused inside a session. See [Hosted PostgreSQL](#hosted-postgresql) for configuration,
+role separation, pool bounds and initial copying.
 
 ## The workflow
 
@@ -2931,3 +2942,93 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `missing-argument` | validation issue | 0 | `!Invoke` omits a declared argument | pass every declared argument |
 | `undeclared-argument` | validation issue | 0 | `!Invoke` passes an argument the operation does not declare | remove it |
 | `unsupported-constraint` | validation issue | 0 | the affected type has property `constraints`, or the operation has `preconditions` or `emits` | keep them `[]` in the seed. Under profile v2 a `ModifyProperty` can set a property's `constraints` to `[]` while its type has no instances (`constraint-changed` once it has any); `preconditions` and `emits` belong to a type's operations, which no operation changes after the type is declared |
+
+## Hosted PostgreSQL
+
+`--backend postgres --store postgres.json` uses an `ekr.postgres/1` configuration:
+
+```json
+{
+  "format": "ekr.postgres/1",
+  "connection_file": "secrets/application.dsn",
+  "ca_file": "secrets/database-ca.pem",
+  "schema": "ekr_owner",
+  "database_connections": 32,
+  "replicas": 2,
+  "reserved_connections": 4,
+  "pool": { "max_connections": 4, "max_waiters": 32 }
+}
+```
+
+The connection file contains a PostgreSQL connection string, including its password when used.
+Relative file references resolve beside the configuration file. Mount secret files with access
+limited to the service account. The CLI and SDK pass only configuration paths, never connection
+strings or passwords. Configuration and connection files are capped at 64 KiB, CA files at 1 MiB;
+invalid inputs produce sanitized `postgres-configuration` diagnostics. The provider verifies the
+server certificate and hostname against the supplied PEM trust roots; no plaintext or insecure
+verification option exists.
+
+Create the database schema and roles separately. The schema-management role owns the schema and
+provider tables; the application role has schema USAGE and table DML permissions, no object
+ownership, privileged role attributes or role memberships, and a finite CONNECTION LIMIT no larger
+than `replicas * pool.max_connections`. Grant default table permissions before provisioning tables.
+`replicas * pool.max_connections + reserved_connections` must fit `database_connections`.
+The provider checks CREATE authority on the configured current schema. Operators must also revoke
+unwanted CREATE grants on other schemas, including legacy PUBLIC grants on `public`; admission
+does not audit every schema in the database.
+
+Run `ekr postgres-schema --config owner.json` with a separate configuration referencing the
+schema-management connection file. It applies the eventlog provider schema and creates no knowledge.
+Normal application opens validate the existing schema and application authority; they never run DDL.
+The application configuration references only application credentials.
+
+Pool defaults are four connections and 32 waiters. Optional millisecond fields inside `pool` are
+`acquisition_timeout_ms` (2000), `connect_timeout_ms` (2000), `statement_timeout_ms` (5000),
+`lock_timeout_ms` (2000), `transaction_timeout_ms` (10000), and `shutdown_timeout_ms` (5000).
+Each duration is positive and at most one day. Read-only commands, viewer and MCP handles reject
+store mutations, including checkpoint writes. A session retains ordinary proposal/validation/commit
+semantics and opens an application writer. Hosted readers follow database revisions, not configuration
+file inode changes; restart them to adopt changed configuration. Pool shutdown is bounded on normal
+runtime drop.
+
+Initialize an empty hosted store from one captured SQLite image:
+
+```console
+ekr --host host.json --backend sqlite --store source.db migrate --to-backend postgres --to postgres.json
+```
+
+SQLite capture is forced even when the source is writable: later source commits cannot mix into the
+copy. It requires memory for the SQLite image and replay state. Both stores use the same host anchor
+and tenant. The destination must contain no events or objects. Its copied seed binds a fresh
+migration claim atomically; competing initializers cannot take over that copy. An interrupted copy is refused as
+`migrate-incomplete` after reopen and must be retained for diagnosis or replaced with a separately
+provisioned empty destination; there is no automatic deletion or resume. The completion receipt is
+written only after full replay and verification of the copied history and retained report.
+The destination emptiness check uses a native consistent provider capture, never a temporarily
+lagging change feed. It may allocate provider tenant-identity metadata; it publishes no domain event.
+
+Ordinary seeds still use `ekr-seed-envelope/3`. Every new migration uses
+`ekr-seed-envelope/4` with a fresh `migration` identity. Its Canonical
+`ekr.migration-finished/2` receipt binds both that identity and the destination seed hash.
+Evidence or carried objects containing old fixed marker bytes confer no completion authority on
+this format. Copying a completed `/4` source creates another fresh claim. Older EKR versions
+reject `/4`; use this release or later to read migrated stores, and retain the original for rollback.
+Migrated histories use `ekr.replay-checkpoint-binding/2`, including checkpoints written after later
+commits. This prevents older fast-head readers from bypassing envelope admission. Current readers
+also take the checked replay/restore path for a migrated head, verifying the completion receipt;
+the constant-work legacy fast-head shortcut remains available for ordinary `/3` seeds. A migrated
+cold head therefore reads more retained material, though its replay checkpoint can still be used.
+Legacy `/2` and `/3` envelopes retain fixed-marker compatibility; referenced evidence is never
+interpreted as legacy control, even if its retention was raised to Canonical.
+
+The `ekr.store-migration/1` report maps every retained occurrence's source and destination record
+hash and identifies carried objects. Logical knowledge, evidence, ontology and authority roots,
+revision identities and retained evidence bytes are preserved. The fresh migration claim changes
+the seed hash and derived physical record/root hashes; the report names those changes. PostgreSQL as a migration source is
+refused (`migrate-source-not-supported`); this command provides initial snapshot copying, not atomic
+incremental publication into a served store. Low-level PostgreSQL inventory also refuses
+`postgres-inventory-requires-capture`; its change feed is not a complete source snapshot.
+
+SDK callers use the existing `StoreConfig { host, store, backend }` construction, setting
+`backend: Backend::Postgres` and `store` to the configuration file. Existing File/SQLite
+configuration remains unchanged.

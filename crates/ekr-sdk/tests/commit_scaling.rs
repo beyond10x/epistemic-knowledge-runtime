@@ -189,6 +189,7 @@ fn store(directory: &Path, backend: Backend) -> StoreConfig {
         store: match backend {
             Backend::File => directory.join("store"),
             Backend::Sqlite => directory.join("state.db"),
+            Backend::Postgres => panic!("local fixture requires a filesystem backend"),
         },
         backend,
     }

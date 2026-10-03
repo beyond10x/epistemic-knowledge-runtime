@@ -52,13 +52,14 @@
 pub mod eventlog;
 pub mod log;
 pub mod objects;
+pub mod postgres;
 pub mod snapshot;
 mod verified;
 
 pub use eventlog::remove_read_only_copies;
 pub use eventlog::{
-    EventlogStore, FileStore, InventoriedObject, Inventory, PublishedEvent, SqliteStore,
-    StoreInventory,
+    EventlogStore, FileStore, InventoriedObject, Inventory, PostgresStore, PublishedEvent,
+    SqliteStore, StoreInventory,
 };
 pub use eventlog::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,

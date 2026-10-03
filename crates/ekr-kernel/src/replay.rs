@@ -72,6 +72,8 @@ impl TransactionRecord {
 #[derive(Clone)]
 pub(crate) struct ReplayState {
     pub(crate) seed: SeedResultV1,
+    /// The migration claim read from the admitted seed, including after checkpoint restore.
+    pub(crate) migration_claim: Option<EventId>,
     pub(crate) revisions: BTreeMap<RevisionNumber, Revision>,
     pub(crate) transactions: Arc<BTreeMap<TransactionId, Arc<TransactionRecord>>>,
     /// The public owned-record snapshot, materialized only when a reader asks for it and shared
@@ -1021,6 +1023,9 @@ impl KernelAuthority {
                 revision_ids: BTreeSet::from([seed_result.revision_id]),
                 event_ids: BTreeSet::from([first.event.event_id]),
                 issue_ids: BTreeSet::new(),
+                migration_claim: self
+                    .seed_envelope(history, seed_result.seed_hash)?
+                    .migration,
                 seed: seed_result,
                 revisions: BTreeMap::from([(RevisionNumber::SEED, Revision::replayed(seed))]),
                 transactions: Arc::default(),

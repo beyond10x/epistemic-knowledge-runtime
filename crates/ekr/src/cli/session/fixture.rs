@@ -32,6 +32,7 @@ pub(in crate::cli) fn seeded(directory: &Path, backend: Backend, name: &str) -> 
     let backend_name = match backend {
         Backend::File => "file",
         Backend::Sqlite => "sqlite",
+        Backend::Postgres => panic!("local fixture requires a filesystem backend"),
     };
     run(&[
         "ekr",
@@ -79,6 +80,7 @@ pub(in crate::cli) fn seeded_with_a_commit(
     let backend_name = match backend {
         Backend::File => "file",
         Backend::Sqlite => "sqlite",
+        Backend::Postgres => panic!("local fixture requires a filesystem backend"),
     };
     let host = directory.join("host.json");
     for verb in [
