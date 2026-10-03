@@ -1,0 +1,46 @@
+   Compiling serde_yaml_ng v0.10.0 (<unit>/vendor/serde_yaml_ng)
+   Compiling ekr-core v0.0.27 (<unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<unit>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<unit>/crates/ekr)
+   Compiling trybuild v1.0.121
+    Finished `test` profile [unoptimized] target(s) in 46.49s
+     Running tests/public_surface.rs (<build>/target/debug/deps/public_surface-7599ea5c8a411531)
+
+running 12 tests
+test adversary_tuple_and_array_elements_are_actual_type_uses ... ok
+test exported_type_declarations_are_not_invisible ... ok
+test rust_source::tests::comments_and_all_string_forms_are_not_code_identifiers ... ok
+test strings_and_comments_do_not_exercise_public_functions ... ok
+test adversary_generic_trait_implementation_is_an_actual_type_use ... ok
+test actual_type_positions_count_and_partial_or_declaration_names_do_not ... ok
+test adversary_opaque_literals_keep_comment_and_identifier_boundaries ... ok
+test rereview_generic_impl_recognition_balances_nested_types_without_comparison_mentions ... ok
+test declarations_ignore_comments_literals_and_support_multiline_visibility ... ok
+test rust_source::tests::identifiers_do_not_join_across_comments_or_split_at_unicode ... ok
+test rust_source::tests::chars_escapes_and_lifetimes_keep_distinct_boundaries ... ok
+test no_public_item_in_any_crate_is_untested ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.51s
+
+     Running tests/revision_events.rs (<build>/target/debug/deps/revision_events-3e3890e95ee9461f)
+
+running 10 tests
+test every_variant_carries_its_declared_index_and_domain_name ... ok
+test an_event_encodes_as_a_function_of_its_value ... ok
+test no_two_variants_share_an_encoding ... ok
+test answer_metadata_is_generated_checked_and_version_four_only ... ok
+test proposal_payload_distinguishes_absent_and_present_operations_hashes ... ok
+test the_current_envelope_binds_format_occurrence_record_and_payload ... ok
+test the_variant_marker_and_not_the_payload_is_what_separates_two_events ... ok
+test transition_metadata_is_a_lossless_bridge_to_the_generated_contract ... ok
+test transition_requires_version_three_and_historical_payloads_keep_version_two ... ok
+test the_declaration_order_of_the_variants_equals_their_numbering ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

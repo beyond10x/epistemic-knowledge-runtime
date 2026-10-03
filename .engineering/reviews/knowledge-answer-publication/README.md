@@ -19,3 +19,5 @@ Existing ignored executions:
 - test measure_two_history_reads_on_one_handle ... ignored, measurement; prints timings
 
 Raw logs remain outside disposable build output; only owned paths are sanitized here. These are root-local implementation checks, not independent review, named C conformance or task check. CLI, Runtime/session/SDK answer writes and history, explanation integration, native crash coverage and C conformance remain. D–F, released ESS adoption, both demonstrations and the final full gate still gate PR64 readiness.
+
+The integration public-surface guard then identified three new exports without direct test references. A test-only follow-up checks the version-four constant, the checked answer-ID getter and the generated-backed slot identity round trip/refusal. surface-followup.json records that source change over the initial checkpoint; its 12 public-surface and 10 revision-event tests pass. The initial tested-source.json remains the initial checkpoint manifest.
