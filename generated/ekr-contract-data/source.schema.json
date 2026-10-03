@@ -4031,6 +4031,25 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.kernel.EvidenceAttachmentProjection"
     },
+    "ekr.kernel.ExplainedAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/ekr.kernel.HumanAnswerRecord"
+        },
+        "record_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        }
+      },
+      "required": [
+        "record_hash",
+        "record"
+      ],
+      "title": "ExplainedAnswer",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.kernel.ExplainedAnswer"
+    },
     "ekr.kernel.ExplainedAttachment": {
       "additionalProperties": false,
       "properties": {
@@ -4311,6 +4330,24 @@
             "value"
           ],
           "title": "Evidence",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "HumanAnswer",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.ExplainedAnswer"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "HumanAnswer",
           "type": "object"
         },
         {
@@ -11075,8 +11112,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:648d4a4fc1a1bc4fb6529cc822f29695efc9b811ed7914cfe52ede1e2d906b76",
-    "source_digest": "f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b",
+    "contract_digest": "slice-sha256/2:911dd946d4fce70360a69234f9ab522499906e14280300b8b7997fb2d8d065da",
+    "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
     "specification_version": "v1",
     "system": "ekr"
   }

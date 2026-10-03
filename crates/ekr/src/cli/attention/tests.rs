@@ -234,11 +234,33 @@ fn sdk_answer_and_history_use_real_session_signature_validation_and_replay() {
             .with_review_authority(binding)
             .unwrap();
         reopened.set_full_replay(true);
+        let head = reopened.head().unwrap();
+        let html = String::from_utf8(crate::cli::inbox::render(&reopened).unwrap()).unwrap();
+        assert!(html.contains("No unresolved knowledge questions."));
+        assert!(html.contains("Answer history"));
+        assert!(html.contains("fixture-human"));
+        assert!(html.contains(&format!("answer-{}", receipt.answer_id.0)));
+        assert!(html.contains("Human statement evidence"));
+        assert!(!html.contains("<form"));
+        assert_eq!(reopened.head().unwrap(), head);
+        if let Ok(directory) = std::env::var("EKR_INBOX_CAPTURE_DIR") {
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join(format!("answer-{backend:?}.html")),
+                &html,
+            )
+            .unwrap();
+        }
         let mut transport = InProcess::new(store, reopened, &now);
         let mut knowledge = Knowledge::new(&mut transport);
         assert_eq!(knowledge.answer_history(None).unwrap(), history);
         assert_eq!(knowledge.answer_attention(&input).unwrap(), receipt);
         assert!(knowledge.attention().unwrap().is_empty());
+        let explained = ekr_sdk::read::Reader::new(&mut transport)
+            .explain_documents(question.claims[0].0.parse().unwrap())
+            .unwrap();
+        assert!(explained.links.iter().any(|link| matches!(link, ekr_sdk::read::ExplanationLink::HumanAnswer(answer) if *answer.record == history[0])));
+        assert!(explained.links.iter().any(|link| matches!(link, ekr_sdk::read::ExplanationLink::Evidence(evidence) if evidence.payload.as_deref() == Some(&input.statement))));
         transport.close();
     }
 }

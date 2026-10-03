@@ -1,0 +1,15 @@
+{
+  "verified_artifacts": 36,
+  "source": {
+    "system": "ekr",
+    "specification_version": "v1",
+    "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c"
+  },
+  "generator": {
+    "version": "0.51.0",
+    "source_revision": "126c2b3905d0f4279086b9d3030096147955dfec",
+    "binary_sha256": "9481253cd158080118c9fc532dd0a70d1907d77d345bdb4102f7acdca2a88ac6",
+    "release": null
+  }
+}

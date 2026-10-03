@@ -1,0 +1,3 @@
+702 capabilities: 652 generated, 39 obligation(s), 11 refused
+32 artifact(s), written to $BUILD/explanation-contracts
+445 model type(s), written to $BUILD/explanation-data; runtime obligations in types-report.json

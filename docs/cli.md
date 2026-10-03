@@ -295,6 +295,7 @@ receipt, an evidence payload — are named by their hash, not printed:
 | `Commit` | that transaction's commit: `transaction_id`, `revision_id`, `event_id`, `committer`, `committed_at`, `result` (the root it produced, `result.revision` its number), `result_hash`, `record_hash` (the receipt's hash), `proposal_record_hash` and `validation_record_hash` | with `Proposal` |
 | `Lifecycle` | a later committed retraction or supersession of it: `assertion_id`, `lifecycle`, and `commit`, that change's commit in the shape of a `Commit` link | once per such change |
 | `Attachment` | evidence attached to it after it was added (`!AttachEvidence`): `assertion_id`, `evidence_id`, `revision` (the revision that attached it), and `commit`, the attaching commit in the shape of a `Commit` link | after its `Lifecycle` links, once per attachment the revision read holds, in evidence id order; an explanation at a revision before the attachment does not list it |
+| `HumanAnswer` | `record_hash` and the full generated human answer `record`, including signed review references, corrections, replacements and receipt | once per reviewed decision concerning the assertion, its replacement or its withdrawal as a competing claim; also for uncertainty and a chosen claim whose lifecycle did not change |
 | `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain, attached to one, or listed in the `evidence` of a transaction that added or changed one |
 
 With `--documents`, each link also carries the whole record it names, read from the same revision:
@@ -302,6 +303,13 @@ a `Proposal` link the proposal record as `record` (its `document_bytes` one base
 `Commit` link and a `Lifecycle` or `Attachment` link's `commit` the commit receipt as `receipt`, and an `Evidence`
 link `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are
 UTF-8). Without it the answer's size does not follow the size of the transactions on the chain.
+
+A `HumanAnswer` link always includes its reviewed record. Proof, policy and derived transaction
+remain addressed by hash; `--documents` adds the human statement's evidence bytes. Temporal
+corrections follow the explicit original/replacement pair in both directions, visiting each claim
+once and retaining its original interval. Explanations read the authority rules and decisions in
+force at their captured revision; later answers do not appear in earlier captures. The SDK decodes
+the generated human-answer link, and older clients may skip this unknown kind.
 
 Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry:
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
@@ -506,7 +514,9 @@ references, correction/replacement records and validation/result addresses. It r
 after a question disappears from the inbox. Both operations work through sessions. The typed SDK
 provides `Knowledge::answer_attention(&EkrKernelAttentionAnswerApplication)` and
 `Knowledge::answer_history(Option<&EkrKernelDisputeId>)`. Read-only sessions refuse answer writes.
-The viewer remains read-only; schema proposal decisions remain under development.
+The read-only viewer's inbox includes answer history with the reviewer, statement evidence,
+corrections, effective times and retained decision details. Settled questions disappear from the
+open inbox while their answers remain inspectable. Schema proposal decisions remain under development.
 
 ### `ekr incubate`
 

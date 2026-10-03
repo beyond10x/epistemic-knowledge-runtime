@@ -30,6 +30,8 @@ use ekr_graph::{
 use ekr_store::{evidence_root, knowledge_root, GraphDocument};
 use serde::Serialize;
 
+mod reviewed;
+
 /// `ekr.kernel.SnapshotResult`: the complete graph and root at one captured revision.
 ///
 /// `valid_at` and `matching_assertions` are both absent without a selector. With one they carry
@@ -166,6 +168,8 @@ pub enum ExplanationLink {
     Lifecycle(ExplainedLifecycle),
     /// Evidence attached to it after it was added, through the captured revision.
     Attachment(ExplainedAttachment),
+    /// An exact signed human correction and its immutable retained record address.
+    HumanAnswer(Box<ekr_core::contract_data::EkrKernelExplainedAnswer>),
     /// Supporting evidence whose retained payload was verified at its content address.
     Evidence(Evidence),
 }
@@ -314,7 +318,8 @@ impl VerifiedRead {
 
     /// `ekr.kernel.Explain` over this capture.
     ///
-    /// Starts with the requested assertion, then every replacement a supersession selects, in
+    /// Starts with the requested assertion, then related supersessions and reviewed temporal
+    /// replacements (including their original assertions), in
     /// stable id order, each once. Per assertion: the assertion, its origin (Seed, or Proposal,
     /// Validation and Commit), then its lifecycle changes through the captured revision in
     /// revision order, then the evidence attached to it through the captured revision, in
@@ -323,6 +328,10 @@ impl VerifiedRead {
     /// the complete evidence sets of the included ordinary origin and lifecycle transactions, each
     /// payload verified at its content address. HumanStatement
     /// evidence terminates; any other source refuses rather than fabricating a further step.
+    ///
+    /// Reviewed decisions appear as generated HumanAnswer links with their retained statement
+    /// evidence, including uncertainty and a chosen claim whose own lifecycle stays active.
+    /// Ordinary validations use the authority profile in force at their original basis.
     ///
     /// The chain is looked up, not found by reading every committed document. Replay records in
     /// each assertion of the verified graph the instant of the commit that added it (its
@@ -362,7 +371,9 @@ impl VerifiedRead {
         // origin of whatever that revision added ambiguous, decided before any document is read.
         let mut index: BTreeMap<RevisionNumber, Committed<'_>> = BTreeMap::new();
         for c in self.transactions.values().filter_map(indexed) {
-            if c.revision <= self.root.revision && index.insert(c.revision, c).is_some() {
+            if c.revision <= self.root.revision
+                && (self.answers.contains_key(&c.revision) || index.insert(c.revision, c).is_some())
+            {
                 return unverified("origin-ambiguous");
             }
         }
@@ -378,6 +389,7 @@ impl VerifiedRead {
         let mut links = Vec::new();
         let mut support: BTreeSet<EvidenceId> = BTreeSet::new();
         let mut visited = BTreeSet::new();
+        let mut linked_answers = BTreeSet::new();
         let mut pending = BTreeSet::from([requested]);
         while let Some(id) = pending.pop_first() {
             if !visited.insert(id) {
@@ -420,9 +432,20 @@ impl VerifiedRead {
                 }
             }
             let seeded = self.seed_input.graph.assertions.contains_key(&id);
-            match (seeded, origins.as_slice()) {
-                (true, []) => links.push(ExplanationLink::Seed(self.explained_seed()?)),
-                (false, [(origin, committed)]) => {
+            let mut reviewed_origins = Vec::new();
+            for revision in at_instant.iter().filter(|n| self.answers.contains_key(n)) {
+                let (_, committed) = self.explained_answer(*revision)?;
+                if committed
+                    .operations
+                    .iter()
+                    .any(|op| matches!(op, GraphOperation::AddAssertion(a) if a.id == id))
+                {
+                    reviewed_origins.push(*revision);
+                }
+            }
+            match (seeded, origins.as_slice(), reviewed_origins.as_slice()) {
+                (true, [], []) => links.push(ExplanationLink::Seed(self.explained_seed()?)),
+                (false, [(origin, committed)], []) => {
                     let (validation, record_hash) = self.verify(origin)?;
                     let proposal = &origin.record.proposal;
                     links.push(ExplanationLink::Proposal(ExplainedProposal {
@@ -439,16 +462,18 @@ impl VerifiedRead {
                     links.push(ExplanationLink::Commit(origin.explained(record_hash)));
                     support.extend(committed.evidence.iter().copied());
                 }
-                (false, []) => return unverified("origin-missing"),
+                (false, [], [_]) => {} // The exact reviewed origin is linked below.
+                (false, [], []) => return unverified("origin-missing"),
                 _ => return unverified("origin-ambiguous"),
             }
 
             let mut current = AssertionLifecycle::Active;
-            let changed = match &assertion.lifecycle {
+            let changed_revision = match &assertion.lifecycle {
                 AssertionLifecycle::Active => None,
                 AssertionLifecycle::Retracted { at_revision, .. }
-                | AssertionLifecycle::Superseded { at_revision, .. } => index.get(at_revision),
+                | AssertionLifecycle::Superseded { at_revision, .. } => Some(*at_revision),
             };
+            let changed = changed_revision.and_then(|revision| index.get(&revision));
             if let Some(change) = changed {
                 let committed = transaction(change)?;
                 for op in &committed.operations {
@@ -478,8 +503,59 @@ impl VerifiedRead {
                     support.extend(committed.evidence.iter().copied());
                     current = lifecycle;
                 }
+            } else if let Some(revision) =
+                changed_revision.filter(|revision| self.answers.contains_key(revision))
+            {
+                let (_, committed) = self.explained_answer(revision)?;
+                for operation in &committed.operations {
+                    if let GraphOperation::RetractAssertion(change) = operation {
+                        if change.assertion == id {
+                            current = AssertionLifecycle::Retracted {
+                                at_revision: revision,
+                                reason: change.reason.clone(),
+                            };
+                        }
+                    }
+                }
             }
             require(assertion.lifecycle == current, "lifecycle-disagrees")?;
+
+            for (revision, answer) in &self.answers {
+                let identity = id.to_string();
+                let relevant = changed_revision == Some(*revision)
+                    || answer
+                        .corrections
+                        .iter()
+                        .any(|c| c.assertion_id.0 == identity)
+                    || answer
+                        .replacements
+                        .iter()
+                        .any(|r| r.previous.0 == identity || r.replacement.0 == identity);
+                if !relevant {
+                    continue;
+                }
+                let (explained, committed) = self.explained_answer(*revision)?;
+                for replacement in &answer.replacements {
+                    if replacement.previous.0 == identity || replacement.replacement.0 == identity {
+                        for member in [&replacement.previous.0, &replacement.replacement.0] {
+                            pending.insert(member.parse().map_err(|_| {
+                                ProjectionError::Unverified {
+                                    code: "answer-replacement-invalid".into(),
+                                }
+                            })?);
+                        }
+                    }
+                }
+                support.extend(committed.evidence.iter().copied());
+                support.insert(answer.statement_evidence.0.parse().map_err(|_| {
+                    ProjectionError::Unverified {
+                        code: "answer-evidence-invalid".into(),
+                    }
+                })?);
+                if linked_answers.insert(*revision) {
+                    links.push(ExplanationLink::HumanAnswer(Box::new(explained)));
+                }
+            }
 
             // Each attachment the captured graph holds for this assertion, by the revision that
             // made it: that commit's document must attach exactly this evidence to it. Only the
@@ -535,8 +611,9 @@ impl VerifiedRead {
     /// Binds every capture field a projection reads to retained bytes, before either reads it.
     ///
     /// The root is the highest revision coordinate, and its retained record (seed result or
-    /// commit receipt) names exactly that root. The graph is at that revision, and its
-    /// knowledge, evidence and ontology roots and the authority's agent root are the root's.
+    /// commit receipt, authority transition or answer) names exactly that root. The graph is at
+    /// that revision, and its knowledge, evidence and ontology roots and the active authority's
+    /// agent root are the root's. The original authority stays bound to the seed envelope.
     /// The retained seed envelope hashes to `seed.seed_hash` and holds exactly `seed_input`,
     /// `context` and `authority`; the graph root is that seed input's graph root; the retained
     /// seed result is `seed`.
@@ -557,6 +634,7 @@ impl VerifiedRead {
             record
                 .and_then(|bytes| CommitReceiptV1::from_bytes(bytes).ok())
                 .map(|receipt| (receipt.result, receipt.revision_id))
+                .or_else(|| record.and_then(reviewed::root))
         };
         require(
             recorded == Some((self.root, coordinate.revision_id)),
@@ -579,7 +657,7 @@ impl VerifiedRead {
             "ontology-root-disagrees",
         )?;
         require(
-            ContentHash::of(&self.authority) == self.root.agent_root,
+            ContentHash::of(self.authority_at(self.root.revision)) == self.root.agent_root,
             "authority-root-disagrees",
         )?;
         let envelope = self
@@ -635,9 +713,11 @@ impl VerifiedRead {
             validation.as_ref() == Some(&receipt.validation),
             "validation-record-disagrees",
         )?;
+        let profile = &self
+            .authority_at(receipt.validation.basis.previous_root.revision)
+            .validation_profile;
         require(
-            ContentHash::of(&self.authority.validation_profile)
-                == receipt.validation.basis.validation_profile_hash,
+            ContentHash::of(profile) == receipt.validation.basis.validation_profile_hash,
             "validation-profile-disagrees",
         )?;
         let Some(coordinate) = self.revisions.get(&c.revision) else {
@@ -655,7 +735,7 @@ impl VerifiedRead {
         Ok((
             ExplainedValidation {
                 receipt: receipt.validation.clone(),
-                validation_profile: self.authority.validation_profile.clone(),
+                validation_profile: profile.clone(),
                 record_hash: receipt.validation_record_hash,
             },
             coordinate.record_hash,

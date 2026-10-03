@@ -18,7 +18,7 @@ pub struct VerifiedRevision {
     pub revision_id: RevisionId,
     /// Immutable occurrence identity.
     pub event_id: EventId,
-    /// Payload address of the actual seed result or commit receipt.
+    /// Payload address of the actual seed, commit, authority transition or human answer.
     pub record_hash: ContentHash,
     /// Trusted original publication time.
     pub committed_at: Timestamp,
@@ -45,16 +45,26 @@ pub struct VerifiedRead {
     pub context: BootstrapContext,
     /// Complete original registry and validation profile, verified against the host anchor.
     pub authority: AuthorityStateV1,
+    pub(crate) authority_change: Option<(RevisionNumber, AuthorityStateV1)>,
     /// All canonical revision coordinates through this boundary.
     pub revisions: BTreeMap<RevisionNumber, VerifiedRevision>,
     /// Actual retained transaction decisions through this boundary.
     pub transactions: Arc<BTreeMap<TransactionId, TransactionRecord>>,
+    /// Reviewed publications captured by replay, kept private so callers cannot invent answers.
+    pub(crate) answers:
+        BTreeMap<RevisionNumber, ekr_core::contract_data::EkrKernelHumanAnswerRecord>,
     objects: BTreeMap<ContentHash, Arc<Vec<u8>>>,
     /// The verified graph as the kernel admitted it, and the cell its [`AliasIndex`] is kept in.
     /// Holding the graph here keeps [`Arc::make_mut`] on [`Self::graph`] from changing it in place.
     indexed: (Arc<CanonicalGraph>, AliasCell),
 }
 impl VerifiedRead {
+    pub(crate) fn authority_at(&self, revision: RevisionNumber) -> &AuthorityStateV1 {
+        self.authority_change
+            .as_ref()
+            .filter(|(at, _)| *at <= revision)
+            .map_or(&self.authority, |(_, authority)| authority)
+    }
     /// Already verified retained bytes, with no provider access or new history observation.
     #[must_use]
     pub fn content(&self, hash: &ContentHash) -> Option<&[u8]> {
@@ -244,7 +254,25 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             seed_input,
             context: envelope.context,
             authority: envelope.authority.clone(),
+            authority_change: state
+                .upgraded_authority
+                .as_ref()
+                .zip(state.transition.as_ref())
+                .map(|(authority, transition)| {
+                    (
+                        RevisionNumber::new(
+                            transition
+                                .result
+                                .revision
+                                .0
+                                .as_u64()
+                                .expect("replayed transition revision"),
+                        ),
+                        authority.clone(),
+                    )
+                }),
             transactions: state.transaction_records(),
+            answers: state.answers.clone(),
             revisions: state
                 .revisions
                 .iter()

@@ -53,7 +53,7 @@
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
-//! | `GET /inbox` | Rust-rendered unresolved questions, competing claims, retained evidence and parked knowledge; queries are refused; no browser writes |
+//! | `GET /inbox` | Rust-rendered unresolved questions, competing claims, retained evidence, parked knowledge and reviewed answer history; queries are refused; no browser writes |
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |

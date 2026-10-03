@@ -1,0 +1,4 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.10s
+     Running `$BUILD/target/debug/xtask contracts-check --ess $HOME/.cache/ekr-knowledge-prereq-20261003/candidate-126c2b/ess --development-candidate`
+development candidate: 126c2b3905d0f4279086b9d3030096147955dfec; this check does not establish release acceptance
+generated contracts: both complete artifact trees match; synthesized workspace compiles
