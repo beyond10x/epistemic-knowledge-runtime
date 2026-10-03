@@ -53,6 +53,7 @@
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
+//! | `GET /inbox` | Rust-rendered unresolved questions, competing claims, retained evidence and parked knowledge; queries are refused; no browser writes |
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
@@ -609,6 +610,7 @@ impl Reply {
 #[derive(Clone, Copy)]
 enum Route<'a> {
     Page,
+    Inbox,
     Head,
     Projection,
     Roles,
@@ -628,6 +630,7 @@ fn route(path: &str) -> Option<Route<'_>> {
     };
     match path {
         "/" => Some(Route::Page),
+        "/inbox" => Some(Route::Inbox),
         "/head" => Some(Route::Head),
         "/projection" => Some(Route::Projection),
         "/roles" => Some(Route::Roles),
@@ -756,6 +759,16 @@ fn route_answer(
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
         Route::Evidence(id) => evidence(runtime, id),
         Route::Overview => overview(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
+        Route::Inbox => {
+            if !query.is_empty() {
+                Reply::refusal(400, "invalid-query", "the inbox takes no query")
+            } else {
+                match super::inbox::render(runtime) {
+                    Ok(page) => Reply::ok(HTML, page),
+                    Err(error) => Reply::text(500, error),
+                }
+            }
+        }
         Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
         Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Timeline => timeline(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
@@ -1593,8 +1606,9 @@ mod tests {
     }
 
     #[test]
-    fn only_the_eleven_routes_exist() {
+    fn only_the_declared_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
+        assert!(matches!(route("/inbox"), Some(Route::Inbox)));
         assert!(matches!(route("/head"), Some(Route::Head)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
         assert!(matches!(route("/roles"), Some(Route::Roles)));

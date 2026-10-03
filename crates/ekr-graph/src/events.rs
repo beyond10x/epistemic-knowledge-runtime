@@ -13,13 +13,13 @@ use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{AgentId, ContentHash, EventId, RevisionId, RevisionNumber, TransactionId};
 use serde::{Deserialize, Serialize};
 
-/// What happened to a transaction, and to the revision lineage: the six `ekr.kernel` events that
-/// move a revision.
+/// What happened to a transaction and the revision lineage: the historical six `ekr.kernel`
+/// events plus the explicit reviewed authority transition.
 ///
 /// `ekr.kernel.SnapshotTaken` and `ekr.kernel.Explained` are declared in the same domain and are
 /// not here: neither moves the lineage — one records that a reader took a snapshot, the other that
 /// an explanation was produced — and `story:graph-model-and-assertions` scopes this type to the
-/// six that do.
+/// original six. The authority upgrade adds a separately versioned occurrence.
 ///
 /// # The first sum type this runtime content-addresses
 ///
@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 /// address at all, and **changing a number moves every address that contains it**. The two can
 /// therefore disagree, which is its own defect: a variant inserted mid-list whose arm lands at the
 /// end leaves the list and the numbering describing different types.
-/// `crates/ekr-graph/tests/revision_events.rs` holds both halves — it transcribes the six numbers,
+/// `crates/ekr-graph/tests/revision_events.rs` holds both halves — it transcribes the frozen numbers,
 /// which catches a renumbering, and it reads this file as text to check that declaration order and
 /// numbering still agree, which catches the insert.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,24 +91,50 @@ pub enum RevisionPayload {
         /// The content address of the graph state at it.
         knowledge_root: ContentHash,
     },
+    /// Explicit authority transition; only valid in an `ekr.revision-event/3` envelope.
+    AuthorityUpgraded {
+        /// Stable identity of the transition, independent of its content.
+        transition_id: EventId,
+        /// New revision containing the recomputed assessments.
+        revision_id: RevisionId,
+        /// Activation revision.
+        number: RevisionNumber,
+        /// Resulting knowledge root.
+        knowledge_root: ContentHash,
+    },
 }
 
 /// A current occurrence and the address of its complete kernel-owned retained record.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RevisionEvent {
-    /// Exactly `ekr.revision-event/2`.
+    /// Exactly `ekr.revision-event/2` for historical kinds or `/3` for AuthorityUpgraded.
     pub format: String,
     /// Immutable occurrence identity, allocated independently of content.
     pub event_id: EventId,
     /// Payload-domain address of the complete retained record.
     pub record_hash: ContentHash,
-    /// Existing six-kind metadata vocabulary.
+    /// Closed metadata vocabulary, matched to the envelope format by [`Self::supported`].
     pub payload: RevisionPayload,
 }
 impl RevisionEvent {
-    /// The only current event envelope format.
+    /// The unchanged envelope format for the historical six event kinds.
     pub const FORMAT: &'static str = "ekr.revision-event/2";
+    /// Envelope for the explicit authority transition. Historical occurrences remain version 2.
+    pub const TRANSITION_FORMAT: &'static str = "ekr.revision-event/3";
+    /// Closed format dispatch; the new event cannot masquerade as a historical event.
+    #[must_use]
+    pub fn supported(&self) -> bool {
+        self.format == self.payload.format()
+    }
+    /// Native provider schema version matching the closed envelope vocabulary.
+    #[must_use]
+    pub const fn schema_version(&self) -> u32 {
+        match self.payload {
+            RevisionPayload::AuthorityUpgraded { .. } => 3,
+            _ => 2,
+        }
+    }
     /// Backend event name selected by the payload kind.
     #[must_use]
     pub const fn name(&self) -> &'static str {
@@ -130,6 +156,14 @@ impl Canonical for RevisionEvent {
 }
 
 impl RevisionPayload {
+    /// Exact envelope version for this payload.
+    #[must_use]
+    pub const fn format(&self) -> &'static str {
+        match self {
+            Self::AuthorityUpgraded { .. } => RevisionEvent::TRANSITION_FORMAT,
+            _ => RevisionEvent::FORMAT,
+        }
+    }
     /// The number the canonical encoding tags this variant with.
     ///
     /// Hand-maintained, and part of the contract rather than an implementation detail: every
@@ -146,6 +180,7 @@ impl RevisionPayload {
             Self::TransactionRejected { .. } => 3,
             Self::TransactionStale { .. } => 4,
             Self::RevisionCommitted { .. } => 5,
+            Self::AuthorityUpgraded { .. } => 6,
         }
     }
 
@@ -159,6 +194,7 @@ impl RevisionPayload {
             Self::TransactionRejected { .. } => "ekr.kernel.TransactionRejected",
             Self::TransactionStale { .. } => "ekr.kernel.TransactionStale",
             Self::RevisionCommitted { .. } => "ekr.kernel.RevisionCommitted",
+            Self::AuthorityUpgraded { .. } => "ekr.kernel.AuthorityUpgraded",
         }
     }
 }
@@ -221,6 +257,17 @@ impl Canonical for RevisionPayload {
                 knowledge_root,
             } => {
                 transaction_id.encode(out);
+                revision_id.encode(out);
+                number.encode(out);
+                knowledge_root.encode(out);
+            }
+            Self::AuthorityUpgraded {
+                transition_id,
+                revision_id,
+                number,
+                knowledge_root,
+            } => {
+                transition_id.encode(out);
                 revision_id.encode(out);
                 number.encode(out);
                 knowledge_root.encode(out);

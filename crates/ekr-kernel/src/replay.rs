@@ -71,6 +71,9 @@ impl TransactionRecord {
 /// changes one ([`Self::transactions_mut`]). A read shares them and never copies them.
 #[derive(Clone)]
 pub(crate) struct ReplayState {
+    pub(crate) upgraded_authority: Option<AuthorityStateV1>,
+    pub(crate) transition: Option<ekr_core::contract_data::EkrKernelAuthorityTransitionRecord>,
+    pub(crate) assessment_validators: BTreeMap<ekr_core::AssertionId, BTreeSet<AgentId>>,
     pub(crate) seed: SeedResultV1,
     pub(crate) revisions: BTreeMap<RevisionNumber, Revision>,
     pub(crate) transactions: Arc<BTreeMap<TransactionId, Arc<TransactionRecord>>>,
@@ -204,6 +207,12 @@ pub(crate) fn graph_not_held(error: &StoreError) -> bool {
 }
 
 impl ReplayState {
+    pub(crate) fn active_authority<'a>(
+        &'a self,
+        anchor: &'a AuthorityStateV1,
+    ) -> &'a AuthorityStateV1 {
+        self.upgraded_authority.as_ref().unwrap_or(anchor)
+    }
     /// Notes that the occurrence at `version` was validated against `basis`, when that is not
     /// the head it was recorded at.
     pub(crate) fn note_basis(&mut self, version: u64, basis: RevisionNumber) {
@@ -243,7 +252,7 @@ impl ReplayState {
         Arc::make_mut(&mut self.transactions)
     }
     /// Changes only the selected record, leaving every prior state's records immutable.
-    fn transaction_mut(&mut self, id: TransactionId) -> &mut TransactionRecord {
+    pub(crate) fn transaction_mut(&mut self, id: TransactionId) -> &mut TransactionRecord {
         Arc::make_mut(
             self.transactions_mut()
                 .get_mut(&id)
@@ -447,6 +456,13 @@ impl ReplayCache {
     /// old state keep their own Arc, and the successor already keeps checkpoint/historical graphs
     /// required by replay. An absent match merely leaves the normal bounded cache in place.
     pub(crate) fn confirmed(&mut self, publication: &ekr_store::Publication) {
+        if self
+            .entries
+            .iter()
+            .any(|(_, _, state)| state.transition.is_some())
+        {
+            return;
+        }
         let Some(version) = publication.expected_version.checked_add(1) else {
             return;
         };
@@ -1017,6 +1033,9 @@ impl KernelAuthority {
                 );
             }
             let state = ReplayState {
+                upgraded_authority: None,
+                transition: None,
+                assessment_validators: BTreeMap::new(),
                 held,
                 revision_ids: BTreeSet::from([seed_result.revision_id]),
                 event_ids: BTreeSet::from([first.event.event_id]),
@@ -1063,7 +1082,15 @@ impl KernelAuthority {
             )?;
             let event = &occurrence.event;
             let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
+            let active = state
+                .upgraded_authority
+                .as_ref()
+                .unwrap_or(&self.anchor)
+                .clone();
             match event.payload {
+                RevisionPayload::AuthorityUpgraded { .. } => {
+                    crate::upgrade::replay_transition(self, history, &mut state, occurrence)?;
+                }
                 RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
                 RevisionPayload::TransactionProposed {
                     transaction_id,
@@ -1076,7 +1103,7 @@ impl KernelAuthority {
                         record.submitter,
                         event.event_id,
                         record.submitted_at,
-                        &self.anchor,
+                        &active,
                         &record.format,
                     )?;
                     require(
@@ -1125,7 +1152,7 @@ impl KernelAuthority {
                         &state.revisions,
                         &state.held,
                         prior,
-                        &self.anchor,
+                        &active,
                         self.context.validator,
                     )?
                     .map_err(|_| refuse("retained-validation-refused"))?;
@@ -1133,7 +1160,7 @@ impl KernelAuthority {
                         &tx.proposal,
                         tx.proposal_record_hash,
                         &validated,
-                        basis(prior, state.seed.seed_hash, &self.anchor),
+                        basis(prior, state.seed.seed_hash, &active),
                         self.context.validator,
                         event.event_id,
                         record.validated_at,
@@ -1165,7 +1192,7 @@ impl KernelAuthority {
                             && record.proposal_record_hash == tx.proposal_record_hash
                             && record.validator == self.context.validator
                             && record.requested_basis
-                                == basis(prior, state.seed.seed_hash, &self.anchor)
+                                == basis(prior, state.seed.seed_hash, &active)
                             && record.rejected_at >= tx.proposal.submitted_at
                             && record.rejected_at >= prior.committed_at,
                         "rejection-record-disagrees",
@@ -1175,7 +1202,7 @@ impl KernelAuthority {
                         &state.revisions,
                         &state.held,
                         prior,
-                        &self.anchor,
+                        &active,
                         self.context.validator,
                     )?
                     .err()
@@ -1231,9 +1258,9 @@ impl KernelAuthority {
                             && !state.revision_ids.contains(&revision_id),
                         "commit-record-linkage",
                     )?;
-                    registered(&self.anchor, record.committer)?;
+                    registered(&active, record.committer)?;
                     require(
-                        validation.basis == basis(prior, state.seed.seed_hash, &self.anchor),
+                        validation.basis == basis(prior, state.seed.seed_hash, &active),
                         "commit-basis-is-stale",
                     )?;
                     require(
@@ -1250,7 +1277,7 @@ impl KernelAuthority {
                                 &state.revisions,
                                 &state.held,
                                 prior,
-                                &self.anchor,
+                                &active,
                                 self.context.validator,
                             )?
                             .map_err(|_| refuse("retained-commit-validation-refused"))?,
@@ -1265,12 +1292,17 @@ impl KernelAuthority {
                             "commit-created-identities",
                         )?;
                     }
-                    let (graph, root) = crate::apply::apply(
+                    let (mut graph, mut root) = crate::apply::apply(
                         prior,
                         &validated,
                         &validation.validators,
                         record.committed_at,
                     )?;
+                    let mut assessment_validators = state.assessment_validators.clone();
+                    if active.validation_profile.disputes() {
+                        crate::disputes::recompute(&mut graph, &mut assessment_validators)?;
+                        root.knowledge_root = ekr_store::knowledge_root(&graph);
+                    }
                     // Evidence a commit added is retained admissible evidence only while its
                     // payload is retained, at Provenance strength, as the seed's payloads are.
                     for (hash, payload) in crate::commands::added_payloads(validated.transaction())
@@ -1322,10 +1354,11 @@ impl KernelAuthority {
                             validated.transaction(),
                         );
                     let superseded = prior.root.revision;
-                    if self.anchor.validation_profile.keeps_identities() {
+                    if active.validation_profile.keeps_identities() {
                         state.held.hold(number, validated.transaction());
                     }
                     state.revision_ids.insert(revision_id);
+                    state.assessment_validators = assessment_validators;
                     state.revisions.insert(
                         number,
                         Revision {

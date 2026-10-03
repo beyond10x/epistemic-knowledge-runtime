@@ -743,6 +743,16 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ),
         ("mint", &["node", "assertion", "transaction"]),
         (
+            "attention",
+            &[
+                "ekr.kernel.AttentionItem",
+                "ekr attention list",
+                "ekr attention show",
+                "review basis",
+                store,
+            ],
+        ),
+        (
             "observe",
             &[
                 "ekr.observe.ObservationImport",

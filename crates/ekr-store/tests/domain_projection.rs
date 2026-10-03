@@ -548,7 +548,7 @@ const BINDINGS: &[(&str, Carrier)] = &[
         "ekr.store.PublicationPreparationFormatV1",
         Carrier::Constants(
             "PublicationPreparationV1",
-            &["FORMAT_V1", "FORMAT", "FORMAT_V3"],
+            &["FORMAT_V1", "FORMAT", "FORMAT_V3", "FORMAT_V4"],
         ),
     ),
     (

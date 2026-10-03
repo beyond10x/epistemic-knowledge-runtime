@@ -1,4 +1,4 @@
-//! Host-supplied authority anchor and the three exact deterministic validation profiles.
+//! Original host anchor profiles and explicitly activated knowledge authority.
 use crate::{BootstrapContext, ValidatorName};
 use ekr_core::{AgentId, Canonical, Encoder};
 use serde::{Deserialize, Serialize};
@@ -36,9 +36,9 @@ const P3_RULESET: &str = "ekr.p3-deterministic/1";
 /// [`ValidationProfileV1::deterministic`] (v1: `ekr.p1-deterministic/1` + `ekr.p1-apply/1`),
 /// [`ValidationProfileV1::schema_evolving`] (v2: `ekr.p2-deterministic/1` + `ekr.p2-apply/1`) and
 /// [`ValidationProfileV1::identity_keeping`] (v3: `ekr.p3-deterministic/1` + `ekr.p2-apply/1`).
-/// A store keeps the profile its authority anchor named at seed: the anchor is part of the seed
-/// envelope and compared again on every reopening, and no mechanism moves a store from one to
-/// the other.
+/// The seed envelope and host anchor always keep their original profile. A separately reviewed
+/// transition can activate [`ValidationProfileV1::knowledge`] for subsequent revisions, while
+/// replay continues to apply the original profile before that boundary.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[cfg_attr(
@@ -98,6 +98,22 @@ pub struct ValidationProfileV1 {
     pub application: String,
 }
 impl ValidationProfileV1 {
+    /// Knowledge authority: identity retention, schema evolution and deterministic disputes.
+    /// Existing seed anchors cannot select this profile; a reviewed transition activates it.
+    #[must_use]
+    pub fn knowledge(validator: AgentId) -> Self {
+        Self::with(
+            validator,
+            "ekr.knowledge-deterministic/1",
+            "ekr.knowledge-apply/1",
+        )
+    }
+
+    /// Whether deterministic assessment recomputation is active.
+    #[must_use]
+    pub fn disputes(&self) -> bool {
+        *self == Self::knowledge(self.validator)
+    }
     /// Validation profile v1 for a host-selected validator: the P1 profile, which refuses the
     /// three schema kinds.
     #[must_use]
@@ -121,17 +137,18 @@ impl ValidationProfileV1 {
         Self::with(validator, P3_RULESET, P2_APPLICATION)
     }
 
-    /// Whether this profile admits schema changes: true of v2 and v3.
+    /// Whether this profile admits schema changes: v2, v3 and knowledge authority.
     #[must_use]
     pub fn admits_schema_changes(&self) -> bool {
-        (self.ruleset == P2_RULESET || self.ruleset == P3_RULESET)
-            && self.application == P2_APPLICATION
+        ((self.ruleset == P2_RULESET || self.ruleset == P3_RULESET)
+            && self.application == P2_APPLICATION)
+            || self.disputes()
     }
 
-    /// Whether this profile holds node and edge ids against the whole lineage: true of v3 only.
+    /// Whether this profile holds node and edge ids against the whole lineage: v3 and knowledge.
     #[must_use]
     pub fn keeps_identities(&self) -> bool {
-        self.ruleset == P3_RULESET && self.application == P2_APPLICATION
+        (self.ruleset == P3_RULESET && self.application == P2_APPLICATION) || self.disputes()
     }
 
     /// Whether this is exactly one of the three supported profiles for `validator`.

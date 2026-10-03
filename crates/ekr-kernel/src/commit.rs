@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub struct KernelAuthority {
     pub(crate) context: BootstrapContext,
     pub(crate) anchor: AuthorityStateV1,
+    pub(crate) review_host: Option<ekr_core::contracts::kernel::TrustedReviewHostBinding>,
     /// Verified replay states this authority reached, shared by every clone of it.
     pub(crate) cache: std::sync::Arc<std::sync::Mutex<crate::replay::ReplayCache>>,
     /// The seed input this authority assembled from verified retained bytes, by the seed
@@ -24,6 +25,11 @@ pub struct KernelAuthority {
 /// A seed input assembled from verified retained bytes, with the seed envelope address it is for.
 type HeldSeedInput = (ContentHash, Arc<SeedDocument>);
 impl CommitAuthority for KernelAuthority {
+    fn tenant_audience(&self) -> Option<&str> {
+        self.review_host
+            .as_ref()
+            .map(|binding| binding.audience.tenant.as_str())
+    }
     /// The seed envelope's evidence payloads, and the payload of every evidence entry a committed
     /// `AddEvidence` brought: what a verified read, `explain` and replay read by content hash.
     fn required_objects(
@@ -41,6 +47,7 @@ impl CommitAuthority for KernelAuthority {
         let (payloads, named) = self.seed_payloads(history, seed_hash)?;
         let mut required = if named { BTreeSet::new() } else { payloads };
         required.extend(self.added_evidence_required(history, false)?);
+        required.extend(crate::upgrade::required(history)?);
         Ok(required)
     }
     /// [`Self::required_objects`] with only the added payloads a replay continuing from the state
@@ -59,6 +66,7 @@ impl CommitAuthority for KernelAuthority {
         let (payloads, named) = self.seed_payloads(history, seed_hash)?;
         let mut required = if named { BTreeSet::new() } else { payloads };
         required.extend(self.added_evidence_required(history, true)?);
+        required.extend(crate::upgrade::required(history)?);
         Ok(required)
     }
     fn objects_if_held(
@@ -462,6 +470,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let authority = KernelAuthority {
             context,
             anchor,
+            review_host: None,
             cache: std::sync::Arc::default(),
             seed_input: std::sync::Arc::default(),
         };

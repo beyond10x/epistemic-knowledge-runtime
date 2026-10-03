@@ -17,6 +17,29 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Lists evidence-backed questions without creating queue state or canonical revisions.
+    /// # Errors
+    /// Invalid history, missing retained evidence or provider failure.
+    pub fn attention(
+        &self,
+    ) -> Result<Vec<ekr_core::contract_data::EkrKernelAttentionItem>, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.attention(),
+            Backend::Sqlite(k) => k.attention(),
+        }
+    }
+    /// Reads one currently unresolved typed attention subject.
+    /// # Errors
+    /// Unknown, settled or malformed subject, or invalid retained state.
+    pub fn attention_item(
+        &self,
+        subject: &ekr_core::contract_data::EkrKernelAttentionSubject,
+    ) -> Result<ekr_core::contract_data::EkrKernelAttentionItem, StoreError> {
+        match &self.backend {
+            Backend::File(k) => k.attention_item(subject),
+            Backend::Sqlite(k) => k.attention_item(subject),
+        }
+    }
     /// Materializes parked candidate nodes, edges and assertions in the existing transient space.
     /// # Errors
     /// Unknown version, invalid retained input or provider failure.

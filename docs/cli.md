@@ -157,6 +157,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr observe` | writes / reads | `import <file or ->`, `list`, `show <observation-id>` | imports return a retention receipt; reads expose retained source records and exact bytes |
+| `ekr attention` | reads | `list`, `show <kind> <id>` | unresolved questions, claim/evidence identities and the exact review basis |
 | `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -386,6 +387,30 @@ Exit 0 means the document was read and tried, whatever `rejected` holds. Once so
 committed the verb does not fault: if a request then gets no answer it can act on, it prints the
 report with what committed until then and `stopped` saying why. A fault before anything committed
 is exit 1, with nothing written.
+
+### `ekr attention`
+
+`ekr attention list` returns generated `ekr.kernel.AttentionItem` records. Each contains a
+clarification question, a typed subject, supporting claim/evidence/observation identities and
+the review basis. `ekr attention show <kind> <id>` accepts `dispute`, `blocked-integration` or
+`schema-proposal` and the corresponding identity returned by list. Unknown, settled or malformed
+subjects are refused as `ekr.kernel.KnowledgeRefused`. Both commands only read, and work in sessions.
+The typed SDK exposes `Knowledge::attention` and `Knowledge::attention_item` over that same path.
+
+In `ekr view`, follow **Knowledge inbox** or open `/inbox`. Rust renders the questions, competing
+claim values and effective times, retained evidence excerpts, and parked interpretation details.
+The page only reads. Browser writes are refused by the viewer's existing GET-only request boundary.
+
+Disputes are connected components of active competing claims under the explicitly upgraded
+knowledge authority. Both sides remain inspectable and are excluded from settled knowledge.
+The handle reuses the least assertion UUID in the component; it is not a new persisted queue item.
+When competing claims change, the handle or review basis can change. An unrelated revision changes
+the observed revision, without by itself changing evidence/options/effects digests. Blocked local
+interpretations remain visible even before a canonical seed exists. In that case the observed
+revision is zero, and the digests bind the retained document and evidence.
+
+This read surface does not activate authority or grant approval. The human answer, proposal
+decision and deployment review-binding surfaces are still under development in this release.
 
 ### `ekr incubate`
 

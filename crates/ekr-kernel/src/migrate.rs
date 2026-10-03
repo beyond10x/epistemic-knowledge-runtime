@@ -524,6 +524,12 @@ impl<D: RevisionLog + ObjectStore> Commit<D> {
                 .ok_or(StoreError::ProposalMissing { transaction_id })
         };
         Ok(match event.payload {
+            RevisionPayload::AuthorityUpgraded { .. } => {
+                return Err(StoreError::Document(
+                    "migration-authority-transition-requires-review-host".into(),
+                )
+                .into())
+            }
             RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst.into()),
             RevisionPayload::TransactionProposed { .. } => {
                 ProposalRecordV1::from_bytes(bytes)?;

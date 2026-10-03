@@ -61,7 +61,7 @@ pub(crate) fn publication(
     let hash = ContentHash::of_bytes(&bytes);
     Publication {
         event: RevisionEvent {
-            format: RevisionEvent::FORMAT.into(),
+            format: payload.format().into(),
             event_id,
             record_hash: hash,
             payload,
@@ -154,7 +154,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         }
         Ok(held)
     }
-    fn drive(
+    pub(crate) fn drive(
         &self,
         mut prepared: PublicationPreparationV1,
         mut after_conflict: impl FnMut(
@@ -207,7 +207,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// reads ([`RevisionLog::replay_history`]), and the state reached over it. Where that state
     /// is refused, the complete history is read and replayed instead, and its answer returned:
     /// the one the complete history gives.
-    fn replayed_state(
+    pub(crate) fn replayed_state(
         &self,
     ) -> Result<(ekr_store::RetainedHistory, std::sync::Arc<ReplayState>), CommitError> {
         let partial = self.store.replay_history().and_then(|history| {
@@ -333,8 +333,24 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let key = PublicationCommandKey {
             kind: PublicationCommandKind::Validate,
             transaction_id: Some(id),
-            predecessor_event_id: Some(tx.proposal.event_id),
-            predecessor_record_hash: Some(tx.proposal_record_hash),
+            predecessor_event_id: Some(state.transition.as_ref().map_or(
+                Ok(tx.proposal.event_id),
+                |record| {
+                    record
+                        .event_id
+                        .0
+                        .parse()
+                        .map_err(|_| replay::refuse("transition-event-id"))
+                },
+            )?),
+            predecessor_record_hash: Some(
+                state
+                    .transition
+                    .as_ref()
+                    .map_or(Ok(tx.proposal_record_hash), |record| {
+                        crate::upgrade::record_hash(record)
+                    })?,
+            ),
         };
         let material = serde_json::to_vec(&(id, &key, against))
             .map_err(|error| replay::refuse(&error.to_string()))?;
@@ -368,7 +384,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 .revisions
                 .get(&against)
                 .ok_or(CommitError::RevisionNotFound { against })?;
-            let basis = replay::basis(prior, state.seed.seed_hash, &self.authority.anchor);
+            let basis = replay::basis(
+                prior,
+                state.seed.seed_hash,
+                state.active_authority(&self.authority.anchor),
+            );
             // The verdict stays with the kernel, keyed by the inputs it is a function of, for the
             // replay that admits this publication to take instead of validating again.
             let verdict = replay::decide_validation(
@@ -376,7 +396,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 &holding.revisions,
                 &state.held,
                 prior,
-                &self.authority.anchor,
+                state.active_authority(&self.authority.anchor),
                 self.authority.context.validator,
             )?;
             let at = now();
@@ -498,7 +518,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                         != replay::basis(
                             state.head(),
                             state.seed.seed_hash,
-                            &self.authority.anchor,
+                            state.active_authority(&self.authority.anchor),
                         ) =>
                 {
                     self.commit_decision(
@@ -607,8 +627,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let head = state.head();
         let mut evidence_payloads = BTreeMap::new();
         let (payload, bytes) = if validation.basis
-            != replay::basis(head, state.seed.seed_hash, &self.authority.anchor)
-        {
+            != replay::basis(
+                head,
+                state.seed.seed_hash,
+                state.active_authority(&self.authority.anchor),
+            ) {
             let record = StaleRecordV1 {
                 format: StaleRecordV1::FORMAT.into(),
                 event_id,
@@ -639,7 +662,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                         &state.revisions,
                         &state.held,
                         head,
-                        &self.authority.anchor,
+                        state.active_authority(&self.authority.anchor),
                         self.authority.context.validator,
                     )?
                     .map_err(|_| replay::refuse("retained-validation-refused"))?,
@@ -647,7 +670,19 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             };
             // The graph stays with the kernel's remembered root, keyed by the same inputs, for
             // the replay that admits this publication to take instead of applying it again.
-            let root = crate::apply::decide(head, &validated, &validation.validators, at)?;
+            let root = if state
+                .active_authority(&self.authority.anchor)
+                .validation_profile
+                .disputes()
+            {
+                let (mut graph, mut root) =
+                    crate::apply::apply(head, &validated, &validation.validators, at)?;
+                crate::disputes::recompute(&mut graph, &mut state.assessment_validators.clone())?;
+                root.knowledge_root = ekr_store::knowledge_root(&graph);
+                root
+            } else {
+                crate::apply::decide(head, &validated, &validation.validators, at)?
+            };
             evidence_payloads = added_payloads(validated.transaction());
             let record = CommitReceiptV1 {
                 format: CommitReceiptV1::FORMAT.into(),

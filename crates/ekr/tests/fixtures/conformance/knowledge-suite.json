@@ -159,8 +159,8 @@
     }
   },
   "provenance": {
-    "contract_digest": "2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d",
-    "spec_digest": "11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07",
+    "contract_digest": "281bbd37905ec8f6f636fc68d1767f3895a88fb29b6dbd4e383ae18d0e714c43",
+    "spec_digest": "890aea90d130e26fabda8485a25a78599aa119258635fdea52179df20555f601",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -231,6 +231,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -443,6 +447,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -633,6 +641,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -839,6 +851,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -1083,6 +1099,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -1320,6 +1340,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -1514,6 +1538,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -1728,6 +1756,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -1976,6 +2008,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -2222,6 +2258,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2460,6 +2500,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -2718,6 +2762,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2947,6 +2995,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -3141,6 +3193,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -3449,6 +3505,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -3684,6 +3744,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -3976,6 +4040,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -4200,6 +4268,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -4397,6 +4469,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -4584,6 +4660,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -4829,6 +4909,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -5078,6 +5162,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -5316,6 +5404,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -5571,6 +5663,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -5895,6 +5991,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -6128,6 +6228,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -6322,6 +6426,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -6532,6 +6640,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -6876,6 +6988,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -7112,6 +7228,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7298,6 +7418,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -7504,6 +7628,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -7800,6 +7928,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -8015,6 +8147,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -8307,6 +8443,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -8524,6 +8664,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -9905,6 +10049,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -10177,6 +10325,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10427,6 +10579,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -10685,6 +10841,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10863,6 +11023,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
           "name": "ekr.kernel.HumanDecisionAudience"
         },
         {
@@ -10884,6 +11048,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.ReviewSignatureAlgorithm"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
         },
         {
           "kind": "type",
@@ -10971,6 +11139,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -11148,6 +11320,8 @@
                 "pending_revalidation": [],
                 "preview_digest": "preview.preview_digest",
                 "reviewer_policy_digest": "preview.reviewer_policy_digest",
+                "stream_digest": "preview.stream_digest",
+                "stream_version": 1.0,
                 "to": {
                   "application": "preview.to.application",
                   "profile_digest": "preview.to.profile_digest",
@@ -11172,6 +11346,36 @@
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
           "shape": {
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
             "transition_id": {
               "holds": "primitive",
               "kind": "uuid"
@@ -11509,6 +11713,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -11694,6 +11902,8 @@
                 "pending_revalidation": [],
                 "preview_digest": "preview.preview_digest",
                 "reviewer_policy_digest": "preview.reviewer_policy_digest",
+                "stream_digest": "preview.stream_digest",
+                "stream_version": 1.0,
                 "to": {
                   "application": "preview.to.application",
                   "profile_digest": "preview.to.profile_digest",
@@ -11765,6 +11975,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -12000,6 +12214,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -12386,6 +12604,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12631,6 +12853,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -14028,6 +14254,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -14256,6 +14486,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -14606,6 +14840,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -14825,6 +15063,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -15021,6 +15263,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -15225,6 +15471,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -15742,6 +15992,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -15928,6 +16182,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -16139,6 +16397,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.ListAttentionResult",
           "step": "expect_no_event"
         },
@@ -16321,6 +16583,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -16527,6 +16793,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -17730,6 +18000,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -18200,6 +18474,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -19147,6 +19425,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -19606,6 +19888,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -20227,6 +20513,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -20707,6 +20997,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -20929,6 +21223,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -21387,6 +21685,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -21630,6 +21932,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -22016,6 +22322,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -22259,6 +22569,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -22566,6 +22880,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -22820,6 +23138,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -23170,6 +23492,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -23417,6 +23743,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -23724,6 +24054,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -23987,6 +24321,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -24178,6 +24516,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -24414,6 +24756,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -24597,6 +24943,14 @@
               "holds": "primitive",
               "kind": "string"
             },
+            "preview.stream_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_version": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "preview.to.application": {
               "holds": "primitive",
               "kind": "string"
@@ -24658,6 +25012,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -24855,6 +25213,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -25068,6 +25430,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -25254,6 +25620,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -25463,6 +25833,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -25653,6 +26027,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -25859,6 +26237,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -26072,6 +26454,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -26348,6 +26734,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -26569,6 +26959,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -26775,6 +27169,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -26961,6 +27359,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -27170,6 +27572,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -27367,6 +27773,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -28064,6 +28474,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -28270,6 +28684,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -28559,6 +28977,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -28816,6 +29238,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -29070,6 +29496,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -29268,6 +29698,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -29482,6 +29916,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -29668,6 +30106,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -29881,6 +30323,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -30071,6 +30517,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -30280,6 +30730,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -30496,6 +30950,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -30803,6 +31261,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -31022,6 +31484,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -31232,6 +31698,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -31418,6 +31888,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -31621,6 +32095,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -31841,6 +32319,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -32148,6 +32630,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -32395,6 +32881,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -32626,6 +33116,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -32828,6 +33322,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -33052,6 +33550,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -33253,6 +33755,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -33447,6 +33953,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -33629,6 +34139,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -33838,6 +34352,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -34044,6 +34562,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -34292,6 +34814,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -34830,6 +35356,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -35046,6 +35576,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -35338,6 +35872,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -35610,6 +36148,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -35886,6 +36428,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -36112,6 +36658,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -36310,6 +36860,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -36539,6 +37093,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -36737,6 +37295,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -36959,6 +37521,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -37157,6 +37723,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -37396,6 +37966,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -37586,6 +38160,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -37803,6 +38381,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -37997,6 +38579,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -38214,6 +38800,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -38408,6 +38998,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -38625,6 +39219,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -38827,6 +39425,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -39080,6 +39682,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -39270,6 +39876,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -39485,6 +40095,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -39723,6 +40337,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -39945,6 +40563,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -40139,6 +40761,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -40364,6 +40990,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -40566,6 +41196,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -40833,6 +41467,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -41027,6 +41665,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -41250,6 +41892,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -41730,6 +42376,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -41960,6 +42610,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -42158,6 +42812,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -42391,6 +43049,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -42589,6 +43251,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -42822,6 +43488,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -43012,6 +43682,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -43233,6 +43907,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -43423,6 +44101,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -43644,6 +44326,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -43838,6 +44524,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -44102,6 +44792,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -44288,6 +44982,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -44509,6 +45207,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -44699,6 +45401,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -44920,6 +45626,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -45122,6 +45832,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -45392,6 +46106,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -45586,6 +46304,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -45804,6 +46526,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -46008,6 +46734,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -46226,6 +46956,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -46416,6 +47150,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -46629,6 +47367,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -46819,6 +47561,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -47032,6 +47778,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -47226,6 +47976,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -47490,6 +48244,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -47676,6 +48434,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -47883,6 +48645,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -48109,6 +48875,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -48323,6 +49093,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -48513,6 +49287,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -48730,6 +49508,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -48928,6 +49710,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -49241,6 +50027,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -49439,6 +50229,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -49662,6 +50456,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -50008,6 +50806,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -50238,6 +51040,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -50440,6 +51246,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -50673,6 +51483,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -50879,6 +51693,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -51168,6 +51986,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -51370,6 +52192,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -51592,6 +52418,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -51798,6 +52628,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -52010,6 +52844,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -52261,6 +53099,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -52504,6 +53346,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -52690,6 +53536,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -52903,6 +53753,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -53093,6 +53947,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -53306,6 +54164,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -53500,6 +54362,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -53748,6 +54614,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -53934,6 +54804,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -54145,6 +55019,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
@@ -54375,6 +55253,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -54593,6 +55475,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -54783,6 +55669,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -55004,6 +55894,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -55202,6 +56096,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
         },
         {
           "kind": "event",
@@ -55443,6 +56341,10 @@
         },
         {
           "event": "ekr.kernel.ApplyUpgradeResult",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
           "step": "expect_no_event"
         },
         {
