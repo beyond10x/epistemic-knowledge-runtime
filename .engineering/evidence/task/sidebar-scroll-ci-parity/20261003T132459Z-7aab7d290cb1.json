@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T13:24:59Z",
+  "actor": "agent:codex",
+  "artifact": "task:sidebar-scroll-ci-parity",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Required correctness on 889b5cc596709244850539bb331d4cea5cdc691d: same sidebar scroll mismatch; native failure diagnostics identify rendered DejaVu Sans and wrapped roles line. No product fix claimed.",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37125584047"
+  }
+}
