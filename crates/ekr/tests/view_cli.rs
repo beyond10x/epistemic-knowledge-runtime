@@ -957,7 +957,11 @@ fn ekr_view_binding_is_explicit_and_defaults_to_loopback() {
             )
         })
         .collect();
-    assert_eq!(own, ["--port", "--bind", "--allow-host"], "{help}");
+    assert_eq!(
+        own,
+        ["--port", "--bind", "--allow-host", "--require-ready"],
+        "{help}"
+    );
 }
 
 /// Every `.rs` file at or below `directory`, with its text.

@@ -18,11 +18,12 @@
 //!
 //! How long one connection holds one of the 64 places: a head not complete 5 s after accept is
 //! refused; the wait for the store thread, which answers one request at a time, ends 35 s after
-//! accept. The queue holds at most 16 jobs, and expired jobs are discarded before execution.
+//! accept. The queue holds at most 64 jobs, and expired jobs are discarded before execution.
 //! A whole answer writes within 5 s; a stream within 60 s. A full queue returns 503 immediately.
-//! `/healthz` and the embedded page bypass the store queue. Store admission is lazy, so health
-//! remains available while a configured store is unavailable or incomplete. `/readyz` succeeds
-//! only when the admitted store has a seed, including revision zero.
+//! `/healthz` and the embedded page bypass the store queue. Store admission is lazy by default,
+//! so health remains available while a configured store is unavailable or incomplete. `/readyz` succeeds
+//! only when the admitted store has a seed, including revision zero. `--require-ready` instead
+//! admits a seeded complete store before announcing the URL, retaining that runtime for serving.
 //!
 //! Before any store call a request is refused unless it carries exactly one `Host` header naming
 //! this server, by default `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
@@ -172,21 +173,33 @@ impl Default for Memory {
     }
 }
 
-/// Binds the configured listener (`port` 0 picks a free one), lazily admits the existing store,
+/// Binds the configured listener (`port` 0 picks a free one), admits the existing store lazily
+/// by default or before announcement when `require_ready` is set,
 /// prints `{"url": …}` as one JSON line on stdout, and answers requests until the process is
 /// interrupted.
 ///
 /// # Errors
 ///
-/// The address does not bind, stdout cannot be written, or the accept
-/// loop stops.
+/// The address does not bind, required startup admission fails, stdout cannot be written,
+/// or the accept loop stops.
 pub(super) fn run(
     store: &Store,
     bind: std::net::IpAddr,
     port: u16,
     hosts: Vec<String>,
+    require_ready: bool,
 ) -> Result<String, Failure> {
     let (listener, authorities) = super::http::bind(bind, port, hosts)?;
+    let mut held = if require_ready {
+        let mut held = Held::open(store.clone())?;
+        let (Checked::Same(runtime) | Checked::Reopened(runtime)) = held
+            .current()
+            .map_err(|replaced| Failure::fault(replaced.message))?;
+        super::head::root(runtime)?;
+        Some(held)
+    } else {
+        None
+    };
     super::http::announce(&listener)?;
     // Preserve the viewer's admitted concurrent stream capacity while bounding pending work.
     let (jobs, store_thread) = super::http::queue(IN_FLIGHT_LIMIT);
@@ -195,7 +208,6 @@ pub(super) fn run(
         .name("ekr-view-accept".to_owned())
         .spawn(move || accept(&listener, &jobs, &connection_authorities))
         .map_err(|_| Failure::fault("starting viewer accept thread failed"))?;
-    let mut held = None;
     let mut memory = Memory::default();
     for job in store_thread {
         if !super::http::alive(&job, Instant::now()) {

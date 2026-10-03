@@ -374,6 +374,62 @@ fn health_stays_live_before_seed_and_readiness_recovers_after_seed() {
     }
 }
 
+fn assert_files_unchanged(world: &World, before: &std::collections::BTreeMap<PathBuf, Vec<u8>>) {
+    let after = files(world.directory.path());
+    let changed: std::collections::BTreeSet<_> = before
+        .keys()
+        .chain(after.keys())
+        .filter(|path| before.get(*path) != after.get(*path))
+        .collect();
+    assert!(
+        changed.is_empty(),
+        "{} changed files: {:?}",
+        world.backend,
+        changed
+    );
+}
+
+fn require_ready_refuses(world: &World, reason: &str) {
+    let refused =
+        assert_cmd::Command::from_std(world.command(&["view", "--port", "0", "--require-ready"]))
+            .timeout(Duration::from_secs(60))
+            .assert()
+            .failure()
+            .stdout("");
+    let stderr = String::from_utf8_lossy(&refused.get_output().stderr);
+    assert!(stderr.contains(reason), "{stderr}");
+}
+
+#[test]
+fn viewer_require_ready_refuses_before_announcement_then_serves_a_seeded_store() {
+    for backend in ["file", "sqlite"] {
+        for read_only in [false, true] {
+            let world = World::empty(backend);
+            require_ready_refuses(&world, "store-not-found");
+            assert!(!world.path().exists(), "startup must not create a store");
+            world.create_unseeded();
+            let protected = read_only.then(|| ReadOnly::tree(world.directory.path()));
+            let before = files(world.directory.path());
+            require_ready_refuses(&world, "the lineage has no seed");
+            if read_only {
+                assert_files_unchanged(&world, &before);
+            }
+            drop(protected);
+            world.seed();
+            let _protected = read_only.then(|| ReadOnly::tree(world.directory.path()));
+            let before = files(world.directory.path());
+            let server = Server::start(world.command(&["view", "--port", "0", "--require-ready"]));
+            assert_eq!(server.get("/readyz").status, 200);
+            assert_eq!(server.get("/head").json()["head"], 0);
+            // Writable providers may maintain their journals; physically read-only sources
+            // must remain byte-for-byte intact, including after eager admission.
+            if read_only {
+                assert_files_unchanged(&world, &before);
+            }
+        }
+    }
+}
+
 #[test]
 fn readiness_recovers_when_sqlite_is_replaced_in_place() {
     for verb in ["view", "mcp-http"] {
@@ -463,6 +519,26 @@ fn readiness_refuses_an_incomplete_copy_even_with_a_seed_and_checkpoint() {
         assert_eq!(files(world.directory.path()), before);
     }
 }
+
+#[test]
+fn viewer_require_ready_refuses_incomplete_history_before_announcement() {
+    for read_only in [false, true] {
+        let source = World::seeded("file");
+        source.commit();
+        let world = World::empty("file");
+        let mut migrate = source.command(&["migrate", "--to"]);
+        migrate.arg(world.path());
+        success(migrate);
+        interrupt_file_completion(&world);
+        let _protected = read_only.then(|| ReadOnly::tree(world.directory.path()));
+        let before = files(world.directory.path());
+        require_ready_refuses(&world, "migrate-incomplete");
+        if read_only {
+            assert_files_unchanged(&world, &before);
+        }
+    }
+}
+
 #[test]
 fn http_and_stdio_mcp_return_identical_nine_tool_documents() {
     for backend in ["file", "sqlite"] {
