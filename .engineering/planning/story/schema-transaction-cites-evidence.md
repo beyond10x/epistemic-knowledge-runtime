@@ -26,7 +26,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 14
+revision: 15
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T14:55:25Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-10-03T14:55:26Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -72,6 +72,10 @@ Scoper source review: ekr-sdk/src/document/transaction.rs:60,115–128 currently
 
 ## Kernel checkpoint in progress
 
-The managed schema-evidence unit implements a new reviewed knowledge authority version, retaining the old version for replay. Its native compatibility fixtures were actually written by the previous implementation, then reopened and upgraded by the new one. Evidence and remaining work are recorded in `.engineering/reviews/knowledge-schema-evidence-kernel/README.md` on the unit branch; this remains a partial checkpoint, not completed story D. SDK construction, CLI/viewer schema support, the named ESS scenario, independent review and the complete integrated gate remain required.
+Kernel authority/evidence commit dded81ab56351b2b705d62dd2d6b34732856780a and SDK builder commit 24002eeca1ca487671dde6c4146d33600c514a69 are retained on managed unit branch ekr/schema-evidence-20261003. Native compatibility fixtures were written by the previous implementation and upgraded by the new one; the original Gates hook admitted them after the operator's exact fixture-exception approval.
 
-Attribution correction: the coordinator omitted AEP_ACTOR on the draft-to-proposed command, so the CLI recorded its default human actor. That command was executed by agent:codex-ekr-knowledge under the operator's existing execution request; it was not a separate human action. The retained transition is not rewritten. The subsequent activation and this correction use the explicit agent identity.
+Presentation work now derives schema citations from verified immutable manifests through the ESS-generated SchemaEvidenceEntry declared in systems/ekr/domains/views.yaml. The ontology CLI, SDK typed reads, graph projection, overview and Rust-rendered inbox expose those records. The focused cli::ontology::tests::schema_change_exposes_supporting_evidence case passes after normal and full replay on both providers, including historical selection and HTML escaping. Broader regressions are in progress; this is not yet authored ESS conformance.
+
+Independent review-result:schema-evidence-kernel-independent-r1 found a kernel test whose manifest mismatch masked removal of the mixed-data guard. The unit now clears that manifest and requires the named mixed-schema-transaction issue; execution and review disposition remain pending. The named ESS scenario, review closure, viewer inspection and complete integrated gate remain required. This partial checkpoint does not complete story D or PR64.
+
+Attribution correction: the earlier draft-to-proposed transition attributed to human:timo was issued by the coordinating agent without setting AEP_ACTOR. It relied on the existing operator execution request and was not a separate human action. The immutable transition is preserved; subsequent writes explicitly identify agent:codex-ekr-knowledge.
