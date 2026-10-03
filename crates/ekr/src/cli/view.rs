@@ -868,7 +868,7 @@ fn route_answer(
         }
         Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
-        Route::Evidence(id) => evidence(runtime, id, query),
+        Route::Evidence(id) => evidence(runtime, &mut memory.indexes, id, query),
         Route::Overview => overview(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
         Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
@@ -1530,7 +1530,7 @@ fn refused(what: &str, error: ProjectError) -> Reply {
 }
 
 /// Retained evidence bytes from the requested revision (head when absent), never as HTML.
-fn evidence(runtime: &Runtime, id: &str, query: &str) -> Reply {
+fn evidence(runtime: &Runtime, indexes: &mut IndexCache, id: &str, query: &str) -> Reply {
     let query = match Query::parse(query, &["revision"]) {
         Ok(query) => query,
         Err(error) => return invalid_query(error),
@@ -1543,14 +1543,23 @@ fn evidence(runtime: &Runtime, id: &str, query: &str) -> Reply {
     let Ok(id) = id.parse::<EvidenceId>() else {
         return not_found();
     };
-    let read = match runtime.read(at) {
-        Ok(read) => read,
-        Err(ekr_kernel::CommitError::RevisionNotFound { .. }) => {
+    let index = match indexes.index(runtime, at) {
+        Ok(index) => index,
+        Err(ProjectError::RevisionNotFound { .. }) => {
             return Reply::text(404, "evidence revision not found")
+        }
+        Err(ProjectError::NotSeeded { .. }) => {
+            return Reply::text(
+                500,
+                format!(
+                    "reading evidence revision: {}",
+                    ekr_kernel::CommitError::NotSeeded
+                ),
+            )
         }
         Err(error) => return Reply::text(500, format!("reading evidence revision: {error}")),
     };
-    let Some(item) = read.graph.evidence.get(&id) else {
+    let Some(item) = index.loaded().graph.evidence.get(&id) else {
         return not_found();
     };
     match runtime.content(&item.content_hash) {
@@ -1595,6 +1604,273 @@ mod tests {
         match answer(held, memory, 9, &asked) {
             Answered::Whole(reply) => reply,
             Answered::Stream(_) => panic!("{target} answered a stream"),
+        }
+    }
+
+    fn cached_evidence_replays(revision: u64) {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().expect("a temporary directory");
+            let store = seeded_with_a_commit(directory.path(), backend, "store");
+            let mut held = Held::open(store).expect("the store opens");
+            let mut memory = Memory::default();
+            assert_eq!(get(&mut held, &mut memory, "/head").status, 200);
+            assert_eq!(
+                get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/overview?revision={revision}")
+                )
+                .status,
+                200
+            );
+            let index = memory.indexes.get(RevisionNumber::new(revision)).unwrap();
+            let (id, item) = index.loaded().graph.evidence.first_key_value().unwrap();
+            let (expected, before) = match held.current().unwrap() {
+                Checked::Same(runtime) | Checked::Reopened(runtime) => {
+                    let bytes = runtime.content(&item.content_hash).unwrap().unwrap();
+                    (bytes, runtime.seed_replays())
+                }
+            };
+            for _ in 0..2 {
+                let reply = get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/evidence/{id}?revision={revision}"),
+                );
+                assert_eq!(reply.status, 200, "{backend:?}");
+                assert_eq!(reply.content_type, content_type(&expected));
+                assert_eq!(reply.body, expected);
+            }
+            let after = match held.current().unwrap() {
+                Checked::Same(runtime) | Checked::Reopened(runtime) => runtime.seed_replays(),
+            };
+            assert_eq!(
+                after - before,
+                0,
+                "{backend:?}: cached revision {revision} evidence replayed the seed"
+            );
+        }
+    }
+
+    #[test]
+    fn evidence_reads_reuse_the_admitted_current_revision_without_seed_replay() {
+        cached_evidence_replays(1);
+    }
+
+    #[test]
+    fn evidence_reads_reuse_the_admitted_historical_revision_without_seed_replay() {
+        cached_evidence_replays(0);
+    }
+
+    #[test]
+    fn evidence_cache_keeps_historical_membership_after_new_evidence_commits() {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded(directory.path(), backend, "store");
+            let actor = store.host.context.operator;
+            let writer = store.open_existing(super::super::Access::Write).unwrap();
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=0").status,
+                200
+            );
+            let mut item = memory
+                .indexes
+                .get(RevisionNumber::SEED)
+                .unwrap()
+                .loaded()
+                .graph
+                .evidence
+                .values()
+                .next()
+                .unwrap()
+                .clone();
+            item.id = EvidenceId::mint();
+            let id = item.id;
+            let payload = b"retained delta evidence".to_vec();
+            item.content_hash = ekr_core::ContentHash::of_bytes(&payload);
+            let transaction = ekr_kernel::GraphTransaction {
+                id: ekr_core::TransactionId::mint(),
+                proposer: actor,
+                operations: vec![ekr_kernel::GraphOperation::AddEvidence(Box::new(
+                    ekr_kernel::EvidenceAddition {
+                        evidence: item,
+                        payload: payload.clone(),
+                    },
+                ))],
+                evidence: Default::default(),
+                schema_version: None,
+            };
+            #[derive(serde::Serialize)]
+            struct Wire<'a> {
+                format: &'static str,
+                transaction: &'a ekr_kernel::GraphTransaction,
+            }
+            let bytes = serde_yaml_ng::to_string(&Wire {
+                format: "ekr.transaction-document/2",
+                transaction: &transaction,
+            })
+            .unwrap();
+            let clock = || ekr_core::Timestamp::from_millis(10);
+            writer.propose(bytes.as_bytes(), actor, clock).unwrap();
+            assert!(matches!(
+                writer
+                    .validate(transaction.id, RevisionNumber::SEED, clock)
+                    .unwrap(),
+                ekr_kernel::ValidationCommandResult::Validated(_)
+            ));
+            assert!(matches!(
+                writer.commit(transaction.id, actor, clock).unwrap(),
+                ekr_kernel::CommitCommandResult::Committed(_)
+            ));
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=1").status,
+                200
+            );
+            assert_eq!(
+                get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/evidence/{id}?revision=0")
+                )
+                .status,
+                404
+            );
+            for query in ["", "?revision=1"] {
+                let reply = get(&mut held, &mut memory, &format!("/evidence/{id}{query}"));
+                assert_eq!(reply.status, 200);
+                assert_eq!(reply.body, payload);
+            }
+            for (target, status) in [
+                (format!("/evidence/{id}?revision=99"), 404),
+                (format!("/evidence/{}?revision=1", EvidenceId::mint()), 404),
+                ("/evidence/not-an-id".into(), 404),
+                (format!("/evidence/{id}?revision=1&revision=1"), 400),
+                (format!("/evidence/{id}?revision=-1"), 400),
+            ] {
+                assert_eq!(
+                    get(&mut held, &mut memory, &target).status,
+                    status,
+                    "{target}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn evidence_cache_is_discarded_after_store_replacement() {
+        for (backend, inside) in [
+            (super::super::Backend::File, false),
+            (super::super::Backend::File, true),
+            (super::super::Backend::Sqlite, false),
+        ] {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded_with_a_commit(directory.path(), backend, "store");
+            let path = store.store.clone();
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=1").status,
+                200
+            );
+            let index = memory.indexes.get(RevisionNumber::new(1)).unwrap();
+            let id = *index.loaded().graph.evidence.keys().next().unwrap();
+            let target = format!("/evidence/{id}?revision=1");
+            assert_eq!(get(&mut held, &mut memory, &target).status, 200);
+            let next = seeded(directory.path(), backend, "next");
+            if inside {
+                replace_inside(&path, &next.store);
+            } else {
+                replace(&path, &directory.path().join("previous"), &next.store);
+            }
+            assert_eq!(
+                get(&mut held, &mut memory, &target).status,
+                404,
+                "{backend:?}, inside={inside}"
+            );
+            assert_eq!(
+                get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/evidence/{id}?revision=0")
+                )
+                .status,
+                200
+            );
+        }
+    }
+
+    #[test]
+    fn evidence_cache_refuses_corrupted_or_missing_retained_payloads_after_replacement() {
+        for remove in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded(directory.path(), super::super::Backend::File, "store");
+            let path = store.store.clone();
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=0").status,
+                200
+            );
+            let index = memory.indexes.get(RevisionNumber::SEED).unwrap();
+            let id = *index.loaded().graph.evidence.keys().next().unwrap();
+            let target = format!("/evidence/{id}?revision=0");
+            let before = get(&mut held, &mut memory, &target);
+            assert_eq!(before.status, 200);
+            let next = seeded(directory.path(), super::super::Backend::File, "next");
+            let blob = std::fs::read_dir(next.store.join("blobs"))
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .find(|path| std::fs::read(path).is_ok_and(|bytes| bytes == before.body))
+                .expect("fixture's retained payload is a physical blob");
+            if remove {
+                std::fs::remove_file(blob).unwrap();
+            } else {
+                std::fs::write(blob, b"corrupted retained payload").unwrap();
+            }
+            replace(&path, &directory.path().join("previous"), &next.store);
+            let refused = get(&mut held, &mut memory, &target);
+            assert_eq!(
+                refused.status,
+                503,
+                "remove={remove}: {}",
+                String::from_utf8_lossy(&refused.body)
+            );
+            assert_eq!(
+                serde_json::from_slice::<serde_json::Value>(&refused.body).unwrap()["refusal"],
+                "store-replaced"
+            );
+        }
+    }
+
+    #[test]
+    fn evidence_cache_preserves_the_unseeded_store_refusal() {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().unwrap();
+            let mut store = seeded(directory.path(), backend, "store");
+            store.store = directory.path().join("unseeded");
+            let host = store.host.clone();
+            let unseeded = match backend {
+                super::super::Backend::File => {
+                    Runtime::file(&store.store, &host.tenant, host.context, host.authority)
+                }
+                super::super::Backend::Sqlite => {
+                    Runtime::sqlite(&store.store, &host.tenant, host.context, host.authority)
+                }
+                super::super::Backend::Postgres => unreachable!(),
+            }
+            .unwrap();
+            assert!(unseeded.head().unwrap().is_none());
+            drop(unseeded);
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            let id = EvidenceId::mint();
+            for query in ["", "?revision=0"] {
+                let reply = get(&mut held, &mut memory, &format!("/evidence/{id}{query}"));
+                assert_eq!(reply.status, 500);
+                assert!(String::from_utf8_lossy(&reply.body).contains("the lineage has no seed"));
+            }
         }
     }
 
