@@ -64,6 +64,9 @@ mod session;
 mod snapshot;
 mod transactions;
 mod upgrade;
+#[cfg(test)]
+#[path = "../../tests/support/upgrade_fixture.rs"]
+mod upgrade_fixture;
 mod validate;
 mod view;
 

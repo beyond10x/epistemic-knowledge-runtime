@@ -1,0 +1,10 @@
+    Checking ekr-core v0.0.27 (<unit>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<unit>/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Checking ekr-views v0.0.27 (<unit>/crates/ekr-views)
+    Checking ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+    Checking ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `dev` profile [unoptimized] target(s) in 22.27s

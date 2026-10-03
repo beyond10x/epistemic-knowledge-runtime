@@ -78,7 +78,16 @@ pub(super) fn render(runtime: &Runtime) -> Result<Vec<u8>, String> {
                     .assertions
                     .get(&id)
                     .ok_or("missing disputed claim")?;
-                write!(page, "<section><h3>Claim <code>{id}</code></h3><pre>{}</pre><p>Effective time: <code>{}</code></p><p>Assessment: {}</p><p>Supporting evidence:</p><ul>", document(&claim.object)?, escaped(serde_json::to_string(&claim.valid_time).map_err(|e| e.to_string())?), escaped(claim.assessment.name())).unwrap();
+                write!(page, "<section><h3>Claim <code>{id}</code></h3>").unwrap();
+                if let ekr_graph::Object::Node(target) = &claim.object {
+                    let node = read
+                        .graph
+                        .nodes
+                        .get(&target.id())
+                        .ok_or("missing disputed relation target")?;
+                    write!(page, "<p>Target: {}</p>", escaped(&node.canonical_name)).unwrap();
+                }
+                write!(page, "<pre>{}</pre><p>Effective time: <code>{}</code></p><p>Assessment: {}</p><p>Supporting evidence:</p><ul>", document(&claim.object)?, escaped(serde_json::to_string(&claim.valid_time).map_err(|e| e.to_string())?), escaped(claim.assessment.name())).unwrap();
                 let mut evidence: std::collections::BTreeSet<_> =
                     claim.evidence.iter().map(|e| e.id()).collect();
                 evidence.extend(read.graph.attached(id).map(|a| a.evidence.id()));
