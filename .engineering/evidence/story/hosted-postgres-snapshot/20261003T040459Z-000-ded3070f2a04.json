@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T04:04:59Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-postgres-snapshot",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Tail gate exposed two unclassified constructor names in commit-authority and runtime-context surface guards. Corrections ab16ae0f0 and cc1c43db6 retain exact surface equality and add actual ambient-runtime refusal calls; green execution pending.",
+    "reference": "<cache>/ekr-hosted-runtime/release-gate/runtime-context-guard-red.log"
+  }
+}
