@@ -24,7 +24,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 8
+revision: 9
 ---
 ## Outcome
 
@@ -46,3 +46,8 @@ Contract source commit 07604bf1a5e6c19ef86b78846dc99a603f3d2bfb, spec_digest 29e
 
 The operator supplied and explicitly requested execution of the knowledge inbox/schema learning plan on 2026-10-03. This story scopes that accepted intent; its draft status does not imply implementation exists. Shared kernel, CLI, specification and gate edits are serialized.
 
+## Publication atomicity and contract refinements
+
+Independent contract review identified a concurrency requirement that F must implement and test: application can read an approval, a concurrent E review can append rejection without advancing canonical head, and an ordinary canonical-head compare/exchange would still succeed. Therefore each canonical application publication must atomically guard the effective proposal-review stream version/proof alongside its ordinary revision boundary, or serialize both through one provider condition. A separate check immediately before commit is insufficient. Preserve later rejection semantics under response-loss recovery as well.
+
+Before F implementation, author and generate durable application-election records binding exact proposal/review and preallocated schema/item transaction, assertion and schema identities. Qualify remaining-item receipts by immutable source version, item and mapping digest. Generate retained MappingRecord and CanonicalDerivation projections; pin proposal/source/mapping/evidence bytes independently of incubation roots. Reconcile already elected/committed transactions before resume. These refinements are required scope, not implemented behavior or an external dependency blocker.

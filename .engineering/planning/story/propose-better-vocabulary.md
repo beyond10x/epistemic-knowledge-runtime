@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:propose-better-vocabulary
 kind: story
-status: draft
+status: active
 title: E. Propose a better vocabulary
 relations:
 - decomposes: epic:p5-frontier-schema-scheduler
@@ -11,18 +11,31 @@ relations:
 - depends_on: story:retain-supplied-knowledge
 scope:
 - confidence: inferred
+  path: Taskfile.yml
+- confidence: cited
   path: crates/ekr
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-integrate
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-sdk
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store
+- confidence: cited
+  path: docs/cli.md
 - confidence: inferred
-  path: crates/ekr-views
-revision: 8
+  path: docs/epistemic-knowledge-runtime-design.md
+- confidence: cited
+  path: generated/ekr-contract-data
+- confidence: cited
+  path: generated/ekr-contracts
+- confidence: cited
+  path: systems/ekr
+revision: 14
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
+- {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 ---
 ## Outcome
 
@@ -34,7 +47,13 @@ Typed request/result boundary has no embedded model provider or scheduler. New t
 
 ## Scope
 
-Scoper source review: ekr-integrate/src/extraction.rs:527,544 has reusable fact/reference types and validation but canonical mismatch refuses; src/lib.rs:207,228 entity resolution is pure. Inferred implementation: ekr-integrate deterministic gap groups, typed proposal validation/preview, ekr-store immutable source/proposal/review records via ekr-kernel facade, CLI/session/SDK methods and GET-only proposal pages. E depends on A only as the accepted plan specifies. Establish shared trusted-human review ingress here if not already available from C, or reuse C's implementation after serialized integration; this is implementation ordering, not an added C dependency. No model provider/scheduler. Review-only tests must not claim full application approval conformance, which F completes.
+Current scope was reconciled against integration 5398f7768 after the A-D foundations. Cited seams: kernel incubation.rs verifies retained immutable documents and projects blockers; attention.rs already projects pending blockers; store incubation.rs provides atomic append, pinned-byte validation and compare/exchange patterns. human_review.rs and upgrade.rs provide independently provisioned review trust and proof verification. CLI review_host.rs supplies protected trust, incubation/session/SDK knowledge.rs provide typed transports, and CLI inbox.rs/view.rs own Rust-rendered GET-only pages.
+
+Implement E in a serialized managed unit based on that integration commit. Reuse existing generated GapGroup, KnowledgeMapping, MappingPreview, SchemaLearningRequest and SchemaProposalDocument. First validate minimal transport/retention refinements: mapping source version, exact review basis and predecessor exposed to signers, immutable proposal and human-review envelopes, and explicit statement-evidence retention outside canonical revisions. Read-only contract review is pending; generation must precede runtime models.
+
+Runtime groups current pending blockers deterministically by kind and declared vocabulary, with stable identities and sorted unique evidence/source versions. Typed consumer proposals bind exact source versions and byte digests. Preview validates additive declarations, optional properties, declared selectors and typed constants without canonical writes. Enum constraints need explicit retained declaration support; the runtime must not infer exhaustiveness from observed values. Human review validates signature, exact proposal/evidence/effects and expected predecessor; latest append-only decision governs future application.
+
+Tests cover file/SQLite reopen and replay, unchanged canonical roots during discovery/submission/review, idempotent retention, source-byte tampering, selectors/constants, exact authenticated review, stale predecessor, rejection history, CLI/SDK parity and escaped GET-only pages. E does not apply schemas or mapped facts; F follows serially under the original plan. No provider SDK/model loop/scheduler, browser/MCP writes, merge/split, GC or hosted-store implementation.
 
 ## Contracts and verification
 
@@ -44,3 +63,10 @@ Contract source commit 07604bf1a5e6c19ef86b78846dc99a603f3d2bfb, spec_digest 29e
 
 The operator supplied and explicitly requested execution of the knowledge inbox/schema learning plan on 2026-10-03. This story scopes that accepted intent; its draft status does not imply implementation exists. Shared kernel, CLI, specification and gate edits are serialized.
 
+## Reviewed contract refinements
+
+The prerequisite contract refinement is in managed unit ekr-schema-proposals-20261003 from integration 5398f7768. It adds generated import/read/retention and review application projections using existing entities, a source version on every mapping, and current material review basis plus exact previous proof digest in proposal reads. Review statement evidence reuses the independently retained Evidence entity without canonical admission.
+
+Review publication atomically binds the immutable proposal and latest review predecessor. A recorded approval means the human endorsed one coherent verified observed basis, not an unconditional applicability grant. Canonical changes can make it immediately stale; F must revalidate material and atomically guard the latest decision during canonical publication. Proof, policy, statement and duplicated projection fields must agree on retention and replay.
+
+Mappings select facts[index] of an exact declared source version; duplicate source/item/target mappings and unknown selectors refuse. Unknown or ambiguous canonical subjects and relation objects remain blocked; there is no implicit entity creation. Enum variant sets must exactly equal a selected retained local declaration. Discovery refuses unseeded stores; submission refuses missing/incompatible base schemas and changed bytes under one proposal id. These are reviewed refinements of the accepted bounded mapping contract, not new autonomous interpretation or migration scope.

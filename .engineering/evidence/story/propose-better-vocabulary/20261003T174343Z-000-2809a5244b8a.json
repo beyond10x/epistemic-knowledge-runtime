@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T17:43:43Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:propose-better-vocabulary",
+  "kind": "story",
+  "revision": 12,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator execution request for the supplied knowledge inbox and schema learning plan",
+    "reference": "release-plan:knowledge-inbox-schema-learning"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T17:43:43Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:propose-better-vocabulary",
+  "kind": "story",
+  "revision": 12,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "ESS contract validation and fresh generated workspace compilation at e578455f067244a9ff37ed1b2da669c456993cec; no implementation conformance",
+    "reference": ".engineering/reviews/knowledge-schema-proposals-contracts/README.md"
+  }
+}
