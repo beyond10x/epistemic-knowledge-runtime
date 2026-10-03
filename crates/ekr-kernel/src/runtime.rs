@@ -17,6 +17,18 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Groups retained, unresolved integration gaps for a consumer-supplied schema agent.
+    /// This read does not invoke a model or publish canonical state.
+    /// # Errors
+    /// An unseeded store, invalid retained history or provider failure.
+    pub fn discover_schema_gaps(
+        &self,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateSchemaLearningRequest, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.discover_schema_gaps(),
+            Backend::Sqlite(kernel) => kernel.discover_schema_gaps(),
+        }
+    }
     /// Installs the deployment's independently provisioned reviewer binding for this runtime.
     /// Call before reading an upgraded lineage. This consumes the previous runtime and clears
     /// its replay admission cache; the original seed authority and provider stay unchanged.

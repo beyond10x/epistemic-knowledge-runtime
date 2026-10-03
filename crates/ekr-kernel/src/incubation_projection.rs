@@ -280,7 +280,6 @@ pub(super) fn receipt(
     })
 }
 fn blocker(value: &w::EkrIntegrateIntegrationBlockerSnapshot) -> i::IntegrationBlockerSnapshot {
-    use w::EkrIntegrateIntegrationBlockerKind as W;
     i::IntegrationBlockerSnapshot {
         blocker_id: i::IntegrationBlockerId(uuid(&value.blocker_id.0)),
         document_digest: hash(&value.document_digest),
@@ -288,15 +287,21 @@ fn blocker(value: &w::EkrIntegrateIntegrationBlockerSnapshot) -> i::IntegrationB
         declaration: value.declaration.clone(),
         reason: value.reason.clone(),
         basis_digest: hash(&value.basis_digest),
-        kind: match *value.kind {
-            W::V0 => i::IntegrationBlockerKind::Contradiction,
-            W::V1 => i::IntegrationBlockerKind::RejectedInterpretation,
-            W::V2 => i::IntegrationBlockerKind::UnknownProperty,
-            W::V3 => i::IntegrationBlockerKind::UnknownRelation,
-            W::V4 => i::IntegrationBlockerKind::UnknownType,
-            W::V5 => i::IntegrationBlockerKind::UnresolvedReference,
-            W::V6 => i::IntegrationBlockerKind::ValueMismatch,
-        },
+        kind: blocker_kind(&value.kind),
+    }
+}
+pub(super) fn blocker_kind(
+    value: &w::EkrIntegrateIntegrationBlockerKind,
+) -> i::IntegrationBlockerKind {
+    use w::EkrIntegrateIntegrationBlockerKind as W;
+    match *value {
+        W::V0 => i::IntegrationBlockerKind::Contradiction,
+        W::V1 => i::IntegrationBlockerKind::RejectedInterpretation,
+        W::V2 => i::IntegrationBlockerKind::UnknownProperty,
+        W::V3 => i::IntegrationBlockerKind::UnknownRelation,
+        W::V4 => i::IntegrationBlockerKind::UnknownType,
+        W::V5 => i::IntegrationBlockerKind::UnresolvedReference,
+        W::V6 => i::IntegrationBlockerKind::ValueMismatch,
     }
 }
 fn processing(

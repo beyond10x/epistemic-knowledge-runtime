@@ -117,6 +117,16 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         assert_eq!(imported.blockers.len(), 1);
         let parked = knowledge.interpretation(&imported.version).unwrap();
         assert_eq!(parked.document, interpretation.document);
+        let gaps = knowledge.discover_schema_gaps().unwrap();
+        assert_eq!(gaps.groups.len(), 1);
+        assert_eq!(gaps.groups[0].declaration, "UnmappedProject");
+        assert_eq!(gaps.groups[0].blockers, imported.blockers);
+        schema["$ref"] = "#/$defs/ekr.integrate.SchemaLearningRequest".into();
+        assert!(jsonschema::options()
+            .should_validate_formats(true)
+            .build(&schema)
+            .unwrap()
+            .is_valid(&serde_json::to_value(&gaps).unwrap()));
         let questions = knowledge.attention().unwrap();
         assert_eq!(questions.len(), 1);
         assert_eq!(
@@ -161,6 +171,7 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         let mut reopened = ProcessSession::start(&binary, config.clone(), options).unwrap();
         let mut knowledge = Knowledge::new(&mut reopened);
         assert_eq!(knowledge.interpretation(&imported.version).unwrap(), parked);
+        assert_eq!(knowledge.discover_schema_gaps().unwrap(), gaps);
         assert_eq!(knowledge.attention().unwrap(), questions);
         let repeated = knowledge.import_interpretation(&interpretation).unwrap();
         assert!(repeated.already_retained);

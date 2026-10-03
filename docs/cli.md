@@ -181,6 +181,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr attention` | reads / writes | `list`, `show <kind> <id>`, `answer <file or ->`, `history [--dispute <id>]` | evidence-backed questions, a signed-answer receipt or immutable answer history |
 | `ekr upgrade` | reads / writes | `preview <policy-file or ->`, `apply <application-file or ->` | an exact authority preview or the retained signed transition record |
 | `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
+| `ekr schema-proposal` | reads | `discover` | a typed schema-learning request grouping unresolved integration gaps and retained evidence |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
@@ -519,6 +520,16 @@ provides `Knowledge::answer_attention(&EkrKernelAttentionAnswerApplication)` and
 The read-only viewer's inbox includes answer history with the reviewer, statement evidence,
 corrections, effective times and retained decision details. Settled questions disappear from the
 open inbox while their answers remain inspectable. Schema proposal decisions remain under development.
+
+### `ekr schema-proposal`
+
+`ekr schema-proposal discover` returns the generated `ekr.integrate.SchemaLearningRequest`:
+the current base schema, stable groups of pending blockers by kind and declaration, exact source
+interpretation versions, supporting observations and evidence identities. A seeded store is
+required. It performs no canonical writes and invokes no model; a consumer supplies semantic
+interpretation through its own agent. The typed SDK operation is `Knowledge::discover_schema_gaps`.
+Groups classify source items against the returned base schema. Their blocker IDs refer to the
+original retained findings; those records keep their import-time classification and basis.
 
 ### `ekr incubate`
 

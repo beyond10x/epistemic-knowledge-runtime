@@ -129,6 +129,7 @@ mod replay;
 pub mod runtime;
 #[cfg(feature = "schema")]
 pub mod schema;
+mod schema_gaps;
 pub mod seed;
 pub mod transaction;
 mod upgrade;

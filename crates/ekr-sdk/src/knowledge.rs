@@ -53,6 +53,15 @@ pub struct Knowledge<T: Transport> {
 }
 
 impl<T: Transport> Knowledge<T> {
+    /// Returns a typed request grouping retained gaps for a consumer-supplied schema agent.
+    /// No model is invoked and no canonical revision is written.
+    /// # Errors
+    /// Transport failure, an unseeded store, invalid retained state or invalid response.
+    pub fn discover_schema_gaps(
+        &mut self,
+    ) -> Result<crate::contracts::EkrIntegrateSchemaLearningRequest, ReadError> {
+        Reader::new(&mut self.transport).read_request(Request::new(["schema-proposal", "discover"]))
+    }
     /// Previews the supported authority upgrade using public policy material. The runtime must
     /// already have an independently provisioned binding to this exact policy digest.
     /// # Errors

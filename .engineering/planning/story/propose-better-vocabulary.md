@@ -32,7 +32,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 14
+revision: 15
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -70,3 +70,11 @@ The prerequisite contract refinement is in managed unit ekr-schema-proposals-202
 Review publication atomically binds the immutable proposal and latest review predecessor. A recorded approval means the human endorsed one coherent verified observed basis, not an unconditional applicability grant. Canonical changes can make it immediately stale; F must revalidate material and atomically guard the latest decision during canonical publication. Proof, policy, statement and duplicated projection fields must agree on retention and replay.
 
 Mappings select facts[index] of an exact declared source version; duplicate source/item/target mappings and unknown selectors refuse. Unknown or ambiguous canonical subjects and relation objects remain blocked; there is no implicit entity creation. Enum variant sets must exactly equal a selected retained local declaration. Discovery refuses unseeded stores; submission refuses missing/incompatible base schemas and changed bytes under one proposal id. These are reviewed refinements of the accepted bounded mapping contract, not new autonomous interpretation or migration scope.
+
+## Discovery implementation checkpoint
+
+The discovery increment implements the generated kernel obligation, CLI/session schema-proposal discover and typed SDK operation. It captures one verified base schema, groups current outstanding source items with stable handles, and retains historical blocker anchors unchanged. Exact source versions and retained bytes are checked. No canonical writes occur.
+
+Independent review r1 found stale import-time classification after schema advancement; a real schema-transaction regression failed first, then the shared pure classifier corrected it. Review r2 approved the corrected source and logs with zero new findings. Final focused runners report retention 10 passed, knowledge_cli 2 passed, docs_cli 18 passed; clippy for kernel/CLI/SDK all targets, repository formatter and regenerated-contract drift/compile checks exit zero. The CLI case count stayed unchanged because the existing end-to-end case gained discovery/schema/replay assertions. Evidence is retained under .engineering/reviews/knowledge-schema-gap-discovery/.
+
+ESS source digest 9ef3db2c31e7e282eb52684fc83bf8bd66b214dc7d4408ee9b27d10ae9ed26b0; generated contract digest f0fd932f4806cf61844ffb487dc766c5f3249457a9242e2a479e06513ccdce4c. Specification validation and focused tests do not establish full conformance. Proposal submission/preview/review, read-only proposal pages and F remain unfinished; component suites and complete integration routing remain pending. PR64 stays the sole carrier and is not ready for final delivery.

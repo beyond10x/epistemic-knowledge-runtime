@@ -1,0 +1,21 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 0.76s
+     Running tests/knowledge_retention.rs (<build>/target/debug/deps/knowledge_retention-890fb8e08289f3c2)
+
+running 1 test
+
+thread 'schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history' (1063199) panicked at crates/ekr-kernel/tests/knowledge_retention.rs:397:9:
+assertion `left == right` failed
+  left: "Project"
+ right: "Project.health"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history ... FAILED
+
+failures:
+
+failures:
+    schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p ekr-kernel --test knowledge_retention`

@@ -297,22 +297,56 @@ fn gaps(
     Vec<Box<EkrIntegrateIntegrationBlockerSnapshot>>,
     Vec<Box<EkrIntegrateProcessingReceiptSnapshot>>,
 ) {
+    let blockers = classify_gaps(document, ontology)
+        .into_iter()
+        .map(|(item, declaration, kind, reason)| {
+            Box::new(EkrIntegrateIntegrationBlockerSnapshot {
+                blocker_id: Box::new(EkrIntegrateIntegrationBlockerId::mint()),
+                document_digest: version.document_digest.clone(),
+                item,
+                declaration,
+                kind: Box::new(kind),
+                reason: reason.into(),
+                basis_digest: Box::new(EkrKernelContentHash(basis.to_hex())),
+            })
+        })
+        .collect();
+    let receipts = document
+        .facts
+        .iter()
+        .enumerate()
+        .map(|(index, _)| {
+            Box::new(EkrIntegrateProcessingReceiptSnapshot {
+                receipt_id: Box::new(EkrIntegrateProcessingReceiptId::mint()),
+                mapping_digest: EssPresence::Absent,
+                document_digest: version.document_digest.clone(),
+                item: format!("facts[{index}]"),
+                disposition: Box::new(EkrIntegrateProcessingDisposition::V2),
+                transaction_id: EssPresence::Absent,
+                assertions: vec![],
+                basis_digest: Box::new(EkrKernelContentHash(basis.to_hex())),
+            })
+        })
+        .collect();
+    (blockers, receipts)
+}
+
+/// Classifies source items against one ontology without allocating identities or writing records.
+pub(super) fn classify_gaps(
+    document: &ekr_integrate::ExtractionDocument,
+    ontology: &ekr_ontology::Ontology,
+) -> Vec<(
+    String,
+    String,
+    EkrIntegrateIntegrationBlockerKind,
+    &'static str,
+)> {
     use ekr_integrate::ExtractedFact;
     use EkrIntegrateIntegrationBlockerKind as K;
     let schema = ontology.to_document();
-    let mut blockers = Vec::new();
-    let mut receipts = Vec::new();
-    let mut add = |item: String, declaration: String, kind: K, reason: &str| {
-        blockers.push(Box::new(EkrIntegrateIntegrationBlockerSnapshot {
-            blocker_id: Box::new(EkrIntegrateIntegrationBlockerId::mint()),
-            document_digest: version.document_digest.clone(),
-            item,
-            declaration,
-            kind: Box::new(kind),
-            reason: reason.into(),
-            basis_digest: Box::new(EkrKernelContentHash(basis.to_hex())),
-        }));
-    };
+    let mut findings = Vec::new();
+    let mut add =
+        |item, declaration, kind, reason| findings.push((item, declaration, kind, reason));
     for (index, entity) in document.entities.iter().enumerate() {
         if !schema.node_types.iter().any(|t| t.name == entity.node_type) {
             add(
@@ -378,16 +412,6 @@ fn gaps(
                 }
             },
         }
-        receipts.push(Box::new(EkrIntegrateProcessingReceiptSnapshot {
-            receipt_id: Box::new(EkrIntegrateProcessingReceiptId::mint()),
-            mapping_digest: EssPresence::Absent,
-            document_digest: version.document_digest.clone(),
-            item,
-            disposition: Box::new(EkrIntegrateProcessingDisposition::V2),
-            transaction_id: EssPresence::Absent,
-            assertions: vec![],
-            basis_digest: Box::new(EkrKernelContentHash(basis.to_hex())),
-        }));
     }
-    (blockers, receipts)
+    findings
 }

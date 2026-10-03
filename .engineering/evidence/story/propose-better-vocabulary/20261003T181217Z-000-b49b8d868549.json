@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T18:12:17Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:propose-better-vocabulary",
+  "kind": "story",
+  "revision": 15,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-kernel --test knowledge_retention: 10 passed, file and SQLite; focused discovery increment only",
+    "reference": ".engineering/reviews/knowledge-schema-gap-discovery/discovery-final-kernel.log"
+  }
+}

@@ -1,0 +1,42 @@
+   Compiling ekr-sdk v0.0.27 (<worktree>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 10.02s
+     Running tests/docs_cli.rs (<build>/target/debug/deps/docs_cli-b6bf4ebd93dc82a7)
+
+running 18 tests
+test the_structural_codes_are_partitioned_into_schema_shape_and_the_rest ... FAILED
+test readme_and_agents_point_at_the_page_without_duplicating_each_other ... ok
+test readme_says_the_schema_evolves_under_profile_v2 ... ok
+test the_value_kind_table_names_every_value_kind_and_the_worked_schema_declares_each ... ok
+test the_configuration_table_equals_the_global_options_and_names_their_variables ... ok
+test the_verb_table_equals_the_verbs_ekr_help_lists ... ok
+test every_document_block_is_tagged_and_parses_with_its_real_reader ... ok
+test the_operation_kind_table_and_its_applied_split_match_ekr_operations ... ok
+test every_code_a_validator_raises_is_a_row_or_measured_unreachable ... ok
+test every_refusal_the_page_names_is_a_whole_name_the_runtime_emits ... ok
+test no_text_a_reader_meets_says_only_the_p1_profile_is_accepted ... ok
+test the_public_site_first_run_runs_as_written_on_both_providers ... ok
+test the_readme_first_run_runs_as_written_on_both_providers ... ok
+test the_unsupported_constraint_fix_names_modify_property_under_profile_v2 ... ok
+test every_refusal_outside_validation_exits_and_reads_as_the_page_says ... ok
+test the_worked_example_seeds_commits_and_reads_back_on_both_providers ... ok
+test the_schema_evolution_example_commits_and_reads_each_version_back_on_both_providers ... ok
+test every_code_a_schema_change_is_refused_with_is_listed_or_unreachable ... ok
+
+failures:
+
+---- the_structural_codes_are_partitioned_into_schema_shape_and_the_rest stdout ----
+
+thread 'the_structural_codes_are_partitioned_into_schema_shape_and_the_rest' (980493) panicked at crates/ekr/tests/docs_cli.rs:2290:5:
+assertion `left == right` failed: validate/structural.rs raises codes this suite has not classified as schema shape or not (left), or the lists name codes it no longer raises (right)
+  left: {"alias-already-exists", "conflicting-write", "duplicate-alias", "duplicate-identity", "empty-alias", "empty-transaction", "evidence-set-mismatch", "identity-already-exists", "identity-previously-held", "merge-into-itself", "mixed-schema-transaction", "modify-property-without-owner", "schema-evidence-not-cited", "schema-version-missing", "schema-version-without-schema-change", "unsupported-operation"}
+ right: {"alias-already-exists", "conflicting-write", "duplicate-alias", "duplicate-identity", "empty-alias", "empty-transaction", "evidence-set-mismatch", "identity-already-exists", "identity-previously-held", "merge-into-itself", "mixed-schema-transaction", "modify-property-without-owner", "schema-version-missing", "schema-version-without-schema-change", "unsupported-operation"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_structural_codes_are_partitioned_into_schema_shape_and_the_rest
+
+test result: FAILED. 17 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+error: test failed, to rerun pass `-p ekr --test docs_cli`

@@ -1,0 +1,41 @@
+   Compiling serde_yaml_ng v0.10.0 (<worktree>/vendor/serde_yaml_ng)
+   Compiling ekr-contract-data v0.0.0 (<worktree>/generated/ekr-contract-data)
+   Compiling ekr-types v1.0.0 (<worktree>/generated/ekr-contracts/crates/ekr-types)
+   Compiling ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<worktree>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<worktree>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+error[E0599]: no method named `discover_schema_gaps` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:266:25
+    |
+266 |         assert!(runtime.discover_schema_gaps().unwrap_err().to_string().contains("not-seeded"));
+    |                         ^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+
+error[E0599]: no method named `discover_schema_gaps` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:276:31
+    |
+276 |         let request = runtime.discover_schema_gaps().unwrap();
+    |                               ^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+
+error[E0599]: no method named `discover_schema_gaps` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:286:28
+    |
+286 |         assert_eq!(runtime.discover_schema_gaps().unwrap(), request);
+    |                            ^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+
+error[E0599]: no method named `discover_schema_gaps` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:292:28
+    |
+292 |         assert_eq!(runtime.discover_schema_gaps().unwrap(), request);
+    |                            ^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+
+error[E0599]: no method named `discover_schema_gaps` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:294:28
+    |
+294 |         assert_eq!(runtime.discover_schema_gaps().unwrap(), request);
+    |                            ^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `ekr-kernel` (test "knowledge_retention") due to 5 previous errors

@@ -2263,7 +2263,7 @@ fn validator_codes(files: &[&str]) -> BTreeSet<String> {
 /// `the_structural_codes_are_partitioned_into_schema_shape_and_the_rest` until it is put in one
 /// of the two lists, and one put in `SCHEMA_SHAPE_CODES` must then be listed and drawn by
 /// `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable`.
-const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 11] = [
+const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 12] = [
     "empty-transaction",
     "duplicate-identity",
     "identity-already-exists",
@@ -2272,6 +2272,7 @@ const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 11] = [
     "alias-already-exists",
     "empty-alias",
     "evidence-set-mismatch",
+    "schema-evidence-not-cited",
     "merge-into-itself",
     "conflicting-write",
     "unsupported-operation",

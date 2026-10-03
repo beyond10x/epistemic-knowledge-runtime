@@ -257,6 +257,167 @@ fn interpretation(
 }
 
 #[test]
+fn schema_gap_discovery_is_stable_after_replay_and_does_not_mutate_canonical_state() {
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store");
+        let (context, anchor) = host();
+        let runtime = open(&path, sqlite, context, &anchor);
+        assert!(runtime
+            .discover_schema_gaps()
+            .unwrap_err()
+            .to_string()
+            .contains("not-seeded"));
+        runtime
+            .seed(
+                ekr_kernel::SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml"))
+                    .unwrap(),
+                || Timestamp::EPOCH,
+            )
+            .unwrap();
+        let canonical = runtime.read(None).unwrap().root;
+        let source = observation();
+        runtime
+            .import_observation(&source, Timestamp::EPOCH)
+            .unwrap();
+        let first = interpretation(&source, context.operator);
+        let second = interpretation(&source, context.operator);
+        runtime
+            .import_interpretation(&first, Timestamp::EPOCH)
+            .unwrap();
+        runtime
+            .import_interpretation(&second, Timestamp::EPOCH)
+            .unwrap();
+        let before = runtime.published_events().unwrap();
+        let request = runtime.discover_schema_gaps().unwrap();
+        assert_eq!(
+            request.base_schema.0,
+            "00000000-0000-4000-8000-000000000001"
+        );
+        assert_eq!(request.groups.len(), 1);
+        let group = &request.groups[0];
+        assert_eq!(group.declaration, "Project");
+        assert_eq!(serde_json::to_value(&group.kind).unwrap(), "UnknownType");
+        assert_eq!(group.blockers.len(), 4);
+        assert_eq!(group.sources.len(), 2);
+        assert_eq!(group.observations.len(), 1);
+        assert_eq!(request.evidence.len(), 2);
+        assert_eq!(runtime.discover_schema_gaps().unwrap(), request);
+        assert_eq!(runtime.published_events().unwrap(), before);
+        assert_eq!(runtime.read(None).unwrap().root, canonical);
+        drop(runtime);
+        let mut runtime = open(&path, sqlite, context, &anchor);
+        runtime.set_full_replay(true);
+        assert_eq!(runtime.discover_schema_gaps().unwrap(), request);
+        runtime
+            .import_interpretation(&first, Timestamp::EPOCH)
+            .unwrap();
+        assert_eq!(runtime.discover_schema_gaps().unwrap(), request);
+        assert_eq!(runtime.read(None).unwrap().root, canonical);
+    }
+}
+
+#[test]
+fn schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history() {
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store");
+        let (context, mut anchor) = host();
+        anchor.validation_profile = ValidationProfileV1::schema_evolving(context.validator);
+        let runtime = open(&path, sqlite, context, &anchor);
+        runtime
+            .seed(
+                ekr_kernel::SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml"))
+                    .unwrap(),
+                || Timestamp::EPOCH,
+            )
+            .unwrap();
+        let source = observation();
+        runtime
+            .import_observation(&source, Timestamp::EPOCH)
+            .unwrap();
+        let input = interpretation(&source, context.operator);
+        let receipt = runtime
+            .import_interpretation(&input, Timestamp::EPOCH)
+            .unwrap();
+        let historical = runtime.interpretation(&receipt.version).unwrap();
+        let original = runtime.discover_schema_gaps().unwrap();
+        assert_eq!(
+            serde_json::to_value(&original.groups[0].kind).unwrap(),
+            "UnknownType"
+        );
+        let tx = ekr_kernel::GraphTransaction {
+            id: ekr_core::TransactionId::mint(),
+            proposer: context.operator,
+            schema_version: Some(ekr_core::SchemaVersionId::mint()),
+            evidence: Default::default(),
+            operations: vec![ekr_kernel::GraphOperation::DefineNodeType(Box::new(
+                ekr_ontology::NodeType::new(ekr_core::TypeId::mint(), "Project"),
+            ))],
+        };
+        #[derive(serde::Serialize)]
+        struct Envelope<'a> {
+            format: &'static str,
+            transaction: &'a ekr_kernel::GraphTransaction,
+        }
+        let bytes = serde_yaml_ng::to_string(&Envelope {
+            format: "ekr.transaction-document/1",
+            transaction: &tx,
+        })
+        .unwrap();
+        runtime
+            .propose(bytes.as_bytes(), context.operator, || {
+                Timestamp::from_millis(1)
+            })
+            .unwrap();
+        let validated = runtime
+            .validate(tx.id, ekr_core::RevisionNumber::SEED, || {
+                Timestamp::from_millis(2)
+            })
+            .unwrap();
+        assert!(
+            matches!(validated, ekr_kernel::ValidationCommandResult::Validated(_)),
+            "{validated:?}"
+        );
+        let committed = runtime
+            .commit(tx.id, context.operator, || Timestamp::from_millis(3))
+            .unwrap();
+        assert!(
+            matches!(committed, ekr_kernel::CommitCommandResult::Committed(_)),
+            "{committed:?}"
+        );
+        let before = runtime.published_events().unwrap();
+        let root = runtime.read(None).unwrap().root;
+        let current = runtime.discover_schema_gaps().unwrap();
+        assert_eq!(
+            current.base_schema.0,
+            tx.schema_version.unwrap().to_string()
+        );
+        assert_eq!(current.groups.len(), 1);
+        assert_eq!(current.groups[0].declaration, "Project.health");
+        assert_eq!(
+            serde_json::to_value(&current.groups[0].kind).unwrap(),
+            "UnknownProperty"
+        );
+        assert_eq!(current.groups[0].blockers.len(), 1);
+        assert_eq!(
+            runtime.interpretation(&receipt.version).unwrap(),
+            historical
+        );
+        assert_eq!(runtime.published_events().unwrap(), before);
+        assert_eq!(runtime.read(None).unwrap().root, root);
+        drop(runtime);
+        let mut runtime = open(&path, sqlite, context, &anchor);
+        runtime.set_full_replay(true);
+        assert_eq!(runtime.discover_schema_gaps().unwrap(), current);
+        assert_eq!(
+            runtime.interpretation(&receipt.version).unwrap(),
+            historical
+        );
+    }
+}
+
+#[test]
 fn unmapped_knowledge_survives_reopen() {
     for sqlite in [false, true] {
         let dir = tempfile::tempdir().unwrap();

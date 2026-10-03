@@ -59,6 +59,7 @@ mod resolve;
 mod review_host;
 mod sample;
 mod schema;
+mod schema_proposal;
 mod seed;
 mod session;
 mod snapshot;
@@ -89,6 +90,7 @@ pub use attention::{AttentionCommand, AttentionKind};
 pub use incubation::IncubateCommand;
 pub use mcp::serve_mcp;
 pub use observations::ObserveCommand;
+pub use schema_proposal::SchemaProposalCommand;
 pub use session::serve;
 pub use transactions::StateFilter;
 pub use upgrade::UpgradeCommand;
@@ -145,6 +147,17 @@ pub enum Backend {
 /// The kernel verbs, by their ESS wire names, and the agent verbs that describe them.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Discover retained vocabulary gaps (`ekr.integrate.DiscoverSchemaGaps`).
+    ///
+    /// `ekr schema-proposal discover` returns an `ekr.integrate.SchemaLearningRequest`
+    /// under the `ekr.cli-host/1` host, for a consumer-supplied agent to interpret.
+    /// Requires a seeded store; reads current schema and retained sources without writing.
+    #[command(after_help = SEE)]
+    SchemaProposal {
+        /// The schema proposal operation.
+        #[command(subcommand)]
+        command: SchemaProposalCommand,
+    },
     /// Preview or apply a signed authority upgrade (`ekr.kernel.PreviewUpgrade` and `ApplyUpgrade`).
     ///
     /// A store verb under the `ekr.cli-host/1` host and an independently provisioned reviewer
@@ -572,6 +585,7 @@ impl Command {
     /// store it migrates.
     pub(crate) fn access(&self) -> Access {
         match self {
+            Self::SchemaProposal { .. } => Access::Read,
             Self::Upgrade { command } => command.access(),
             Self::Attention { command } => command.access(),
             Self::Observe { command } => command.access(),
@@ -828,6 +842,10 @@ fn dispatch(
     stdin: &mut dyn Read,
 ) -> Result<Printed, Failure> {
     match command {
+        Command::SchemaProposal { command } => {
+            let runtime = source.resolve("schema-proposal")?.open()?;
+            schema_proposal::run(command, &runtime)
+        }
         Command::Upgrade { command } => {
             let runtime = source.resolve("upgrade")?.open()?;
             upgrade::run(command, &runtime, now, stdin)

@@ -361,6 +361,10 @@ types:
       type: String
   - name: ekr.integrate.GapGroup
     kind: struct
+    # Projects outstanding source items against SchemaLearningRequest.base_schema.
+    # Kind and declaration describe the current classification. Blocker IDs identify
+    # retained historical findings anchoring those exact document/item coordinates;
+    # their recorded classification and basis remain unchanged.
     fields:
     - name: group_id
       type: ekr.integrate.GapGroupId
@@ -1311,7 +1315,9 @@ commands:
           request:
             generated: true
       summary: Deterministically group recurring integration blockers by kind and declared
-        source vocabulary. Return a typed request for a consumer-supplied agent; do
+        source vocabulary against one verified current base schema. Reclassify outstanding
+        source items while preserving immutable historical blocker anchors and their original
+        classification and basis. Return a typed request for a consumer-supplied agent; do
         not start a model provider or scheduler.
     - name: refused
       external: A canonical base schema is required; an unseeded or unverifiable store is refused.
