@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:schema-transaction-cites-evidence
 kind: story
-status: draft
+status: active
 title: A schema transaction cites the evidence that introduced it
 relations:
 - decomposes: epic:consumer-sdk
@@ -20,7 +20,16 @@ scope:
   path: crates/ekr-sdk
 - confidence: inferred
   path: crates/ekr-views
-revision: 8
+- confidence: cited
+  path: docs/cli.md
+- confidence: cited
+  path: systems/ekr/domains/kernel.yaml
+- confidence: cited
+  path: systems/ekr/domains/views.yaml
+revision: 13
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-03T14:55:25Z", actor: "human:timo", revision: 9}
+- {from: "proposed", to: "active", at: "2026-10-03T14:55:26Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 ---
 ## Context
 

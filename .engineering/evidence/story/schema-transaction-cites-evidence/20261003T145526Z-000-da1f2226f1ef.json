@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T14:55:26Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:schema-transaction-cites-evidence",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator execution request: implement the knowledge inbox and schema-learning plan, including story D",
+    "reference": ".engineering/waves/knowledge-schema-evidence.md"
+  }
+}
