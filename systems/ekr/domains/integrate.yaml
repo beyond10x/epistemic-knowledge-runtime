@@ -12,6 +12,172 @@ naming:
   display: Integrate
 
 types:
+  - name: ekr.integrate.RetainedApplicationAttempt
+    kind: struct
+    fields:
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: step_election_id, type: ekr.integrate.ApplicationStepId}
+      - {name: predecessor_transaction, type: Optional<ekr.kernel.TransactionId>}
+      - {name: predecessor_record_hash, type: Optional<ekr.kernel.ContentHash>}
+      - {name: transaction, type: ekr.kernel.CanonicalTransactionProjection}
+      - {name: elected_at, type: Timestamp}
+    # First attempt equals the step's initial transaction and has no predecessor. A
+    # successor requires BOTH predecessor fields naming the verified terminal Stale
+    # record of the latest attempt. Resolve uncertain results first; committed, rejected,
+    # merely proposed or validated attempts cannot elect a successor under this protocol.
+    # Apart from transaction.id, every transaction field and allocated operation identity
+    # equals the frozen step template. One initial and one successor per predecessor.
+  # Application documents freeze allocations, not authority. Validation across retained
+  # records and atomic provider groups remains an implementation obligation (§105.17).
+  - name: ekr.integrate.SchemaApplicationId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.ApplicationStepId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.ApplicationItemKey
+    kind: struct
+    fields:
+      - {name: source, type: ekr.integrate.InterpretationVersion}
+      - {name: item, type: String}
+      - {name: mapping_digest, type: ekr.kernel.ContentHash}
+    # item is exactly facts[index]. Digest addresses the deterministic generated wire
+    # encoding of the complete KnowledgeMapping, including source; never this key or
+    # the enclosing record. Distinct mappings of one source item remain distinct work.
+  - name: ekr.integrate.ApplicationStepKind
+    kind: enum
+    variants: [Schema, Mapping, Corrections]
+  - name: ekr.integrate.ApplicationStep
+    kind: struct
+    fields:
+      - {name: kind, type: ekr.integrate.ApplicationStepKind}
+      - {name: item, type: Optional<ekr.integrate.ApplicationItemKey>}
+    # Mapping requires item; Schema and Corrections forbid it. Corrections covers the
+    # exact ordered selected corrections, not a correction hidden in an unrelated item.
+    # Corrections is one final atomic step only after ALL selected mappings have committed.
+    # No unresolved item may be silently dropped to reach it. After it commits, no further
+    # application canonical writes are allowed: only exact recovery and receipt reporting.
+  - name: ekr.integrate.RetainedApplicationElection
+    kind: struct
+    fields:
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: proposal_digest, type: ekr.kernel.ContentHash}
+      - {name: initial_review_id, type: ekr.integrate.ProposalReviewId}
+      - {name: initial_proof_digest, type: ekr.kernel.ContentHash}
+      - {name: base_schema, type: ekr.ontology.SchemaVersionId}
+      - {name: elected_at, type: Timestamp}
+      - {name: schema_transaction, type: ekr.kernel.CanonicalTransactionProjection}
+      - {name: selected_items, type: List<ekr.integrate.ApplicationItemKey>}
+    # Unique per store/proposal identity and exact digest. Exact retries recover this
+    # election. All generated IDs and operations are fixed before ordinary Propose.
+    # initial_review records provenance only; every later write needs its current review.
+  - name: ekr.integrate.RetainedMappingRecord
+    kind: struct
+    fields:
+      - {name: mapping_id, type: ekr.integrate.MappingRecordId}
+      - {name: proposal_digest, type: ekr.kernel.ContentHash}
+      - {name: mapping_digest, type: ekr.kernel.ContentHash}
+      - {name: source_document_digest, type: ekr.kernel.ContentHash}
+      - {name: mapping, type: ekr.integrate.KnowledgeMapping}
+      - {name: evidence, type: List<ekr.graph.EvidenceId>}
+      - {name: payload, type: Bytes}
+    # payload is compact UTF-8 JSON of the generated KnowledgeMapping data model, no
+    # trailing newline, using the pinned JSON codec (§105.17). It decodes
+    # exactly to mapping; ContentHash::of_bytes(payload) equals mapping_digest. It cannot
+    # contain its own digest. Proposal/source digests address their exact retained bytes.
+  - name: ekr.integrate.CanonicalDerivationRecord
+    kind: struct
+    fields:
+      - {name: derivation_id, type: Uuid}
+      - {name: assertion_id, type: ekr.graph.AssertionId}
+      - {name: mapping_id, type: ekr.integrate.MappingRecordId}
+      - {name: observation_id, type: Optional<ekr.graph.ObservationId>}
+      - {name: evidence_id, type: ekr.graph.EvidenceId}
+    # A planned record is not an assertion of canonical admission. The corresponding
+    # CanonicalDerivation exists only after its ordinary transaction really commits.
+  - name: ekr.integrate.RetainedApplicationStep
+    kind: struct
+    fields:
+      - {name: step_election_id, type: ekr.integrate.ApplicationStepId}
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: step, type: ekr.integrate.ApplicationStep}
+      - {name: transaction, type: ekr.kernel.CanonicalTransactionProjection}
+      - {name: replacements, type: List<ekr.kernel.ClaimReplacement>}
+      - {name: mappings, type: List<ekr.integrate.RetainedMappingRecord>}
+      - {name: derivations, type: List<ekr.integrate.CanonicalDerivationRecord>}
+      - {name: elected_at, type: Timestamp}
+    # Immutable uniqueness by application + step. Elect atomically with all pinned
+    # proposal/source/mapping/evidence bytes before Propose; retain initial transaction,
+    # assertion and replacement identities. Successor attempts may change transaction id only. Schema transaction must equal
+    # the application election. Blocked items have no invented transaction or result.
+  - name: ekr.integrate.ApplicationPublicationGuard
+    kind: struct
+    fields:
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: step_election_id, type: ekr.integrate.ApplicationStepId}
+      - {name: attempt_transaction, type: ekr.kernel.TransactionId}
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: proposal_digest, type: ekr.kernel.ContentHash}
+      - {name: review_id, type: ekr.integrate.ProposalReviewId}
+      - {name: human_proof_digest, type: ekr.kernel.ContentHash}
+      - {name: review_stream_version, type: Integer}
+      - {name: step, type: ekr.integrate.ApplicationStep}
+    # Cursor admission is the exact invariant on its retained read entity below;
+    # decoding this untrusted transport does not establish that invariant.
+    # Derived by kernel verification of the retained prefix, never client authority.
+    # Physical stream version includes markers. Effective human proof ignores markers.
+    # No marker/event hash occurs here, so event -> guard and marker -> event are acyclic.
+  - name: ekr.integrate.ApplicationPublicationRecord
+    kind: struct
+    fields:
+      - {name: guard, type: ekr.integrate.ApplicationPublicationGuard}
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: record_hash, type: ekr.kernel.ContentHash}
+      - {name: command, type: ekr.store.PublicationCommandKind}
+    # Exactly one nonempty marker, atomically with that ordinary revision occurrence and
+    # objects. command is Propose, Validate or Commit, including rejected/stale outcomes;
+    # it is never a human review, upgrade, answer or a reservation for a future write.
+    # transaction_id must equal guard.attempt_transaction and the retained attempt id.
+  - name: ekr.integrate.ProposalCoordinationRecord
+    kind: union
+    tag: kind
+    variants:
+      ProposalReviewRetained: ekr.integrate.RetainedProposalReview
+      ApplicationPublicationRecorded: ekr.integrate.ApplicationPublicationRecord
+    # Read projection only: existing review event names/payloads/schema versions remain
+    # unchanged. New marker events coexist on that same per-proposal physical stream.
+  - name: ekr.integrate.ProposalCoordinationEntry
+    kind: struct
+    fields:
+      - {name: stream_version, type: Integer}
+      - {name: record, type: ekr.integrate.ProposalCoordinationRecord}
+    # Cursor admission is the exact invariant on its retained read entity below;
+    # decoding this untrusted transport does not establish that invariant.
+  - name: ekr.integrate.ProposalCoordinationRead
+    kind: struct
+    fields:
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: stream_version, type: Integer}
+      - {name: entries, type: List<ekr.integrate.ProposalCoordinationEntry>}
+    # Cursor admission is the exact invariant on its retained read entity below;
+    # decoding this untrusted transport does not establish that invariant.
+    # Contiguous verified native positions, not count of human reviews. Both review
+    # retention and application publication CAS this physical version. Human predecessor
+    # remains latest HumanDecisionRecord.proof_digest, excluding every marker.
+  - name: ekr.integrate.ApplicationRead
+    kind: struct
+    fields:
+      - {name: election, type: ekr.integrate.RetainedApplicationElection}
+      - {name: steps, type: List<ekr.integrate.RetainedApplicationStep>}
+      - {name: attempts, type: List<ekr.integrate.RetainedApplicationAttempt>}
+      - {name: publications, type: List<ekr.integrate.ApplicationPublicationRecord>}
+      - {name: receipts, type: List<ekr.integrate.ApplicationReceiptSnapshot>}
+      - {name: remaining_items, type: List<ekr.integrate.ApplicationItemKey>}
+      - {name: corrections_pending, type: Boolean}
+    # Reads derive completed work only from verified commit occurrences, never an
+    # election, preparation, successful Propose/Validate or unknown provider result.
   # E transports reuse declared proposal/review fields; they do not grant authority.
   - name: ekr.integrate.SchemaProposalImport
     kind: struct
@@ -28,6 +194,7 @@ types:
     - {name: receipts, type: List<ekr.integrate.ApplicationReceiptSnapshot>}
     - {name: basis, type: ekr.kernel.ReviewBasis}
     - {name: expected_previous_decision, type: Optional<ekr.kernel.ContentHash>}
+    - {name: application, type: Optional<ekr.integrate.ApplicationRead>}
   - name: ekr.integrate.RetainedSchemaProposal
     kind: struct
     fields:
@@ -134,6 +301,7 @@ types:
   - name: ekr.integrate.ApplicationReceiptSnapshot
     kind: struct
     fields:
+    - {name: application_id, type: ekr.integrate.SchemaApplicationId}
     - name: receipt_id
       type: ekr.integrate.ApplicationReceiptId
     - name: proposal_id
@@ -149,7 +317,8 @@ types:
     - name: processing_receipts
       type: List<ekr.integrate.ProcessingReceiptId>
     - name: remaining_items
-      type: List<String>
+      type: List<ekr.integrate.ApplicationItemKey>
+    - {name: corrections_pending, type: Boolean}
     - name: stop_reason
       type: Optional<String>
   # The hashed input carries no digest of itself; the retained reference adds that digest.
@@ -175,14 +344,20 @@ types:
   - name: ekr.integrate.ApplicationReport
     kind: struct
     fields:
-      - {name: receipt_id, type: ekr.integrate.ApplicationReceiptId}
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: receipt_id, type: Optional<ekr.integrate.ApplicationReceiptId>}
       - {name: progress, type: ekr.integrate.ApplicationProgress}
       - {name: schema_transaction, type: ekr.kernel.TransactionId}
-      - {name: schema_revision, type: ekr.kernel.RevisionNumber}
+      - {name: schema_revision, type: Optional<ekr.kernel.RevisionNumber>}
       - {name: items, type: List<ekr.integrate.IntegrationItemReceipt>}
-      - {name: remaining_items, type: List<String>}
+      - {name: remaining_items, type: List<ekr.integrate.ApplicationItemKey>}
+      - {name: corrections_pending, type: Boolean}
       - {name: stop_reason, type: Optional<String>}
       - {name: already_complete, type: Boolean}
+    # Before confirmed schema commit progress is Elected and receipt_id/schema_revision
+    # are absent; schema_transaction is the current elected schema attempt id, not a commit
+    # assertion. After commit it names the actual winning attempt, not a stale predecessor.
+    # Complete requires schema, every selected mapping and selected corrections committed.
   # Knowledge inbox and evidence-led schema learning, design § 105.
   - name: ekr.integrate.InterpretationId
     kind: newtype
@@ -233,6 +408,7 @@ types:
   - name: ekr.integrate.ApplicationProgress
     kind: enum
     variants:
+    - Elected
     - SchemaCommitted
     - FactsInProgress
     - Complete
@@ -769,6 +945,103 @@ types:
         type: Optional<String>
 
 entities:
+  # Read entities fold already retained physical records. They create no new database,
+  # canonical writer or synthetic create outcome. Transport values confer no admission.
+  - name: ekr.integrate.ApplicationPublication
+    identity: {name: event_id, type: ekr.kernel.EventId}
+    fields:
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: review_stream_version, type: Integer}
+      - {name: publication, type: ekr.integrate.ApplicationPublicationRecord}
+    invariants:
+      - review_stream_version > 0
+    # Every scalar is the corresponding exact field of publication and its guard;
+    # admission/replay refuses inconsistent duplicates, not merely an invalid cursor.
+    # A row exists only for the verified marker and ordinary occurrence in one group.
+    relations:
+      - {name: proposal, kind: references, target: ekr.integrate.SchemaProposal, cardinality: one, via: proposal_id}
+      - {name: application, kind: references, target: ekr.integrate.ApplicationElection, cardinality: one, via: application_id}
+      - {name: transaction, kind: references, target: ekr.kernel.GraphTransaction, cardinality: one, via: transaction_id}
+    lifecycle: {initial: Recorded, states: [Recorded], terminal: [Recorded]}
+  - name: ekr.integrate.ProposalCoordinationOccurrence
+    identity: {name: occurrence_key, type: String}
+    fields:
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: stream_version, type: Integer}
+      - {name: entry, type: ekr.integrate.ProposalCoordinationEntry}
+    invariants:
+      - stream_version > 0
+    # Within the trusted store/tenant this read key is proposal UUID + ':' + the native
+    # decimal stream version; it is a physical address, not a minted knowledge identity.
+    # stream_version equals entry.stream_version and proposal_id names its actual stream.
+    relations:
+      - {name: proposal, kind: references, target: ekr.integrate.SchemaProposal, cardinality: one, via: proposal_id}
+    lifecycle: {initial: Recorded, states: [Recorded], terminal: [Recorded]}
+  - name: ekr.integrate.ProposalCoordination
+    identity: {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+    fields:
+      - {name: stream_version, type: Integer}
+      - {name: history, type: ekr.integrate.ProposalCoordinationRead}
+    invariants:
+      - stream_version >= 0
+    # One current fold per retained proposal, including an empty native stream at zero.
+    # Identity/cursor equal history.proposal_id/history.stream_version. Entries are the
+    # complete verified contiguous prefix, never a second independently mutable queue.
+    relations:
+      - {name: proposal, kind: references, target: ekr.integrate.SchemaProposal, cardinality: one, via: proposal_id}
+    lifecycle: {initial: Observed, states: [Observed], terminal: [Observed]}
+  - name: ekr.integrate.ApplicationStepAttempt
+    identity: {name: transaction_id, type: ekr.kernel.TransactionId}
+    fields:
+      - {name: step_election_id, type: ekr.integrate.ApplicationStepId}
+      - {name: predecessor_transaction, type: Optional<ekr.kernel.TransactionId>}
+      - {name: predecessor_record_hash, type: Optional<ekr.kernel.ContentHash>}
+      - {name: transaction, type: ekr.kernel.CanonicalTransactionProjection}
+      - {name: elected_at, type: Timestamp}
+    # Election of this document precedes ordinary Propose; identity alone does not imply
+    # a GraphTransaction exists. A stale predecessor does exist and is immutable.
+    relations:
+      - {name: step, kind: references, target: ekr.integrate.ApplicationStepElection, cardinality: one, via: step_election_id}
+      - {name: predecessor, kind: references, target: ekr.kernel.GraphTransaction, cardinality: one, via: predecessor_transaction}
+    lifecycle: {initial: Elected, states: [Elected], terminal: [Elected]}
+  # Elections are durable plans, never canonical transaction admission or human decisions.
+  - name: ekr.integrate.ApplicationElection
+    identity: {name: application_id, type: ekr.integrate.SchemaApplicationId}
+    fields:
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: proposal_digest, type: ekr.kernel.ContentHash}
+      - {name: initial_review_id, type: ekr.integrate.ProposalReviewId}
+      - {name: initial_proof_digest, type: ekr.kernel.ContentHash}
+      - {name: base_schema, type: ekr.ontology.SchemaVersionId}
+      - {name: elected_at, type: Timestamp}
+      - {name: schema_transaction, type: ekr.kernel.CanonicalTransactionProjection}
+      - {name: selected_items, type: List<ekr.integrate.ApplicationItemKey>}
+    # The planned schema transaction is a document, not a relation to GraphTransaction:
+    # before Propose, no such retained canonical transaction is required to exist. Its id
+    # is the initial attempt id; a verified stale outcome can elect a successor id without
+    # changing the frozen schema or any operation. Receipts name the actual committed attempt.
+    relations:
+      - {name: proposal, kind: references, target: ekr.integrate.SchemaProposal, cardinality: one, via: proposal_id}
+      - {name: initial_review, kind: references, target: ekr.integrate.ProposalReview, cardinality: one, via: initial_review_id}
+      - {name: proposal_bytes, kind: references, target: ekr.store.StoredObject, cardinality: one, via: proposal_digest}
+    lifecycle: {initial: Elected, states: [Elected], terminal: [Elected]}
+  - name: ekr.integrate.ApplicationStepElection
+    identity: {name: step_election_id, type: ekr.integrate.ApplicationStepId}
+    fields:
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: step, type: ekr.integrate.ApplicationStep}
+      - {name: transaction, type: ekr.kernel.CanonicalTransactionProjection}
+      - {name: replacements, type: List<ekr.kernel.ClaimReplacement>}
+      - {name: mappings, type: List<ekr.integrate.RetainedMappingRecord>}
+      - {name: derivations, type: List<ekr.integrate.CanonicalDerivationRecord>}
+      - {name: elected_at, type: Timestamp}
+    # Embedded derivations and replacements are frozen planned allocations. Only the
+    # verified Commit occurrence establishes their assertions and canonical provenance.
+    relations:
+      - {name: application, kind: references, target: ekr.integrate.ApplicationElection, cardinality: one, via: application_id}
+    lifecycle: {initial: Elected, states: [Elected], terminal: [Elected]}
   - name: ekr.integrate.ProposalObservation
     identity:
       name: binding_id
@@ -802,8 +1075,10 @@ entities:
     fields:
       - {name: assertion_id, type: ekr.graph.AssertionId}
       - {name: mapping_id, type: ekr.integrate.MappingRecordId}
-      - {name: observation_id, type: ekr.graph.ObservationId}
+      - {name: observation_id, type: Optional<ekr.graph.ObservationId>}
       - {name: evidence_id, type: ekr.graph.EvidenceId}
+    # observation_id is present only when this evidence link cites that retained observation.
+    # HumanStatement evidence needs no invented observation; evidence_id is always required.
     relations:
       - {name: assertion, kind: references, target: ekr.graph.Assertion, cardinality: one, via: assertion_id}
       - {name: mapping, kind: references, target: ekr.integrate.MappingRecord, cardinality: one, via: mapping_id}
@@ -1098,6 +1373,7 @@ entities:
       name: receipt_id
       type: ekr.integrate.ApplicationReceiptId
     fields:
+    - {name: application_id, type: ekr.integrate.SchemaApplicationId}
     - name: proposal_id
       type: ekr.integrate.SchemaProposalId
     - name: review_id
@@ -1111,13 +1387,17 @@ entities:
     - name: processing_receipts
       type: List<ekr.integrate.ProcessingReceiptId>
     - name: remaining_items
-      type: List<String>
+      type: List<ekr.integrate.ApplicationItemKey>
+    - {name: corrections_pending, type: Boolean}
     - name: stop_reason
       type: Optional<String>
+    # Elected is forbidden for this post-schema-commit record; schema transaction and
+    # revision must be verified committed. Every progress record gets a fresh receipt id.
     # Append-only partial progress after schema commit. Facts are ordinary validated
     # transactions and each source item is resumable without duplication; blocked and
     # newly disputed facts remain visible.
     relations:
+    - {name: application, kind: references, target: ekr.integrate.ApplicationElection, cardinality: one, via: application_id}
     - name: proposal
       kind: references
       target: ekr.integrate.SchemaProposal
@@ -1389,6 +1669,7 @@ commands:
       type: List<ekr.integrate.ApplicationReceiptSnapshot>
     - {name: basis, type: ekr.kernel.ReviewBasis}
     - {name: expected_previous_decision, type: Optional<ekr.kernel.ContentHash>}
+    - {name: application, type: Optional<ekr.integrate.ApplicationRead>}
     outcomes:
     - name: answered
       emits:
@@ -1407,13 +1688,20 @@ commands:
             generated: true
           basis: {generated: true}
           expected_previous_decision: {generated: true}
+          application: {generated: true}
       summary: Show proposed additions, supporting observations, exact mappings and
         review/application history through CLI, SDK and the read-only viewer. Expose
         the current material review basis and the latest retained proof digest so a
         human can sign the exact target and predecessor outside the runtime. The predecessor
-        is HumanDecisionRecord.proof_digest, not proof_object_hash. Recorded approval is a
+        is HumanDecisionRecord.proof_digest, not proof_object_hash or physical stream position.
+        Application markers never change the human predecessor. Show the frozen election and
+        steps even before schema commit; later receipts report only verified commits. Recorded
+        approval is a
         decision on its observed basis; compare the current material basis to show when
-        renewed review is needed. An approval is not an unconditional applicability grant.
+        renewed review is needed. For an elected application bind its verified committed-prefix
+        publication references and residual evidence/options/effects, preserving exact original
+        proposal corrections. Do not treat an external coincidental effect as owned progress.
+        An approval is not an unconditional applicability grant.
     - name: refused
       external: An unknown proposal is refused.
       error: ekr.integrate.KnowledgeRefused
@@ -1449,8 +1737,13 @@ commands:
             generated: true
       summary: Record the host-authenticated human decision and retain its statement
         as evidence; approval includes additions, mappings and selected corrections. Verify
-        material against one coherent canonical snapshot, then atomically retain the decision,
-        proof, policy and statement against the exact review predecessor. Canonical revisions
+        material against one coherent canonical snapshot. For an elected application verify
+        its committed prefix and bind those publication references plus remaining reviewed
+        evidence/options/effects; never rerun initial additions against their own committed
+        results or mutate the original proposal corrections. Then atomically retain the decision,
+        proof, policy and statement against the exact review predecessor and physical proposal
+        coordination stream position. Marker-only advancement retries the physical CAS without
+        changing the expected human predecessor. Canonical revisions
         do not advance. A concurrent canonical change may immediately make this observed-basis
         decision stale; application revalidates it. Exact retries retain the original review;
         a reused decision identity with changed input refuses across all human decision kinds
@@ -1493,7 +1786,9 @@ commands:
             generated: true
       summary: Record the host-authenticated human decision and retain its statement
         as evidence without advancing canonical revisions. Atomically retain rejection,
-        proof, policy and statement against the exact review predecessor. Rejection prevents
+        proof, policy and statement against the exact review predecessor and physical proposal
+        coordination stream position. Marker-only advancement retries the physical CAS without
+        changing the expected human predecessor. Rejection prevents
         subsequent application writes while preserving committed history. Exact retries return
         the retained decision; changed input under the same decision identity refuses across all
         human decision kinds in the audience, including upgrades and attention answers, in the
@@ -1526,14 +1821,42 @@ commands:
           receipt:
             generated: true
       summary: Revalidate the exact approved additions/mappings/corrections and latest effective
-        review before each canonical write; a later rejection stops application/resume and reports
-        confirmed partial progress. Commit schema with evidence first, then selected facts and corrections by ordinary
-        validated transactions. Return durable partial progress on interruption; reconcile
-        receipts and resume without duplicates.
+        review. Atomically elect one immutable application per proposal digest and freeze each
+        applicable step and attempt before ordinary Propose/Validate/Commit. Repeated application
+        recovers schema, assertion, evidence and replacement identities and the current attempt.
+        Only a verified terminal Stale attempt permits a successor transaction id with identical
+        frozen operation bytes; proposed, validated or uncertain attempts are recovered first. Commit
+        schema with supporting evidence first, then every selected mapping item, and finally
+        all selected claim corrections in one atomic ordinary validated transaction. Blocked
+        mappings cannot be dropped to reach corrections. After the correction commit only
+        exact recovery/reporting remains; no further canonical application writes are allowed.
+        Every application occurrence carries
+        a verified review guard and atomically appends a nonempty marker on the proposal review
+        stream with the ordinary occurrence and objects. Review decisions and markers compare
+        the same physical stream position; markers never count as human decisions. A later
+        rejection defeats an uncommitted prepared group. Recover an already committed exact
+        request after rejection as historical progress only. Qualify remaining work by source
+        version, item and mapping digest. Return Elected before schema commit, Partial after a
+        confirmed prefix stops, and Complete only after all selected work commits. Reconcile
+        uncertain provider results before another attempt; never infer success from preparation.
     - name: refused
-      external: Before mutation require the referenced review to match proposal_id and exact proposal digest, to be Approved, and to be the latest trusted human decision for that proposal. Refuse changed digest/evidence/options/effects
-        or incompatible base schema. A later failure after any commit produces a partial
-        receipt, not a refusal.
+      external: Before a new write require exact proposal id/digest, the latest trusted Approved
+        review and its proof, policy, evidence/options/effects and source bytes. Renewed review is
+        required when reviewed material changes; unrelated canonical advancement alone is not.
+        Verify this election's committed prefix before comparing remaining approved effects;
+        its own committed additions/mappings do not invalidate its review and an external
+        coincidental effect is not its progress. Application-aware review binds verified own-prefix
+        publication references and residual evidence/options/effects; proposal corrections remain
+        immutable. Completion follows actual linked commits even if recording the receipt crashed.
+        A newer approval of the same proposal resumes
+        the election, never duplicates completed steps. Frozen operation changes require a new
+        proposal/election, not mutation of an existing step. Unresolved or ambiguous mappings
+        remain qualified pending work; no entity creation is inferred. A generic transaction
+        command cannot publish an elected application transaction without its guard. Refuse
+        before election when authorization is invalid; after election expose its actual status,
+        and after any schema commit return a partial receipt instead of a fictitious rollback.
+        Provider uncertainty is not a commit; cold/full replay must verify one-to-one marker
+        links, retained proposal/source/mapping/evidence bytes and historical human authority.
       error: ekr.integrate.KnowledgeRefused
 
   # Design § 24 and § 63, story:extraction-verb-shares-the-sdk-path. `ekr apply-extraction` runs
@@ -1615,6 +1938,7 @@ events:
       type: List<ekr.integrate.ApplicationReceiptSnapshot>
     - {name: basis, type: ekr.kernel.ReviewBasis}
     - {name: expected_previous_decision, type: Optional<ekr.kernel.ContentHash>}
+    - {name: application, type: Optional<ekr.integrate.ApplicationRead>}
   - name: ekr.integrate.ApproveSchemaProposalResult
     fields:
     - name: review_id
@@ -1641,6 +1965,34 @@ events:
         type: Integer
 
 views:
+  - name: ekr.integrate.ApplicationPublicationRecords
+    source: ekr.integrate.ApplicationPublication
+    consistency: read_your_writes
+    fields:
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: state, type: ekr.integrate.ApplicationPublication.State}
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: application_id, type: ekr.integrate.SchemaApplicationId}
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: review_stream_version, type: Integer}
+      - {name: publication, type: ekr.integrate.ApplicationPublicationRecord}
+  - name: ekr.integrate.ProposalCoordinationOccurrenceRecords
+    source: ekr.integrate.ProposalCoordinationOccurrence
+    consistency: read_your_writes
+    fields:
+      - {name: occurrence_key, type: String}
+      - {name: state, type: ekr.integrate.ProposalCoordinationOccurrence.State}
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: stream_version, type: Integer}
+      - {name: entry, type: ekr.integrate.ProposalCoordinationEntry}
+  - name: ekr.integrate.ProposalCoordinationRecords
+    source: ekr.integrate.ProposalCoordination
+    consistency: read_your_writes
+    fields:
+      - {name: proposal_id, type: ekr.integrate.SchemaProposalId}
+      - {name: state, type: ekr.integrate.ProposalCoordination.State}
+      - {name: stream_version, type: Integer}
+      - {name: history, type: ekr.integrate.ProposalCoordinationRead}
   - name: ekr.integrate.ProposalObservationRecords
     source: ekr.integrate.ProposalObservation
     consistency: read_your_writes
@@ -1666,7 +2018,7 @@ views:
     - name: mapping_id
       type: ekr.integrate.MappingRecordId
     - name: observation_id
-      type: ekr.graph.ObservationId
+      type: Optional<ekr.graph.ObservationId>
     - name: evidence_id
       type: ekr.graph.EvidenceId
   - name: ekr.integrate.InterpretationRecords
@@ -1821,6 +2173,7 @@ views:
     source: ekr.integrate.ApplicationReceipt
     consistency: read_your_writes
     fields:
+    - {name: application_id, type: ekr.integrate.SchemaApplicationId}
     - name: receipt_id
       type: ekr.integrate.ApplicationReceiptId
     - name: state
@@ -1838,6 +2191,7 @@ views:
     - name: processing_receipts
       type: List<ekr.integrate.ProcessingReceiptId>
     - name: remaining_items
-      type: List<String>
+      type: List<ekr.integrate.ApplicationItemKey>
+    - {name: corrections_pending, type: Boolean}
     - name: stop_reason
       type: Optional<String>

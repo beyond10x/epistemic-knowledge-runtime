@@ -15,6 +15,8 @@ scope:
 - confidence: inferred
   path: crates/ekr
 - confidence: inferred
+  path: crates/ekr-graph
+- confidence: inferred
   path: crates/ekr-integrate
 - confidence: inferred
   path: crates/ekr-kernel
@@ -24,7 +26,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 12
+revision: 14
 ---
 ## Outcome
 
@@ -67,3 +69,15 @@ Independent review schema-application-design-independent-r1 identified two proto
 Ordering is schema, every elected selected mapping successfully committed, then one atomic selected-corrections transaction. Unresolved selected items cannot be dropped to reach corrections. Canonical completion follows linked actual commits even when the final reporting receipt was lost. After the correction commit, only exact recovery/reporting remains. New approval after partial schema/mapping progress must sign application-aware material binding the verified own prefix and residual evidence/effects in both E admission and historical review verification. Coincidental external changes are not own progress.
 
 Preparation /7 follows existing /6 and preserves its exact signed-publication identity binding/recovery. The new application marker uses a closed atomic append rule; arbitrary extra streams remain refused. Required regressions include validate-T, unrelated-commit-U, commit-T becoming stale, crash/retry and successor election; rejection versus publication CAS; strict correction-last ordering; reapproval of the verified residual plan; and old /6 exact recovery. These are accepted implementation requirements, not executed F evidence. The amended candidate is .engineering/reviews/knowledge-schema-application-design/minimal-contract-proposal.md.
+
+## Runtime ownership after validated contracts
+
+The contract prerequisite now includes independently reviewed immutable application/step elections, separately elected terminal-stale transaction attempts, atomic review-stream publication guards, independently pinned mapping/derivation records, qualified receipts, application-aware review material and strict corrections-last sequencing. ESS validates the amended source before this runtime scope is scheduled; generated models are mandatory.
+
+The additional authority read entities ApplicationPublication, ProposalCoordinationOccurrence and ProposalCoordination retain the exact positive/nonnegative cursor predicates and expose scalar fields beside full typed records. They are projections of existing physical records, not new queues. Their three named authored view scenarios in design section 105.17.1 must execute on both providers; successful synthesis currently produces no lifecycle-subject coverage for them.
+
+Physical persistence unit owns crates/ekr-store, the existing RevisionEvent application field/codec in crates/ekr-graph/src/events.rs and corresponding graph/store tests. It implements typed election/step/attempt/receipt retention, actual proposal physical cursors distinct from human proof predecessors, /7 native groups containing the exact nonempty marker, closed format compatibility, retention/history loading and one-to-one marker/ordinary occurrence checks. Injected semantic authority must fail closed for application publications until kernel verification is implemented. No worker edits kernel, CLI, SDK, conformance adapters, ESS, AEP or gate files. Cross-package constructor updates belong to root.
+
+Root owns kernel application orchestration and replay/admission verification, shared human-review integration and cross-package constructor changes. Frozen IDs precede ordinary Propose; unresolved outcomes precede successor attempts; rejected reviews defeat later writes atomically; verified own progress never counts external coincidental changes as completion. CLI/SDK and viewer application presentation follow the verified kernel path. Shared kernel, specification, CLI and gate edits remain serialized. One Cargo lane is explicitly handed off; no concurrent builds in the shared target.
+
+This scope is implementation work authorized by the operator's original execution request. It is not an approval produced by an agent and does not mark E/F or PR64 complete. The generated Submit witness blocker remains separate. Full task check, the two demonstrations and actual provider conformance are still required.

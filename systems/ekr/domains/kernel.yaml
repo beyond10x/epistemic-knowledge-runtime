@@ -1223,8 +1223,17 @@ types:
       - {name: event_id, type: ekr.kernel.EventId}
       - {name: record_hash, type: ekr.kernel.ContentHash}
       - {name: payload, type: ekr.kernel.RevisionPayloadV3}
+      - {name: application, type: Optional<ekr.integrate.ApplicationPublicationGuard>}
+    # application is absent (not null) from every historical encoding and its canonical
+    # hash input. Present only under ekr.revision-event/6 for ordinary application
+    # Propose/Validate/Commit outcomes, excluding seed/upgrades/attention answers.
+    # The guard contains no event or marker hash. The marker links event_id and record_hash
+    # and repeats this guard; replay requires their exact one-to-one atomic association.
+    # No application transaction may fall back to an unguarded ordinary envelope.
 
-  # Required literal: ekr.revision-event/3, native provider schema version 3.
+  # Existing authority occurrence literal: ekr.revision-event/3. Ordinary guarded
+  # application occurrences use ekr.revision-event/6, native provider schema version 6;
+  # historical kind/format dispatch remains frozen. The field remains a String newtype.
   - name: ekr.kernel.RevisionEventFormatV3
     kind: newtype
     of: String

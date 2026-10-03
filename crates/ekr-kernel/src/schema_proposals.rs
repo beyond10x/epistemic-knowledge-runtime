@@ -357,6 +357,7 @@ impl<
             receipts: Vec::new(),
             basis: Box::new(basis),
             expected_previous_decision: w::EssPresence::Absent,
+            application: w::EssPresence::Absent,
         })
     }
 }

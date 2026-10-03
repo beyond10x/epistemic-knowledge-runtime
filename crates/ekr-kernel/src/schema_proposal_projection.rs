@@ -150,7 +150,7 @@ pub(super) fn shown(
     value: &w::EkrIntegrateSchemaProposalRead,
 ) -> Result<m::ShowSchemaProposalResult, StoreError> {
     // Review and application persistence are separate handlers; never silently drop their history.
-    if !value.receipts.is_empty() {
+    if !value.receipts.is_empty() || matches!(value.application, w::EssPresence::Present(_)) {
         return Err(error("unsupported application history projection"));
     }
     Ok(m::ShowSchemaProposalResult {
@@ -184,6 +184,7 @@ pub(super) fn shown(
             w::EssPresence::Absent => None,
             w::EssPresence::Present(hash) => Some(k::ContentHash(hash.0.clone())),
         },
+        application: None,
     })
 }
 

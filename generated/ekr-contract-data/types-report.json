@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "f356a296c15cb806b72a218ce953f41b3edb6194bcefd41f350d20df79d80073",
+  "source_digest": "d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:dddcfc604d2164a1e501866da6c842ad59bd04dcb3dad7f6c25f7252501e603f",
-    "projection_digest": "1c3159db2e2fff058ae86ef29df5d0d392988544f98a8909911a77c81f57d8f8"
+    "contract_digest": "slice-sha256/2:a7c365ea40d8640ce4bdfbf311ab4fe463f0ae9574593db2e0efb64cfe56a533",
+    "projection_digest": "ab34e712432dd8a54e975ca046ce5cf4ec1f87fa5b19af2f8de6c1e1abf07986"
   },
   "generator_version": "0.52.0",
   "target": "rust",
@@ -63,12 +63,24 @@
     "ekr.integrate.AdditiveSchemaOperation",
     "ekr.integrate.AmbiguousExtraction",
     "ekr.integrate.AmbiguousReference",
+    "ekr.integrate.ApplicationElection.State",
+    "ekr.integrate.ApplicationItemKey",
     "ekr.integrate.ApplicationProgress",
+    "ekr.integrate.ApplicationPublication.State",
+    "ekr.integrate.ApplicationPublicationGuard",
+    "ekr.integrate.ApplicationPublicationRecord",
+    "ekr.integrate.ApplicationRead",
     "ekr.integrate.ApplicationReceipt.State",
     "ekr.integrate.ApplicationReceiptId",
     "ekr.integrate.ApplicationReceiptSnapshot",
     "ekr.integrate.ApplicationReport",
+    "ekr.integrate.ApplicationStep",
+    "ekr.integrate.ApplicationStepAttempt.State",
+    "ekr.integrate.ApplicationStepElection.State",
+    "ekr.integrate.ApplicationStepId",
+    "ekr.integrate.ApplicationStepKind",
     "ekr.integrate.CanonicalDerivation.State",
+    "ekr.integrate.CanonicalDerivationRecord",
     "ekr.integrate.CommittedExtraction",
     "ekr.integrate.DeclaredSourceField",
     "ekr.integrate.DeclaredSourceRelation",
@@ -117,6 +129,11 @@
     "ekr.integrate.ProcessingReceiptSnapshot",
     "ekr.integrate.PropertyFact",
     "ekr.integrate.PropertySpec",
+    "ekr.integrate.ProposalCoordination.State",
+    "ekr.integrate.ProposalCoordinationEntry",
+    "ekr.integrate.ProposalCoordinationOccurrence.State",
+    "ekr.integrate.ProposalCoordinationRead",
+    "ekr.integrate.ProposalCoordinationRecord",
     "ekr.integrate.ProposalEvidence.State",
     "ekr.integrate.ProposalObservation.State",
     "ekr.integrate.ProposalReview.State",
@@ -130,10 +147,15 @@
     "ekr.integrate.ResolutionRefusal",
     "ekr.integrate.ResolutionRefusalCode",
     "ekr.integrate.ResolvedReference",
+    "ekr.integrate.RetainedApplicationAttempt",
+    "ekr.integrate.RetainedApplicationElection",
+    "ekr.integrate.RetainedApplicationStep",
     "ekr.integrate.RetainedInterpretation",
+    "ekr.integrate.RetainedMappingRecord",
     "ekr.integrate.RetainedProposalReview",
     "ekr.integrate.RetainedSchemaProposal",
     "ekr.integrate.ReviewDecision",
+    "ekr.integrate.SchemaApplicationId",
     "ekr.integrate.SchemaLearningRequest",
     "ekr.integrate.SchemaLearningResult",
     "ekr.integrate.SchemaProposal.State",
@@ -329,6 +351,10 @@
     "ekr.ontology.TypeId",
     "ekr.ontology.ValueKind",
     "ekr.ontology.ValueTypeProjection",
+    "ekr.store.ApplicationAttemptRetention",
+    "ekr.store.ApplicationElectionRetention",
+    "ekr.store.ApplicationRetentionHistory",
+    "ekr.store.ApplicationStepRetention",
     "ekr.store.NativeBlobWrite",
     "ekr.store.NativeClaim",
     "ekr.store.NativeCommandMeta",
@@ -516,12 +542,24 @@
     "ekr.integrate.AdditiveSchemaOperation": "EkrIntegrateAdditiveSchemaOperation",
     "ekr.integrate.AmbiguousExtraction": "EkrIntegrateAmbiguousExtraction",
     "ekr.integrate.AmbiguousReference": "EkrIntegrateAmbiguousReference",
+    "ekr.integrate.ApplicationElection.State": "EkrIntegrateApplicationElectionState",
+    "ekr.integrate.ApplicationItemKey": "EkrIntegrateApplicationItemKey",
     "ekr.integrate.ApplicationProgress": "EkrIntegrateApplicationProgress",
+    "ekr.integrate.ApplicationPublication.State": "EkrIntegrateApplicationPublicationState",
+    "ekr.integrate.ApplicationPublicationGuard": "EkrIntegrateApplicationPublicationGuard",
+    "ekr.integrate.ApplicationPublicationRecord": "EkrIntegrateApplicationPublicationRecord",
+    "ekr.integrate.ApplicationRead": "EkrIntegrateApplicationRead",
     "ekr.integrate.ApplicationReceipt.State": "EkrIntegrateApplicationReceiptState",
     "ekr.integrate.ApplicationReceiptId": "EkrIntegrateApplicationReceiptId",
     "ekr.integrate.ApplicationReceiptSnapshot": "EkrIntegrateApplicationReceiptSnapshot",
     "ekr.integrate.ApplicationReport": "EkrIntegrateApplicationReport",
+    "ekr.integrate.ApplicationStep": "EkrIntegrateApplicationStep",
+    "ekr.integrate.ApplicationStepAttempt.State": "EkrIntegrateApplicationStepAttemptState",
+    "ekr.integrate.ApplicationStepElection.State": "EkrIntegrateApplicationStepElectionState",
+    "ekr.integrate.ApplicationStepId": "EkrIntegrateApplicationStepId",
+    "ekr.integrate.ApplicationStepKind": "EkrIntegrateApplicationStepKind",
     "ekr.integrate.CanonicalDerivation.State": "EkrIntegrateCanonicalDerivationState",
+    "ekr.integrate.CanonicalDerivationRecord": "EkrIntegrateCanonicalDerivationRecord",
     "ekr.integrate.CommittedExtraction": "EkrIntegrateCommittedExtraction",
     "ekr.integrate.DeclaredSourceField": "EkrIntegrateDeclaredSourceField",
     "ekr.integrate.DeclaredSourceRelation": "EkrIntegrateDeclaredSourceRelation",
@@ -570,6 +608,11 @@
     "ekr.integrate.ProcessingReceiptSnapshot": "EkrIntegrateProcessingReceiptSnapshot",
     "ekr.integrate.PropertyFact": "EkrIntegratePropertyFact",
     "ekr.integrate.PropertySpec": "EkrIntegratePropertySpec",
+    "ekr.integrate.ProposalCoordination.State": "EkrIntegrateProposalCoordinationState",
+    "ekr.integrate.ProposalCoordinationEntry": "EkrIntegrateProposalCoordinationEntry",
+    "ekr.integrate.ProposalCoordinationOccurrence.State": "EkrIntegrateProposalCoordinationOccurrenceState",
+    "ekr.integrate.ProposalCoordinationRead": "EkrIntegrateProposalCoordinationRead",
+    "ekr.integrate.ProposalCoordinationRecord": "EkrIntegrateProposalCoordinationRecord",
     "ekr.integrate.ProposalEvidence.State": "EkrIntegrateProposalEvidenceState",
     "ekr.integrate.ProposalObservation.State": "EkrIntegrateProposalObservationState",
     "ekr.integrate.ProposalReview.State": "EkrIntegrateProposalReviewState",
@@ -583,10 +626,15 @@
     "ekr.integrate.ResolutionRefusal": "EkrIntegrateResolutionRefusal",
     "ekr.integrate.ResolutionRefusalCode": "EkrIntegrateResolutionRefusalCode",
     "ekr.integrate.ResolvedReference": "EkrIntegrateResolvedReference",
+    "ekr.integrate.RetainedApplicationAttempt": "EkrIntegrateRetainedApplicationAttempt",
+    "ekr.integrate.RetainedApplicationElection": "EkrIntegrateRetainedApplicationElection",
+    "ekr.integrate.RetainedApplicationStep": "EkrIntegrateRetainedApplicationStep",
     "ekr.integrate.RetainedInterpretation": "EkrIntegrateRetainedInterpretation",
+    "ekr.integrate.RetainedMappingRecord": "EkrIntegrateRetainedMappingRecord",
     "ekr.integrate.RetainedProposalReview": "EkrIntegrateRetainedProposalReview",
     "ekr.integrate.RetainedSchemaProposal": "EkrIntegrateRetainedSchemaProposal",
     "ekr.integrate.ReviewDecision": "EkrIntegrateReviewDecision",
+    "ekr.integrate.SchemaApplicationId": "EkrIntegrateSchemaApplicationId",
     "ekr.integrate.SchemaLearningRequest": "EkrIntegrateSchemaLearningRequest",
     "ekr.integrate.SchemaLearningResult": "EkrIntegrateSchemaLearningResult",
     "ekr.integrate.SchemaProposal.State": "EkrIntegrateSchemaProposalState",
@@ -782,6 +830,10 @@
     "ekr.ontology.TypeId": "EkrOntologyTypeId",
     "ekr.ontology.ValueKind": "EkrOntologyValueKind",
     "ekr.ontology.ValueTypeProjection": "EkrOntologyValueTypeProjection",
+    "ekr.store.ApplicationAttemptRetention": "EkrStoreApplicationAttemptRetention",
+    "ekr.store.ApplicationElectionRetention": "EkrStoreApplicationElectionRetention",
+    "ekr.store.ApplicationRetentionHistory": "EkrStoreApplicationRetentionHistory",
+    "ekr.store.ApplicationStepRetention": "EkrStoreApplicationStepRetention",
     "ekr.store.NativeBlobWrite": "EkrStoreNativeBlobWrite",
     "ekr.store.NativeClaim": "EkrStoreNativeClaim",
     "ekr.store.NativeCommandMeta": "EkrStoreNativeCommandMeta",
@@ -1797,6 +1849,36 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.integrate.ApplicationElection.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationElection.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationElection.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationItemKey/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationItemKey/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationItemKey/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.ApplicationProgress/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -1808,6 +1890,66 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.ApplicationProgress/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublication.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublication.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublication.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationGuard/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationGuard/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationGuard/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationRecord/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationRecord/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationRecord/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationRead/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationRead/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationRead/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -1877,6 +2019,86 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.integrate.ApplicationStep/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStep/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStep/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepAttempt.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepAttempt.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepAttempt.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepElection.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepElection.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepElection.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepId/format",
+      "rule": "format",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepId/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepId/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepId/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepKind/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepKind/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepKind/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.CanonicalDerivation.State/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -1888,6 +2110,26 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.CanonicalDerivation.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.CanonicalDerivationRecord/properties/derivation_id/format",
+      "rule": "format",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.CanonicalDerivationRecord/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.CanonicalDerivationRecord/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.CanonicalDerivationRecord/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -2682,6 +2924,96 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordination.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordination.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordination.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationEntry/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationEntry/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationEntry/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationOccurrence.State/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationOccurrence.State/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationOccurrence.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRead/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRead/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRead/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord/oneOf/0/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord/oneOf/1/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord/x-ess-union-tag",
+      "rule": "x-ess-union-tag",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.ProposalEvidence.State/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -2912,6 +3244,66 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationAttempt/properties/elected_at/format",
+      "rule": "format",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationAttempt/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationAttempt/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationAttempt/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationElection/properties/elected_at/format",
+      "rule": "format",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationElection/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationElection/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationElection/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationStep/properties/elected_at/format",
+      "rule": "format",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationStep/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationStep/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedApplicationStep/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.RetainedInterpretation/properties/payload/contentEncoding",
       "rule": "contentEncoding",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -2928,6 +3320,26 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.RetainedInterpretation/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedMappingRecord/properties/payload/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedMappingRecord/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedMappingRecord/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedMappingRecord/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -2988,6 +3400,26 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.ReviewDecision/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaApplicationId/format",
+      "rule": "format",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaApplicationId/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaApplicationId/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaApplicationId/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -6502,6 +6934,76 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.store.ApplicationAttemptRetention/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationAttemptRetention/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationAttemptRetention/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationElectionRetention/properties/objects/x-ess-map-key",
+      "rule": "x-ess-map-key",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationElectionRetention/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationElectionRetention/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationElectionRetention/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationRetentionHistory/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationRetentionHistory/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationRetentionHistory/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationStepRetention/properties/objects/x-ess-map-key",
+      "rule": "x-ess-map-key",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationStepRetention/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationStepRetention/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationStepRetention/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.store.NativeBlobWrite/properties/bytes/contentEncoding",
       "rule": "contentEncoding",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -8849,7 +9351,22 @@
       "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
     },
     {
+      "pointer": "/$defs/ekr.integrate.ApplicationPublicationGuard/properties/review_stream_version",
+      "rule": "integer",
+      "detail": "serde_json::Number retains exact JSON numbers but does not enforce integrality; validate the source constraint"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.ApplicationReceiptId/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ApplicationStepId/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.CanonicalDerivationRecord/properties/derivation_id/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
     },
@@ -8919,6 +9436,26 @@
       "detail": "validate this constraint against the source schema at runtime"
     },
     {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationEntry/properties/stream_version",
+      "rule": "integer",
+      "detail": "serde_json::Number retains exact JSON numbers but does not enforce integrality; validate the source constraint"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRead/properties/stream_version",
+      "rule": "integer",
+      "detail": "serde_json::Number retains exact JSON numbers but does not enforce integrality; validate the source constraint"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord",
+      "rule": "oneOf",
+      "detail": "validate exclusive branch membership against the source schema"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.ProposalCoordinationRecord",
+      "rule": "untagged_selection",
+      "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.ProposalReviewId/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
@@ -8939,6 +9476,11 @@
       "detail": "validate this constraint against the source schema at runtime"
     },
     {
+      "pointer": "/$defs/ekr.integrate.RetainedMappingRecord/properties/payload/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.RetainedProposalReview/properties/policy/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
@@ -8950,6 +9492,11 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.RetainedSchemaProposal/properties/payload/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.SchemaApplicationId/pattern",
       "rule": "pattern",
       "detail": "validate this constraint against the source schema at runtime"
     },
@@ -9270,6 +9817,16 @@
     },
     {
       "pointer": "/$defs/ekr.ontology.ValueTypeProjection/properties/fields",
+      "rule": "open_object_storage",
+      "detail": "preserve ess_extra when constructing or transforming the record; serialization rejects declared-key collisions"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationElectionRetention/properties/objects",
+      "rule": "open_object_storage",
+      "detail": "preserve ess_extra when constructing or transforming the record; serialization rejects declared-key collisions"
+    },
+    {
+      "pointer": "/$defs/ekr.store.ApplicationStepRetention/properties/objects",
       "rule": "open_object_storage",
       "detail": "preserve ess_extra when constructing or transforming the record; serialization rejects declared-key collisions"
     },

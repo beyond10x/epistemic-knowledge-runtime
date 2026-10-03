@@ -155,8 +155,8 @@
     }
   },
   "provenance": {
-    "contract_digest": "8d0aad69aca07fb6f5ae41a0ddb7cb31ca9eeb74bcd0c90f225a038d335271f5",
-    "spec_digest": "f356a296c15cb806b72a218ce953f41b3edb6194bcefd41f350d20df79d80073",
+    "contract_digest": "ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130",
+    "spec_digest": "d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087",
     "specification_version": "v1",
     "suite_version": "ess-conformance/19",
     "system": "ekr"
@@ -1016,6 +1016,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.integrate.ApplicationItemKey"
+        },
+        {
+          "kind": "type",
           "name": "ekr.integrate.ApplicationProgress"
         },
         {
@@ -1049,6 +1053,10 @@
         {
           "kind": "type",
           "name": "ekr.integrate.ProposalReviewId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.SchemaApplicationId"
         },
         {
           "kind": "type",
@@ -1296,12 +1304,21 @@
               "holds": "primitive",
               "kind": "boolean"
             },
+            "receipt.application_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "receipt.corrections_pending": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
             "receipt.items": {
               "holds": "list"
             },
             "receipt.progress": {
               "holds": "enum",
               "variants": [
+                "Elected",
                 "SchemaCommitted",
                 "FactsInProgress",
                 "Complete",
@@ -1310,14 +1327,16 @@
             },
             "receipt.receipt_id": {
               "holds": "primitive",
-              "kind": "uuid"
+              "kind": "uuid",
+              "optional": true
             },
             "receipt.remaining_items": {
               "holds": "list"
             },
             "receipt.schema_revision": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "receipt.schema_transaction": {
               "holds": "primitive",
@@ -8174,7 +8193,31 @@
         },
         {
           "kind": "type",
+          "name": "ekr.graph.AssertionLifecycleKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionLifecycleProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionRecord"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssessmentKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssessmentProjection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.graph.CanonicalValueKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EdgeId"
         },
         {
           "kind": "type",
@@ -8182,7 +8225,59 @@
         },
         {
           "kind": "type",
+          "name": "ekr.graph.EvidenceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EvidenceRecord"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EvidenceSourceProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObjectProjection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.graph.ObservationId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.TemporalRange"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.TransactionTime"
         },
         {
           "kind": "type",
@@ -8194,7 +8289,23 @@
         },
         {
           "kind": "type",
+          "name": "ekr.integrate.ApplicationItemKey"
+        },
+        {
+          "kind": "type",
           "name": "ekr.integrate.ApplicationProgress"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ApplicationPublicationGuard"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ApplicationPublicationRecord"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ApplicationRead"
         },
         {
           "kind": "type",
@@ -8203,6 +8314,22 @@
         {
           "kind": "type",
           "name": "ekr.integrate.ApplicationReceiptSnapshot"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ApplicationStep"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ApplicationStepId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ApplicationStepKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.CanonicalDerivationRecord"
         },
         {
           "kind": "type",
@@ -8231,6 +8358,10 @@
         {
           "kind": "type",
           "name": "ekr.integrate.MappingPreview"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.MappingRecordId"
         },
         {
           "kind": "type",
@@ -8266,7 +8397,27 @@
         },
         {
           "kind": "type",
+          "name": "ekr.integrate.RetainedApplicationAttempt"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.RetainedApplicationElection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.RetainedApplicationStep"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.RetainedMappingRecord"
+        },
+        {
+          "kind": "type",
           "name": "ekr.integrate.ReviewDecision"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.SchemaApplicationId"
         },
         {
           "kind": "type",
@@ -8286,6 +8437,18 @@
         },
         {
           "kind": "type",
+          "name": "ekr.kernel.AliasAdditionProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.CanonicalOperationProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.CanonicalTransactionProjection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.kernel.ClaimCorrection"
         },
         {
@@ -8294,7 +8457,59 @@
         },
         {
           "kind": "type",
+          "name": "ekr.kernel.ClaimReplacement"
+        },
+        {
+          "kind": "type",
           "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EdgeDraftProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EdgeWideningProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EntityMerge"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EvidenceAdditionProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EvidenceAttachmentProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.InvocationProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.IssueId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.NodeDraftProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.PropertyModificationProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.PropertyMutationProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.Retraction"
         },
         {
           "kind": "type",
@@ -8303,6 +8518,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.Supersession"
         },
         {
           "kind": "type",
@@ -8318,11 +8537,51 @@
         },
         {
           "kind": "type",
+          "name": "ekr.ontology.EdgeTypeDeclaration"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.LifecycleDeclaration"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.NodeTypeDeclaration"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.OperationDefinition"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.PropertyDeclaration"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.PropertyId"
+        },
+        {
+          "kind": "type",
           "name": "ekr.ontology.SchemaVersionId"
         },
         {
           "kind": "type",
+          "name": "ekr.ontology.Transition"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
           "name": "ekr.ontology.ValueKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.ValueTypeProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.store.PublicationCommandKind"
         },
         {
           "kind": "command",
@@ -8559,6 +8818,93 @@
         {
           "event": "ekr.integrate.ShowSchemaProposalResult",
           "shape": {
+            "application.attempts": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.corrections_pending": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "application.election.application_id": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.base_schema": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.elected_at": {
+              "holds": "primitive",
+              "kind": "timestamp",
+              "optional": true
+            },
+            "application.election.initial_proof_digest": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "application.election.initial_review_id": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.proposal_digest": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "application.election.proposal_id": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.schema_transaction.evidence": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.election.schema_transaction.id": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.schema_transaction.operations": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.election.schema_transaction.proposer": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.schema_transaction.schema_version": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "application.election.selected_items": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.publications": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.receipts": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.remaining_items": {
+              "holds": "list",
+              "optional": true
+            },
+            "application.steps": {
+              "holds": "list",
+              "optional": true
+            },
             "basis.effects_digest": {
               "holds": "primitive",
               "kind": "string"
