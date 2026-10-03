@@ -32,7 +32,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 15
+revision: 16
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -78,3 +78,7 @@ The discovery increment implements the generated kernel obligation, CLI/session 
 Independent review r1 found stale import-time classification after schema advancement; a real schema-transaction regression failed first, then the shared pure classifier corrected it. Review r2 approved the corrected source and logs with zero new findings. Final focused runners report retention 10 passed, knowledge_cli 2 passed, docs_cli 18 passed; clippy for kernel/CLI/SDK all targets, repository formatter and regenerated-contract drift/compile checks exit zero. The CLI case count stayed unchanged because the existing end-to-end case gained discovery/schema/replay assertions. Evidence is retained under .engineering/reviews/knowledge-schema-gap-discovery/.
 
 ESS source digest 9ef3db2c31e7e282eb52684fc83bf8bd66b214dc7d4408ee9b27d10ae9ed26b0; generated contract digest f0fd932f4806cf61844ffb487dc766c5f3249457a9242e2a479e06513ccdce4c. Specification validation and focused tests do not establish full conformance. Proposal submission/preview/review, read-only proposal pages and F remain unfinished; component suites and complete integration routing remain pending. PR64 stays the sole carrier and is not ready for final delivery.
+
+## Remaining implementation ownership
+
+The remaining E work is divided into bounded, disjoint implementation surfaces under the same active story and sole PR64. Root owns kernel proposal validation/preview, CLI/session/SDK, specification/generated contracts, AEP and final integration. A delegated store unit may touch only crates/ekr-store/src/schema_proposals.rs, the export/module declarations in crates/ekr-store/src/eventlog.rs and src/lib.rs, and crates/ekr-store/tests/schema_proposal_retention.rs. Its base is discovery checkpoint dec42dd170bd1a6a3ecae51b4dd216457fe36fae. It implements immutable proposal-byte retention only using the generated RetainedSchemaProposal; semantic admission and authenticated human review remain kernel work. Both-provider idempotency, changed-id refusal, concurrent writers, byte pinning and reopen checks are required. No independent PR/publication or canonical writer is introduced. The sole owned compiler lane is reserved to the store worker while root performs source-only kernel work; worker returns its terminal process/evidence before root builds again.
