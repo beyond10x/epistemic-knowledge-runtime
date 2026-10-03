@@ -44,6 +44,9 @@ pub use schema_proposals::SchemaProposalRetention;
 #[path = "proposal_reviews.rs"]
 mod proposal_reviews;
 pub use proposal_reviews::ProposalReviewRetention;
+#[path = "human_decisions.rs"]
+mod human_decisions;
+pub use human_decisions::HumanDecisionRetention;
 #[path = "preparation.rs"]
 mod preparation;
 #[path = "read_only.rs"]
@@ -671,6 +674,15 @@ impl<S: EventStore> EventlogStore<S> {
             return Ok(None);
         };
         let occurrences = self.occurrences(MAX_READ_LIMIT, None)?;
+        // A root binding cannot vouch for the separate mandatory identity indexes of signed
+        // occurrences. Load their records and check those bindings through the verified path,
+        // including when an ordinary commit followed the signed occurrence.
+        if occurrences
+            .iter()
+            .any(|held| held.event.requires_human_binding())
+        {
+            return Ok(None);
+        }
         if pointer.covered != occurrences.len() as u64 {
             return Ok(None);
         }
@@ -1520,6 +1532,7 @@ impl<S: EventStore> EventlogStore<S> {
             }
         }
         self.load_objects(&mut history, required)?;
+        self.require_human_bindings(&history)?;
         if !history.occurrences.is_empty() {
             if selected.is_none() {
                 self.offer_checkpoint(&history)?;
@@ -1813,6 +1826,16 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             if !publication.event.supported() || publication.objects.is_empty() {
                 return Err(StoreError::Document("invalid-publication-envelope".into()));
             }
+            if publication.event.is_human_decision() && !publication.event.requires_human_binding()
+            {
+                return Err(StoreError::Document(
+                    "human-decision-revalidation-required".into(),
+                ));
+            }
+            let human_binding = self
+                .publication_decision(publication)?
+                .map(|record| self.new_human_binding(&record))
+                .transpose()?;
             for (hash, object) in &publication.objects {
                 if ContentHash::of_bytes(&object.bytes) != *hash {
                     return Err(StoreError::Document("staged-object-address".into()));
@@ -1855,6 +1878,9 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                     serde_json::to_value(&publication.event).map_err(json_error)?,
                 )?],
             }];
+            if let Some(binding) = human_binding {
+                appends.push(binding);
+            }
             for (hash, object) in &publication.objects {
                 if let Some(append) = self.object_append(*hash, object)? {
                     appends.push(append);

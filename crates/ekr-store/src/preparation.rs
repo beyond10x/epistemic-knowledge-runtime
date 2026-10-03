@@ -212,7 +212,7 @@ pub struct NativePublicationRequest {
 /// is elected in `/2` as before. In memory every attempt holds every staged object's bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationPreparationV1 {
-    /// Versions `/1`–`/3` for ordinary attempts, `/4` for upgrades, `/5` for answers.
+    /// `/1`–`/3` ordinary, legacy `/4` upgrades and `/5` answers, `/6` identity-bound signed attempts.
     pub format: String,
     /// Logical CAS slot.
     pub command_key: PublicationCommandKey,
@@ -240,12 +240,22 @@ impl PublicationPreparationV1 {
     pub const FORMAT_V4: &'static str = "ekr.publication-preparation/4";
     /// Reviewed answer recovery, carrying its version-four revision envelope.
     pub const FORMAT_V5: &'static str = "ekr.publication-preparation/5";
+    /// Signed publication with a required shared human-decision identity append.
+    pub const FORMAT_V6: &'static str = "ekr.publication-preparation/6";
     fn hash(&self) -> Result<ContentHash, StoreError> {
         Ok(ContentHash::of_bytes(
             &serde_json::to_vec(self).map_err(json_error)?,
         ))
     }
     fn is_supported(&self) -> bool {
+        if self.decision.event.requires_human_binding() {
+            return self.format == Self::FORMAT_V6
+                && matches!(
+                    self.command_key.kind,
+                    PublicationCommandKind::AnswerAttention
+                        | PublicationCommandKind::UpgradeAuthority
+                );
+        }
         if self.command_key.kind == PublicationCommandKind::AnswerAttention {
             return self.format == Self::FORMAT_V5;
         }
@@ -261,6 +271,9 @@ impl PublicationPreparationV1 {
     }
     /// The format a new attempt electing `decision` is written in.
     fn format_for(decision: &Publication) -> &'static str {
+        if decision.event.requires_human_binding() {
+            return Self::FORMAT_V6;
+        }
         if matches!(
             decision.event.payload,
             RevisionPayload::AttentionAnswered(_)
@@ -653,12 +666,12 @@ pub(super) fn native_expected(value: Expected) -> Result<NativeExpected, StoreEr
             version: Some(n),
         },
         Expected::Merge(_) => {
-            return Err(StoreError::Document("preparation-merge-expectation".into()))
+            return Err(StoreError::Document("preparation-merge-expectation".into()));
         }
         _ => {
             return Err(StoreError::Document(
                 "preparation-unknown-expectation".into(),
-            ))
+            ));
         }
     })
 }
@@ -996,7 +1009,30 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             "preparation-revision-event",
         )?;
         let mut object_appends = BTreeSet::new();
+        let human_record = if decision.event.requires_human_binding() {
+            self.publication_decision(decision)?
+        } else {
+            None
+        };
+        let mut human_append = false;
         for append in request.group.appends.iter().skip(1) {
+            if append.stream.stream_type() == human_decisions::STREAM {
+                let expected = self.binding_append(human_record.as_ref().ok_or_else(|| {
+                    StoreError::Document("preparation-unexpected-human-binding".into())
+                })?)?;
+                require(
+                    !human_append
+                        && append.stream == expected.stream
+                        && native_expected(append.expected)? == native_expected(expected.expected)?
+                        && append.events.len() == 1
+                        && append.events[0].name == expected.events[0].name
+                        && append.events[0].schema_version == expected.events[0].schema_version
+                        && append.events[0].data == expected.events[0].data,
+                    "preparation-human-binding",
+                )?;
+                human_append = true;
+                continue;
+            }
             require(
                 append.stream.tenant() == &self.tenant
                     && append.stream.stream_type() == OBJECT_STREAM_TYPE
@@ -1051,6 +1087,10 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 }
             }
         }
+        require(
+            human_append == human_record.is_some(),
+            "preparation-human-binding-missing",
+        )?;
         for (hash, object) in &decision.objects {
             if !object_appends.contains(hash) {
                 let held = self.object(*hash)?.ok_or_else(|| {
@@ -1136,6 +1176,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             }
         }
         self.load_objects(&mut history, required)?;
+        self.require_human_bindings(&history)?;
         // Both admissions only replay, so each history holds what that replay reads
         // (`verify_replayed`), and the complete one where it is refused.
         if history.occurrences.is_empty() {
@@ -1304,6 +1345,12 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 serde_json::to_value(&decision.event).map_err(json_error)?,
             )?],
         }];
+        if decision.event.requires_human_binding() {
+            let record = self
+                .publication_decision(decision)?
+                .ok_or_else(|| StoreError::Document("preparation-human-binding-missing".into()))?;
+            appends.push(self.new_human_binding(&record)?);
+        }
         for (hash, object) in &decision.objects {
             if let Some(append) = self.object_append(*hash, object)? {
                 appends.push(append)
@@ -1336,6 +1383,11 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         previous: Option<&PublicationPreparationV1>,
     ) -> Result<PublicationPreparationV1, StoreError> {
         self.entered()?;
+        if decision.event.is_human_decision() && !decision.event.requires_human_binding() {
+            return Err(StoreError::Document(
+                "human-decision-revalidation-required".into(),
+            ));
+        }
         let held = self.read_preparation(key)?;
         if let Some(held) = held.as_ref() {
             if held.input_hash != input_hash {
@@ -1438,6 +1490,25 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         if elected != *prepared {
             return Err(StoreError::Conflict);
         }
+        if elected.decision.event.is_human_decision()
+            && !elected.decision.event.requires_human_binding()
+        {
+            let history = self.history()?;
+            if let Some(held) = history
+                .occurrences
+                .iter()
+                .find(|held| held.event.event_id == elected.decision.event.event_id)
+            {
+                return if held.event == elected.decision.event {
+                    Ok(Appended::AlreadyRecorded)
+                } else {
+                    Err(StoreError::PublicationInputConflict)
+                };
+            }
+            return Err(StoreError::Document(
+                "human-decision-revalidation-required".into(),
+            ));
+        }
         // `read_preparation` authorized every attempt of the chain it returned, now or as bytes
         // this handle authorized before, and `prepared` is its elected attempt: authorizing it
         // again here would repeat that authorization on the same input.
@@ -1477,3 +1548,7 @@ fn check_successor(
         "preparation-decision-changed",
     )
 }
+
+#[cfg(test)]
+#[path = "preparation_human_identity_tests.rs"]
+mod human_identity_tests;

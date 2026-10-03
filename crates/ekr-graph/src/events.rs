@@ -91,7 +91,7 @@ pub enum RevisionPayload {
         /// The content address of the graph state at it.
         knowledge_root: ContentHash,
     },
-    /// Explicit authority transition; only valid in an `ekr.revision-event/3` envelope.
+    /// Explicit authority transition; legacy `/3` or identity-bound `/5` envelope.
     AuthorityUpgraded {
         /// Stable identity of the transition, independent of its content.
         transition_id: EventId,
@@ -102,7 +102,7 @@ pub enum RevisionPayload {
         /// Resulting knowledge root.
         knowledge_root: ContentHash,
     },
-    /// An atomic reviewed answer, in a version-four envelope only.
+    /// An atomic reviewed answer, in legacy `/4` or identity-bound `/5` envelopes.
     AttentionAnswered(crate::AnswerOccurrence),
 }
 
@@ -110,7 +110,7 @@ pub enum RevisionPayload {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RevisionEvent {
-    /// Exactly `ekr.revision-event/2` for historical kinds, `/3` for upgrades or `/4` for answers.
+    /// `/2` for historical kinds, legacy `/3` upgrades and `/4` answers, or `/5` signed kinds.
     pub format: String,
     /// Immutable occurrence identity, allocated independently of content.
     pub event_id: EventId,
@@ -126,14 +126,32 @@ impl RevisionEvent {
     pub const TRANSITION_FORMAT: &'static str = "ekr.revision-event/3";
     /// Envelope for reviewed answer publication.
     pub const ANSWER_FORMAT: &'static str = "ekr.revision-event/4";
+    /// Signed publications with an atomic audience-wide decision identity binding.
+    pub const SIGNED_FORMAT: &'static str = "ekr.revision-event/5";
+    /// Whether this envelope requires the shared human decision binding at replay.
+    #[must_use]
+    pub fn requires_human_binding(&self) -> bool {
+        self.format == Self::SIGNED_FORMAT && self.is_human_decision()
+    }
+    /// Both canonical operation kinds carrying a generated HumanDecisionRecord.
+    #[must_use]
+    pub const fn is_human_decision(&self) -> bool {
+        matches!(
+            self.payload,
+            RevisionPayload::AuthorityUpgraded { .. } | RevisionPayload::AttentionAnswered(_)
+        )
+    }
     /// Closed format dispatch; the new event cannot masquerade as a historical event.
     #[must_use]
     pub fn supported(&self) -> bool {
-        self.format == self.payload.format()
+        self.format == self.payload.format() || self.requires_human_binding()
     }
     /// Native provider schema version matching the closed envelope vocabulary.
     #[must_use]
-    pub const fn schema_version(&self) -> u32 {
+    pub fn schema_version(&self) -> u32 {
+        if self.requires_human_binding() {
+            return 5;
+        }
         match self.payload {
             RevisionPayload::AuthorityUpgraded { .. } => 3,
             RevisionPayload::AttentionAnswered(_) => 4,
@@ -161,7 +179,7 @@ impl Canonical for RevisionEvent {
 }
 
 impl RevisionPayload {
-    /// Exact envelope version for this payload.
+    /// Original envelope version for this payload. New signed writers explicitly select `/5`.
     #[must_use]
     pub const fn format(&self) -> &'static str {
         match self {

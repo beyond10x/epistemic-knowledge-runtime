@@ -413,3 +413,136 @@ fn concurrent_distinct_decisions_have_one_winner() {
 fn concurrent_decision_identity_reuse_across_proposals_has_one_winner() {
     race(false, true);
 }
+
+#[test]
+fn legacy_review_events_keep_their_original_identity_rules_and_reserve_decisions() {
+    use ekr_store::HumanDecisionRetention;
+    use eventlog_core::{
+        AppendGroup, AtomicEventStore, CommandMeta, Expected, NewEvent, StreamAppend, StreamId,
+        TenantId,
+    };
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store");
+        let p = proposal();
+        let original = review(&p);
+        {
+            let store = open(&path, sqlite);
+            pin_proposal(&*store, &p);
+            for payload in payloads(&original) {
+                store
+                    .put(StorageClass::Provenance, &payload, Timestamp::EPOCH)
+                    .unwrap();
+            }
+        }
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let provider: Box<dyn AtomicEventStore> = if sqlite {
+                Box::new(
+                    eventlog_sqlite::SqliteEventStore::open(&path.to_string_lossy(), "ekr")
+                        .await
+                        .unwrap(),
+                )
+            } else {
+                Box::new(eventlog_file::FileEventStore::open(&path).await.unwrap())
+            };
+            let tenant = TenantId::new("test").unwrap();
+            let data = serde_json::to_value(&original).unwrap();
+            let mut appends = vec![StreamAppend {
+                stream: StreamId::new(
+                    tenant.clone(),
+                    "ekr.integrate.proposal-reviews",
+                    &p.proposal.proposal_id.0,
+                )
+                .unwrap(),
+                expected: Expected::NoStream,
+                events: vec![NewEvent::new(
+                    "ekr.integrate.ProposalReviewRetained",
+                    1,
+                    data.clone(),
+                )
+                .unwrap()],
+            }];
+            for key in [
+                format!("review-{}", original.review.review_id.0),
+                format!("decision-{}", original.decision.decision_id),
+            ] {
+                appends.push(StreamAppend {
+                    stream: StreamId::new(
+                        tenant.clone(),
+                        "ekr.integrate.proposal-review-identities",
+                        key,
+                    )
+                    .unwrap(),
+                    expected: Expected::NoStream,
+                    events: vec![NewEvent::new(
+                        "ekr.integrate.ProposalReviewIdentityBound",
+                        1,
+                        data.clone(),
+                    )
+                    .unwrap()],
+                });
+            }
+            let key = "legacy-review-fixture";
+            let meta = CommandMeta {
+                idempotency_key: key.into(),
+                request_hash: key.into(),
+                subject: "fixture".into(),
+                actor: "fixture".into(),
+                request_id: key.into(),
+                trace_id: key.into(),
+                causation_id: None,
+                causation_depth: 0,
+                occurred_at: time::OffsetDateTime::UNIX_EPOCH,
+                claim: None,
+            };
+            provider
+                .append_group(&AppendGroup {
+                    tenant,
+                    appends,
+                    meta,
+                })
+                .await
+                .unwrap();
+        });
+        let store = open(&path, sqlite);
+        assert_eq!(
+            store
+                .retained_proposal_reviews(&p.proposal.proposal_id)
+                .unwrap(),
+            vec![original.clone()]
+        );
+        assert_eq!(
+            store
+                .retain_proposal_review(&original, None, Timestamp::EPOCH)
+                .unwrap(),
+            (original.clone(), false)
+        );
+        let lookup = if sqlite {
+            ekr_store::SqliteStore::sqlite(&path, "test", None)
+                .unwrap()
+                .human_decision(&original.decision.decision_id)
+        } else {
+            ekr_store::FileStore::file(&path, "test", None)
+                .unwrap()
+                .human_decision(&original.decision.decision_id)
+        };
+        assert_eq!(lookup.unwrap(), Some(*original.decision.clone()));
+        let next = review(&p);
+        assert!(
+            store
+                .retain_proposal_review(&next, Some(proof_hash(&original)), Timestamp::EPOCH)
+                .unwrap()
+                .1
+        );
+        assert_eq!(
+            store
+                .retained_proposal_reviews(&p.proposal.proposal_id)
+                .unwrap(),
+            vec![original, next]
+        );
+    }
+}
