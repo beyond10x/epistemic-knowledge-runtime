@@ -72,7 +72,7 @@ prints on a writable store. A verb that writes is refused `store-read-only` (exi
   shared lock on its `writer.lock` that excludes every writer. The copy is a directory
   `ekr-read-only-<pid>-…` in the temporary directory (`TMPDIR`, else `/tmp`), which needs free space
   for one more copy of the store for each process reading it. It is removed when the verb ends;
-  `ekr view` and `ekr mcp` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
+  `ekr view`, `ekr mcp` and `ekr mcp-http` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
   128 plus the signal's number. A copy left by a process that was killed outright is removed by the
   next read-only open in the same temporary directory.
 - **A SQLite database** is read into memory through a read-only connection, and no `-shm` file is
@@ -84,7 +84,7 @@ prints on a writable store. A verb that writes is refused `store-read-only` (exi
   are those beside the file a symlinked database path names. One file can appear: where this
   process may write the database's directory and a writer closes during the read, SQLite itself
   can create an empty `-wal` there, which holds nothing and which the next writer uses.
-- **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp` — checks the store's files before
+- **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp`, `ekr mcp-http` — checks the store's files before
   each request that reads it (a file store's `events.jsonl`, `manifest.json` and `blobs`; a SQLite
   database and its `-wal`), and when they have changed since it read them, it reads the store
   again, as it does for a store replaced at its path. A commit another process made is what the
@@ -170,9 +170,10 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
-| `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
+| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
+| `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
 | `ekr migrate` | reads, and writes a new store | `--to <path>`, optional `--to-backend <provider>`: empty destination; PostgreSQL uses an application configuration file | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 | `ekr postgres-schema` | provisions provider tables | `--config <file>`: schema-management configuration | `ekr.postgres-schema/1` with `ready: true`; no knowledge is seeded |
 
@@ -181,8 +182,9 @@ Every verb has `--help`.
 The `store` column is the binary's own: on a store this process may not write, a verb that `writes`
 is refused `store-read-only` (exit 2) and one that `reads` answers as on a writable store
 ([Configuration](#configuration)). `crates/ekr/tests/read_only_store.rs` runs every verb of both
-kinds but `view`, which serves until interrupted, on a read-only store of each provider against
-this table, and `session` and `migrate` on one too.
+kinds but the HTTP listeners, which serve until interrupted, on a read-only store of each provider
+against this table, and `session` and `migrate` on one too. `hosted_http.rs` checks both HTTP
+listeners on read-only stores.
 
 ### `ekr seed`
 
@@ -907,16 +909,22 @@ The printed `description` names every place the schema and the reader differ:
 
 ### `ekr view`
 
-Serves a read-only viewer of an existing store on 127.0.0.1 — never another address — until the
-process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. A store
+Serves a read-only viewer of an existing store until the process is interrupted:
+`ekr view --port 8080`, or `--port 0` (the default) for a free port. The default bind is
+`127.0.0.1`; `--bind <IP>` chooses another address. Non-loopback binding requires at least one
+`--allow-host <authority>`, repeatable. Explicit authorities replace the loopback defaults and
+include the port when clients send it. Forwarded headers never grant authority. A store
 this process may not write it opens read-only, as every verb that reads does, and reads again once
-its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy. It prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`,
+its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy.
+It prints one JSON line naming its bound address, such as `{"url": "http://127.0.0.1:<port>/"}`,
 then answers:
 
 | request | answer |
 |---|---|
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
+| `GET /healthz` | `{"healthy":true}`, process liveness with no store work, 200 |
+| `GET /readyz` | `{"ready":true}`, 200 only after admitting a seeded complete store, including seed revision zero; unavailable, unseeded or incomplete stores return 503 |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -941,17 +949,23 @@ Any other method is 405 and any other path 404. A request that announces a body 
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
 head that does not parse, or is not complete within 16 KiB or 5 seconds of the connection being
 accepted, is 400. At most 64 connections are served at once; one more is answered 503 (`busy`) at
-once and closed. A request whose `Host` header is not exactly `127.0.0.1:<port>` or
+once and closed. At most 16 requests wait for the store thread; a full queue returns 503. Each
+wait ends 35 seconds after accept, and expired jobs are discarded before execution. Whole
+responses have a total write deadline of 5 seconds. Health and the embedded page bypass the
+store queue. With the default authority policy, a request whose `Host` header is not exactly `127.0.0.1:<port>` or
 `localhost:<port>` (on port 80 also `127.0.0.1` or `localhost` alone), or that has none, is 421
 and is served nothing, so a web page that reaches the port under another name through DNS
 rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff`,
 `Cache-Control: no-store` and `Connection: close`, and none sets a cookie or allows another
 origin. Evidence text is
-never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
-none is `store-not-found`, exit 1) and writes nothing to it.
+never served as HTML. `ekr view` binds and announces before lazy store admission. A missing or
+unavailable store leaves health available and readiness at 503; the next store request retries
+admission. The listener never creates or writes a store. Existing hosted admission is reused
+between readiness requests; readiness does not rebuild the graph index.
 
-<a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp` and
-`ekr session` open the store when they start and keep it open. Before each request that reads
+<a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp-http`, `ekr mcp` and
+`ekr session` keep the store open once admitted. The HTTP listeners admit it lazily; stdio
+readers open it at startup. Before each request that reads
 the store, each compares what is at `--store` now with the store it opened — the device and
 inode of the file store's directory or of the SQLite database file, one `stat` of the path and no
 read of the store. When a host has replaced the store there, by renaming another one into place,
@@ -1181,7 +1195,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `mcp-http`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
@@ -1251,6 +1265,55 @@ Stop every session, `ekr mcp` and `ekr view` that holds a SQLite store before co
 database over it, for example when restoring a backup. A host that held the replaced store refuses
 and reopens as above, but when it closes its old connection SQLite can write that connection's
 write-ahead log into the file now at the path (`task:replaced-store-close-keeps-the-restored-file`).
+
+### `ekr mcp-http`
+
+Serves the same nine read-only tools as `ekr mcp` using
+[MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+The default listener is `127.0.0.1` on a free port. `--bind <IP>`, `--port <port>` and repeatable
+`--allow-host <authority>` use the viewer's authority policy; a non-loopback bind requires
+explicit authorities. Every present `Origin` must exactly match a repeatable
+`--allow-origin <http-or-https-origin>`, else 403; clients without Origin are accepted.
+The listener provides no authentication or TLS termination: an operator supplies a trusted
+private routing or external authentication boundary. Authority and Origin checks do not sign
+users in. No CORS headers are emitted.
+
+For example, with the global store configuration supplied:
+
+```sh
+ekr view --bind 0.0.0.0 --port 8800 --allow-host reader.example.invalid --allow-host localhost:8800
+ekr mcp-http --bind 0.0.0.0 --port 8801 --allow-host reader.example.invalid --allow-host localhost:8801 --allow-origin https://reader.example.invalid
+```
+
+These are separate processes. An external router can direct `/mcp` to the MCP listener and
+viewer paths to the viewer. Health probes send an admitted Host such as `localhost:8800` or
+`localhost:8801`; explicit allowlists do not implicitly add loopback authorities.
+
+`POST /mcp` accepts one JSON-RPC object with `Content-Type: application/json` and an Accept
+header including `application/json` (MCP clients should also list `text/event-stream`). Requests
+receive a JSON response with status 200. Accepted notifications and responses receive 202
+with an empty body. `GET /mcp` and `DELETE /mcp` return 405: this transport has no SSE stream,
+session identifier, replay cursor or server-initiated request. It never exposes writer tools.
+
+Initialization negotiates the same `2025-11-25` and `2025-06-18` revisions as stdio. Its first
+request may omit `MCP-Protocol-Version`. Every subsequent request must carry one of those
+supported values; missing, duplicate or unsupported headers return 400. The specification's
+recommended absent-header fallback, `2025-03-26`, supports batches this dispatcher does not
+implement, so an absent header is not silently interpreted as the newest revision.
+
+`GET /healthz` and `GET /readyz` have the viewer's liveness and readiness semantics. Binding and
+announcement precede store admission, so temporary store failure does not make process health
+depend on it. Readiness and tool calls use one held admitted store, follow external commits,
+and retain immutable historical documents. Failed initial admission and failed readiness return
+503. After admission, accepted tool calls retain stdio's JSON-RPC/tool-error behavior with HTTP
+200 when a store read fails; clients inspect the result's error fields. Unknown paths,
+unsupported methods and invalid transport headers are refused before initial store admission.
+
+The listener bounds headers to 16 KiB and 64 fields, the body to 6 MiB + 65,536 bytes, active
+connections to 64, and queued requests to 16. It refuses transfer encoding, duplicate content
+lengths and duplicate Host headers. A whole request must arrive within 5 seconds; its store
+wait ends 35 seconds after accept, and its whole response has a 5-second write deadline.
+Expired jobs are discarded before execution. Store operations remain outside any async runtime.
 
 ### `ekr mcp`
 

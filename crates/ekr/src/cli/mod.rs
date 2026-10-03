@@ -43,6 +43,7 @@ mod explain;
 mod extraction;
 mod hash;
 mod head;
+mod http;
 mod input;
 mod mcp;
 mod migrate;
@@ -419,21 +420,28 @@ pub enum Command {
         #[arg(long, allow_negative_numbers = true, default_value_t = ekr_views::DEFAULT_CONFIDENCE)]
         confidence: i64,
     },
-    /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
+    /// Serve a read-only viewer of the store until interrupted: the page, the
     /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
     /// evidence bytes.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it opens an existing
-    /// store only and writes nothing. Binds 127.0.0.1 and no other address, prints
+    /// store only and writes nothing. Binds 127.0.0.1 by default; external binding requires
+    /// explicit --allow-host authorities. Prints
     /// `{"url": "http://127.0.0.1:<port>/"}` as one JSON line, then serves `GET /`,
     /// `GET /projection[?revision=N]`, `GET /roles[?revision=N]`, `GET /overview`,
     /// `GET /expand` (streamed NDJSON), `GET /node/<node id>`, `GET /search` and
     /// `GET /evidence/<evidence id>`.
     #[command(after_help = SEE)]
     View {
-        /// The port on 127.0.0.1 to listen on; 0 picks a free one.
+        /// The port to listen on; 0 picks a free one.
         #[arg(long, default_value_t = 0)]
         port: u16,
+        /// Listener IP; non-loopback addresses require --allow-host.
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: std::net::IpAddr,
+        /// Exact admitted Host authority, repeatable; replaces the loopback defaults.
+        #[arg(long)]
+        allow_host: Vec<String>,
     },
     /// Serve the JSON verbs over one opened store: one JSON request per line on stdin, one JSON
     /// answer per line on stdout, until end of input.
@@ -448,7 +456,7 @@ pub enum Command {
     /// `ekr session`). On a --store holding no store yet the session starts anyway: `mint`,
     /// `hash` and `schema` are served, and a store verb answers `store-not-found` until a seed
     /// creates the store. `seed` is served with --create only;
-    /// `view`, `session`, `mcp`, `migrate`, `guide`, `operations` and `example` are refused
+    /// `view`, `session`, `mcp`, `mcp-http`, `migrate`, `guide`, `operations` and `example` are refused
     /// (`session-verb-refused`), and so are --host/--store/--backend/--full-replay in a request
     /// (`session-option-refused`).
     #[command(after_help = SEE)]
@@ -470,6 +478,28 @@ pub enum Command {
     /// Record text in an answer is untrusted evidence: data, never instructions.
     #[command(after_help = SEE)]
     Mcp,
+    /// Serve the same nine read-only MCP tools over stateless Streamable HTTP at /mcp.
+    ///
+    /// A store verb under the `ekr.cli-host/1` host (--host or EKR_HOST), which writes nothing.
+    /// Binds 127.0.0.1 by default. External binding requires explicit --allow-host authorities;
+    /// every present Origin must match --allow-origin. Prints the listener URL as one JSON line.
+    /// GET /healthz tests liveness independently of the store; GET /readyz requires an admitted,
+    /// seeded, complete store. No sessions, SSE, writer tools or built-in authentication.
+    #[command(after_help = SEE)]
+    McpHttp {
+        /// The port to listen on; 0 picks a free one.
+        #[arg(long, default_value_t = 0)]
+        port: u16,
+        /// Listener IP; non-loopback addresses require --allow-host.
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: std::net::IpAddr,
+        /// Exact admitted Host authority, repeatable; replaces the loopback defaults.
+        #[arg(long)]
+        allow_host: Vec<String>,
+        /// Exact allowed HTTP or HTTPS Origin, repeatable; absent Origin is accepted.
+        #[arg(long)]
+        allow_origin: Vec<String>,
+    },
     /// Copy a captured store into the current migration format, leaving the source unchanged:
     /// its seed becomes `ekr-seed-envelope/4`, binding a fresh copy claim to a matching completion
     /// receipt. Evidence payloads are content-addressed; legacy inline objects become metadata
@@ -546,6 +576,7 @@ impl Command {
             | Self::View { .. }
             | Self::Session { .. }
             | Self::Mcp
+            | Self::McpHttp { .. }
             | Self::Migrate { .. }
             | Self::PostgresSchema { .. } => Access::Read,
         }
@@ -894,9 +925,22 @@ fn dispatch(
             let judged = sample::read(&judgements, stdin)?;
             sample::report(&judged, Some(confidence)).map(Printed::Raw)
         }
-        Command::View { port } => {
+        Command::View {
+            port,
+            bind,
+            allow_host,
+        } => {
             let store = source.configured("view")?;
-            view::run(&store, port).map(Printed::Text)
+            view::run(&store, bind, port, allow_host).map(Printed::Text)
+        }
+        Command::McpHttp {
+            port,
+            bind,
+            allow_host,
+            allow_origin,
+        } => {
+            let store = source.configured("mcp-http")?;
+            mcp::run_http(&store, bind, port, allow_host, allow_origin).map(Printed::Text)
         }
         Command::Migrate { to, to_backend } => {
             let store = source.configured("migrate")?;

@@ -1,15 +1,15 @@
-//! `ekr view`: a read-only viewer for an existing store, served on 127.0.0.1 only
-//! (`story:ekr-view-server`).
+//! `ekr view`: a read-only viewer, served on loopback by default. External binding requires
+//! explicit admitted Host authorities (`story:hosted-read-serving`).
 //!
-//! The server is a [`TcpListener`] bound to 127.0.0.1, with `httparse` reading request heads; it
-//! is blocking, and no async runtime exists anywhere in the process. An accept thread hands each
+//! The server is a blocking [`TcpListener`], with `httparse` reading request heads; store work
+//! runs outside a Tokio context. An accept thread hands each
 //! connection to a short-lived thread of its own, at most 64 in flight; one more is answered 503
 //! `busy` at once and closed, unread. The connection's deadline is fixed at accept: its whole head
 //! must arrive within 5 s of it, every read waits only for what is left, and a head not complete
 //! by then is 400. The thread reads at most 16 KiB of request head and parses it; it never reads a
 //! body. It sends what it parsed over a channel to the one thread that opened the [`Runtime`],
 //! gets the answer back — a whole response, or the [`SlicePage`] of an `/expand` — writes it with
-//! `Connection: close` (each write waiting at most 5 s), and closes. So every store call runs on
+//! `Connection: close` (a whole response has a total write deadline of 5 s), and closes. So every store call runs on
 //! that one thread, outside any Tokio context, as
 //! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires. A stream is
 //! written by its own connection's thread, never by the store thread, so a slow reader of one
@@ -17,16 +17,18 @@
 //! or abandoned, and a client that closes the connection ends it at the next write.
 //!
 //! How long one connection holds one of the 64 places: a head not complete 5 s after accept is
-//! refused; the wait for the store thread, which answers one request at a time, has no bound of
-//! its own; a whole answer's writes each wait at most 5 s, so a client that reads nothing frees
-//! the place 5 s after the first write it does not take; and a stream holds its place for up to
-//! 65 s — the 5 s head deadline plus the 60 s [`STREAM_TIMEOUT`] — beyond that wait for the store
-//! thread, since a client reading a byte every few seconds keeps every write inside its 5 s.
+//! refused; the wait for the store thread, which answers one request at a time, ends 35 s after
+//! accept. The queue holds at most 16 jobs, and expired jobs are discarded before execution.
+//! A whole answer writes within 5 s; a stream within 60 s. A full queue returns 503 immediately.
+//! `/healthz` and the embedded page bypass the store queue. Store admission is lazy, so health
+//! remains available while a configured store is unavailable or incomplete. `/readyz` succeeds
+//! only when the admitted store has a seed, including revision zero.
 //!
 //! Before any store call a request is refused unless it carries exactly one `Host` header naming
-//! this server, `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
+//! this server, by default `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
 //! `localhost` alone, as a browser sends it — (421 otherwise, so a page reached through DNS
-//! rebinding is served nothing), and unless it announces no body: any `Content-Length` above zero
+//! rebinding is served nothing). Explicit `--allow-host` replaces these defaults; forwarded
+//! headers never grant authority. Requests must announce no body: any `Content-Length` above zero
 //! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
@@ -53,6 +55,8 @@
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
+//! | `GET /healthz` | process liveness without store work, 200 |
+//! | `GET /readyz` | admitted seeded complete store, 200; unavailable, incomplete or unseeded, 503 |
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
@@ -88,7 +92,7 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -137,7 +141,7 @@ const PROGRESS_EVERY: usize = 256;
 pub(super) const SEARCH_LIMIT: i64 = 20;
 
 /// One parsed request and where its answer goes: from a connection thread to the store thread.
-type Job = (Asked, Sender<Answered>);
+type Job = super::http::Job<Asked, Answered>;
 
 /// What the store thread hands back to a connection: a whole response, or the page an
 /// `/expand` streams, which the connection writes itself.
@@ -165,38 +169,45 @@ impl Default for Memory {
     }
 }
 
-/// Opens the existing store `store` names, binds 127.0.0.1 on `port` (0 picks a free one),
+/// Binds the configured listener (`port` 0 picks a free one), lazily admits the existing store,
 /// prints `{"url": …}` as one JSON line on stdout, and answers requests until the process is
 /// interrupted.
 ///
 /// # Errors
 ///
-/// The store does not open, the address does not bind, stdout cannot be written, or the accept
+/// The address does not bind, stdout cannot be written, or the accept
 /// loop stops.
-pub(super) fn run(store: &Store, port: u16) -> Result<String, Failure> {
-    let mut held = Held::open(store.clone())?;
-    let listener = TcpListener::bind(("127.0.0.1", port))
-        .map_err(|error| Failure::fault(format!("binding 127.0.0.1:{port}: {error}")))?;
-    let address = listener
-        .local_addr()
-        .map_err(|error| Failure::fault(format!("reading the bound address: {error}")))?;
-    let line = serde_json::json!({ "url": format!("http://{address}/") });
-    let mut stdout = std::io::stdout().lock();
-    writeln!(stdout, "{line}")
-        .and_then(|()| stdout.flush())
-        .map_err(|error| Failure::fault(format!("writing the URL: {error}")))?;
-    drop(stdout);
-
-    let (jobs, store_thread) = channel::<Job>();
+pub(super) fn run(
+    store: &Store,
+    bind: std::net::IpAddr,
+    port: u16,
+    hosts: Vec<String>,
+) -> Result<String, Failure> {
+    let (listener, authorities) = super::http::bind(bind, port, hosts)?;
+    super::http::announce(&listener)?;
+    let (jobs, store_thread) = super::http::queue();
+    let connection_authorities = authorities.clone();
     std::thread::Builder::new()
         .name("ekr-view-accept".to_owned())
-        .spawn(move || accept(&listener, &jobs))
-        .map_err(|error| Failure::fault(format!("starting the accept thread: {error}")))?;
-    let port = address.port();
+        .spawn(move || accept(&listener, &jobs, &connection_authorities))
+        .map_err(|_| Failure::fault("starting viewer accept thread failed"))?;
+    let mut held = None;
     let mut memory = Memory::default();
-    for (asked, reply_to) in store_thread {
-        // A connection that timed out meanwhile is its own business.
-        let _ = reply_to.send(answer(&mut held, &mut memory, port, &asked));
+    for job in store_thread {
+        if !super::http::alive(&job, Instant::now()) {
+            continue;
+        }
+        if held.is_none() {
+            held = Held::open(store.clone()).ok();
+        }
+        let answered = match held.as_mut() {
+            Some(held) => answer_configured(held, &mut memory, &authorities, &job.request),
+            None => Answered::Whole(Reply::text(
+                503,
+                "store is not admitted, seeded and available",
+            )),
+        };
+        let _ = job.reply.try_send(answered);
     }
     Err(Failure::fault("the accept loop stopped"))
 }
@@ -225,7 +236,7 @@ impl Drop for InFlight {
 
 /// Hands every accepted connection to a short-lived thread of its own, at most
 /// [`IN_FLIGHT_LIMIT`] at a time; one over the cap is answered 503 at once and closed, unread.
-fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
+fn accept(listener: &TcpListener, jobs: &SyncSender<Job>, authorities: &super::http::Authorities) {
     let in_flight = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
         match stream {
@@ -244,12 +255,13 @@ fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
                     continue;
                 };
                 let jobs = jobs.clone();
+                let authorities = authorities.clone();
                 // A thread that cannot start drops the connection and the count with it.
                 let _ = std::thread::Builder::new()
                     .name("ekr-view-connection".to_owned())
                     .spawn(move || {
                         let _counted = counted;
-                        connection(stream, deadline, &jobs);
+                        connection(stream, deadline, &jobs, &authorities);
                     });
             }
             // Out of descriptors or a connection reset before accept: take the next one.
@@ -261,11 +273,15 @@ fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
 /// One connection: read and parse the head by `deadline`, get the answer from the store thread,
 /// write it — a stream from this thread, with the store thread already free — close. The body,
 /// if any, is never read.
-fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
+fn connection(
+    stream: TcpStream,
+    deadline: Instant,
+    jobs: &SyncSender<Job>,
+    authorities: &super::http::Authorities,
+) {
     if stream.set_write_timeout(Some(TIMEOUT)).is_err() {
         return;
     }
-    let mut stream = stream;
     let head = {
         let mut reader = &stream;
         read_head(&mut reader, || {
@@ -282,22 +298,42 @@ fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
     let answered = match head {
         Ok(asked) => {
             framing = asked.framing;
-            let (reply_to, reply) = channel();
-            if jobs.send((asked, reply_to)).is_err() {
-                return;
-            }
-            match reply.recv() {
-                Ok(answered) => answered,
-                Err(_) => return,
+            if let Some(reply) = immediate(&asked, authorities) {
+                Answered::Whole(reply)
+            } else {
+                let (reply_to, reply) = sync_channel(1);
+                let deadline = deadline + super::http::WAIT_TIMEOUT;
+                if jobs
+                    .try_send(Job {
+                        request: asked,
+                        reply: reply_to,
+                        deadline,
+                    })
+                    .is_err()
+                {
+                    Answered::Whole(Reply::text(503, "request queue is full"))
+                } else {
+                    reply
+                        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        .unwrap_or_else(|_| {
+                            Answered::Whole(Reply::text(503, "request deadline exceeded"))
+                        })
+                }
             }
         }
         Err(message) => Answered::Whole(Reply::text(400, format!("bad-request: {message}"))),
     };
     // A client that went away is its own business: the first failed write ends the answer.
     let _ = match answered {
-        Answered::Whole(reply) => stream
-            .write_all(&reply.into_bytes())
-            .and_then(|()| stream.flush()),
+        Answered::Whole(reply) => {
+            let mut writer = super::http::Deadlined {
+                stream: &stream,
+                deadline: Instant::now() + TIMEOUT,
+            };
+            writer
+                .write_all(&reply.into_bytes())
+                .and_then(|()| writer.flush())
+        }
         Answered::Stream(page) => write_stream(
             &mut Deadlined {
                 stream: &stream,
@@ -455,7 +491,7 @@ fn late() -> String {
     )
 }
 
-/// Reads one request head, at most [`HEAD_LIMIT`] bytes of it, and what [`answer`] needs of it.
+/// Reads one request head, at most [`HEAD_LIMIT`] bytes of it, and what [`answer_configured`] needs of it.
 /// `before_read` runs before every read: it gives the read what is left of the connection's
 /// deadline as its timeout, or refuses once the deadline has passed.
 fn read_head(
@@ -506,9 +542,9 @@ fn parse_head(head: &[u8]) -> Result<Option<Asked>, String> {
                     .map(|header| header.value)
                     .collect::<Vec<&[u8]>>()
             };
-            let announces_body = named("Content-Length")
-                .iter()
-                .any(|value| value.trim_ascii() != b"0")
+            let lengths = named("Content-Length");
+            let announces_body = lengths.len() > 1
+                || lengths.iter().any(|value| value.trim_ascii() != b"0")
                 || !named("Transfer-Encoding").is_empty();
             // A Host that is not UTF-8 names no server, and keeps its place so it still counts.
             let hosts = named("Host")
@@ -610,6 +646,7 @@ impl Reply {
 enum Route<'a> {
     Page,
     Head,
+    Ready,
     Projection,
     Roles,
     Evidence(&'a str),
@@ -629,6 +666,7 @@ fn route(path: &str) -> Option<Route<'_>> {
     match path {
         "/" => Some(Route::Page),
         "/head" => Some(Route::Head),
+        "/readyz" => Some(Route::Ready),
         "/projection" => Some(Route::Projection),
         "/roles" => Some(Route::Roles),
         "/overview" => Some(Route::Overview),
@@ -660,19 +698,9 @@ struct Asked {
 /// Whether `hosts` is exactly one `Host`, naming this server's own loopback authority. A page
 /// reached through DNS rebinding sends its own name, and is served nothing. On port 80 a browser
 /// leaves the port out, so there `127.0.0.1` and `localhost` alone are the server's own too.
+#[cfg(test)]
 fn own_host(hosts: &[String], port: u16) -> bool {
-    let [host] = hosts else {
-        return false;
-    };
-    let (name, given) = match host.rsplit_once(':') {
-        Some((name, given)) => (name, Some(given)),
-        None => (host.as_str(), None),
-    };
-    let names_port = match given {
-        Some(given) => given == port.to_string(),
-        None => port == 80,
-    };
-    matches!(name, "127.0.0.1" | "localhost") && names_port
+    super::http::Authorities::loopback(port).accepts(hosts)
 }
 
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
@@ -683,12 +711,46 @@ fn own_host(hosts: &[String], port: u16) -> bool {
 /// not open is 503 [`STORE_REPLACED`]. A request whose read through the held runtime fails because the history
 /// at the path diverged from it — a store replaced under the same device and inode — is answered
 /// again after one reopen.
+#[cfg(test)]
 fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Answered {
-    if !own_host(&asked.hosts, port) {
-        return Answered::Whole(Reply::text(
-            421,
-            format!("misdirected-request: Host must be 127.0.0.1:{port} or localhost:{port}"),
-        ));
+    answer_configured(
+        held,
+        memory,
+        &super::http::Authorities::loopback(port),
+        asked,
+    )
+}
+
+fn immediate(asked: &Asked, authorities: &super::http::Authorities) -> Option<Reply> {
+    if !authorities.accepts(&asked.hosts) {
+        return Some(Reply::text(421, "misdirected-request: unapproved Host"));
+    }
+    let path = asked
+        .target
+        .split_once('?')
+        .map_or(asked.target.as_str(), |(path, _)| path);
+    if asked.target == "/healthz" || path == "/" {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if path == "/" {
+            Reply::ok(HTML, PAGE.as_bytes().to_vec())
+        } else {
+            Reply::ok(JSON, b"{\"healthy\":true}".to_vec())
+        });
+    }
+    None
+}
+
+fn answer_configured(
+    held: &mut Held,
+    memory: &mut Memory,
+    authorities: &super::http::Authorities,
+    asked: &Asked,
+) -> Answered {
+    if let Some(reply) = immediate(asked, authorities) {
+        return Answered::Whole(reply);
     }
     let target = asked.target.as_str();
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
@@ -724,7 +786,7 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
 /// refuses to answer from a SQLite database replaced in place ([`Held::reopens`]).
 fn answered_diverged(answered: &Answered, held: &Held) -> bool {
     match answered {
-        Answered::Whole(reply) => reply.status == 500 && held.reopens(),
+        Answered::Whole(reply) => matches!(reply.status, 500 | 503) && held.reopens(),
         Answered::Stream(_) => false,
     }
 }
@@ -752,6 +814,16 @@ fn route_answer(
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
         Route::Head => head(runtime, query),
+        Route::Ready => {
+            if !query.is_empty() {
+                invalid_query("readiness takes no query")
+            } else {
+                match runtime.head() {
+                    Ok(Some(_)) => Reply::ok(JSON, b"{\"ready\":true}".to_vec()),
+                    _ => Reply::text(503, "store is not admitted, seeded and available"),
+                }
+            }
+        }
         Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
         Route::Evidence(id) => evidence(runtime, id),
@@ -1593,7 +1665,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_eleven_routes_exist() {
+    fn only_the_declared_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/head"), Some(Route::Head)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
