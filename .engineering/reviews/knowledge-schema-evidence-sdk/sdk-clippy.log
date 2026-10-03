@@ -1,0 +1,22 @@
+    Checking ekr-contract-data v0.0.0 (<unit>/generated/ekr-contract-data)
+    Checking serde_yaml_ng v0.10.0 (<unit>/vendor/serde_yaml_ng)
+    Checking ekr-core v0.0.27 (<unit>/crates/ekr-core)
+    Checking ess-primitives v0.52.0 (https://github.com/beyond10x/ess?rev=4d6a4ecafc0feb4e11e4bee777b19c7351fa3647#4d6a4eca)
+    Checking ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+    Checking ess-domain v0.52.0 (https://github.com/beyond10x/ess?rev=4d6a4ecafc0feb4e11e4bee777b19c7351fa3647#4d6a4eca)
+    Checking ess-compiler v0.52.0 (https://github.com/beyond10x/ess?rev=4d6a4ecafc0feb4e11e4bee777b19c7351fa3647#4d6a4eca)
+    Checking eventlog-sqlite v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking ekr-store v0.0.27 (<unit>/crates/ekr-store)
+    Checking ess-transport v0.52.0 (https://github.com/beyond10x/ess?rev=4d6a4ecafc0feb4e11e4bee777b19c7351fa3647#4d6a4eca)
+    Checking ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Checking ess-gen v0.52.0 (https://github.com/beyond10x/ess?rev=4d6a4ecafc0feb4e11e4bee777b19c7351fa3647#4d6a4eca)
+    Checking jsonschema-value v0.58.0
+    Checking referencing v0.58.0
+    Checking ess-conformance v0.52.0 (https://github.com/beyond10x/ess?rev=4d6a4ecafc0feb4e11e4bee777b19c7351fa3647#4d6a4eca)
+    Checking ekr-views v0.0.27 (<unit>/crates/ekr-views)
+    Checking ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+    Checking jsonschema v0.58.0
+    Checking ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `dev` profile [unoptimized] target(s) in 52.33s

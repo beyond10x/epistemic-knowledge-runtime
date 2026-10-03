@@ -85,9 +85,9 @@ pub enum DocumentError {
     /// A transaction holds at least one operation; the reader refuses an empty one.
     #[error("a transaction holds at least one operation")]
     EmptyTransaction,
-    /// A transaction that holds a schema change holds nothing else; every profile refuses the
-    /// mixture (`mixed-schema-transaction`, or `unsupported-operation` under profile v1).
-    #[error("a schema change travels alone: this transaction mixes schema and data operations")]
+    /// Schema changes may carry inline evidence, but no other data operations. Explicit schema
+    /// support also requires a schema operation.
+    #[error("schema changes and their supporting evidence must be separate from data operations")]
     MixedSchemaTransaction,
     /// The document is past one of the format's frozen limits, which `ekr propose` would refuse
     /// by the same name: split the change into several transactions, or put a larger statement

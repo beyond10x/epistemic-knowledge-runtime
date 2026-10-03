@@ -1,0 +1,32 @@
+   Compiling ekr-contract-data v0.0.0 (<unit>/generated/ekr-contract-data)
+   Compiling serde_yaml_ng v0.10.0 (<unit>/vendor/serde_yaml_ng)
+   Compiling ekr-core v0.0.27 (<unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<unit>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 41.41s
+     Running tests/document_drift.rs (<build>/target/debug/deps/document_drift-0da7431e5ae8809d)
+
+running 1 test
+test schema_builder_cites_inline_support_without_admitting_other_data_operations ... FAILED
+
+failures:
+
+---- schema_builder_cites_inline_support_without_admitting_other_data_operations stdout ----
+
+thread 'schema_builder_cites_inline_support_without_admitting_other_data_operations' (3554082) panicked at crates/ekr-sdk/tests/document_drift.rs:478:10:
+schema declarations may carry cited inline evidence under knowledge/2: MixedSchemaTransaction
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    schema_builder_cites_inline_support_without_admitting_other_data_operations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-sdk --test document_drift`

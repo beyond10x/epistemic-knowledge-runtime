@@ -57,7 +57,8 @@ pub struct Transaction {
     pub proposer: AgentId,
     /// One or more operations, applied all or nothing.
     pub operations: Vec<Operation>,
-    /// Exactly the evidence ids its `!AddAssertion`s cite and its `!AttachEvidence`s attach.
+    /// Evidence supporting a schema change, or exactly the evidence ids its
+    /// `!AddAssertion`s cite and its `!AttachEvidence`s attach for a data transaction.
     pub evidence: BTreeSet<EvidenceId>,
     /// The schema version a schema change produces; absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -65,14 +66,15 @@ pub struct Transaction {
 }
 
 /// Builds a [`TransactionDocument`] whose bookkeeping cannot disagree with its operations: the
-/// evidence manifest is the set its assertions cite and its attachments attach, and a schema
-/// change names a freshly minted schema version.
+/// data evidence manifest is the set its assertions cite and its attachments attach. A schema
+/// change names a freshly minted schema version and cites its inline and selected retained evidence.
 #[derive(Clone, Debug)]
 pub struct TransactionBuilder {
     id: TransactionId,
     proposer: AgentId,
     operations: Vec<Operation>,
     schema_version: Option<SchemaVersionId>,
+    schema_evidence: BTreeSet<EvidenceId>,
 }
 
 impl TransactionBuilder {
@@ -84,6 +86,7 @@ impl TransactionBuilder {
             proposer,
             operations: Vec::new(),
             schema_version: None,
+            schema_evidence: BTreeSet::new(),
         }
     }
 
@@ -101,6 +104,15 @@ impl TransactionBuilder {
         self
     }
 
+    /// Cite retained evidence supporting a schema change. Repeated ids are deduplicated.
+    /// Inline `AddEvidence` operations are cited automatically. The store must have completed
+    /// the reviewed knowledge/2 authority upgrade before it can admit schema evidence.
+    #[must_use]
+    pub fn with_schema_evidence(mut self, evidence: impl IntoIterator<Item = EvidenceId>) -> Self {
+        self.schema_evidence.extend(evidence);
+        self
+    }
+
     /// This transaction with one more operation, after the others.
     #[must_use]
     pub fn push(mut self, operation: Operation) -> Self {
@@ -112,7 +124,8 @@ impl TransactionBuilder {
     ///
     /// # Errors
     /// [`DocumentError::EmptyTransaction`] with no operation,
-    /// [`DocumentError::MixedSchemaTransaction`] when schema and data operations are mixed, and
+    /// [`DocumentError::MixedSchemaTransaction`] when a schema change contains data operations
+    /// other than inline evidence, or selected schema evidence accompanies a data transaction, and
     /// [`DocumentError::Limit`] for a document past one of the format's frozen limits
     /// ([`TransactionDocument::check_limits`]).
     pub fn build(self) -> Result<TransactionDocument, DocumentError> {
@@ -124,14 +137,31 @@ impl TransactionBuilder {
             .iter()
             .filter(|operation| operation.is_schema_change())
             .count();
-        if schema != 0 && schema != self.operations.len() {
+        if (schema != 0
+            && self.operations.iter().any(|operation| {
+                !operation.is_schema_change() && !matches!(operation, Operation::AddEvidence(_))
+            }))
+            || (schema == 0 && !self.schema_evidence.is_empty())
+        {
             return Err(DocumentError::MixedSchemaTransaction);
         }
-        let evidence = self
-            .operations
-            .iter()
-            .flat_map(Operation::rests_on)
-            .collect();
+        let evidence = if schema == 0 {
+            self.operations
+                .iter()
+                .flat_map(Operation::rests_on)
+                .collect()
+        } else {
+            let mut evidence = self.schema_evidence;
+            evidence.extend(
+                self.operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        Operation::AddEvidence(addition) => Some(addition.evidence.id),
+                        _ => None,
+                    }),
+            );
+            evidence
+        };
         let schema_version =
             (schema != 0).then(|| self.schema_version.unwrap_or_else(SchemaVersionId::mint));
         let document = TransactionDocument {
@@ -212,8 +242,8 @@ impl Operation {
     }
 
     /// The evidence ids it rests on: those an `!AddAssertion` cites, the one an
-    /// `!AttachEvidence` attaches, and none for any other kind. A transaction's `evidence` is
-    /// exactly the union of these over its operations.
+    /// `!AttachEvidence` attaches, and none for any other kind. A data transaction's `evidence`
+    /// is exactly the union of these over its operations; schema support is selected separately.
     #[must_use]
     pub fn rests_on(&self) -> Vec<EvidenceId> {
         match self {
