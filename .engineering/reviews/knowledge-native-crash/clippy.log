@@ -1,0 +1,34 @@
+    Checking serde v1.0.229
+    Checking memchr v2.8.3
+    Checking serde_json v1.0.151
+    Checking hashbrown v0.17.1
+    Checking typenum v1.20.1
+    Checking generic-array v0.14.7
+    Checking thiserror v2.0.21
+    Checking indexmap v2.14.2
+    Checking ref-cast v1.0.27
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+    Checking schemars v1.2.2
+    Checking serde_yaml_ng v0.10.0 (<unit>/vendor/serde_yaml_ng)
+    Checking digest v0.10.7
+    Checking ekr-contract-data v0.0.0 (<unit>/generated/ekr-contract-data)
+    Checking sha2 v0.10.9
+    Checking ekr-core v0.0.27 (<unit>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+    Checking eventlog-core v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking hashlink v0.12.2
+    Checking rusqlite v0.40.2
+    Checking ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+    Checking eventlog-sqlite v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking eventlog-file v0.5.0 (https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e)
+    Checking toml_datetime v1.1.1+spec-1.1.0
+    Checking serde_spanned v1.1.1
+    Checking toml v1.1.6+spec-1.1.0
+    Checking ekr-store v0.0.27 (<unit>/crates/ekr-store)
+    Checking num-traits v0.2.19
+    Checking ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+    Checking proptest v1.11.0
+    Checking trybuild v1.0.121
+    Checking ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Finished `dev` profile [unoptimized] target(s) in 45.48s

@@ -1,0 +1,21 @@
+{
+  "test": "upgrade_survives_process_kill_at_native_publication_boundaries",
+  "observed": [
+    {
+      "provider": "file",
+      "boundary": "before-publication"
+    },
+    {
+      "provider": "file",
+      "boundary": "after-publication"
+    },
+    {
+      "provider": "sqlite",
+      "boundary": "before-publication"
+    },
+    {
+      "provider": "sqlite",
+      "boundary": "after-publication"
+    }
+  ]
+}

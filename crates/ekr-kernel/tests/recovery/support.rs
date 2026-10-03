@@ -420,6 +420,10 @@ pub struct Hooks {
     pub candidates: Rc<RefCell<Vec<Publication>>>,
     /// Runs once, immediately before the first `prepare` is delegated.
     pub before_prepare: Hook,
+    /// Runs once after election, immediately before the native resume call.
+    pub before_resume: Hook,
+    /// Runs once after a successful native resume, before returning its response.
+    pub after_resume: Hook,
     /// Runs once, at the first kernel-authority call made *inside* a delegated `prepare`. Over an
     /// empty slot that call is the store's admission of its own candidate: after the store read
     /// the slot and before its conditional selection write, the window a real race needs.
@@ -435,6 +439,8 @@ impl Hooks {
             resumed: Rc::default(),
             candidates: Rc::default(),
             before_prepare: Rc::default(),
+            before_resume: Rc::default(),
+            after_resume: Rc::default(),
             inside_prepare: Rc::default(),
             fired_inside_prepare: Rc::default(),
             preparing: Rc::default(),
@@ -471,8 +477,19 @@ impl<S: ekr_store::RevisionLog> ekr_store::RevisionLog for Probe<S> {
     }
     fn resume(&self, p: &PublicationPreparationV1) -> Result<ekr_store::Appended, StoreError> {
         self.hooks.resumed.borrow_mut().push(p.clone());
+        let hook = self.hooks.before_resume.borrow_mut().take();
+        if let Some(mut hook) = hook {
+            hook();
+        }
         match self.hooks.fault.replace(Fault::Pass) {
-            Fault::Pass => self.inner.resume(p),
+            Fault::Pass => {
+                let result = self.inner.resume(p)?;
+                let hook = self.hooks.after_resume.borrow_mut().take();
+                if let Some(mut hook) = hook {
+                    hook();
+                }
+                Ok(result)
+            }
             Fault::BeforeWrite => Err(StoreError::UnknownCommit),
             Fault::AfterWrite => {
                 let _written = self.inner.resume(p)?;

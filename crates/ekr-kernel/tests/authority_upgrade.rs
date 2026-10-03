@@ -983,3 +983,220 @@ fn a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation()
         .unwrap()
     });
 }
+
+// The kill occurs at native publication boundaries, not inside a filesystem sync or SQLite WAL.
+#[cfg(unix)]
+fn wait_for_parent_kill() -> ! {
+    use std::io::Write;
+    println!("EKR_UPGRADE_READY_FOR_KILL");
+    std::io::stdout().flush().unwrap();
+    loop {
+        std::thread::park();
+    }
+}
+
+#[cfg(unix)]
+fn child_publication_boundary(path: &std::path::Path, after: bool) {
+    let plan: RetryPlan =
+        serde_json::from_slice(&std::fs::read(path.join("retry.json")).unwrap()).unwrap();
+    let hooks = recovery::Hooks::new(recovery::Fault::Pass);
+    let resumed = hooks.resumed.clone();
+    let elected_path = path.join("elected.json");
+    *hooks.before_resume.borrow_mut() = Some(Box::new(move || {
+        let preparations = resumed.borrow();
+        assert_eq!(preparations.len(), 1);
+        let elected = &preparations[0];
+        let bytes = &elected.decision.objects[&elected.decision.event.record_hash].bytes;
+        std::fs::write(&elected_path, bytes).unwrap();
+        drop(preparations);
+        if !after {
+            wait_for_parent_kill();
+        }
+    }));
+    if after {
+        *hooks.after_resume.borrow_mut() = Some(Box::new(|| wait_for_parent_kill()));
+    }
+    let binding = review::read_host_binding(&plan.binding).unwrap();
+
+    if plan.file {
+        let kernel = Commit::over_with_review_authority(context(), anchor(), binding, |a| {
+            Ok(recovery::Probe {
+                inner: FileStore::file(path, "upgrade-fixture", None)?.under(a),
+                hooks,
+            })
+        })
+        .unwrap();
+        kernel
+            .apply_upgrade(
+                &plan.preview,
+                &review::read_policy(&plan.policy).unwrap(),
+                &review::read_proof(&plan.proof).unwrap(),
+                b"reviewed contradictions and pending validations",
+                || Timestamp::from_millis(1),
+            )
+            .unwrap();
+    } else {
+        let kernel = Commit::over_with_review_authority(context(), anchor(), binding, |a| {
+            Ok(recovery::Probe {
+                inner: SqliteStore::sqlite(&path.join("store.db"), "upgrade-fixture", None)?
+                    .under(a),
+                hooks,
+            })
+        })
+        .unwrap();
+        kernel
+            .apply_upgrade(
+                &plan.preview,
+                &review::read_policy(&plan.policy).unwrap(),
+                &review::read_proof(&plan.proof).unwrap(),
+                b"reviewed contradictions and pending validations",
+                || Timestamp::from_millis(1),
+            )
+            .unwrap();
+    }
+    panic!("publication boundary did not suspend the child");
+}
+
+#[cfg(unix)]
+#[test]
+fn upgrade_survives_process_kill_at_native_publication_boundaries() {
+    use std::io::BufRead;
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::{Command, Stdio};
+    if let Some(path) = std::env::var_os("EKR_UPGRADE_CRASH_PATH") {
+        child_publication_boundary(
+            std::path::Path::new(&path),
+            std::env::var("EKR_UPGRADE_CRASH_AFTER").unwrap() == "true",
+        );
+        return;
+    }
+    // Reap even if an assertion about the handshake fails; never leave a parked fixture child.
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    for file in [true, false] {
+        for after in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path();
+            let open = || {
+                if file {
+                    ekr_kernel::Runtime::file(path, "upgrade-fixture", context(), anchor())
+                } else {
+                    ekr_kernel::Runtime::sqlite(
+                        &path.join("store.db"),
+                        "upgrade-fixture",
+                        context(),
+                        anchor(),
+                    )
+                }
+                .unwrap()
+            };
+            let original = open();
+            let seeded = original.seed(seed(), || Timestamp::EPOCH).unwrap();
+            let historical = original.snapshot().unwrap();
+            let human = Human::new(seeded.seed_hash);
+            let trusted = original
+                .with_review_authority(human.binding.clone())
+                .unwrap();
+            let preview = trusted.preview_upgrade(&human.policy).unwrap();
+            let proof = human.proof(&preview);
+            let plan = RetryPlan {
+                file,
+                preview,
+                proof: review::proof_bytes(&proof).unwrap(),
+                policy: review::policy_bytes(&human.policy).unwrap(),
+                binding: review::host_binding_bytes(&human.binding).unwrap(),
+            };
+            std::fs::write(path.join("retry.json"), serde_json::to_vec(&plan).unwrap()).unwrap();
+            drop(trusted);
+            let mut child = Child(
+                Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "upgrade_survives_process_kill_at_native_publication_boundaries",
+                        "--exact",
+                        "--nocapture",
+                        "--test-threads=1",
+                    ])
+                    .env("EKR_UPGRADE_CRASH_PATH", path)
+                    .env("EKR_UPGRADE_CRASH_AFTER", after.to_string())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::inherit())
+                    .spawn()
+                    .unwrap(),
+            );
+            let mut ready = false;
+            for line in std::io::BufReader::new(child.0.stdout.take().unwrap()).lines() {
+                if line.unwrap().ends_with("EKR_UPGRADE_READY_FOR_KILL") {
+                    ready = true;
+                    break;
+                }
+            }
+            assert!(
+                ready,
+                "child exited before boundary: file={file}, after={after}"
+            );
+            assert!(child.0.try_wait().unwrap().is_none());
+            child.0.kill().unwrap();
+            assert_eq!(child.0.wait().unwrap().signal(), Some(9));
+            let elected = std::fs::read(path.join("elected.json")).unwrap();
+            let mut reopened = open().with_review_authority(human.binding.clone()).unwrap();
+            reopened.set_full_replay(true);
+            assert_eq!(
+                reopened.head().unwrap().unwrap().revision,
+                if after {
+                    RevisionNumber::new(1)
+                } else {
+                    RevisionNumber::SEED
+                }
+            );
+            assert_eq!(reopened.replay(RevisionNumber::SEED).unwrap(), historical);
+            drop(reopened);
+            let retry = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "upgrade_port_fault_resumes_exactly_in_a_fresh_process",
+                    "--exact",
+                    "--test-threads=1",
+                ])
+                .env("EKR_UPGRADE_RETRY_PATH", path)
+                .output()
+                .unwrap();
+            assert!(
+                retry.status.success(),
+                "{} {}",
+                String::from_utf8_lossy(&retry.stdout),
+                String::from_utf8_lossy(&retry.stderr)
+            );
+            assert_eq!(std::fs::read(path.join("result.json")).unwrap(), elected);
+            let mut final_runtime = open().with_review_authority(human.binding.clone()).unwrap();
+            final_runtime.set_full_replay(true);
+            let final_head = final_runtime.head().unwrap();
+            assert_eq!(
+                final_runtime.replay(RevisionNumber::SEED).unwrap(),
+                historical
+            );
+            assert_eq!(final_runtime.attention().unwrap().len(), 1);
+            assert!(final_runtime
+                .snapshot()
+                .unwrap()
+                .assertions
+                .values()
+                .all(|a| matches!(a.assessment, Assessment::Disputed { .. })));
+            let receipt = final_runtime
+                .apply_upgrade(
+                    &plan.preview,
+                    &human.policy,
+                    &proof,
+                    b"reviewed contradictions and pending validations",
+                    || panic!("retry sampled time"),
+                )
+                .unwrap();
+            assert_eq!(serde_json::to_vec(&receipt).unwrap(), elected);
+            assert_eq!(final_runtime.head().unwrap(), final_head);
+            println!("native publication crash recovered: file={file}, after={after}");
+        }
+    }
+}

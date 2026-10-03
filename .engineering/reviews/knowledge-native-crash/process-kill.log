@@ -1,0 +1,13 @@
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 2.29s
+     Running tests/authority_upgrade.rs (<temporary-build>/target/debug/deps/authority_upgrade-ddc90112102a91e8)
+
+running 1 test
+native publication crash recovered: file=true, after=false
+native publication crash recovered: file=true, after=true
+native publication crash recovered: file=false, after=false
+native publication crash recovered: file=false, after=true
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.31s
+

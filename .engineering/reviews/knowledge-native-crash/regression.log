@@ -1,0 +1,25 @@
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 1.43s
+     Running tests/authority_upgrade.rs (<temporary-build>/target/debug/deps/authority_upgrade-ddc90112102a91e8)
+
+running 6 tests
+test full_replay_rejects_changed_transition_records_and_missing_review_objects ... ok
+test a_lost_upgrade_race_allows_a_new_review_without_reusing_the_old_preparation ... ok
+test upgrade_port_fault_resumes_exactly_in_a_fresh_process ... ok
+test runtime_facade_upgrades_and_reopens_with_independently_provisioned_trust ... ok
+test upgrade_survives_process_kill_at_native_publication_boundaries ... ok
+test upgrade_preserves_historical_rules_hashes_and_requires_revalidation ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/recovery.rs (<temporary-build>/target/debug/deps/recovery-a00cc05b68742ecd)
+
+running 5 tests
+test a_lost_response_after_the_native_write_reports_the_original_decision_in_a_fresh_process ... ok
+test an_elected_unpublished_decision_resumes_exactly_in_a_fresh_process_for_every_kind ... ok
+test two_handles_racing_for_revision_one_commit_it_exactly_once_on_both_providers ... ok
+test missing_corrupt_and_forged_private_preparations_refuse_by_name_and_change_nothing ... ok
+test same_slot_contention_elects_one_preparation_and_the_loser_binds_nothing ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.53s
+
