@@ -114,7 +114,7 @@ The proposal-stage verb returned these lists (before the selected story moved ac
 - Build: `<cache>/b10x-target/epistemic-knowledge-runtime`, used by only one checkout at a time as repository AGENTS.md permits; no concurrent compiler, tests or documentation readers share it.
 - Scratch: `<cache>/ekr-evidence-cache/unit`; coordinator/full-gate evidence: `<cache>/ekr-evidence-cache/gate`.
 - Native agent runs the `aep:implementor` procedure, then a separate native agent runs `aep:adversary`; plugin agent types are not exposed by this harness. Root owns all planning writes and release actions.
-- Stage: unit `557937e5b9a40f847b75205f494233473901a237` passed its focused gate; independent adversary in managed `ekr-evidence-cache-review` is running. Base: `20c31fd1af508ed00477f4308e00d3b09ab88fb3`.
+- Stage: implemented and released as 0.0.29 at `d9819d7374357d180f721a472ac1ad561e66f148`. Independent reviews and the corrected full gate passed. Base: `20c31fd1af508ed00477f4308e00d3b09ab88fb3`.
 - Estimated focused build storage from the scoper: 2–3 GiB, not a measurement. Prior full-gate build cost was measured separately; monitor actual growth and retain the 10 GiB free-space floor. Debug info and incremental compilation disabled, two build jobs.
 - Authorization covers the unit commit, integration/closing commits, verified base publication and a separately gated corrective release. No consumer data, paid extraction or unrelated work enters this wave.
 
@@ -134,3 +134,13 @@ Actual viewer request seam fails before the fix and passes after it by seed-repl
 The implementor report at `<cache>/ekr-evidence-cache/unit/report.md` records the deterministic replay regression red then green, exact retained bytes, historical membership and replacement refusal. Its affected gate reports 230 passed, zero failed and one existing manual screenshot ignore. The broader package run was deliberately interrupted with observed exit 143; it is not a gate pass. Root will run the full workspace gate after independent review. A pre-existing raw File payload overwrite discrepancy remains separately tracked as `task:held-file-payload-overwrite`; this patch does not change provider trust semantics.
 
 The native agent thread limit refused a new adversary thread. The existing independent scoping/documentation worker now runs the adversary procedure in its own review tree; it did not implement the viewer change. Shared build ownership is exclusive to that review until explicit handoff. Corrective release candidate version is 0.0.29; neither this version preparation nor unit success is release acceptance.
+
+## Closure
+
+The independent HTTP adversary delivered `6955d8ded0d830cf5f66836cd4cfcf9addd9a2e1` with new-head, eviction, historical membership, same-revision replacement, damaged-store, payload and request-admission cases. Its complete report is recorded as `review-result:adversary-evidence-cache-1`; the focused YAML inventory correction has a separate static review, `review-result:adversary-evidence-yaml-inventory-1`. Both reviews report zero findings and an Owners split of zero coordinator and zero implementor findings.
+
+The initial combined CI and local run exposed an unclassified test-only YAML fixture writer. The exact inventory entry was corrected without changing a reader or weakening the guard. Its focused guard passed. The initial full local run was stopped with observed exit 143 after that failure and is retained separately; it is not passing evidence.
+
+The corrected candidate's full gate and required CI are recorded in the story's Implementation evidence section and `<cache>/ekr-evidence-cache/gate/final-report.json`. All local steps exited zero. PR #67 merged at the exact tested commit; the numeric annotated tag, bot-authored GitHub release and tag security run 37108362188 were read back. The synthetic PostgreSQL fixture was stopped and removed after the completed gate. The unit and independent-review worktrees were finished and removed using reviewed exact-id GC with published recovery proof; coordinator cleanup follows publication of this closure record.
+
+The pre-existing raw File payload overwrite discrepancy remains `task:held-file-payload-overwrite`. No provider semantics, store format or HTTP deadline changed in this release. Cold index admission remains normal work. No native harness token accounting was available for the unit/review and none is estimated.
