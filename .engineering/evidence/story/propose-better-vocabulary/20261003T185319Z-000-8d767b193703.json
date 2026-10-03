@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T18:53:19Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:propose-better-vocabulary",
+  "kind": "story",
+  "revision": 16,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-kernel --test knowledge_retention",
+    "reference": ".engineering/reviews/knowledge-schema-proposal-submission/submission-review-green-2.log"
+  }
+}

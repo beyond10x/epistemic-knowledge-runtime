@@ -121,6 +121,36 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         assert_eq!(gaps.groups.len(), 1);
         assert_eq!(gaps.groups[0].declaration, "UnmappedProject");
         assert_eq!(gaps.groups[0].blockers, imported.blockers);
+        let proposal = serde_json::json!({
+            "proposal_id":ekr_core::NodeId::mint(), "base_schema":gaps.base_schema,
+            "sources":[{"version":imported.version,"items":[]}],
+            "observations":interpretation.document.observations,"evidence":[],
+            "additions":[{"kind":"DefineType","value":interpretation.document.local_schema.node_types[0]}],
+            "mappings":[],"corrections":[],"explanation":"Name the retained project vocabulary."
+        });
+        let proposal_input: ekr_sdk::contracts::EkrIntegrateSchemaProposalImport = serde_json::from_value(serde_json::json!({
+            "payload":ekr_core::bytes::encode(&serde_json::to_vec_pretty(&proposal).unwrap()), "proposal":proposal,
+        })).unwrap();
+        let submitted = knowledge.submit_schema_proposal(&proposal_input).unwrap();
+        assert_eq!(submitted.proposal, proposal_input.proposal);
+        assert!(submitted.reviews.is_empty());
+        assert!(submitted.receipts.is_empty());
+        assert_eq!(
+            knowledge.submit_schema_proposal(&proposal_input).unwrap(),
+            submitted
+        );
+        assert_eq!(
+            knowledge
+                .schema_proposal(&submitted.proposal.proposal_id)
+                .unwrap(),
+            submitted
+        );
+        schema["$ref"] = "#/$defs/ekr.integrate.SchemaProposalRead".into();
+        assert!(jsonschema::options()
+            .should_validate_formats(true)
+            .build(&schema)
+            .unwrap()
+            .is_valid(&serde_json::to_value(&submitted).unwrap()));
         schema["$ref"] = "#/$defs/ekr.integrate.SchemaLearningRequest".into();
         assert!(jsonschema::options()
             .should_validate_formats(true)
@@ -172,6 +202,12 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         let mut knowledge = Knowledge::new(&mut reopened);
         assert_eq!(knowledge.interpretation(&imported.version).unwrap(), parked);
         assert_eq!(knowledge.discover_schema_gaps().unwrap(), gaps);
+        assert_eq!(
+            knowledge
+                .schema_proposal(&submitted.proposal.proposal_id)
+                .unwrap(),
+            submitted
+        );
         assert_eq!(knowledge.attention().unwrap(), questions);
         let repeated = knowledge.import_interpretation(&interpretation).unwrap();
         assert!(repeated.already_retained);

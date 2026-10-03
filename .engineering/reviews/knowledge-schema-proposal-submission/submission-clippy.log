@@ -1,0 +1,17 @@
+    Checking ekr-core v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-kernel)
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/ekr-kernel/src/schema_proposals.rs:138:10
+    |
+138 |     ) -> Result<(BTreeMap<String, Source>, Vec<BTreeSet<String>>), StoreError> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#type_complexity
+    = note: `-D clippy::type-complexity` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::type_complexity)]`
+
+error: could not compile `ekr-kernel` (lib) due to 1 previous error

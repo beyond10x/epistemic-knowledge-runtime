@@ -585,7 +585,7 @@ impl Command {
     /// store it migrates.
     pub(crate) fn access(&self) -> Access {
         match self {
-            Self::SchemaProposal { .. } => Access::Read,
+            Self::SchemaProposal { command } => command.access(),
             Self::Upgrade { command } => command.access(),
             Self::Attention { command } => command.access(),
             Self::Observe { command } => command.access(),
@@ -844,7 +844,7 @@ fn dispatch(
     match command {
         Command::SchemaProposal { command } => {
             let runtime = source.resolve("schema-proposal")?.open()?;
-            schema_proposal::run(command, &runtime)
+            schema_proposal::run(command, &runtime, now, stdin)
         }
         Command::Upgrade { command } => {
             let runtime = source.resolve("upgrade")?.open()?;

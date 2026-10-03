@@ -1,0 +1,43 @@
+   Compiling ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 7.96s
+     Running tests/knowledge_retention.rs (<build-lane>/target/debug/deps/knowledge_retention-890fb8e08289f3c2)
+
+running 14 tests
+test inconsistent_observation_is_refused_without_retaining_anything ... ok
+test retained_sources_pin_exact_bytes_on_both_providers ... ok
+test generated_observation_commands_preserve_provider_faults ... ok
+test rejected_interpretation_retains_its_sources ... ok
+test observation_retry_is_idempotent ... ok
+test concurrent_imports_choose_one_immutable_record ... ok
+test invalid_local_shape_and_evidence_are_refused_before_any_publication ... ok
+test unmapped_knowledge_survives_reopen ... ok
+test schema_proposal_submission_retains_exact_bytes_without_admitting_facts ... ok
+test schema_proposal_remains_inspectable_after_a_mapped_property_changes_kind ... FAILED
+test schema_proposal_schema_dependencies_change_review_material_but_unrelated_schema_does_not ... FAILED
+test schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history ... ok
+test schema_gap_discovery_is_stable_after_replay_and_does_not_mutate_canonical_state ... ok
+test schema_proposal_refuses_unreviewable_sources_selectors_and_constants_before_retention ... ok
+
+failures:
+
+---- schema_proposal_remains_inspectable_after_a_mapped_property_changes_kind stdout ----
+
+thread 'schema_proposal_remains_inspectable_after_a_mapped_property_changes_kind' (1758623) panicked at crates/ekr-kernel/tests/knowledge_retention.rs:500:77:
+retained proposal remains inspectable: Document("schema-proposal-refused: expected a Integer and found a String")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- schema_proposal_schema_dependencies_change_review_material_but_unrelated_schema_does_not stdout ----
+
+thread 'schema_proposal_schema_dependencies_change_review_material_but_unrelated_schema_does_not' (1758624) panicked at crates/ekr-kernel/tests/knowledge_retention.rs:469:9:
+assertion `left != right` failed
+  left: EkrKernelContentHash("224497df24c5bf534c0a4b76297c2b198722266723916a36c90d5dc6ce7f802b")
+ right: EkrKernelContentHash("224497df24c5bf534c0a4b76297c2b198722266723916a36c90d5dc6ce7f802b")
+
+
+failures:
+    schema_proposal_remains_inspectable_after_a_mapped_property_changes_kind
+    schema_proposal_schema_dependencies_change_review_material_but_unrelated_schema_does_not
+
+test result: FAILED. 12 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p ekr-kernel --test knowledge_retention`

@@ -1,0 +1,5 @@
+    Checking ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-kernel)
+    Checking ekr-views v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-views)
+    Checking ekr-sdk v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-sdk)
+    Checking ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr)
+    Finished `dev` profile [unoptimized] target(s) in 46.89s

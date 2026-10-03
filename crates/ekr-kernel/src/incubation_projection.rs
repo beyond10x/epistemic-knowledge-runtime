@@ -35,7 +35,7 @@ fn uuid(value: &str) -> p::Uuid {
 fn hash(value: &w::EkrKernelContentHash) -> k::ContentHash {
     k::ContentHash(value.0.clone())
 }
-fn cardinality(value: &w::EkrOntologyCardinality) -> o::Cardinality {
+pub(super) fn cardinality(value: &w::EkrOntologyCardinality) -> o::Cardinality {
     match value {
         w::EkrOntologyCardinality::V0 => o::Cardinality::Many,
         w::EkrOntologyCardinality::V1 => o::Cardinality::One,
@@ -72,7 +72,7 @@ fn value_spec(value: &w::EkrIntegrateValueSpec) -> Result<i::ValueSpec, StoreErr
         })?,
     })
 }
-fn property(value: &w::EkrIntegratePropertySpec) -> Result<i::PropertySpec, StoreError> {
+pub(super) fn property(value: &w::EkrIntegratePropertySpec) -> Result<i::PropertySpec, StoreError> {
     Ok(i::PropertySpec {
         name: value.name.clone(),
         value: Box::new(value_spec(&value.value)?),
@@ -123,7 +123,7 @@ fn reference(value: &w::EkrIntegrateExtractedReference) -> i::ExtractedReference
         aliases: value.aliases.clone(),
     }
 }
-fn typed_value(value: &w::EkrGraphTypedValue) -> Result<g::TypedValue, StoreError> {
+pub(super) fn typed_value(value: &w::EkrGraphTypedValue) -> Result<g::TypedValue, StoreError> {
     use w::EkrGraphCanonicalValueKind as W;
     Ok(g::TypedValue {
         kind: match *value.kind {

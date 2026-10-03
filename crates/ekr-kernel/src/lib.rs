@@ -130,6 +130,12 @@ pub mod runtime;
 #[cfg(feature = "schema")]
 pub mod schema;
 mod schema_gaps;
+mod schema_proposal_behavior;
+mod schema_proposal_mapping;
+mod schema_proposal_material;
+mod schema_proposal_projection;
+mod schema_proposal_schema;
+mod schema_proposals;
 pub mod seed;
 pub mod transaction;
 mod upgrade;

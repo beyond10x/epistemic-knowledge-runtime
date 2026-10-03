@@ -1,0 +1,72 @@
+   Compiling ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposals-20261003/crates/ekr-kernel)
+error[E0599]: no method named `submit_schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:463:14
+    |
+462 |           assert!(runtime
+    |  _________________-
+463 | |             .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+    | |             -^^^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_____________|
+    |
+
+error[E0599]: no method named `submit_schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:475:14
+    |
+474 |           let first = runtime
+    |  _____________________-
+475 | |             .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+    | |             -^^^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_____________|
+    |
+
+error[E0599]: no method named `submit_schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:495:18
+    |
+494 | /             runtime
+495 | |                 .submit_schema_proposal(&proposal, Timestamp::from_millis(9))
+    | |                 -^^^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_________________|
+    |
+
+error[E0599]: no method named `submit_schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:510:14
+    |
+509 |           assert!(runtime
+    |  _________________-
+510 | |             .submit_schema_proposal(&proposal_import(changed), Timestamp::EPOCH)
+    | |             -^^^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_____________|
+    |
+
+error[E0599]: no method named `schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:518:18
+    |
+517 | /             runtime
+518 | |                 .schema_proposal(&first.proposal.proposal_id)
+    | |                 -^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_________________|
+    |
+
+error[E0599]: no method named `submit_schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:587:22
+    |
+586 | /                 runtime
+587 | |                     .submit_schema_proposal(&input, Timestamp::EPOCH)
+    | |                     -^^^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_____________________|
+    |
+
+error[E0599]: no method named `submit_schema_proposal` found for struct `Runtime` in the current scope
+   --> crates/ekr-kernel/tests/knowledge_retention.rs:603:14
+    |
+602 |           assert!(runtime
+    |  _________________-
+603 | |             .submit_schema_proposal(&proposal_import(duplicate), Timestamp::EPOCH)
+    | |             -^^^^^^^^^^^^^^^^^^^^^^ method not found in `Runtime`
+    | |_____________|
+    |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `ekr-kernel` (test "knowledge_retention") due to 7 previous errors

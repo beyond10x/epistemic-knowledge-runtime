@@ -42,7 +42,7 @@ fn required<T>(value: &EssPresence<T>) -> Result<&T, StoreError> {
     }
 }
 
-fn value_spec(value: &EkrIntegrateValueSpec) -> Result<old::ValueSpec, StoreError> {
+pub(super) fn value_spec(value: &EkrIntegrateValueSpec) -> Result<old::ValueSpec, StoreError> {
     use EkrOntologyValueKind as K;
     let expected = match *value.value_kind {
         K::V3 => 1,

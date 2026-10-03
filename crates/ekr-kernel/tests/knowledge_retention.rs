@@ -417,6 +417,408 @@ fn schema_gap_discovery_rechecks_the_current_schema_and_preserves_import_history
     }
 }
 
+fn proposal_import(
+    proposal: serde_json::Value,
+) -> ekr_core::contract_data::EkrIntegrateSchemaProposalImport {
+    let payload = bytes::encode(&serde_json::to_vec_pretty(&proposal).unwrap());
+    serde_json::from_value(serde_json::json!({"proposal": proposal, "payload": payload})).unwrap()
+}
+
+fn schema_transaction(
+    runtime: &Runtime,
+    operator: AgentId,
+    operations: Vec<ekr_kernel::GraphOperation>,
+) {
+    let transaction = ekr_kernel::GraphTransaction {
+        id: ekr_core::TransactionId::mint(),
+        proposer: operator,
+        schema_version: Some(ekr_core::SchemaVersionId::mint()),
+        evidence: Default::default(),
+        operations,
+    };
+    #[derive(serde::Serialize)]
+    struct Envelope<'a> {
+        format: &'static str,
+        transaction: &'a ekr_kernel::GraphTransaction,
+    }
+    let bytes = serde_yaml_ng::to_string(&Envelope {
+        format: "ekr.transaction-document/1",
+        transaction: &transaction,
+    })
+    .unwrap();
+    let revision = runtime.read(None).unwrap().root.revision;
+    runtime
+        .propose(bytes.as_bytes(), operator, || {
+            Timestamp::from_millis(revision.get() as i64 * 3 + 1)
+        })
+        .unwrap();
+    let result = runtime
+        .validate(transaction.id, revision, || {
+            Timestamp::from_millis(revision.get() as i64 * 3 + 2)
+        })
+        .unwrap();
+    assert!(
+        matches!(result, ekr_kernel::ValidationCommandResult::Validated(_)),
+        "{result:?}"
+    );
+    let result = runtime
+        .commit(transaction.id, operator, || {
+            Timestamp::from_millis(revision.get() as i64 * 3 + 3)
+        })
+        .unwrap();
+    assert!(
+        matches!(result, ekr_kernel::CommitCommandResult::Committed(_)),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn schema_proposal_schema_dependencies_change_review_material_but_unrelated_schema_does_not() {
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (context, mut anchor) = host();
+        anchor.validation_profile = ValidationProfileV1::schema_evolving(context.validator);
+        let runtime = open(&dir.path().join("store"), sqlite, context, &anchor);
+        runtime
+            .seed(
+                ekr_kernel::SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml"))
+                    .unwrap(),
+                || Timestamp::EPOCH,
+            )
+            .unwrap();
+        let source = observation();
+        runtime
+            .import_observation(&source, Timestamp::EPOCH)
+            .unwrap();
+        let mut parent = ekr_ontology::NodeType::new(ekr_core::TypeId::mint(), "Parent");
+        let mut property = ekr_ontology::PropertyDefinition::new(
+            ekr_core::PropertyId::mint(),
+            "p",
+            ekr_ontology::ValueType::Integer,
+        );
+        parent.properties.insert(property.id, property.clone());
+        schema_transaction(
+            &runtime,
+            context.operator,
+            vec![ekr_kernel::GraphOperation::DefineNodeType(Box::new(
+                parent.clone(),
+            ))],
+        );
+        let proposal = proposal_import(serde_json::json!({
+            "proposal_id":ekr_core::NodeId::mint(),"base_schema":runtime.read(None).unwrap().graph.ontology.version().id,
+            "observations":[source.observation.observation_id],"sources":[],"evidence":[],
+            "additions":[{"kind":"DefineType","value":{"name":"Child","parents":["Parent"],"abstract_type":false,"properties":[]}}],
+            "mappings":[],"corrections":[],"explanation":"Retain a child type with explicit inheritance."
+        }));
+        let first = runtime
+            .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+            .unwrap();
+        assert_eq!(
+            runtime
+                .schema_proposal(&proposal.proposal.proposal_id)
+                .unwrap(),
+            first
+        );
+        schema_transaction(
+            &runtime,
+            context.operator,
+            vec![ekr_kernel::GraphOperation::DefineNodeType(Box::new(
+                ekr_ontology::NodeType::new(ekr_core::TypeId::mint(), "Unrelated"),
+            ))],
+        );
+        let unrelated = runtime
+            .schema_proposal(&proposal.proposal.proposal_id)
+            .unwrap();
+        assert_eq!(first.basis.effects_digest, unrelated.basis.effects_digest);
+        property.value_type = ekr_ontology::ValueType::String;
+        schema_transaction(
+            &runtime,
+            context.operator,
+            vec![ekr_kernel::GraphOperation::ModifyProperty(
+                ekr_kernel::PropertyModification {
+                    owner: Some(parent.id),
+                    property,
+                },
+            )],
+        );
+        let changed = runtime
+            .schema_proposal(&proposal.proposal.proposal_id)
+            .unwrap();
+        assert_ne!(first.basis.effects_digest, changed.basis.effects_digest);
+        assert_eq!(first.basis.evidence_digest, changed.basis.evidence_digest);
+        assert_eq!(first.basis.options_digest, changed.basis.options_digest);
+    }
+}
+
+#[test]
+fn schema_proposal_remains_inspectable_after_a_mapped_property_changes_kind() {
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store");
+        let (context, mut anchor) = host();
+        anchor.validation_profile = ValidationProfileV1::schema_evolving(context.validator);
+        let runtime = open(&path, sqlite, context, &anchor);
+        runtime
+            .seed(
+                ekr_kernel::SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml"))
+                    .unwrap(),
+                || Timestamp::EPOCH,
+            )
+            .unwrap();
+        let source = observation();
+        runtime
+            .import_observation(&source, Timestamp::EPOCH)
+            .unwrap();
+        let input = interpretation(&source, context.operator);
+        let retained = runtime
+            .import_interpretation(&input, Timestamp::EPOCH)
+            .unwrap();
+        let mut target = ekr_ontology::NodeType::new(ekr_core::TypeId::mint(), "Project");
+        let mut property = ekr_ontology::PropertyDefinition::new(
+            ekr_core::PropertyId::mint(),
+            "health",
+            ekr_ontology::ValueType::String,
+        );
+        target.properties.insert(property.id, property.clone());
+        schema_transaction(
+            &runtime,
+            context.operator,
+            vec![ekr_kernel::GraphOperation::DefineNodeType(Box::new(
+                target.clone(),
+            ))],
+        );
+        let mut document =
+            serde_json::to_value(&health_proposal(&input, &retained.version).proposal).unwrap();
+        document["base_schema"] =
+            serde_json::json!(runtime.read(None).unwrap().graph.ontology.version().id);
+        document["additions"][0]["value"] = serde_json::json!({"name":"Addition","parents":[],"abstract_type":false,"properties":[]});
+        let proposal = proposal_import(document.clone());
+        let first = runtime
+            .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+            .unwrap();
+        property.value_type = ekr_ontology::ValueType::Integer;
+        schema_transaction(
+            &runtime,
+            context.operator,
+            vec![ekr_kernel::GraphOperation::ModifyProperty(
+                ekr_kernel::PropertyModification {
+                    owner: Some(target.id),
+                    property,
+                },
+            )],
+        );
+        let events = runtime.published_events().unwrap();
+        let shown = runtime
+            .schema_proposal(&proposal.proposal.proposal_id)
+            .expect("retained proposal remains inspectable");
+        assert_eq!(shown.proposal, first.proposal);
+        assert_ne!(shown.basis.effects_digest, first.basis.effects_digest);
+        assert!(shown.preview[0].blockers.len() > first.preview[0].blockers.len());
+        assert_eq!(
+            runtime
+                .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+                .unwrap(),
+            shown
+        );
+        document["proposal_id"] = serde_json::json!(ekr_core::NodeId::mint());
+        assert!(runtime
+            .submit_schema_proposal(&proposal_import(document), Timestamp::EPOCH)
+            .is_err());
+        assert_eq!(runtime.published_events().unwrap(), events);
+        drop(runtime);
+        let mut reopened = open(&path, sqlite, context, &anchor);
+        reopened.set_full_replay(true);
+        assert_eq!(
+            reopened
+                .schema_proposal(&proposal.proposal.proposal_id)
+                .unwrap(),
+            shown
+        );
+    }
+}
+
+fn health_proposal(
+    input: &ekr_core::contract_data::EkrIntegrateInterpretationImport,
+    version: &ekr_core::contract_data::EkrIntegrateInterpretationVersion,
+) -> ekr_core::contract_data::EkrIntegrateSchemaProposalImport {
+    proposal_import(serde_json::json!({
+        "proposal_id": ekr_core::NodeId::mint(),
+        "base_schema": "00000000-0000-4000-8000-000000000001",
+        "sources": [{"version": version, "items": ["facts[0]"]}],
+        "observations": input.document.observations,
+        "evidence": [input.document.evidence[0].evidence.id],
+        "additions": [{"kind":"DefineType", "value": input.document.local_schema.node_types[0]}],
+        "mappings": [{"source": version, "source_item":"facts[0]", "source_type":"Project",
+            "target_type":"Project", "target_member":"health",
+            "value":{"kind":"CopyField", "value":{"declaration":"Project", "field":"health"}}}],
+        "corrections": [], "explanation":"Retain an explicit optional project health property."
+    }))
+}
+
+#[test]
+fn schema_proposal_submission_retains_exact_bytes_without_admitting_facts() {
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store");
+        let (context, anchor) = host();
+        let runtime = open(&path, sqlite, context, &anchor);
+        let source = observation();
+        runtime
+            .import_observation(&source, Timestamp::EPOCH)
+            .unwrap();
+        let input = interpretation(&source, context.operator);
+        let retained = runtime
+            .import_interpretation(&input, Timestamp::EPOCH)
+            .unwrap();
+        let proposal = health_proposal(&input, &retained.version);
+        let before_seed = runtime.published_events().unwrap();
+        assert!(runtime
+            .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+            .is_err());
+        assert_eq!(runtime.published_events().unwrap(), before_seed);
+        runtime
+            .seed(
+                ekr_kernel::SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml"))
+                    .unwrap(),
+                || Timestamp::EPOCH,
+            )
+            .unwrap();
+        let root = runtime.read(None).unwrap().root;
+        let first = runtime
+            .submit_schema_proposal(&proposal, Timestamp::EPOCH)
+            .unwrap();
+        assert_eq!(first.proposal, proposal.proposal);
+        let bytes = bytes::decode(&proposal.payload).unwrap();
+        assert_eq!(
+            first.proposal_digest.0,
+            ContentHash::of_bytes(&bytes).to_string()
+        );
+        assert_eq!(first.preview.len(), 1);
+        assert!(
+            !first.preview[0].blockers.is_empty(),
+            "unknown subject must remain parked"
+        );
+        assert!(first.reviews.is_empty());
+        assert!(first.receipts.is_empty());
+        assert_eq!(runtime.read(None).unwrap().root, root);
+        assert!(runtime.read(None).unwrap().graph.nodes.is_empty());
+        let events = runtime.published_events().unwrap();
+        assert_eq!(
+            runtime
+                .submit_schema_proposal(&proposal, Timestamp::from_millis(9))
+                .unwrap(),
+            first
+        );
+        assert_eq!(runtime.published_events().unwrap(), events);
+        assert_eq!(
+            runtime
+                .content(&first.proposal_digest.0.parse().unwrap())
+                .unwrap()
+                .unwrap(),
+            bytes
+        );
+        let mut changed = serde_json::to_value(&*proposal.proposal).unwrap();
+        changed["explanation"] = "Changed input under one immutable identity".into();
+        assert!(runtime
+            .submit_schema_proposal(&proposal_import(changed), Timestamp::EPOCH)
+            .is_err());
+        assert_eq!(runtime.published_events().unwrap(), events);
+        drop(runtime);
+        let mut runtime = open(&path, sqlite, context, &anchor);
+        runtime.set_full_replay(true);
+        assert_eq!(
+            runtime
+                .schema_proposal(&first.proposal.proposal_id)
+                .unwrap(),
+            first
+        );
+        assert_eq!(runtime.read(None).unwrap().root, root);
+    }
+}
+
+#[test]
+fn schema_proposal_refuses_unreviewable_sources_selectors_and_constants_before_retention() {
+    use ekr_core::canonical::Canonical;
+    for sqlite in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store");
+        let (context, anchor) = host();
+        let runtime = open(&path, sqlite, context, &anchor);
+        runtime
+            .seed(
+                ekr_kernel::SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml"))
+                    .unwrap(),
+                || Timestamp::EPOCH,
+            )
+            .unwrap();
+        let source = observation();
+        runtime
+            .import_observation(&source, Timestamp::EPOCH)
+            .unwrap();
+        let input = interpretation(&source, context.operator);
+        let retained = runtime
+            .import_interpretation(&input, Timestamp::EPOCH)
+            .unwrap();
+        let proposal = health_proposal(&input, &retained.version);
+        let original = serde_json::to_value(&*proposal.proposal).unwrap();
+        let before = runtime.published_events().unwrap();
+        for (pointer, replacement) in [
+            (
+                "/base_schema",
+                serde_json::json!(ekr_core::SchemaVersionId::mint()),
+            ),
+            (
+                "/sources/0/version/document_digest",
+                serde_json::json!(ContentHash::of_bytes(b"wrong version").to_string()),
+            ),
+            ("/sources/0/items/0", serde_json::json!("entities[0]")),
+            ("/mappings/0/source_item", serde_json::json!("facts[01]")),
+            ("/mappings/0/source_type", serde_json::json!("Undeclared")),
+            (
+                "/mappings/0/value/value/field",
+                serde_json::json!("undeclared"),
+            ),
+            ("/mappings/0/target_member", serde_json::json!("undeclared")),
+            (
+                "/mappings/0/value",
+                serde_json::json!({"kind":"Constant", "value":{"kind":"Integer", "canonical_bytes":bytes::encode(&ekr_graph::CanonicalValue::Integer(7).canonical_bytes())}}),
+            ),
+            (
+                "/additions/0/value/properties/0/value",
+                serde_json::json!({"value_kind":"Enum", "variants":["amber"]}),
+            ),
+            (
+                "/evidence/0",
+                serde_json::json!(ekr_core::EvidenceId::mint()),
+            ),
+        ] {
+            let mut value = original.clone();
+            *value.pointer_mut(pointer).unwrap() = replacement;
+            let input = proposal_import(value);
+            assert!(
+                runtime
+                    .submit_schema_proposal(&input, Timestamp::EPOCH)
+                    .is_err(),
+                "accepted {pointer}"
+            );
+            assert_eq!(
+                runtime.published_events().unwrap(),
+                before,
+                "published after refusing {pointer}"
+            );
+        }
+        let mut duplicate = original.clone();
+        duplicate["mappings"]
+            .as_array_mut()
+            .unwrap()
+            .push(original["mappings"][0].clone());
+        assert!(runtime
+            .submit_schema_proposal(&proposal_import(duplicate), Timestamp::EPOCH)
+            .is_err());
+        assert_eq!(runtime.published_events().unwrap(), before);
+    }
+}
+
 #[test]
 fn unmapped_knowledge_survives_reopen() {
     for sqlite in [false, true] {

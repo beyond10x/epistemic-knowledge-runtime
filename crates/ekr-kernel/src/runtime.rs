@@ -17,6 +17,31 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Retains an exact supported proposal and produces a read-only mapping preview.
+    /// # Errors
+    /// Invalid proposal, missing sources or provider failure.
+    pub fn submit_schema_proposal(
+        &self,
+        input: &ekr_core::contract_data::EkrIntegrateSchemaProposalImport,
+        at: Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateSchemaProposalRead, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.submit_schema_proposal(input, at),
+            Backend::Sqlite(kernel) => kernel.submit_schema_proposal(input, at),
+        }
+    }
+    /// Reads an immutable proposal and recomputes its current material review basis.
+    /// # Errors
+    /// Unknown proposal, corrupt retained input or provider failure.
+    pub fn schema_proposal(
+        &self,
+        id: &ekr_core::contract_data::EkrIntegrateSchemaProposalId,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateSchemaProposalRead, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.schema_proposal(id),
+            Backend::Sqlite(kernel) => kernel.schema_proposal(id),
+        }
+    }
     /// Groups retained, unresolved integration gaps for a consumer-supplied schema agent.
     /// This read does not invoke a model or publish canonical state.
     /// # Errors

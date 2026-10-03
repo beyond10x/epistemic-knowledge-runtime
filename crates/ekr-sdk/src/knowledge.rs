@@ -53,6 +53,33 @@ pub struct Knowledge<T: Transport> {
 }
 
 impl<T: Transport> Knowledge<T> {
+    /// Retains exact proposal bytes and returns current mapping preview and review material.
+    /// # Errors
+    /// Serialization, transport, invalid proposal or provider failure.
+    pub fn submit_schema_proposal(
+        &mut self,
+        input: &crate::contracts::EkrIntegrateSchemaProposalImport,
+    ) -> Result<crate::contracts::EkrIntegrateSchemaProposalRead, ReadError> {
+        let text = serde_json::to_string(input).map_err(|source| ReadError::Document {
+            verb: "schema-proposal submit".into(),
+            source,
+        })?;
+        Reader::new(&mut self.transport)
+            .read_request(Request::new(["schema-proposal", "submit", "-"]).with_stdin(text))
+    }
+    /// Reads the proposal, current mapping preview and exact material review basis.
+    /// # Errors
+    /// Unknown proposal, transport, corrupt retained source or provider failure.
+    pub fn schema_proposal(
+        &mut self,
+        id: &crate::contracts::EkrIntegrateSchemaProposalId,
+    ) -> Result<crate::contracts::EkrIntegrateSchemaProposalRead, ReadError> {
+        Reader::new(&mut self.transport).read_request(Request::new([
+            "schema-proposal".into(),
+            "show".into(),
+            id.0.clone(),
+        ]))
+    }
     /// Returns a typed request grouping retained gaps for a consumer-supplied schema agent.
     /// No model is invoked and no canonical revision is written.
     /// # Errors

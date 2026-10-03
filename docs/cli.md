@@ -181,7 +181,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr attention` | reads / writes | `list`, `show <kind> <id>`, `answer <file or ->`, `history [--dispute <id>]` | evidence-backed questions, a signed-answer receipt or immutable answer history |
 | `ekr upgrade` | reads / writes | `preview <policy-file or ->`, `apply <application-file or ->` | an exact authority preview or the retained signed transition record |
 | `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
-| `ekr schema-proposal` | reads | `discover` | a typed schema-learning request grouping unresolved integration gaps and retained evidence |
+| `ekr schema-proposal` | reads/writes | `discover`, `submit <document>`, `show <proposal-id>` | typed gap discovery, immutable proposal retention and mapping preview |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
@@ -530,6 +530,19 @@ required. It performs no canonical writes and invokes no model; a consumer suppl
 interpretation through its own agent. The typed SDK operation is `Knowledge::discover_schema_gaps`.
 Groups classify source items against the returned base schema. Their blocker IDs refer to the
 original retained findings; those records keep their import-time classification and basis.
+
+`ekr schema-proposal submit proposal.json` accepts the generated
+`ekr.integrate.SchemaProposalImport`: `proposal` is the typed document and `payload` is the
+base64 encoding of its exact JSON bytes. Use `-` for stdin. Sources name immutable interpretation
+versions and selected `facts[index]` items. Mappings copy a declared field or relation, or use an
+explicit typed constant. New types, relations and optional properties are additive; enum variants
+require an exact selected local declaration. Submission retains bytes and validates the mapping
+preview without publishing schema changes or facts. Exact retries reuse the retained proposal;
+changed bytes under the same identity refuse. Read-only sessions refuse submission.
+
+`ekr schema-proposal show <proposal-id>` returns the retained proposal, exact byte digest, current
+mapping blockers and material review basis. Both commands return `ekr.integrate.SchemaProposalRead`.
+SDK equivalents are `Knowledge::submit_schema_proposal` and `Knowledge::schema_proposal`.
 
 ### `ekr incubate`
 

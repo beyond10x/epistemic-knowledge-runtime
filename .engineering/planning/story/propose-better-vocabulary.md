@@ -32,7 +32,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 16
+revision: 17
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -82,3 +82,7 @@ ESS source digest 9ef3db2c31e7e282eb52684fc83bf8bd66b214dc7d4408ee9b27d10ae9ed26
 ## Remaining implementation ownership
 
 The remaining E work is divided into bounded, disjoint implementation surfaces under the same active story and sole PR64. Root owns kernel proposal validation/preview, CLI/session/SDK, specification/generated contracts, AEP and final integration. A delegated store unit may touch only crates/ekr-store/src/schema_proposals.rs, the export/module declarations in crates/ekr-store/src/eventlog.rs and src/lib.rs, and crates/ekr-store/tests/schema_proposal_retention.rs. Its base is discovery checkpoint dec42dd170bd1a6a3ecae51b4dd216457fe36fae. It implements immutable proposal-byte retention only using the generated RetainedSchemaProposal; semantic admission and authenticated human review remain kernel work. Both-provider idempotency, changed-id refusal, concurrent writers, byte pinning and reopen checks are required. No independent PR/publication or canonical writer is introduced. The sole owned compiler lane is reserved to the store worker while root performs source-only kernel work; worker returns its terminal process/evidence before root builds again.
+
+## Submission implementation checkpoint
+
+Generated SubmitSchemaProposal and ShowSchemaProposal obligations now admit exact immutable proposals and recompute mapping previews without canonical publication. CLI/session and typed SDK submit/show execute this path. Independent review defects and corrections are retained in review-result:schema-proposal-submission-independent-r1 and -r2; observed commands, counts and limits are in .engineering/reviews/knowledge-schema-proposal-submission/README.md. Signed review persistence, proposal attention/viewer, final correction admission and implementation conformance remain before E acceptance. F remains separate and incomplete; this checkpoint does not grant approval or schema application.
