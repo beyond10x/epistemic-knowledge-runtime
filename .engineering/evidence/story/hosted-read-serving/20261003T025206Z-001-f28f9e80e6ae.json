@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T02:52:06Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 11,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "HTTP candidate patch 42cfbc620034a237a20b33ffcc85e0d44d37b5f8c629e898804439406dab0e47: affected suite 180 passed, zero failed/ignored; final queue alias tests 4/4; fmt, clippy all-targets and diff checks exit 0. Independent direct HTTP process suite 13/13, exit 0. Full combined workspace gate pending.",
+    "reference": "<cache>/ekr-hosted-runtime/serving/final-report.md"
+  }
+}

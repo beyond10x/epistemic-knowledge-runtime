@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T02:42:02Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 11,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Real loopback client smoke on synthetic SQLite: Codex subscription client invoked head once and returned revision zero, exit 0; Claude Code isolated configuration connected over HTTP, exit 0, without a model request. Listener stopped after test. Private-cluster acceptance remains pending.",
+    "reference": "<cache>/ekr-hosted-runtime/serving/client-smoke/"
+  }
+}
