@@ -31,8 +31,8 @@
 //!   bytes and `kind`/`value` tagged unions.
 //! * **Responses.** Seed, Propose, Validate and Commit answer their declared response. Snapshot and
 //!   Explain answer none (`None`), although `kernel.yaml` declares `SnapshotResult` and
-//!   `ExplanationResult`: ESS 0.29.0 cannot observe a command response from any scenario, so a
-//!   projection here would be checked by nothing in the suite
+//!   `ExplanationResult`: the current suite has not adopted direct response assertions, so a
+//!   projection here would be checked by nothing in this suite
 //!   (`task:conformance-cannot-observe-command-responses`). Their read results reach the suite
 //!   through `SnapshotTaken` and `Explained`, and the authored Snapshot scenarios hold the revision
 //!   and root those report.

@@ -136,7 +136,7 @@ fn run(
 fn failed(statuses: &BTreeMap<String, Status>) -> Vec<&String> {
     statuses
         .iter()
-        .filter(|(_, status)| **status != Status::Passed)
+        .filter(|(_, status)| **status == Status::Failed)
         .map(|(name, _)| name)
         .collect()
 }
@@ -281,7 +281,7 @@ fn drop_responses(command: &str, result: &mut SemanticCommandResult) {
     }
 }
 
-/// Propose and Validate answer no declared response at all, and today no scenario can see it.
+/// Dropping Propose and Validate responses remains invisible to the current admitted suite.
 ///
 /// Adversary pass 1, finding 3: ESS 0.29.0 cannot observe a command response from a generated or
 /// an authored scenario. The authored format has no response claim, and a payload maps only from a
@@ -289,9 +289,11 @@ fn drop_responses(command: &str, result: &mut SemanticCommandResult) {
 /// `task:conformance-cannot-observe-command-responses` and decided this case states today's state
 /// rather than a negative the suite cannot hold. The lossless projection is held outside the suite,
 /// by [`proposal_responses_carry_the_exact_document_bytes`]. When a pinned ESS can observe
-/// responses, this case goes red, and it should then become the negative it was written as.
+/// responses, authored response claims can turn this into the negative it was written as.
+/// Unsupported commands elsewhere in the expanded inventory are not response failures.
 #[test]
 fn dropping_the_propose_and_validate_responses_is_not_yet_observable_by_the_suite() {
+    let (baseline, _) = run(no_command, no_view);
     let (statuses, seen) = run(drop_responses, no_view);
     assert!(
         seen.iter().any(|(command, result)| command == "ekr.kernel.Propose"
@@ -300,10 +302,18 @@ fn dropping_the_propose_and_validate_responses_is_not_yet_observable_by_the_suit
                 && result.response.is_some()),
         "the real target answered no Propose or Validate response to drop, so this run shows nothing"
     );
-    assert!(!statuses.is_empty(), "the suite ran no scenario");
+    for scenario in [
+        "ekr.kernel.Propose/outcome/proposed",
+        "ekr.kernel.Validate/outcome/validated",
+    ] {
+        assert_eq!(
+            baseline.get(scenario),
+            Some(&Status::Passed),
+            "{scenario} must execute"
+        );
+    }
     assert_eq!(
-        failed(&statuses),
-        Vec::<&String>::new(),
+        statuses, baseline,
         "a scenario now observes the Propose or Validate response (ESS can observe command \
          responses): close task:conformance-cannot-observe-command-responses and turn this case \
          back into the negative that dropping the responses fails a scenario"

@@ -10,6 +10,21 @@ Stage: kernel checkpoint dded81ab56351b2b705d62dd2d6b34732856780a, SDK builder c
 
 ## Contract and compatibility
 
+The authored conformance increment `d529b7d877cd00c4d267d56286c3ab9c6d778c2a` was merged locally
+at `fe9efea8a`. Its production citation-removal mutation is detected on both native providers.
+Integrated gate attempts then found mutation-control classification, inode filesystem staging,
+and missing generated kernel command adapters. The corrected complete kernel inventory passes
+on both providers; native positive and inert authored selections still run. Independent review
+found a missing publication check on upgrade refusal; a real append-before-refusal probe and
+guard-removal mutation now hold the fix. Curated records are under
+`.engineering/reviews/knowledge-integrated-conformance/`.
+
+The full gate remains red because the integration component still reports unsupported routes,
+including unfinished E/F operations. Preserve the zero-unavailable floor and finish those units
+before final publication or undrafting PR64. The specification's historical conforming status is
+corrected to validated at its current digest; prior imported transitions remain intact. This
+checkpoint is not full delivery acceptance.
+
 `systems/ekr/domains/kernel.yaml` already declares SchemaTransactionEvidence and its relations to GraphTransaction and retained Evidence. Supporting evidence is the immutable transaction manifest, exposed per schema revision; do not change historical ontology encodings or roots. New rules admit schema declarations plus AddEvidence only; other data operations remain mixed, and supporting IDs must resolve to retained or in-transaction admissible evidence. Existing ordinary transaction manifests retain their exact rule.
 
 Investigation found that knowledge authority currently permits only one transition and has the same schema-evidence refusals as the historical identity profile. New admission therefore requires a new explicit knowledge authority version. Preserve knowledge/1 replay and seed profiles byte for byte; permit reviewed knowledge/1 to knowledge/2 transitions, bind each preview to the active predecessor, invalidate old pending validations, and refuse stale or unsupported targets before mutation. New installs still start with their original seed anchor.

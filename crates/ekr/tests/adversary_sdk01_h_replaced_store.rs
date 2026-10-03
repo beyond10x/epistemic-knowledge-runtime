@@ -153,6 +153,9 @@ fn recreate_on_the_freed_inode_or_skip(store: &Path, from: &Path) -> bool {
     false
 }
 
+#[path = "support/inode_directory.rs"]
+mod inode_directory;
+
 struct World {
     directory: tempfile::TempDir,
     backend: &'static str,
@@ -161,7 +164,7 @@ struct World {
 impl World {
     fn seeded(backend: &'static str) -> Self {
         let world = Self {
-            directory: tempfile::tempdir().unwrap(),
+            directory: inode_directory::directory(),
             backend,
         };
         world.file("host.json", &text(&["example", "ekr.cli-host/1"]));

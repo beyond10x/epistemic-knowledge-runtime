@@ -136,6 +136,10 @@ checkout keeps reading that checkout's path, whatever tree later runs it. Use
 or walk up from `current_dir()` to the directory holding `Cargo.lock`.
 
 Source readers now resolve the invoking checkout at runtime, including `xtask doctor`.
+When `TMPDIR` is on tmpfs, set `EKR_INODE_TEST_TMPDIR` to an existing private scratch directory
+on a filesystem that recycles freed directory inodes. Both the reuse probe and the replaced-store
+test use that directory; other tests retain their ordinary temporary directory. The probe still
+requires observed inode reuse and does not skip or relax its assertion.
 `crates/ekr/tests/temporal_reads.rs::executable_source_location_macros_cannot_return` checks
 product source, tests and xtask for executable uses, including alternate macro delimiters.
 The implementation and correction evidence is retained under `.engineering/reviews/p1-10-guards-*`.

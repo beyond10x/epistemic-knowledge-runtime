@@ -1,0 +1,477 @@
+   Compiling ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 0.76s
+     Running tests/conformance_integrate.rs (<build>/target/debug/deps/conformance_integrate-c1bd565829c128c3)
+
+running 5 tests
+test the_provenance_records_the_integrate_synthesis ... ok
+test the_committed_suite_is_the_complete_integrate_inventory ... ok
+Sqlite provider: selected 18 total 18 passed 2 failed 0 error 0 unsupported 16 skipped 0
+
+thread 'the_sqlite_provider_passes_every_admitted_integrate_scenario' (426098) panicked at crates/ekr/tests/conformance_integrate.rs:284:5:
+unavailable scenarios:
+ekr.integrate.ApplySchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApplySchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApplySchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApplySchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApplySchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApplySchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ApproveSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApproveSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApproveSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApproveSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApproveSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApproveSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.DiscoverSchemaGaps/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.DiscoverSchemaGaps/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.DiscoverSchemaGaps`
+
+observed:
+  cannot expose the command `ekr.integrate.DiscoverSchemaGaps`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ImportInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ImportInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ImportInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ImportInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ListInterpretations/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ListInterpretations/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ListInterpretations`
+
+observed:
+  cannot expose the command `ekr.integrate.ListInterpretations`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.RejectSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.RejectSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.RejectSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.RejectSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.SubmitSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.SubmitSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.SubmitSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.SubmitSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.SubmitSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.SubmitSchemaProposal/refused`: the integrate target knows no precondition for that branch
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test the_sqlite_provider_passes_every_admitted_integrate_scenario ... FAILED
+File provider: selected 18 total 18 passed 2 failed 0 error 0 unsupported 16 skipped 0
+
+thread 'the_file_provider_passes_every_admitted_integrate_scenario' (426095) panicked at crates/ekr/tests/conformance_integrate.rs:284:5:
+unavailable scenarios:
+ekr.integrate.ApplySchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApplySchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApplySchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApplySchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApplySchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApplySchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ApproveSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApproveSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApproveSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApproveSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApproveSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApproveSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.DiscoverSchemaGaps/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.DiscoverSchemaGaps/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.DiscoverSchemaGaps`
+
+observed:
+  cannot expose the command `ekr.integrate.DiscoverSchemaGaps`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ImportInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ImportInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ImportInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ImportInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ListInterpretations/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ListInterpretations/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ListInterpretations`
+
+observed:
+  cannot expose the command `ekr.integrate.ListInterpretations`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.RejectSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.RejectSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.RejectSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.RejectSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.SubmitSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.SubmitSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.SubmitSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.SubmitSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.SubmitSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.SubmitSchemaProposal/refused`: the integrate target knows no precondition for that branch
+test the_file_provider_passes_every_admitted_integrate_scenario ... FAILED
+test the_integrate_target_answers_both_branches_of_apply_extraction ... ok
+
+failures:
+
+failures:
+    the_file_provider_passes_every_admitted_integrate_scenario
+    the_sqlite_provider_passes_every_admitted_integrate_scenario
+
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+error: test failed, to rerun pass `-p ekr --test conformance_integrate`

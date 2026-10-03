@@ -109,10 +109,10 @@ fn run(request: RequestHook, command: CommandHook, view: ViewHook) -> BTreeMap<S
         .collect()
 }
 
-fn not_passed(statuses: &BTreeMap<String, Status>) -> Vec<&String> {
+fn failed(statuses: &BTreeMap<String, Status>) -> Vec<&String> {
     statuses
         .iter()
-        .filter(|(_, status)| **status != Status::Passed)
+        .filter(|(_, status)| **status == Status::Failed)
         .map(|(name, _)| name)
         .collect()
 }
@@ -171,7 +171,7 @@ fn forged_store_event_payloads_fail_a_scenario() {
     let statuses = run(no_request, forge_store_payloads, no_view);
     assert!(!statuses.is_empty(), "the suite ran no scenario");
     assert!(
-        !not_passed(&statuses).is_empty(),
+        !failed(&statuses).is_empty(),
         "every one of {} scenarios passed with every ObjectStored reporting storage_class \
          Ephemeral, byte_len 0 and another content_hash, and every PublicationPrepared reporting \
          attempt 99 under another preparation_hash",
@@ -196,7 +196,7 @@ fn a_snapshot_that_ignores_at_fails_the_past_revision_scenario() {
         statuses.get("ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision"),
         Some(&Status::Failed),
         "a Snapshot that ignores `at` passed; not passing: {:?}",
-        not_passed(&statuses)
+        failed(&statuses)
     );
 }
 
@@ -234,11 +234,16 @@ fn misreport_row_hashes(view: &str, result: &mut SemanticViewResult) {
 /// this case goes red, and it should then become the negative it was written as.
 #[test]
 fn a_transactions_row_with_the_wrong_canonical_and_basis_hashes_is_not_yet_observable() {
+    let baseline = run(no_request, no_command, no_view);
     let statuses = run(no_request, no_command, misreport_row_hashes);
-    assert!(!statuses.is_empty(), "the suite ran no scenario");
     assert_eq!(
-        not_passed(&statuses),
-        Vec::<&String>::new(),
+        baseline
+            .get("ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"),
+        Some(&Status::Passed),
+        "the transaction-row observation must execute"
+    );
+    assert_eq!(
+        statuses, baseline,
         "a scenario now catches a Transactions row reporting another canonical_transaction_hash \
          and validation_basis: close task:conformance-cannot-observe-command-responses and turn \
          this case back into the negative that the misreported row fails a scenario"

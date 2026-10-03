@@ -2027,6 +2027,8 @@ commands:
     input:
     - name: subject
       type: ekr.kernel.AttentionSubject
+    fixture_inputs:
+      subject: attention-subject
     response:
     - name: item
       type: ekr.kernel.AttentionItem
@@ -2070,6 +2072,12 @@ commands:
       type: List<ekr.kernel.ClaimCorrection>
     - name: statement
       type: Bytes
+    fixture_inputs:
+      human_proof: reviewed-human-proof
+      dispute_id: reviewed-dispute-id
+      basis: reviewed-basis
+      corrections: reviewed-corrections
+      statement: reviewed-statement
     response:
     - {name: receipt, type: ekr.kernel.AnswerReceipt}
     outcomes:
@@ -2093,6 +2101,8 @@ commands:
     input:
     - name: target
       type: ekr.kernel.AuthorityVersion
+    fixture_inputs:
+      target: target-version
     response:
     - name: preview
       type: ekr.kernel.UpgradePreview
@@ -2119,6 +2129,10 @@ commands:
     - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
     - name: preview
       type: ekr.kernel.UpgradePreview
+    fixture_inputs:
+      statement: upgrade-statement
+      human_proof: upgrade-proof
+      preview: upgrade-preview
     response:
     - name: transition_id
       type: ekr.kernel.AuthorityTransitionId

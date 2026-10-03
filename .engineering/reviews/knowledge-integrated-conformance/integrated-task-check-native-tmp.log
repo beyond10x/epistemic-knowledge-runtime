@@ -1,0 +1,1193 @@
+task: [fmt-check] cargo run --locked -p xtask --bin xtask -- fmt --check
+    Finished `dev` profile [unoptimized] target(s) in 0.25s
+     Running `<build>/target/debug/xtask fmt --check`
+task: [clippy] cargo clippy --workspace --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized] target(s) in 0.32s
+task: [test] cargo test --workspace --locked
+    Finished `test` profile [unoptimized] target(s) in 0.21s
+     Running unittests src/lib.rs (<build>/target/debug/deps/ekr-417a5de785820235)
+
+running 65 tests
+test cli::view::tests::a_busy_reply_is_a_503_like_every_other ... ok
+test cli::inbox::tests::retained_text_never_becomes_active_html ... ok
+test cli::session::tests::the_divergence_guard_finds_a_partial_provider_message_match ... ok
+test cli::review_host::tests::protected_chain_checks_every_owner_mode_kind_and_size_before_reading ... ok
+test cli::view::tests::a_failed_load_is_not_kept_and_a_kept_one_is_not_loaded_again ... ok
+test cli::view::tests::a_malformed_short_or_oversized_head_is_refused ... ok
+test cli::view::tests::a_projection_query_is_nothing_or_exactly_one_revision ... ok
+test cli::view::tests::a_head_is_read_to_its_end_and_never_past_it ... ok
+test cli::view::tests::a_query_is_known_names_once_each_with_percent_decoded_values ... ok
+test cli::review_host::tests::generated_binding_refuses_wrong_tenant_unknown_fields_and_invalid_hashes ... ok
+test cli::view::tests::a_revision_is_loaded_once_and_served_from_memory_after ... ok
+test cli::view::tests::a_stream_past_its_deadline_writes_nothing ... ok
+test cli::view::tests::a_head_is_refused_once_its_deadline_has_passed_whatever_the_bytes_so_far ... ok
+test cli::view::tests::a_timed_out_read_is_the_late_refusal ... ok
+test cli::session::tests::no_cli_source_holds_a_string_literal_naming_divergence ... ok
+test cli::view::tests::beyond_the_limit_the_revision_used_longest_ago_goes ... ok
+test cli::view::tests::a_stream_is_the_meta_chunk_then_a_chunk_per_256_records_then_the_end ... ok
+test cli::view::tests::a_stream_stops_at_the_first_write_that_fails ... ok
+test cli::view::tests::every_reply_is_nosniff_no_store_and_close_with_no_cookie_or_cors_header ... ok
+test cli::view::tests::in_flight_is_capped_and_released_on_drop ... ok
+test cli::view::tests::on_port_80_a_host_without_a_port_is_its_own ... ok
+test cli::view::tests::only_one_host_naming_this_server_is_its_own ... ok
+test cli::view::tests::only_the_declared_routes_exist ... ok
+test cli::view::tests::the_page_header_policy_is_the_meta_policy_and_refuses_framing ... ok
+test cli::view::tests::utf8_bytes_are_text_and_any_other_bytes_are_an_octet_stream ... ok
+test conformance::tests::a_commit_receipt_projects_the_identities_it_created ... ok
+test host::tests::capabilities_and_ordered_profile_checks_keep_their_real_list_syntax ... ok
+test host::tests::capability_duplicates_are_detected_after_json_escape_decoding ... ok
+test host::tests::complete_host_preserves_the_actual_nested_authority ... ok
+test host::tests::complete_json_and_utf8_are_required ... ok
+test host::tests::dates_are_midnight_utc_with_leap_and_pre_epoch_controls ... ok
+test host::tests::decoded_agent_duplicates_refuse_before_the_repeated_agent ... ok
+test host::tests::duplicate_outer_fields_refuse_before_decoding_the_repeated_value ... ok
+test host::tests::escaped_duplicate_nested_fields_are_refused_before_their_values ... ok
+test host::tests::escaped_names_and_values_are_decoded_without_normalizing_the_carrier ... ok
+test host::tests::every_named_struct_requires_json_object_syntax ... ok
+test host::tests::format_uses_a_json_string_and_not_an_externally_tagged_enum_object ... ok
+test host::tests::host_parsing_preserves_canonical_identity_spelling ... ok
+test host::tests::invalid_calendars_and_noncanonical_date_spellings_refuse ... ok
+test host::tests::nested_unknown_fields_are_refused_by_the_existing_kernel_carriers ... ok
+test host::tests::overflowing_and_noncanonical_decimal_selectors_refuse ... ok
+test host::tests::parsing_does_not_invent_semantic_authority_or_namespace_rules ... ok
+test host::tests::required_fields_of_nested_carriers_cannot_be_missing_or_null ... ok
+test host::tests::required_outer_fields_cannot_be_missing_null_or_unknown ... ok
+test host::tests::the_envelope_format_is_exact ... ok
+test host::tests::valid_time_decimals_retain_the_full_core_timestamp_range ... ok
+test cli::view::tests::an_unframed_stream_is_the_chunked_streams_lines_bare_and_unterminated ... ok
+test cli::view::tests::every_bounded_read_on_an_unseeded_store_is_not_seeded_after_its_bounds ... ok
+test cli::session::ocel_tests::in_process_ocel_returns_engine_counts_with_its_document_and_leaves_the_next_stderr_empty ... ok
+test cli::attention::tests::answer_json_is_bounded_and_null_bounds_are_refused_before_kernel_admission ... ok
+test cli::session::tests::a_session_never_answers_from_a_sqlite_store_overwritten_in_place ... ok
+test cli::view::tests::disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen ... ok
+test cli::upgrade::tests::sdk_upgrade_uses_the_real_session_kernel_and_exact_external_signature ... ok
+test cli::session::tests::a_session_started_before_its_store_holds_the_store_another_process_created ... ok
+test cli::mcp::tests::a_call_checks_the_store_without_opening_it_and_a_replacement_reopens_it_once ... ok
+test cli::session::tests::a_session_request_checks_the_store_only_for_a_store_verb_and_opens_it_only_when_replaced ... ok
+test cli::session::tests::a_held_store_is_checked_without_a_store_open_and_reopened_once_per_replacement ... ok
+test cli::view::tests::a_request_checks_the_store_without_opening_it_and_a_replacement_reopens_it_once ... ok
+test cli::session::tests::a_session_reads_its_transactions_only_while_it_tracks_a_proposal ... ok
+test cli::session::tests::a_session_follows_a_file_store_replaced_inside_its_directory ... ok
+test cli::view::tests::a_file_store_replaced_inside_its_directory_is_answered_after_one_reopen ... ok
+test cli::extraction::tests::the_verbs_write_requests_are_only_propose_validate_and_commit ... ok
+test cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay ... ok
+test cli::session::tests::a_views_verb_keeps_its_index_until_the_store_is_replaced_and_none_of_the_replaced_one ... ok
+test cli::ontology::tests::schema_change_exposes_supporting_evidence ... ok
+
+test result: ok. 65 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.30s
+
+     Running unittests src/main.rs (<build>/target/debug/deps/ekr-8b558f2e0b57be70)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary2_p1_15_schema.rs (<build>/target/debug/deps/adversary2_p1_15_schema-9f7b7493e6c07b20)
+
+running 6 tests
+test the_host_schema_names_every_fixed_text_the_host_check_requires ... ok
+test the_cli_page_names_each_gap_the_printed_description_names ... ok
+test every_id_the_schema_says_ekr_mint_prints_has_a_mint_kind ... ok
+test a_string_over_the_byte_limit_in_fewer_characters_is_refused_by_both ... ok
+test distinct_texts_yaml_resolves_to_one_value_are_judged_alike_by_both ... ok
+test a_tag_on_a_mapping_or_a_list_is_judged_alike_by_both ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/adversary2_p5_01_cli.rs (<build>/target/debug/deps/adversary2_p5_01_cli-346530e8fadae65b)
+
+running 2 tests
+test the_schema_gap_for_the_p1_modify_property_shape_is_named ... ok
+test the_refusal_table_lists_modify_property_without_owner ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/adversary2_p5_01_store_open.rs (<build>/target/debug/deps/adversary2_p5_01_store_open-518717d39068966e)
+
+running 5 tests
+test a_read_verb_on_a_file_store_directory_holding_only_its_lock_is_store_not_found ... ok
+test a_read_verb_on_a_sqlite_database_with_no_tables_is_store_not_found ... ok
+test seed_under_a_host_naming_another_operator_is_bootstrap_authority_mismatch ... ok
+test seed_under_a_host_renaming_the_validator_is_bootstrap_authority_mismatch ... ok
+test sqlite_head_racing_the_first_seed_answers_only_documented_states ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.12s
+
+     Running tests/adversary_add_alias_l_cli.rs (<build>/target/debug/deps/adversary_add_alias_l_cli-06b8293d48fbf283)
+
+running 2 tests
+test the_ekr_operations_section_counts_the_kinds_the_binary_lists ... ok
+test a_session_that_commits_an_add_alias_resolves_the_alias_in_its_next_request ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+     Running tests/adversary_alias_race.rs (<build>/target/debug/deps/adversary_alias_race-39e5ee9996a74e0d)
+
+running 1 test
+test two_consumers_of_one_propose_new_following_the_stale_recovery_leave_the_reference_resolved ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/adversary_alias_replay.rs (<build>/target/debug/deps/adversary_alias_replay-5db7042c571c5eb3)
+
+running 1 test
+test aliases_survive_a_full_replay_and_the_checkpoint_on_both_formats_and_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.96s
+
+     Running tests/adversary_c7_b_cli.rs (<build>/target/debug/deps/adversary_c7_b_cli-e0da9531123a0b0e)
+
+running 2 tests
+test a_seed_path_is_read_no_further_than_the_cap ... ok
+test a_seed_of_exactly_the_cap_from_stdin_seeds ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/adversary_c7_m.rs (<build>/target/debug/deps/adversary_c7_m-9e083852a7de80b4)
+
+running 2 tests
+test the_migrate_cli_snapshot_comparison_tells_a_seed_only_store_from_a_committed_one ... ok
+test a_migrated_store_holds_every_graph_field_of_its_source ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+
+     Running tests/adversary_c7_s_session.rs (<build>/target/debug/deps/adversary_c7_s_session-7525cdb3b12efc39)
+
+running 2 tests
+test adversary_c7_s_a_session_proposal_after_a_sqlite_database_was_copied_over_its_file_lands_there ... ok
+test adversary_c7_s_every_session_read_verb_answers_from_a_sqlite_database_copied_over_its_file ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.89s
+
+     Running tests/adversary_code_names_cli.rs (<build>/target/debug/deps/adversary_code_names_cli-dedd14eb2389fd44)
+
+running 6 tests
+test a_directory_argument_is_a_fault_naming_it ... ok
+test a_symlinked_source_is_reported_under_the_link_path ... ok
+test an_alias_that_is_a_store_id_in_upper_case_is_exempt_not_found ... ok
+test a_blank_alias_equals_no_blank_literal ... ok
+test ekr_code_names_answers_on_a_read_only_store_on_both_providers ... ok
+test five_thousand_aliases_and_two_thousand_files_answer_in_bounded_time ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.45s
+
+     Running tests/adversary_docs_contract.rs (<build>/target/debug/deps/adversary_docs_contract-9d815f89ec351de1)
+
+running 7 tests
+test adversary_readme_membership_requires_one_unambiguous_product_inventory ... ok
+test workspace_manifest::tests::comments_and_hashes_inside_basic_and_literal_paths_are_distinct ... ok
+test workspace_manifest::tests::unsupported_or_ambiguous_member_grammar_refuses_instead_of_losing_members ... ok
+test the_readme_states_the_workspace_rust_version ... ok
+test the_readme_status_matches_the_workspace_members ... ok
+test every_crate_doc_comment_names_an_existing_ess_domain_file ... ok
+test status_membership_refuses_absence_omission_and_invented_crates ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_mcp_protocol.rs (<build>/target/debug/deps/adversary_mcp_protocol-8c7272c901759de2)
+
+running 2 tests
+test adversary_mcp_an_integer_id_beyond_64_bits_is_echoed_unchanged ... ok
+test adversary_mcp_a_revision_requiring_batches_is_not_agreed_and_a_batch_is_refused ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/adversary_mcp_resolve.rs (<build>/target/debug/deps/adversary_mcp_resolve-850dea4e5f3d9214)
+
+running 2 tests
+test adversary_mcp_resolve_of_an_alias_holding_del_answers_what_the_verb_prints ... ok
+test adversary_mcp_resolve_of_an_alias_holding_nel_answers_what_the_verb_prints ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/adversary_migrate_v3_cli.rs (<build>/target/debug/deps/adversary_migrate_v3_cli-b1424b78932a8a0b)
+
+running 4 tests
+test migrate_to_a_path_inside_the_file_store_leaves_the_store_exactly_as_it_was ... ok
+test migrate_to_a_symlink_of_the_store_is_refused_as_the_source_on_both_providers ... ok
+test migrate_into_the_file_store_blob_directory_leaves_the_store_writable ... ok
+test seed_and_session_create_both_retain_seed_envelope_three_on_both_providers ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/adversary_p1_06_authority_guard.rs (<build>/target/debug/deps/adversary_p1_06_authority_guard-d4751cc02ccae128)
+
+running 2 tests
+test the_file_that_carries_invariant_one_locates_this_tree_at_run_time ... ok
+test the_commit_authority_guard_sees_a_second_authority_in_a_source_file ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_p1_13_cli_exit_contract.rs (<build>/target/debug/deps/adversary_p1_13_cli_exit_contract-a55ac3d4b2de5a79)
+
+running 9 tests
+test a_non_utf8_seed_on_stdin_is_invalid_seed_and_writes_nothing ... ok
+test a_whitespace_only_seed_difference_through_stdin_is_an_exact_retry ... ok
+test a_negative_decimal_valid_at_is_accepted_in_the_separated_form ... ok
+test an_oversized_stdin_proposal_refuses_at_the_bound_without_draining_the_stream ... ok
+test assertion_attribution_and_unregistered_proposers_are_named_refusals ... ok
+test a_different_host_anchor_is_bootstrap_authority_mismatch_for_seed_and_refused_everywhere_else ... ok
+test explain_renders_exactly_the_kernel_carrier ... ok
+test concurrent_exact_seed_and_commit_invocations_return_one_retained_result ... ok
+test concurrent_distinct_proposals_are_each_recorded ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running tests/adversary_p1_13_cli_r2_exit_map.rs (<build>/target/debug/deps/adversary_p1_13_cli_r2_exit_map-59f5ca7ae2b54b14)
+
+running 2 tests
+test every_kernel_error_maps_to_its_declared_exit_and_name ... ok
+test the_library_seam_keeps_the_binarys_help_and_version_exit ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/adversary_p1_13_cli_r2_reads.rs (<build>/target/debug/deps/adversary_p1_13_cli_r2_reads-1fac3d1742ba5ebe)
+
+running 6 tests
+test a_document_that_cannot_be_read_is_a_fault_and_records_nothing ... ok
+test a_negative_valid_at_takes_its_own_value_and_never_a_following_flag ... ok
+test explain_a_seed_only_assertion_superseded_by_a_later_proposal ... ok
+test explain_a_replacement_accepted_before_its_supersession ... ok
+test every_outcome_refusal_and_fault_writes_one_result_or_nothing ... ok
+test snapshot_is_the_kernel_carrier_at_every_revision_and_selector_and_section_65_holds ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.17s
+
+     Running tests/adversary_p1_14_conformance.rs (<build>/target/debug/deps/adversary_p1_14_conformance-3c547947e46b31e1)
+
+running 7 tests
+test a_retained_seed_retry_writes_nothing_to_the_provider_log ... ok
+test a_real_propose_publishes_exactly_the_store_events_the_suite_expects ... ok
+test dropping_the_optional_transaction_fields_fails_a_scenario ... ok
+test a_retained_seed_retry_with_a_resampled_time_fails_retained_seed ... ok
+test a_snapshot_reporting_the_wrong_revision_fails_the_authored_snapshot_scenarios ... ok
+test proposal_responses_carry_the_exact_document_bytes ... ok
+test dropping_the_propose_and_validate_responses_is_not_yet_observable_by_the_suite has been running for over 60 seconds
+test dropping_the_propose_and_validate_responses_is_not_yet_observable_by_the_suite ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 73.02s
+
+     Running tests/adversary_p1_14_conformance_r2.rs (<build>/target/debug/deps/adversary_p1_14_conformance_r2-65eb8aace44b6361)
+
+running 3 tests
+test a_snapshot_that_ignores_at_fails_the_past_revision_scenario has been running for over 60 seconds
+test a_transactions_row_with_the_wrong_canonical_and_basis_hashes_is_not_yet_observable has been running for over 60 seconds
+test forged_store_event_payloads_fail_a_scenario has been running for over 60 seconds
+test a_snapshot_that_ignores_at_fails_the_past_revision_scenario ... ok
+test forged_store_event_payloads_fail_a_scenario ... ok
+test a_transactions_row_with_the_wrong_canonical_and_basis_hashes_is_not_yet_observable ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 149.08s
+
+     Running tests/adversary_p1_15_docs.rs (<build>/target/debug/deps/adversary_p1_15_docs-94781a718a3b862a)
+
+running 2 tests
+test an_assessment_the_page_calls_other_than_proposed_is_rejected_with_the_code_it_names ... ok
+test invoke_calls_a_named_operation_by_the_name_the_page_says_it_uses ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running tests/adversary_p1_15_docs_r2.rs (<build>/target/debug/deps/adversary_p1_15_docs_r2-f7bec0af9bcbc148)
+
+running 2 tests
+test every_row_filed_as_a_validation_issue_names_a_code_a_validator_raises ... ok
+test every_refusal_a_reader_of_the_retraction_and_supersession_rules_meets_is_in_the_table ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s
+
+     Running tests/adversary_p1_15_ess_pin.rs (<build>/target/debug/deps/adversary_p1_15_ess_pin-fcde925d5d3243ac)
+
+running 2 tests
+test task_spec_check_admits_the_pinned_release ... ok
+test task_refuses_an_ess_that_is_not_the_pinned_release ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+     Running tests/adversary_p1_15_ess_pin_r2.rs (<build>/target/debug/deps/adversary_p1_15_ess_pin_r2-0c3e4f1ac5712711)
+
+running 2 tests
+test no_caller_runs_task_with_force ... ok
+test task_force_skips_the_ess_guard_which_is_accepted_only_while_no_caller_forces ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/adversary_p1_15_schema.rs (<build>/target/debug/deps/adversary_p1_15_schema-bec1931cb8f93e06)
+
+running 9 tests
+test a_transaction_with_no_operation_is_refused_by_both ... ok
+test a_host_document_edge_is_judged_alike_by_both ... ok
+test a_tag_on_a_scalar_is_judged_alike_by_both ... ok
+test a_nonfinite_float_the_reader_accepts_is_accepted_by_the_schema ... ok
+test a_whole_number_past_its_type_is_refused_by_both ... ok
+test the_frozen_transaction_document_limits_are_the_schemas_too ... ok
+test a_seed_field_left_out_is_judged_alike_by_both ... ok
+test a_null_collection_is_judged_alike_by_both ... ok
+test a_plain_scalar_a_string_field_reads_as_text_is_accepted_by_both ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/adversary_p1_15_seed_hash.rs (<build>/target/debug/deps/adversary_p1_15_seed_hash-0353ff2d05d5b7e5)
+
+running 4 tests
+test hash_of_unreadable_input_is_a_fault_exit_1 ... ok
+test a_half_applied_hash_correction_is_refused_naming_both_hashes ... ok
+test the_guide_procedure_seeds_a_non_utf8_and_an_empty_payload ... ok
+test hash_equals_the_kernel_for_non_utf8_and_large_payloads ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.61s
+
+     Running tests/adversary_p1_15_seed_hash_2.rs (<build>/target/debug/deps/adversary_p1_15_seed_hash_2-5d1db419d73d37bc)
+
+running 3 tests
+test payload_missing_names_exactly_the_keys_no_entry_names ... ok
+test relative_store_paths_seed_as_the_guide_says ... ok
+test pasted_payload_yaml_seeds_every_byte_value_an_empty_and_a_large_payload ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.66s
+
+     Running tests/adversary_p4_01_agent_cli.rs (<build>/target/debug/deps/adversary_p4_01_agent_cli-9b1e8292b94eaa87)
+
+running 4 tests
+test verbs_that_need_no_configuration_ignore_the_configuration_environment ... ok
+test an_empty_configuration_variable_is_refused_by_its_name ... ok
+test a_kind_the_kernel_never_applies_says_so_where_it_is_documented ... ok
+test every_example_operation_names_only_what_its_documented_preparations_hold ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.66s
+
+     Running tests/adversary_p4_01_agent_cli_r2.rs (<build>/target/debug/deps/adversary_p4_01_agent_cli_r2-357a9030a29a917c)
+
+running 5 tests
+test the_backend_flag_and_its_variable_accept_the_same_values ... ok
+test a_flag_wins_over_its_variable_for_every_setting ... ok
+test the_evidence_payloads_the_guide_says_print_as_base64_are_printed_only_by_explain_documents ... ok
+test an_assertion_that_states_its_own_verdict_is_recorded_then_rejected_as_the_guide_says ... ok
+test an_assertion_retracted_in_the_transaction_that_adds_it_commits_as_the_guide_says ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+
+     Running tests/adversary_p5_01_cli.rs (<build>/target/debug/deps/adversary_p5_01_cli-9d5ea017b2218652)
+
+running 2 tests
+test the_host_schema_does_not_describe_the_authority_as_the_p1_profile_only ... ok
+test the_seed_authority_profile_row_does_not_say_only_the_p1_profile_is_accepted ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/adversary_p5_01_store_open.rs (<build>/target/debug/deps/adversary_p5_01_store_open-43f1c85d01f67932)
+
+running 5 tests
+test sqlite_a_refused_seed_into_an_existing_empty_file_leaves_no_store ... ok
+test sqlite_a_refused_seed_through_a_dangling_symlink_creates_nothing ... ok
+test file_a_refused_seed_into_an_existing_empty_directory_leaves_no_store ... ok
+test a_read_verb_on_an_existing_empty_path_is_store_not_found ... ok
+test a_seed_refused_for_its_tenant_leaves_no_store ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/adversary_p_page.rs (<build>/target/debug/deps/adversary_p_page-83f859706ced434e)
+
+running 3 tests
+test an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three ... ok
+test an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it ... ok
+test markup_in_store_text_is_shown_as_text_and_never_becomes_an_element ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.85s
+
+     Running tests/adversary_page_stream_1.rs (<build>/target/debug/deps/adversary_page_stream_1-4fc6786396dce4c1)
+
+running 9 tests
+test a_type_the_address_hides_stays_hidden_when_a_stream_first_draws_it ... ok
+test a_path_between_streamed_in_nodes_survives_a_reload_of_its_own_address ... ok
+test past_the_render_budget_at_most_the_two_thousand_best_connected_keep_a_label ... ok
+test the_hits_listed_after_a_revision_change_are_the_new_revisions ... ok
+test a_stream_the_page_gives_up_on_after_a_malformed_line_is_closed ... ok
+test a_stream_cut_before_its_end_line_is_failed_and_keeps_what_arrived ... ok
+test store_text_through_every_address_and_a_split_stream_never_becomes_html ... ok
+test a_neighbourhood_focus_on_a_streamed_in_node_survives_a_reload_of_its_own_address ... ok
+test an_address_naming_a_revision_past_the_head_still_opens_the_page ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.68s
+
+     Running tests/adversary_read_only_store.rs (<build>/target/debug/deps/adversary_read_only_store-fcd814428d6ca1b5)
+
+running 10 tests
+test a_read_verb_on_a_read_only_database_in_a_writable_directory_creates_nothing_beside_it ... ok
+test the_owner_writes_again_after_a_read_on_its_read_only_database ... ok
+test a_file_store_with_only_its_blobs_read_only_refuses_a_write_by_name ... ok
+test ekr_view_on_a_read_only_file_store_removes_its_copy_when_terminated ... ok
+test a_one_shot_read_and_a_session_at_eof_leave_no_copy_in_tmpdir ... ok
+test a_file_store_with_only_its_events_read_only_is_read_only ... ok
+test a_late_session_refuses_validate_and_commit_by_name ... ok
+test a_session_on_a_writable_store_reads_another_process_commit ... ok
+test a_session_on_a_read_only_store_reads_another_process_commit ... ok
+test mcp_on_a_read_only_store_reads_another_process_commit ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.63s
+
+     Running tests/adversary_rejections.rs (<build>/target/debug/deps/adversary_rejections-058afb612b6aebb2)
+
+running 8 tests
+test both_committed_suites_name_the_one_contract_they_were_synthesized_from ... ok
+test printed_keys_ascend_by_their_text ... ok
+test many_issues_from_several_validators_are_listed_as_validate_printed_them ... ok
+test range_bounds_at_the_edges ... ok
+test a_session_answers_rejections_from_a_store_replaced_at_its_path ... ok
+test entries_order_by_basis_first_and_ties_by_transaction_id_whatever_the_id_order ... ok
+test a_rejection_against_a_superseded_revision_is_keyed_on_that_basis ... ok
+test open_validated_and_stale_transactions_never_appear ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.80s
+
+     Running tests/adversary_roles_rule.rs (<build>/target/debug/deps/adversary_roles_rule-5f1ac63305b91e6c)
+
+running 8 tests
+test the_documented_invalid_query_refusal_covers_every_query_but_revision_n ... ok
+test a_store_whose_edge_types_name_abstract_parents_places_its_concrete_timed_types ... ok
+test a_valid_time_bounded_by_to_alone_dates_no_fact ... ok
+test relabelling_the_type_ids_moves_the_event_types_with_them ... ok
+test an_edge_type_from_the_observation_type_moves_no_role ... ok
+test a_cycle_follows_the_rule_by_hand ... ok
+test every_query_is_answered_by_roles_as_by_projection ... ok
+test a_retracted_dated_fact_still_dates_its_node ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running tests/adversary_roles_rule_2.rs (<build>/target/debug/deps/adversary_roles_rule_2-9987721265b07909)
+
+running 2 tests
+test widening_is_transitive_through_a_diamond_and_reverses_a_symmetric_edge_to_descendants ... ok
+test a_schema_change_under_a_self_loop_type_keeps_the_docs_closing_sentence_true ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/adversary_s_resolve.rs (<build>/target/debug/deps/adversary_s_resolve-4cb98b117703cffb)
+
+running 3 tests
+test the_schema_and_the_reader_agree_on_scalar_aliases ... ok
+test an_anchor_repeated_by_aliases_does_not_decode_past_the_input_limit ... ok
+test a_document_over_the_limit_is_refused_even_when_its_prefix_decodes ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/adversary_s_resolve_pass2.rs (<build>/target/debug/deps/adversary_s_resolve_pass2-027a3627f8bc11a9)
+
+running 7 tests
+test deep_nesting_under_a_key_is_refused_in_bounded_time ... ok
+test a_typed_reference_written_as_a_sequence_is_refused_as_the_schema_refuses_it ... ok
+test empty_and_unreadable_input_are_faults ... ok
+test several_documents_are_a_fault ... ok
+test very_deep_nesting_is_a_fault_not_a_crash ... ok
+test the_printed_outcome_decodes_back_through_the_strict_aliases_decoder ... ok
+test json_flow_and_anchored_forms_the_schema_accepts_still_resolve ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/adversary_sdk01_h_replaced_store.rs (<build>/target/debug/deps/adversary_sdk01_h_replaced_store-75e0eed9771bd1e0)
+
+running 3 tests
+test adversary_h_closing_the_replaced_sqlite_store_leaves_the_wal_at_the_path_alone ... ok
+test adversary_h_a_session_follows_a_replacement_once_another_process_committed_its_proposal ... ok
+test adversary_h_mcp_answers_from_a_file_store_replaced_under_the_same_inode_without_a_restart ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.30s
+
+     Running tests/adversary_session_create_pass1.rs (<build>/target/debug/deps/adversary_session_create_pass1-937fc7a0f7cdbe65)
+
+running 7 tests
+test adversary_session_create_refused_seed_leaves_what_the_one_shot_seed_leaves ... ok
+test adversary_session_create_holds_the_store_its_seed_created ... ok
+test adversary_session_create_with_full_replay_and_refused_options ... ok
+test adversary_session_create_seeds_a_provisioned_store_it_already_holds ... ok
+test adversary_session_create_plain_session_serves_the_store_another_process_seeded ... ok
+test adversary_session_create_held_store_sees_another_commit_and_answers_a_stale_commit_as_one_shot ... ok
+test adversary_session_create_two_sessions_seeding_two_documents_at_once_serve_one_store ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.02s
+
+     Running tests/adversary_session_pass1.rs (<build>/target/debug/deps/adversary_session_pass1-5a81f1f20b1f41b5)
+
+running 3 tests
+test adversary_session_one_request_line_does_not_cost_its_whole_length_in_memory ... ok
+test adversary_session_sees_a_commit_another_process_made_while_it_was_open ... ok
+test adversary_session_commit_on_a_stale_validation_answers_as_the_one_shot_commit ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.10s
+
+     Running tests/adversary_session_views.rs (<build>/target/debug/deps/adversary_session_views-6cb8357702cbd59a)
+
+running 2 tests
+test session_help_names_the_views_verbs_the_session_serves ... ok
+test a_signed_bound_the_view_route_refuses_is_not_answered_by_the_session ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/adversary_stream_pass1.rs (<build>/target/debug/deps/adversary_stream_pass1-ad07b907fb36b1e8)
+
+running 5 tests
+test an_http_1_0_request_is_not_answered_with_transfer_encoding ... ok
+test an_absent_revision_is_refused_before_a_node_that_is_no_node_id ... ok
+test an_empty_seed_set_answers_an_empty_page ... ok
+test a_pinned_revision_pages_across_a_commit_with_nothing_lost_or_repeated ... ok
+test sixty_four_concurrent_streams_each_deliver_the_whole_page ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.32s
+
+     Running tests/adversary_tests_under_load.rs (<build>/target/debug/deps/adversary_tests_under_load-e6730ec5b33751d8)
+
+running 1 test
+test the_replaced_store_variant_that_can_skip_is_staged_at_least_once_in_ten ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversary_v_view.rs (<build>/target/debug/deps/adversary_v_view-a551ed7b13c9fdac)
+
+running 4 tests
+test every_response_carries_nosniff_including_the_400_for_a_malformed_head ... ok
+test a_foreign_host_header_is_not_served_the_store ... ok
+test a_body_that_never_arrives_does_not_hang_the_server_for_everyone_else ... ok
+test a_huge_content_length_does_not_kill_the_server ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+     Running tests/adversary_v_view_r2.rs (<build>/target/debug/deps/adversary_v_view_r2-974029efffc15384)
+
+running 6 tests
+test sigint_ends_the_viewer_and_leaves_the_file_store_byte_identical ... ok
+test the_413_for_a_body_reaches_a_client_that_sent_the_body ... ok
+test the_answer_to_a_pipelined_request_survives_the_bytes_the_server_never_read ... ok
+test a_commit_from_another_process_while_the_viewer_serves_lands_and_is_served ... ok
+test a_head_dribbled_a_byte_a_second_is_refused_within_its_5_s ... ok
+test dribbling_connections_up_to_the_descriptor_limit_do_not_starve_a_well_formed_client ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.30s
+
+     Running tests/adversary_viewer_compact.rs (<build>/target/debug/deps/adversary_viewer_compact-ea7b3d162accff44)
+
+running 8 tests
+test a_compact_address_holds_before_the_page_reads_or_draws_anything ... ok
+test compact_beside_every_other_parameter_survives_a_reload_and_history ... ok
+test in_a_narrow_window_compact_gives_the_graph_all_but_the_strips ... ok
+test the_address_compact_left_and_the_left_tab_collapse_the_left_sidebar_alone ... ok
+test c_in_the_search_box_or_with_ctrl_or_alt_does_not_toggle_compact ... ok
+test a_scrolled_sidebar_keeps_its_scroll_position_through_collapse_and_restore ... ok
+test shift_click_solo_writes_the_address_toggles_back_and_restores_through_history ... ok
+test a_malformed_or_repeated_compact_value_is_read_as_the_page_writes_it ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.01s
+
+     Running tests/adversary_viewer_follow_ups.rs (<build>/target/debug/deps/adversary_viewer_follow_ups-eeb5d6b1a1435003)
+
+running 6 tests
+test back_in_a_narrowed_window_keeps_the_sidebars_the_reader_has_open ... ok
+test a_focused_type_chip_keeps_the_focus_when_the_page_draws_the_chips_again ... ok
+test every_way_a_detail_reaches_the_collapsed_panel_marks_the_strip ... ok
+test back_to_the_node_already_shown_does_not_mark_the_strip ... ok
+test an_edge_type_chip_takes_the_keyboard_and_every_toggle_has_a_spoken_name ... ok
+test the_narrow_rule_holds_below_970_px_only_and_compact_0_keeps_every_parameter ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.83s
+
+     Running tests/adversary_x6_d_schema.rs (<build>/target/debug/deps/adversary_x6_d_schema-95cb8d089a6f9190)
+
+running 1 test
+test adv_the_schema_and_the_reader_agree_on_tags_and_repeats ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/adversary_x6_e.rs (<build>/target/debug/deps/adversary_x6_e-9fd211d56702fd41)
+
+running 5 tests
+test the_base_sessions_seed_loses_every_event_and_observation ... ok
+test the_base_readings_seed_loses_every_event_and_observation ... ok
+test the_overviews_observation_type_is_the_roles_observation ... ok
+test the_readings_roles_bytes_are_unchanged ... ok
+test a_revision_adding_a_late_dated_fact_moves_an_event_type_to_subject ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/adversary_x6_q_cli.rs (<build>/target/debug/deps/adversary_x6_q_cli-ae532cab2ec1cf13)
+
+running 2 tests
+test an_empty_judged_sample_reports_zero_judged_and_an_empty_input_is_a_fault ... ok
+test fact_quality_prints_the_binary64_values_the_library_computed_one_shot_and_in_a_session ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/adversary_x6_x_documents.rs (<build>/target/debug/deps/adversary_x6_x_documents-65e94d610a1df34e)
+
+running 1 test
+test documents_returns_the_records_propose_and_commit_printed_on_every_lane ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/adversary_x7_g_session.rs (<build>/target/debug/deps/adversary_x7_g_session-444ea91b6bfdc8d9)
+
+running 2 tests
+test adversary_x7_g_without_a_proposal_a_non_store_failure_is_unchanged_by_the_reopen ... ok
+test adversary_x7_g_a_failure_that_reads_no_store_prints_its_own_text_in_a_diverged_session ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running tests/adversary_x7_g_source_guard.rs (<build>/target/debug/deps/adversary_x7_g_source_guard-dc7874ad037d1659)
+
+running 3 tests
+test adversary_x7_g_the_unit_guard_catches_a_partial_provider_message_match ... ok
+test adversary_x7_g_the_literal_guard_finds_the_partial_match ... ok
+test adversary_x7_g_no_cli_source_holds_a_divergence_literal ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/adversary_x7_v.rs (<build>/target/debug/deps/adversary_x7_v-09837b16852d52ed)
+
+running 15 tests
+test adv_mirror_refuses_a_document_past_the_depth_bound ... ok
+test adv_mirror_refuses_a_yaml_alias ... ok
+test adv_mirror_refuses_a_mapping_key_written_twice ... ok
+test adv_mirror_refuses_an_alias_that_is_not_a_string ... ok
+test adv_mirror_refuses_a_document_over_the_cap ... ok
+test adv_a_document_the_reader_accepts_is_reported_not_faulted_halfway ... ok
+test adv_sdk_over_a_session_does_not_pick_one_of_two_items_under_one_id ... ok
+test adv_agree_on_an_empty_document ... ok
+test adv_a_second_run_of_one_document_adds_no_assertion ... ok
+test adv_the_order_of_named_things_does_not_change_the_nodes ... ok
+test adv_sdk_over_a_session_commits_no_fact_without_evidence ... ok
+test adv_agree_on_evidence_reused_and_cited_twice ... ok
+test adv_agree_on_aliases_shared_across_named_things ... ok
+test adv_agree_on_an_ambiguous_reference ... ok
+test adv_agree_on_a_document_that_fails_halfway ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.30s
+
+     Running tests/adversary_x7_v_2.rs (<build>/target/debug/deps/adversary_x7_v_2-2af5382371fb02e9)
+
+running 13 tests
+test adv2_mirror_refuses_a_record_type_with_a_field_written_twice ... ok
+test adv2_mirror_refuses_a_record_value_with_a_field_written_twice ... ok
+test adv2_mirror_refuses_a_confidence_past_certain ... ok
+test adv2_the_verb_does_not_fault_on_evidence_from_a_url ... ok
+test adv2_the_verb_does_not_fault_on_a_subtype_redeclaring_a_property ... ok
+test adv2_a_fact_read_again_from_new_evidence_is_not_rejected ... ok
+test adv2_a_second_run_does_not_reassert_a_retracted_fact ... ok
+test adv2_a_stop_inside_the_facts_batch_reports_every_commit_before_it ... ok
+test adv2_a_second_run_does_not_reassert_a_superseded_fact ... ok
+test adv2_a_group_is_named_alike_in_every_order_on_both_providers ... ok
+test adv2_a_stop_after_the_runs_first_commit_inside_the_facts_batch_is_a_report ... ok
+test adv2_a_fact_citing_unlisted_evidence_is_refused_on_both_paths ... ok
+test adv2_a_rerun_after_a_stop_adds_only_what_did_not_commit ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.34s
+
+     Running tests/agent_cli.rs (<build>/target/debug/deps/agent_cli-4d09bdceac48e1b9)
+
+running 29 tests
+test guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from ... ok
+test guide_says_how_to_change_the_schema ... ok
+test guide_names_store_not_found_for_every_verb_but_seed ... ok
+test guide_says_how_to_add_evidence_to_a_seed ... ok
+test every_example_document_is_accepted_by_its_real_reader ... ok
+test a_payload_mismatch_names_the_hash_ekr_hash_prints_and_the_one_written ... ok
+test hash_prints_the_content_hash_the_seed_expects_for_a_file_or_stdin ... ok
+test a_half_applied_hash_correction_is_refused_naming_both_hashes ... ok
+test mint_prints_a_fresh_id_of_each_named_kind ... ok
+test a_store_verb_without_its_configuration_is_a_usage_error_naming_flag_and_variable ... ok
+test operations_lists_every_kind_and_every_example_parses_as_its_kind ... ok
+test every_verbs_help_names_its_input_format_and_points_at_the_examples ... ok
+test host_store_and_backend_are_read_from_the_environment ... ok
+test ontology_prints_types_and_properties_by_name_and_id ... ok
+test seed_creates_the_store_as_the_guide_says ... ok
+test explain_prints_each_evidence_payload_as_base64_and_text ... ok
+test an_assertion_stating_its_own_verdict_is_recorded_then_rejected_as_the_guide_says ... ok
+test transactions_lists_id_state_and_proposer_and_filters_by_state ... ok
+test guide_says_how_to_seed_a_v2_store_from_the_example_host ... ok
+test the_seed_and_host_examples_seed_a_fresh_store_and_the_transaction_example_commits ... ok
+test an_assertion_added_and_retracted_in_one_transaction_commits_as_the_guide_says ... ok
+test a_new_evidence_entry_hashed_by_ekr_hash_seeds_and_a_committed_assertion_cites_it ... ok
+test every_byte_string_prints_as_one_base64_string ... ok
+test head_prints_the_revision_and_root_and_validate_defaults_to_it ... ok
+test the_schema_change_example_commits_under_profile_v2_and_is_refused_under_v1 ... ok
+test ontology_prints_the_schema_at_the_head_and_at_a_past_revision ... ok
+test the_retraction_example_runs_from_printed_strings_only_on_both_providers ... ok
+test every_schema_example_commits_alone_under_validation_profile_v2 ... ok
+test every_applicable_example_commits_in_listed_order_against_the_example_seed ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.01s
+
+     Running tests/code_names_cli.rs (<build>/target/debug/deps/code_names_cli-e63d972cdbf957b4)
+
+running 5 tests
+test ekr_code_names_refuses_what_it_cannot_read ... ok
+test ekr_code_names_writes_nothing_to_the_store_or_the_sources ... ok
+test ekr_session_serves_code_names_as_the_one_shot_verb_answers ... ok
+test words_finds_a_bare_zorbed_by_and_its_comment_without_matching_longer_words ... ok
+test ekr_code_names_reports_every_planted_name_with_its_file_and_line_on_both_providers ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/conformance.rs (<build>/target/debug/deps/conformance-d3bf667a296a2981)
+
+running 7 tests
+test the_fixture_manifest_names_only_admitted_scenarios ... ok
+test every_ess_pin_site_names_one_release ... ok
+test spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release ... ok
+test the_committed_suite_is_the_complete_inventory_the_baseline_counts ... FAILED
+test the_sqlite_provider_passes_every_admitted_kernel_scenario ... FAILED
+test the_file_provider_passes_every_admitted_kernel_scenario ... FAILED
+test each_injected_kernel_defect_fails_exactly_its_named_scenarios ... ok
+
+failures:
+
+---- the_committed_suite_is_the_complete_inventory_the_baseline_counts stdout ----
+
+thread 'the_committed_suite_is_the_complete_inventory_the_baseline_counts' (3825080) panicked at crates/ekr/tests/conformance.rs:203:5:
+assertion `left == right` failed
+  left: "sha256:91d29743f5af59ffd3f4c9d8367fd27e2a413ec39c727be647bcbb2ed0305c11"
+ right: "sha256:884d2276516d2a694b786b8d5b7091d434c127fe9641a38a69a24133c9209bfb"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_sqlite_provider_passes_every_admitted_kernel_scenario stdout ----
+sqlite provider: selected 72 total 72 passed 62 failed 0 error 0 unsupported 10 skipped 0 execution Failed conformance Failed report <build>/target/ekr-conformance/sqlite/report.json
+  unsupported ekr.kernel.AnswerAttention/outcome/answered
+  unsupported ekr.kernel.AnswerAttention/outcome/refused
+  unsupported ekr.kernel.ApplyUpgrade/outcome/answered
+  unsupported ekr.kernel.ApplyUpgrade/outcome/refused
+  passed ekr.kernel.Commit/outcome/committed
+  passed ekr.kernel.Commit/outcome/retained-commit
+  passed ekr.kernel.Commit/outcome/stale
+  passed ekr.kernel.Commit/outcome/transaction-not-found
+  passed ekr.kernel.Commit/outcome/wrong-state
+  passed ekr.kernel.Explain/outcome/explained
+  passed ekr.kernel.Explain/outcome/not-found
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated
+  passed ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated
+  unsupported ekr.kernel.ListAnswers/outcome/answered
+  unsupported ekr.kernel.ListAttention/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/refused
+  passed ekr.kernel.Propose/outcome/malformed
+  passed ekr.kernel.Propose/outcome/misattributed
+  passed ekr.kernel.Propose/outcome/proposed
+  passed ekr.kernel.Seed/outcome/already-seeded
+  passed ekr.kernel.Seed/outcome/invalid-seed
+  passed ekr.kernel.Seed/outcome/retained-seed
+  passed ekr.kernel.Seed/outcome/seeded
+  unsupported ekr.kernel.ShowAttention/outcome/answered
+  unsupported ekr.kernel.ShowAttention/outcome/refused
+  passed ekr.kernel.Snapshot/outcome/not-found
+  passed ekr.kernel.Snapshot/outcome/taken
+  passed ekr.kernel.Validate/outcome/rejected
+  passed ekr.kernel.Validate/outcome/revision-not-found
+  passed ekr.kernel.Validate/outcome/transaction-not-found
+  passed ekr.kernel.Validate/outcome/validated
+  passed ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names
+  passed ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits
+  passed ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record
+  passed ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+  passed ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name
+  passed ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+  passed ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit
+  passed ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+  passed ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits
+  passed ekr.kernel/authored/evidence-already-attached-is-rejected-by-name
+  passed ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name
+  passed ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name
+  passed ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision
+  passed ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision
+  passed ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest
+
+thread 'the_sqlite_provider_passes_every_admitted_kernel_scenario' (3825083) panicked at crates/ekr/tests/conformance.rs:172:5:
+unavailable scenarios:
+ekr.kernel.AnswerAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.AnswerAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.AnswerAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.AnswerAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.AnswerAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.AnswerAttention/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ApplyUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ApplyUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.ApplyUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ApplyUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ApplyUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ApplyUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ListAnswers/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAnswers/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAnswers`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAnswers`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ListAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.PreviewUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.PreviewUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.PreviewUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.PreviewUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ShowAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ShowAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ShowAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ShowAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ShowAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ShowAttention/refused`: the kernel target knows no precondition for that branch
+
+---- the_file_provider_passes_every_admitted_kernel_scenario stdout ----
+file provider: selected 72 total 72 passed 62 failed 0 error 0 unsupported 10 skipped 0 execution Failed conformance Failed report <build>/target/ekr-conformance/file/report.json
+  unsupported ekr.kernel.AnswerAttention/outcome/answered
+  unsupported ekr.kernel.AnswerAttention/outcome/refused
+  unsupported ekr.kernel.ApplyUpgrade/outcome/answered
+  unsupported ekr.kernel.ApplyUpgrade/outcome/refused
+  passed ekr.kernel.Commit/outcome/committed
+  passed ekr.kernel.Commit/outcome/retained-commit
+  passed ekr.kernel.Commit/outcome/stale
+  passed ekr.kernel.Commit/outcome/transaction-not-found
+  passed ekr.kernel.Commit/outcome/wrong-state
+  passed ekr.kernel.Explain/outcome/explained
+  passed ekr.kernel.Explain/outcome/not-found
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated
+  passed ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated
+  unsupported ekr.kernel.ListAnswers/outcome/answered
+  unsupported ekr.kernel.ListAttention/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/refused
+  passed ekr.kernel.Propose/outcome/malformed
+  passed ekr.kernel.Propose/outcome/misattributed
+  passed ekr.kernel.Propose/outcome/proposed
+  passed ekr.kernel.Seed/outcome/already-seeded
+  passed ekr.kernel.Seed/outcome/invalid-seed
+  passed ekr.kernel.Seed/outcome/retained-seed
+  passed ekr.kernel.Seed/outcome/seeded
+  unsupported ekr.kernel.ShowAttention/outcome/answered
+  unsupported ekr.kernel.ShowAttention/outcome/refused
+  passed ekr.kernel.Snapshot/outcome/not-found
+  passed ekr.kernel.Snapshot/outcome/taken
+  passed ekr.kernel.Validate/outcome/rejected
+  passed ekr.kernel.Validate/outcome/revision-not-found
+  passed ekr.kernel.Validate/outcome/transaction-not-found
+  passed ekr.kernel.Validate/outcome/validated
+  passed ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names
+  passed ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits
+  passed ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record
+  passed ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+  passed ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name
+  passed ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+  passed ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit
+  passed ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+  passed ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits
+  passed ekr.kernel/authored/evidence-already-attached-is-rejected-by-name
+  passed ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name
+  passed ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name
+  passed ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision
+  passed ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision
+  passed ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest
+
+thread 'the_file_provider_passes_every_admitted_kernel_scenario' (3825081) panicked at crates/ekr/tests/conformance.rs:172:5:
+unavailable scenarios:
+ekr.kernel.AnswerAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.AnswerAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.AnswerAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.AnswerAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.AnswerAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.AnswerAttention/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ApplyUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ApplyUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.ApplyUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ApplyUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ApplyUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ApplyUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ListAnswers/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAnswers/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAnswers`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAnswers`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ListAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.PreviewUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.PreviewUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.PreviewUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.PreviewUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ShowAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ShowAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ShowAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ShowAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ShowAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ShowAttention/refused`: the kernel target knows no precondition for that branch
+
+
+failures:
+    the_committed_suite_is_the_complete_inventory_the_baseline_counts
+    the_file_provider_passes_every_admitted_kernel_scenario
+    the_sqlite_provider_passes_every_admitted_kernel_scenario
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 59.68s
+
+error: test failed, to rerun pass `-p ekr --test conformance`
+task: Failed to run task "check": task: Failed to run task "test": exit status 101

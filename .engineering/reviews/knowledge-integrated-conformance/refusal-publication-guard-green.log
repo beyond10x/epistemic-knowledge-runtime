@@ -1,0 +1,9 @@
+   Compiling ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 1.66s
+     Running tests/conformance.rs (<build>/target/debug/deps/conformance-e05118f9d6a767b7)
+
+running 1 test
+test complete_kernel_target::upgrade_target::a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.23s
+

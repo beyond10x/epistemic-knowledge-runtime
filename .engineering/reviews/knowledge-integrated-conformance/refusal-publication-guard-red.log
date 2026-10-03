@@ -1,0 +1,21 @@
+   Compiling ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 1.42s
+     Running tests/conformance.rs (<build>/target/debug/deps/conformance-e05118f9d6a767b7)
+
+running 1 test
+
+thread 'complete_kernel_target::upgrade_target::a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance' (488786) panicked at crates/ekr/tests/support/upgrade_target.rs:796:9:
+assertion `left != right` failed
+  left: Passed
+ right: Passed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test complete_kernel_target::upgrade_target::a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance ... FAILED
+
+failures:
+
+failures:
+    complete_kernel_target::upgrade_target::a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.17s
+
+error: test failed, to rerun pass `-p ekr --test conformance`

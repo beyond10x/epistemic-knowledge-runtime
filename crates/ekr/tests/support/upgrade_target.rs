@@ -27,6 +27,9 @@ pub struct UpgradeTarget {
     no_op: bool,
     answers: bool,
     schema: bool,
+    generated: bool,
+    /// Test-only adversary: simulate a publication followed by an actual upgrade refusal.
+    append_on_refusal: bool,
     state: RefCell<Option<State>>,
     observed: RefCell<Vec<ObservedEvent>>,
 }
@@ -102,6 +105,8 @@ impl UpgradeTarget {
             no_op,
             answers: false,
             schema: false,
+            generated: false,
+            append_on_refusal: false,
             state: RefCell::new(None),
             observed: RefCell::new(vec![]),
         }
@@ -110,6 +115,14 @@ impl UpgradeTarget {
         Self {
             answers: true,
             ..Self::new(provider, work, no_op)
+        }
+    }
+    #[allow(dead_code)] // Used by the complete inventory adapter, not the authored-only target.
+    pub fn generated(provider: Provider, work: &Path, answers: bool) -> Self {
+        Self {
+            generated: true,
+            answers,
+            ..Self::new(provider, work, false)
         }
     }
     pub fn schema(provider: Provider, work: &Path, no_op: bool) -> Self {
@@ -159,21 +172,8 @@ impl UpgradeTarget {
         Ok(event)
     }
 }
-impl ConformanceTarget for UpgradeTarget {
-    fn identity(&self) -> Result<ImplementationIdentity, TargetError> {
-        Ok(ImplementationIdentity::new(
-            format!(
-                "EKR native Runtime {:?}, no-op={}",
-                self.provider, self.no_op
-            ),
-            env!("CARGO_PKG_VERSION"),
-        ))
-    }
-    fn fixture_values(
-        &self,
-        scenario: &ScenarioContext,
-        contract: &ess_conformance::fixtures::Contract,
-    ) -> Result<BTreeMap<String, Node>, TargetError> {
+impl UpgradeTarget {
+    fn prepare(&self, scenario: &ScenarioContext) -> Result<BTreeMap<String, Node>, TargetError> {
         let exclusions = scenario
             .scenario
             .to_string()
@@ -230,6 +230,10 @@ impl ConformanceTarget for UpgradeTarget {
         // ESS semantic enum member vs. its declared serialized wire label. No signature bytes change.
         proof["intent"]["format"] = json!("HumanDecision1");
         let mut supplied = BTreeMap::from([
+            (
+                "upgrade-statement".to_owned(),
+                node(json!(ekr_core::bytes::encode(fixture::STATEMENT)))?,
+            ),
             ("upgrade-preview".to_owned(), node(value(&preview)?)?),
             ("upgrade-proof".to_owned(), node(proof)?),
             ("target-version".to_owned(), node(value(&preview.to)?)?),
@@ -247,21 +251,30 @@ impl ConformanceTarget for UpgradeTarget {
             ),
         ]);
         if self.answers {
+            let scenario_name = scenario.scenario.to_string();
             supplied.extend(answer::prepare(
                 &runtime,
                 &human,
-                &scenario.scenario.to_string(),
+                if self.generated
+                    && scenario.scenario.to_string() == "ekr.kernel.AnswerAttention/outcome/refused"
+                {
+                    "changed-answer-basis-requires-review"
+                } else {
+                    &scenario_name
+                },
             )?);
+            let subject = runtime
+                .attention()
+                .map_err(|e| unavailable("reading fixture subject", e))?
+                .into_iter()
+                .next()
+                .ok_or_else(|| unavailable("reading fixture subject", "no dispute"))?
+                .subject;
+            supplied.insert("attention-subject".into(), node(value(subject)?)?);
         }
         if self.schema {
             schema::prepare(&runtime, &human, &directory)?;
         }
-        supplied.retain(|name, _| {
-            contract
-                .fields
-                .iter()
-                .any(|field| field.name.as_str() == name)
-        });
         let mut original_bytes = BTreeMap::new();
         for hash in [
             seeded.seed_hash,
@@ -289,7 +302,35 @@ impl ConformanceTarget for UpgradeTarget {
         });
         Ok(supplied)
     }
-    fn begin_scenario(&self, _: &ScenarioContext) -> Result<(), TargetError> {
+}
+impl ConformanceTarget for UpgradeTarget {
+    fn identity(&self) -> Result<ImplementationIdentity, TargetError> {
+        Ok(ImplementationIdentity::new(
+            format!(
+                "EKR native Runtime {:?}, no-op={}",
+                self.provider, self.no_op
+            ),
+            env!("CARGO_PKG_VERSION"),
+        ))
+    }
+    fn fixture_values(
+        &self,
+        scenario: &ScenarioContext,
+        contract: &ess_conformance::fixtures::Contract,
+    ) -> Result<BTreeMap<String, Node>, TargetError> {
+        let mut supplied = self.prepare(scenario)?;
+        supplied.retain(|name, _| {
+            contract
+                .fields
+                .iter()
+                .any(|field| field.name.as_str() == name)
+        });
+        Ok(supplied)
+    }
+    fn begin_scenario(&self, scenario: &ScenarioContext) -> Result<(), TargetError> {
+        if self.generated && self.state.borrow().is_none() {
+            self.prepare(scenario)?;
+        }
         drop(self.state()?);
         self.observed.borrow_mut().clear();
         Ok(())
@@ -311,9 +352,10 @@ impl ConformanceTarget for UpgradeTarget {
             return schema::execute(self, &request);
         }
         let actor = match command.as_str() {
-            "ekr.kernel.PreviewUpgrade" | "ekr.kernel.ListAttention" | "ekr.kernel.ListAnswers" => {
-                "ekr.kernel.KnowledgeReader"
-            }
+            "ekr.kernel.PreviewUpgrade"
+            | "ekr.kernel.ListAttention"
+            | "ekr.kernel.ListAnswers"
+            | "ekr.kernel.ShowAttention" => "ekr.kernel.KnowledgeReader",
             "ekr.kernel.ApplyUpgrade" | "ekr.kernel.AnswerAttention" => "ekr.kernel.HumanOperator",
             "ekr.kernel.Snapshot" => "ekr.kernel.Operator",
             _ => {
@@ -347,6 +389,9 @@ impl ConformanceTarget for UpgradeTarget {
         // and returns no state. Its reports are required to fail all named scenarios.
         let state = self.state()?;
         let runtime = self.open(&state)?;
+        let before = runtime
+            .published_events()
+            .map_err(|e| unavailable("reading command publication boundary", e))?;
         if self.no_op {
             result.consistency =
                 Some(consistency(&runtime.read(None).map_err(|e| {
@@ -365,9 +410,13 @@ impl ConformanceTarget for UpgradeTarget {
         };
         let (event, payload) = match command.as_str() {
             "ekr.kernel.PreviewUpgrade" => {
-                let preview = runtime
-                    .preview_upgrade(&state.human.policy)
-                    .map_err(|e| unavailable("previewing real upgrade", e))?;
+                let preview = match runtime.preview_upgrade(&state.human.policy) {
+                    Ok(preview) => preview,
+                    Err(error) => {
+                        unchanged(&runtime, &before)?;
+                        return upgrade_refusal(&command, error);
+                    }
+                };
                 if json_input(input("target")?)? != value(&preview.to)? {
                     return Err(TargetError::unsupported(
                         command,
@@ -406,11 +455,22 @@ impl ConformanceTarget for UpgradeTarget {
                 let before = runtime
                     .published_events()
                     .map_err(|e| unavailable("reading publication boundary", e))?;
-                let record = runtime
-                    .apply_upgrade(&preview, &state.human.policy, &proof, &statement, || {
-                        Timestamp::from_millis(1)
-                    })
-                    .map_err(|e| unavailable("applying real signed upgrade", e))?;
+                let record = match runtime.apply_upgrade(
+                    &preview,
+                    &state.human.policy,
+                    &proof,
+                    &statement,
+                    || Timestamp::from_millis(1),
+                ) {
+                    Ok(record) => record,
+                    Err(error) => {
+                        if self.append_on_refusal {
+                            append_refusal_mutant(&runtime)?;
+                        }
+                        unchanged(&runtime, &before)?;
+                        return upgrade_refusal(&command, error);
+                    }
+                };
                 // Observe an actual new durable event. A successful return cannot invent publication.
                 for event in runtime
                     .published_events()
@@ -446,10 +506,42 @@ impl ConformanceTarget for UpgradeTarget {
                 "ekr.kernel.ListAttentionResult",
                 json!({"items": runtime.attention().map_err(|e| unavailable("reading actual attention", e))?}),
             ),
-            "ekr.kernel.ListAnswers" => (
-                "ekr.kernel.ListAnswersResult",
-                json!({"answers": runtime.answer_history(None).map_err(|e| unavailable("reading retained answers", e))?}),
-            ),
+            "ekr.kernel.ShowAttention" => {
+                let subject = serde_json::from_value(json_input(input("subject")?)?)
+                    .map_err(|e| unavailable("decoding attention subject", e))?;
+                let item = match runtime.attention_item(&subject) {
+                    Ok(item) => item,
+                    Err(ekr_kernel::PersistenceError::Document(reason))
+                        if reason.starts_with("attention-") =>
+                    {
+                        unchanged(&runtime, &before)?;
+                        return refusal(&command, &reason);
+                    }
+                    Err(error) => return Err(unavailable("reading attention subject", error)),
+                };
+                ("ekr.kernel.ShowAttentionResult", json!({"item":item}))
+            }
+            "ekr.kernel.ListAnswers" => {
+                let dispute = request
+                    .input
+                    .get("dispute_id")
+                    .map(json_input)
+                    .transpose()?
+                    .filter(|v| !v.is_null())
+                    .map(|v| {
+                        let id = v.as_str().ok_or_else(|| {
+                            unavailable("decoding dispute filter", "expected UUID")
+                        })?;
+                        Ok(ekr_core::contracts::kernel::DisputeId(
+                            ekr_core::contracts::primitives::Uuid(id.into()),
+                        ))
+                    })
+                    .transpose()?;
+                (
+                    "ekr.kernel.ListAnswersResult",
+                    json!({"answers": runtime.answer_history(dispute.as_ref()).map_err(|e| unavailable("reading retained answers", e))?}),
+                )
+            }
             "ekr.kernel.Snapshot" => {
                 let at = request
                     .input
@@ -468,6 +560,9 @@ impl ConformanceTarget for UpgradeTarget {
             }
             _ => unreachable!(),
         };
+        if command != "ekr.kernel.ApplyUpgrade" {
+            unchanged(&runtime, &before)?;
+        }
         let observed = self.event(&request, event, payload)?;
         result.response = Some(observed.payload.clone());
         result.direct_events.push(observed);
@@ -545,6 +640,41 @@ impl ConformanceTarget for UpgradeTarget {
         &self,
         request: ExternalOutcomeControl,
     ) -> Result<(), TargetError> {
+        if self.generated && request.force.outcome.to_string() == "refused" {
+            match request.force.command.to_string().as_str() {
+                "ekr.kernel.PreviewUpgrade" => {
+                    // The independently pinned host rejects a policy from another tenant.
+                    self.state
+                        .borrow_mut()
+                        .as_mut()
+                        .unwrap()
+                        .human
+                        .policy
+                        .audience
+                        .tenant = "different-fixture-tenant".into();
+                    return Ok(());
+                }
+                "ekr.kernel.ApplyUpgrade" => {
+                    let state = self.state()?;
+                    return answer::advance(&self.open(&state)?, false);
+                }
+                "ekr.kernel.ShowAttention" => {
+                    let state = self.state()?;
+                    let runtime = self.open(&state)?;
+                    let mut input = answer::signed(&runtime, &state.human, 803)?;
+                    input["human_proof"]["intent"]["format"] = json!("ekr.human-decision/1");
+                    let input = serde_json::from_value(input)
+                        .map_err(|e| unavailable("decoding resolution fixture", e))?;
+                    let input = human_review::answer_from_document(&input)
+                        .map_err(|e| unavailable("reading resolution fixture", e.reason))?;
+                    runtime
+                        .answer_attention(&input, || Timestamp::from_millis(5))
+                        .map_err(|e| unavailable("resolving fixture dispute", e))?;
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
         // The answer fixture already committed new evidence after the supplied human review.
         // Acknowledge that precondition only; never save the requested outcome or use it to
         // choose the command result. The ordinary runtime must produce the refusal itself.
@@ -589,6 +719,120 @@ impl ConformanceTarget for UpgradeTarget {
             }
         }
         Ok(())
+    }
+}
+
+fn unchanged(runtime: &Runtime, before: &[PublishedEvent]) -> Result<(), TargetError> {
+    if runtime
+        .published_events()
+        .map_err(|e| unavailable("reading completed publication boundary", e))?
+        != before
+    {
+        return Err(unavailable(
+            "checking nonmutating command",
+            "publication changed",
+        ));
+    }
+    Ok(())
+}
+
+fn append_refusal_mutant(runtime: &Runtime) -> Result<(), TargetError> {
+    let read = runtime
+        .read(None)
+        .map_err(|e| unavailable("preparing refusal mutant", e))?;
+    let transaction: ekr_kernel::GraphTransaction = ekr_kernel::GraphTransaction {
+        id: fixture::id(901),
+        proposer: fixture::context().operator,
+        operations: vec![ekr_kernel::GraphOperation::CreateNode(
+            ekr_kernel::NodeDraft {
+                id: fixture::id(211),
+                root_id: read.graph.root.id,
+                type_id: fixture::id(100),
+                canonical_name: "Refusal mutant".into(),
+                properties: Default::default(),
+                aliases: vec![],
+            },
+        )],
+        evidence: Default::default(),
+        schema_version: None,
+    };
+    #[derive(serde::Serialize)]
+    struct Document<'a> {
+        format: &'static str,
+        transaction: &'a ekr_kernel::GraphTransaction,
+    }
+    let document = serde_yaml_ng::to_string(&Document {
+        format: "ekr.transaction-document/1",
+        transaction: &transaction,
+    })
+    .map_err(|e| unavailable("encoding refusal mutant", e))?;
+    runtime
+        .propose(document.as_bytes(), fixture::context().operator, || {
+            Timestamp::from_millis(7)
+        })
+        .map_err(|e| unavailable("publishing refusal mutant", e))?;
+    Ok(())
+}
+
+#[test]
+fn a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance() {
+    use ess_conformance::coverage::AdmittedInput;
+    use ess_conformance::{AdmittedSuite, Runner};
+    let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .to_path_buf();
+    let full = AdmittedInput::from_suite(
+        AdmittedSuite::from_json(
+            &std::fs::read_to_string(root.join("systems/ekr/conformance/suite.json")).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let selected = full
+        .select(&["ekr.kernel.ApplyUpgrade/outcome/refused".parse().unwrap()])
+        .unwrap();
+    for provider in [Provider::File, Provider::Sqlite] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut target = UpgradeTarget::generated(provider, directory.path(), false);
+        target.append_on_refusal = true;
+        let run = Runner::for_suite(selected.selected().suite())
+            .run_admitted(selected.selected(), &target);
+        let scenario = &run.scenarios[0];
+        assert_ne!(scenario.status, ess_conformance::report::Status::Passed);
+        assert!(
+            scenario
+                .diagnostics()
+                .any(|diagnostic| diagnostic.to_string().contains("publication changed")),
+            "{scenario:?}"
+        );
+    }
+}
+fn refusal(command: &str, reason: &str) -> Result<SemanticCommandResult, TargetError> {
+    let mut result = SemanticCommandResult::undeclared();
+    result.outcome = Some(
+        serde_json::from_value(json!({"command":command,"outcome":"refused"}))
+            .map_err(|e| unavailable("naming refusal", e))?,
+    );
+    result.error = Some(
+        DeclaredErrorValue::new("ekr.kernel.KnowledgeRefused".parse().unwrap())
+            .with("code", Node::Text(reason.split(':').next().unwrap().into()))
+            .with("reason", Node::Text(reason.into())),
+    );
+    Ok(result)
+}
+fn upgrade_refusal(
+    command: &str,
+    error: ekr_kernel::CommitError,
+) -> Result<SemanticCommandResult, TargetError> {
+    match error {
+        ekr_kernel::CommitError::Store(ekr_kernel::PersistenceError::Document(reason))
+            if reason.contains("authority-upgrade:") || reason.contains("upgrade-preview-") =>
+        {
+            refusal(command, &reason)
+        }
+        other => Err(unavailable("executing upgrade", other)),
     }
 }
 

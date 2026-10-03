@@ -5,7 +5,11 @@ use ekr_kernel::{CommitCommandResult, GraphOperation, GraphTransaction, Validati
 const STATEMENT: &[u8] = b"reviewed fixture answer";
 const REASON: &str = "human reviewed the retained source evidence";
 
-fn signed(runtime: &Runtime, human: &fixture::Human, decision: u64) -> Result<Value, TargetError> {
+pub(super) fn signed(
+    runtime: &Runtime,
+    human: &fixture::Human,
+    decision: u64,
+) -> Result<Value, TargetError> {
     let item = runtime
         .attention()
         .map_err(|e| unavailable("reading review basis", e))?
@@ -74,7 +78,7 @@ pub(super) fn prepare(
     Ok(supplied)
 }
 
-fn advance(runtime: &Runtime, changed: bool) -> Result<(), TargetError> {
+pub(super) fn advance(runtime: &Runtime, changed: bool) -> Result<(), TargetError> {
     let read = runtime
         .read(None)
         .map_err(|e| unavailable("reading intervening basis", e))?;

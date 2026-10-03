@@ -26,7 +26,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 17
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T14:55:25Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-10-03T14:55:26Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -87,3 +87,15 @@ The authored ESS scenario schema-change-exposes-supporting-evidence executes rea
 The independent bounded source/log review is review-result:schema-evidence-conformance-independent-r4 and finds no actionable defects. This is not an independent execution. Fresh generated contracts, complete suite regeneration, the views inventory, the complete knowledge target and touched-target clippy passed; the full integrated task check remains pending.
 
 The first uncommitted evidence imports captured local absolute report paths despite an explicit reference. Those unpublished records are preserved in private raw scratch, and the CLI imports were recreated using committed relative report/input paths. No committed record or historical transition was rewritten. The story remains active until the integrated gate and delivery requirements pass.
+
+## Integrated gate checkpoint
+
+D source is integrated locally at fe9efea8a; its authored schema evidence scenario and actual citation-removal mutation have passed on both native providers. Full-gate attempts then exposed mutation-control classification, tmpfs inode staging, and missing generated knowledge-command adapters. These are corrected without lowering any floor.
+
+The final focused correction run records 35 Rust tests passed, zero failures. Kernel report/2 records cover the complete component inventory; fresh contracts/specification/suites and warnings-denied CLI clippy pass.
+
+Independent review also found a write-before-refusal observation gap. A real appended-proposal probe reproduced it, removing only the guard made that probe fail, and the corrected adapter checks publication boundaries. Reviews r5/r6/r7 and disposition evidence are retained.
+
+The full gate remains red: the integration suite reports unsupported retained-knowledge routes and unfinished E/F schema-proposal operations. This is pending implementation, not an upstream or operator blocker. D remains active until the integrated acceptance gate passes. Continue E/F under the existing sole-carrier authorization; do not close unrelated planning work or undraft PR64 yet.
+
+Reports, mutation logs, first red gate attempts and final checks are in .engineering/reviews/knowledge-integrated-conformance/.

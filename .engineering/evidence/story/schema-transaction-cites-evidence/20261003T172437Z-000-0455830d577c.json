@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-03T17:24:37Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:schema-transaction-cites-evidence",
+  "kind": "story",
+  "revision": 17,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:integrated-conformance-refusal-independent-r6",
+    "reference": ".engineering/reviews/knowledge-integrated-conformance/refusal-publication-guard-red.log",
+    "review": "review-result:integrated-conformance-refusal-independent-r6",
+    "outcome": "fixed"
+  }
+}

@@ -1,0 +1,1310 @@
+   Compiling ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 4.25s
+     Running tests/adversary_p1_14_conformance.rs (<build>/target/debug/deps/adversary_p1_14_conformance-67f969c122cceebc)
+
+running 7 tests
+test a_retained_seed_retry_writes_nothing_to_the_provider_log ... ok
+test a_real_propose_publishes_exactly_the_store_events_the_suite_expects ... ok
+test a_retained_seed_retry_with_a_resampled_time_fails_retained_seed ... ok
+test dropping_the_optional_transaction_fields_fails_a_scenario ... ok
+test proposal_responses_carry_the_exact_document_bytes ... ok
+test a_snapshot_reporting_the_wrong_revision_fails_the_authored_snapshot_scenarios ... ok
+test dropping_the_propose_and_validate_responses_is_not_yet_observable_by_the_suite ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.19s
+
+     Running tests/adversary_p1_14_conformance_r2.rs (<build>/target/debug/deps/adversary_p1_14_conformance_r2-dce57db48e92578a)
+
+running 3 tests
+test a_snapshot_that_ignores_at_fails_the_past_revision_scenario ... ok
+test forged_store_event_payloads_fail_a_scenario ... ok
+test a_transactions_row_with_the_wrong_canonical_and_basis_hashes_is_not_yet_observable ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.76s
+
+     Running tests/adversary_sdk01_h_replaced_store.rs (<build>/target/debug/deps/adversary_sdk01_h_replaced_store-aea6ae206bcfb2a8)
+
+running 3 tests
+test adversary_h_closing_the_replaced_sqlite_store_leaves_the_wal_at_the_path_alone ... ok
+test adversary_h_a_session_follows_a_replacement_once_another_process_committed_its_proposal ... ok
+test adversary_h_mcp_answers_from_a_file_store_replaced_under_the_same_inode_without_a_restart ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.14s
+
+     Running tests/adversary_tests_under_load.rs (<build>/target/debug/deps/adversary_tests_under_load-6db8468b11338d2d)
+
+running 1 test
+freed inode handed back in 10 of 10 stagings under <cache>/ekr-knowledge-prereq-20261003/schema-evidence/native-test-tmp
+test the_replaced_store_variant_that_can_skip_is_staged_at_least_once_in_ten ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (<build>/target/debug/deps/conformance-e05118f9d6a767b7)
+
+running 9 tests
+test the_fixture_manifest_names_only_admitted_scenarios ... ok
+test every_ess_pin_site_names_one_release ... ok
+test complete_kernel_target::upgrade_target::consistency_requires_the_same_verified_revision_record ... ok
+test spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release ... ok
+72 admitted scenarios: {
+    "ekr.kernel.AnswerAttention/outcome/answered",
+    "ekr.kernel.AnswerAttention/outcome/refused",
+    "ekr.kernel.ApplyUpgrade/outcome/answered",
+    "ekr.kernel.ApplyUpgrade/outcome/refused",
+    "ekr.kernel.Commit/outcome/committed",
+    "ekr.kernel.Commit/outcome/retained-commit",
+    "ekr.kernel.Commit/outcome/stale",
+    "ekr.kernel.Commit/outcome/transaction-not-found",
+    "ekr.kernel.Commit/outcome/wrong-state",
+    "ekr.kernel.Explain/outcome/explained",
+    "ekr.kernel.Explain/outcome/not-found",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated",
+    "ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit",
+    "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit",
+    "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit",
+    "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed",
+    "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected",
+    "ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale",
+    "ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated",
+    "ekr.kernel.ListAnswers/outcome/answered",
+    "ekr.kernel.ListAttention/outcome/answered",
+    "ekr.kernel.PreviewUpgrade/outcome/answered",
+    "ekr.kernel.PreviewUpgrade/outcome/refused",
+    "ekr.kernel.Propose/outcome/malformed",
+    "ekr.kernel.Propose/outcome/misattributed",
+    "ekr.kernel.Propose/outcome/proposed",
+    "ekr.kernel.Seed/outcome/already-seeded",
+    "ekr.kernel.Seed/outcome/invalid-seed",
+    "ekr.kernel.Seed/outcome/retained-seed",
+    "ekr.kernel.Seed/outcome/seeded",
+    "ekr.kernel.ShowAttention/outcome/answered",
+    "ekr.kernel.ShowAttention/outcome/refused",
+    "ekr.kernel.Snapshot/outcome/not-found",
+    "ekr.kernel.Snapshot/outcome/taken",
+    "ekr.kernel.Validate/outcome/rejected",
+    "ekr.kernel.Validate/outcome/revision-not-found",
+    "ekr.kernel.Validate/outcome/transaction-not-found",
+    "ekr.kernel.Validate/outcome/validated",
+    "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+    "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
+    "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
+    "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
+    "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name",
+    "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name",
+    "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name",
+    "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
+    "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name",
+    "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+    "ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit",
+    "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
+    "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
+    "ekr.kernel/authored/evidence-already-attached-is-rejected-by-name",
+    "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name",
+    "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
+    "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision",
+    "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
+    "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest",
+}
+test the_committed_suite_is_the_complete_inventory_the_baseline_counts ... ok
+test complete_kernel_target::upgrade_target::a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance ... ok
+sqlite provider: selected 72 total 72 passed 72 failed 0 error 0 unsupported 0 skipped 0 execution Passed conformance Passed report <build>/target/ekr-conformance/sqlite/report.json
+  passed ekr.kernel.AnswerAttention/outcome/answered
+  passed ekr.kernel.AnswerAttention/outcome/refused
+  passed ekr.kernel.ApplyUpgrade/outcome/answered
+  passed ekr.kernel.ApplyUpgrade/outcome/refused
+  passed ekr.kernel.Commit/outcome/committed
+  passed ekr.kernel.Commit/outcome/retained-commit
+  passed ekr.kernel.Commit/outcome/stale
+  passed ekr.kernel.Commit/outcome/transaction-not-found
+  passed ekr.kernel.Commit/outcome/wrong-state
+  passed ekr.kernel.Explain/outcome/explained
+  passed ekr.kernel.Explain/outcome/not-found
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated
+  passed ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated
+  passed ekr.kernel.ListAnswers/outcome/answered
+  passed ekr.kernel.ListAttention/outcome/answered
+  passed ekr.kernel.PreviewUpgrade/outcome/answered
+  passed ekr.kernel.PreviewUpgrade/outcome/refused
+  passed ekr.kernel.Propose/outcome/malformed
+  passed ekr.kernel.Propose/outcome/misattributed
+  passed ekr.kernel.Propose/outcome/proposed
+  passed ekr.kernel.Seed/outcome/already-seeded
+  passed ekr.kernel.Seed/outcome/invalid-seed
+  passed ekr.kernel.Seed/outcome/retained-seed
+  passed ekr.kernel.Seed/outcome/seeded
+  passed ekr.kernel.ShowAttention/outcome/answered
+  passed ekr.kernel.ShowAttention/outcome/refused
+  passed ekr.kernel.Snapshot/outcome/not-found
+  passed ekr.kernel.Snapshot/outcome/taken
+  passed ekr.kernel.Validate/outcome/rejected
+  passed ekr.kernel.Validate/outcome/revision-not-found
+  passed ekr.kernel.Validate/outcome/transaction-not-found
+  passed ekr.kernel.Validate/outcome/validated
+  passed ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names
+  passed ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits
+  passed ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record
+  passed ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+  passed ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name
+  passed ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+  passed ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit
+  passed ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+  passed ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits
+  passed ekr.kernel/authored/evidence-already-attached-is-rejected-by-name
+  passed ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name
+  passed ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name
+  passed ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision
+  passed ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision
+  passed ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest
+test the_sqlite_provider_passes_every_admitted_kernel_scenario ... ok
+file provider: selected 72 total 72 passed 72 failed 0 error 0 unsupported 0 skipped 0 execution Passed conformance Passed report <build>/target/ekr-conformance/file/report.json
+  passed ekr.kernel.AnswerAttention/outcome/answered
+  passed ekr.kernel.AnswerAttention/outcome/refused
+  passed ekr.kernel.ApplyUpgrade/outcome/answered
+  passed ekr.kernel.ApplyUpgrade/outcome/refused
+  passed ekr.kernel.Commit/outcome/committed
+  passed ekr.kernel.Commit/outcome/retained-commit
+  passed ekr.kernel.Commit/outcome/stale
+  passed ekr.kernel.Commit/outcome/transaction-not-found
+  passed ekr.kernel.Commit/outcome/wrong-state
+  passed ekr.kernel.Explain/outcome/explained
+  passed ekr.kernel.Explain/outcome/not-found
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated
+  passed ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated
+  passed ekr.kernel.ListAnswers/outcome/answered
+  passed ekr.kernel.ListAttention/outcome/answered
+  passed ekr.kernel.PreviewUpgrade/outcome/answered
+  passed ekr.kernel.PreviewUpgrade/outcome/refused
+  passed ekr.kernel.Propose/outcome/malformed
+  passed ekr.kernel.Propose/outcome/misattributed
+  passed ekr.kernel.Propose/outcome/proposed
+  passed ekr.kernel.Seed/outcome/already-seeded
+  passed ekr.kernel.Seed/outcome/invalid-seed
+  passed ekr.kernel.Seed/outcome/retained-seed
+  passed ekr.kernel.Seed/outcome/seeded
+  passed ekr.kernel.ShowAttention/outcome/answered
+  passed ekr.kernel.ShowAttention/outcome/refused
+  passed ekr.kernel.Snapshot/outcome/not-found
+  passed ekr.kernel.Snapshot/outcome/taken
+  passed ekr.kernel.Validate/outcome/rejected
+  passed ekr.kernel.Validate/outcome/revision-not-found
+  passed ekr.kernel.Validate/outcome/transaction-not-found
+  passed ekr.kernel.Validate/outcome/validated
+  passed ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names
+  passed ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits
+  passed ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record
+  passed ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+  passed ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name
+  passed ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+  passed ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit
+  passed ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+  passed ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits
+  passed ekr.kernel/authored/evidence-already-attached-is-rejected-by-name
+  passed ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name
+  passed ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name
+  passed ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision
+  passed ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision
+  passed ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest
+test the_file_provider_passes_every_admitted_kernel_scenario ... ok
+test each_injected_kernel_defect_fails_exactly_its_named_scenarios ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.11s
+
+     Running tests/conformance_knowledge.rs (<build>/target/debug/deps/conformance_knowledge-108d0b472817d569)
+
+running 12 tests
+test event_projection_preserves_large_integer_values ... ok
+test upgrade_target::consistency_requires_the_same_verified_revision_record ... ok
+test retention_scenarios_keep_their_positive_read_assertions ... ok
+test upgrade_target::a_real_publication_followed_by_upgrade_refusal_cannot_pass_conformance ... ok
+File discard=false: {
+  "completed_at": 1791048069652,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 3,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+          "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+          "ekr.observe/authored/observation-retry-is-idempotent"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f2bfcd2c3c4b2d5045a65bcc1618071591ebcab245e127efcb73c283cefe6e3f",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr knowledge CLI (File; discard=false) 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:19b805c282e17c8020c06737993d535b86b6c716752a5e38d8f93999651a54ff",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+File discard=true: {
+  "completed_at": 1791048069666,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 3,
+    "passed": 0,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+          "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+          "ekr.observe/authored/observation-retry-is-idempotent"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f2bfcd2c3c4b2d5045a65bcc1618071591ebcab245e127efcb73c283cefe6e3f",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr knowledge CLI (File; discard=true) 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:19b805c282e17c8020c06737993d535b86b6c716752a5e38d8f93999651a54ff",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite discard=false: {
+  "completed_at": 1791048069698,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 3,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+          "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+          "ekr.observe/authored/observation-retry-is-idempotent"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f2bfcd2c3c4b2d5045a65bcc1618071591ebcab245e127efcb73c283cefe6e3f",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr knowledge CLI (Sqlite; discard=false) 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:19b805c282e17c8020c06737993d535b86b6c716752a5e38d8f93999651a54ff",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite discard=true: {
+  "completed_at": 1791048069706,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 3,
+    "passed": 0,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+          "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+          "ekr.observe/authored/observation-retry-is-idempotent"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f2bfcd2c3c4b2d5045a65bcc1618071591ebcab245e127efcb73c283cefe6e3f",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr knowledge CLI (Sqlite; discard=true) 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "ekr.observe/authored/observation-retry-is-idempotent"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:19b805c282e17c8020c06737993d535b86b6c716752a5e38d8f93999651a54ff",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test supplied_knowledge_conforms_after_reopen_and_full_replay ... ok
+test every_retention_scenario_detects_discarded_state ... ok
+File schema no-op=true: {
+  "completed_at": 1791048069658,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 0,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:84df676c97cdd22d611f7aa3a92a0a993d7a6117e3290cb26e316ffa019c0dca",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:3a02b33ef4c481f5d54e9c6bf88166b92b24891ed4a1fb115a4f2cb51041e4cc",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+File schema no-op=false: {
+  "completed_at": 1791048069579,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 1,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:84df676c97cdd22d611f7aa3a92a0a993d7a6117e3290cb26e316ffa019c0dca",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:3a02b33ef4c481f5d54e9c6bf88166b92b24891ed4a1fb115a4f2cb51041e4cc",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite schema no-op=true: {
+  "completed_at": 1791048069810,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 0,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:84df676c97cdd22d611f7aa3a92a0a993d7a6117e3290cb26e316ffa019c0dca",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:3a02b33ef4c481f5d54e9c6bf88166b92b24891ed4a1fb115a4f2cb51041e4cc",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test schema_evidence_scenario_detects_an_inert_target ... ok
+File upgrade no-op=true: {
+  "completed_at": 1791048069690,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 3,
+    "passed": 0,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+          "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+          "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:ce5010c4c3b343c70a6ba57c014a40e7044e55e23cc2cf61a297bb80f112d2f4",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:1c53f28fd734ea962e1bab4e233d040ad45e3cb3a2aab3d6e0b8279d4b380884",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite schema no-op=false: {
+  "completed_at": 1791048069822,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 1,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:84df676c97cdd22d611f7aa3a92a0a993d7a6117e3290cb26e316ffa019c0dca",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:3a02b33ef4c481f5d54e9c6bf88166b92b24891ed4a1fb115a4f2cb51041e4cc",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test schema_change_exposes_supporting_evidence ... ok
+File answers no-op=true: {
+  "completed_at": 1791048069624,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 2,
+    "passed": 0,
+    "skipped": 0,
+    "total": 2,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 2,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/changed-answer-basis-requires-review",
+          "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:1e1edfa0e91aeb784b1614077b15694eb25722bcf4f50c111248c86b71e3217c",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:a1cbf82fc6fecdb0e301822444dcacca4d8209c347639c8b6a27bc06dcc3176b",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+File upgrade no-op=false: {
+  "completed_at": 1791048069701,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 3,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+          "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+          "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:ce5010c4c3b343c70a6ba57c014a40e7044e55e23cc2cf61a297bb80f112d2f4",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:1c53f28fd734ea962e1bab4e233d040ad45e3cb3a2aab3d6e0b8279d4b380884",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite upgrade no-op=true: {
+  "completed_at": 1791048070004,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 3,
+    "passed": 0,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+          "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+          "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:ce5010c4c3b343c70a6ba57c014a40e7044e55e23cc2cf61a297bb80f112d2f4",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:1c53f28fd734ea962e1bab4e233d040ad45e3cb3a2aab3d6e0b8279d4b380884",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+File answers no-op=false: {
+  "completed_at": 1791048069616,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 2,
+    "skipped": 0,
+    "total": 2,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 2,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/changed-answer-basis-requires-review",
+          "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:1e1edfa0e91aeb784b1614077b15694eb25722bcf4f50c111248c86b71e3217c",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:a1cbf82fc6fecdb0e301822444dcacca4d8209c347639c8b6a27bc06dcc3176b",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test every_upgrade_scenario_detects_an_inert_target ... ok
+Sqlite answers no-op=true: {
+  "completed_at": 1791048070107,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 2,
+    "passed": 0,
+    "skipped": 0,
+    "total": 2,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 2,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/changed-answer-basis-requires-review",
+          "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:1e1edfa0e91aeb784b1614077b15694eb25722bcf4f50c111248c86b71e3217c",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:a1cbf82fc6fecdb0e301822444dcacca4d8209c347639c8b6a27bc06dcc3176b",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test every_answer_scenario_detects_an_inert_target ... ok
+Sqlite upgrade no-op=false: {
+  "completed_at": 1791048070166,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 3,
+    "skipped": 0,
+    "total": 3,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 3,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+          "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+          "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:ce5010c4c3b343c70a6ba57c014a40e7044e55e23cc2cf61a297bb80f112d2f4",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:1c53f28fd734ea962e1bab4e233d040ad45e3cb3a2aab3d6e0b8279d4b380884",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test disputes_and_upgrades_conform_after_reopen_and_full_replay ... ok
+Sqlite answers no-op=false: {
+  "completed_at": 1791048070311,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 2,
+    "skipped": 0,
+    "total": 2,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 2,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/changed-answer-basis-requires-review",
+          "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:1e1edfa0e91aeb784b1614077b15694eb25722bcf4f50c111248c86b71e3217c",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:a1cbf82fc6fecdb0e301822444dcacca4d8209c347639c8b6a27bc06dcc3176b",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test human_answers_conform_after_reopen_and_full_replay ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+

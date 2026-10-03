@@ -10,8 +10,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use ekr::conformance::{KernelTarget, Provider};
+use ekr::conformance::Provider;
+#[path = "support/complete_kernel_target.rs"]
+mod complete_kernel_target;
+use complete_kernel_target::CompleteKernelTarget as KernelTarget;
 use ess_conformance::report::Status;
+use ess_conformance::runner::{AdvancingClock, Ids, RunnerConfig};
 use ess_conformance::target::{
     ConformanceTarget, EventObservationRequest, ExternalOutcomeControl, ImplementationIdentity,
     ObservedEvent, RedeliveryRequest, ScenarioContext, SemanticCommandRequest,
@@ -94,7 +98,20 @@ fn evidence_directory(provider: Provider) -> PathBuf {
 
 /// One complete admitted run through a fresh target over `provider`.
 fn execute<T: ConformanceTarget>(admitted: &AdmittedSuite, target: &T) -> ExecutedRun {
-    Runner::for_suite(admitted.suite()).run_admitted(admitted, target)
+    // Dates evidence only; fixture clocks and assertions remain deterministic.
+    let started = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap();
+    Runner::new(
+        RunnerConfig::default(),
+        AdvancingClock::new(started, 1),
+        Ids::for_suite(admitted.suite()),
+    )
+    .run_admitted(admitted, target)
 }
 
 fn kernel_target(provider: Provider, work: &Path) -> KernelTarget {
@@ -209,7 +226,7 @@ fn the_committed_suite_is_the_complete_inventory_the_baseline_counts() {
     );
     assert_eq!(
         suite.provenance.suite_version.to_string(),
-        "ess-conformance/13"
+        "ess-conformance/19"
     );
     let coverage = admitted.coverage().expect("declared coverage inventory");
     assert!(coverage.is_complete(), "coverage inventory is incomplete");
@@ -470,6 +487,13 @@ struct Defective<'a> {
 }
 
 impl ConformanceTarget for Defective<'_> {
+    fn fixture_values(
+        &self,
+        scenario: &ScenarioContext,
+        contract: &ess_conformance::fixtures::Contract,
+    ) -> Result<BTreeMap<String, Node>, TargetError> {
+        self.inner.fixture_values(scenario, contract)
+    }
     fn identity(&self) -> Result<ImplementationIdentity, TargetError> {
         self.inner.identity()
     }

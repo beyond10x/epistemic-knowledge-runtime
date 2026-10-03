@@ -2,36 +2,33 @@
 format: aep.planning-md/3
 id: executable-system-specification:ekr-v1
 kind: executable-system-specification
-status: conforming
+status: validated
 title: systems/ekr — the runtime's executable system specification, v1
 relations:
 - specifies: epic:p1-kernel-ontology-core
-revision: 3
+model_digest: 9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345
+revision: 6
 transitions:
 - {from: "draft", to: "validated", at: "2026-09-21T01:59:07Z", actor: "agent:claude", revision: 2, imported: true}
 - {from: "validated", to: "conforming", at: "2026-09-23T20:38:55Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 3, decided_on: {"recorded":{"ess_conformance":1}}, imported: true}
+- {from: "conforming", to: "validated", at: "2026-10-03T17:26:54Z", actor: "agent:codex-ekr-knowledge", revision: 4, decided_on: {"recorded":{"ess_conformance":0}}}
 ---
-## What this is
+## Current contract
 
-The runtime's own executable system specification, `systems/ekr/`, format `ess/1`: four domains
-(`ekr.kernel`, `ekr.ontology`, `ekr.graph`, `ekr.store`) and the components that own them.
-Written before the crates, so the Rust implements the document.
+systems/ekr is the runtime contract, maintained with the verified ESS 0.52.0 generator. It now includes observation retention, incubation, authority transitions, attention, human decisions and schema proposals alongside the original canonical kernel domains. Generated artifacts and all committed suites are held by regeneration checks.
 
-## Validation
+## Current validation and conformance
 
-`ess specify validate --path systems/ekr` → `ekr v1 — 6 file(s), valid`, exit 0, on 2026-09-21
-with ESS 0.26.0.
+Current compiled specification digest: 9b1977c0ec3cbd55738865efb90771a8bac2f9b36ef8a6034c666be950b34345.
 
-## Commands it obliges
+Fresh contract generation/comparison/compilation, specification validation and suite regeneration pass; retained logs are in .engineering/reviews/knowledge-integrated-conformance/.
 
-`ekr.kernel.Seed`, `Propose`, `Validate`, `Commit`, `Snapshot`, `Explain`, with the
-`GraphTransaction` ladder `Proposed → Validated | Rejected`, `Validated → Committed | Stale`.
+The complete kernel component inventory passes on file and SQLite; the imported reports preserve exact counts and suite bytes. Authored knowledge cases exercise retention, disputes, human answers, upgrades and schema evidence with reopen and full replay. The integration component still contains unsupported scenarios and E/F are unfinished. The specification is therefore validated, not globally conforming; the full delivery gate remains open.
 
-## Open markers
+## Historical record
 
-Two `UNMAPPED:` markers in `domains/ontology.yaml`: `EdgeCardinality` beyond One/Many, and the
-`Constraint` language of design § 11.2. Both wait on a design decision, not on code.
+The imported 2026-09-21 validation used ESS 0.26.0 and the original four-domain specification. The imported 2026-09-23 conforming transition was based on the kernel evidence available then. Those transitions and their evidence remain unchanged; they do not establish conformance of the expanded current model.
 
-## Conformance
+## Preserved decisions
 
-Moves to `conforming` on the report `story:ess-conformance-kernel` records.
+General constraint-language and broader migration decisions remain outside this delivery. Named acceptance scenarios and source digests belong to the release plan and individual AEP stories; specification validation alone does not close them.
