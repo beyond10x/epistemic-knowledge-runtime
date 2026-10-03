@@ -568,8 +568,11 @@ the retained proposal and approval responses. The current implementation support
 backed by existing canonical evidence; proposals containing source observations, interpretation
 selections, mappings or corrections still refuse. Schema changes use ordinary validated transactions
 and cite the proposal's evidence and the approved human statement. A completed retry returns its
-original application and schema transaction without another canonical revision. Read-only sessions
-refuse application. The typed SDK equivalent is `Knowledge::apply_schema_proposal`.
+original application and schema transaction without another canonical revision. Interrupted
+validation resumes its original basis; unrelated advancement may require a new transaction attempt,
+which preserves the approved additions and their allocated identities. A committed schema recovers
+a missing final receipt without another commit. Read-only sessions refuse application. The typed
+SDK equivalent is `Knowledge::apply_schema_proposal`.
 
 Retained proposals whose latest decision is not a rejection appear in `attention list`.
 Rejected proposals remain inspectable through `schema-proposal show` and their viewer page.

@@ -491,3 +491,308 @@ fn schema_application_requires_current_exact_human_approval_before_publication()
         assert_eq!(store.published_events().unwrap(), events);
     }
 }
+
+#[test]
+fn schema_application_recovers_stale_attempts_and_a_missing_completion_receipt() {
+    use ekr_store::ApplicationRetention;
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source");
+        let (store, human) = upgraded(&source, sqlite);
+        let (shown, approval) = approved_schema(&store, &human);
+        drop(store);
+        let snapshots: Vec<_> = (0..5)
+            .map(|i| directory.path().join(format!("prefix-{i}")))
+            .collect();
+        for path in &snapshots {
+            copy_closed_provider(&source, path);
+        }
+        let store = runtime(&source, sqlite)
+            .with_review_authority(human.binding.clone())
+            .unwrap();
+        store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approval.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(4),
+            )
+            .unwrap();
+        let (_, complete) = captured_application_history(&source, sqlite, &human);
+        let election = complete.applications.elections()[0].clone();
+        let step = complete.applications.steps()[0].clone();
+        let attempt = complete.applications.attempts()[0].clone();
+        let original_id: TransactionId = attempt.transaction_id.0.parse().unwrap();
+        let document = store.transactions().unwrap()[&original_id]
+            .proposal
+            .document_bytes
+            .clone();
+        for (boundary, path) in snapshots.iter().enumerate() {
+            let (authority, _) = captured_application_history(path, sqlite, &human);
+            let retained: Box<dyn ApplicationRetention> = if sqlite {
+                Box::new(
+                    ekr_store::SqliteStore::sqlite(path, "upgrade-fixture", None)
+                        .unwrap()
+                        .under(authority),
+                )
+            } else {
+                Box::new(
+                    ekr_store::FileStore::file(path, "upgrade-fixture", None)
+                        .unwrap()
+                        .under(authority),
+                )
+            };
+            retained
+                .elect_application(
+                    &w::EkrStoreApplicationElectionRetention {
+                        election: election.clone(),
+                        objects: w::EkrStoreApplicationElectionRetentionObjects {
+                            ess_extra: Default::default(),
+                        },
+                    },
+                    Timestamp::from_millis(4),
+                )
+                .unwrap();
+            retained
+                .elect_application_step(
+                    &w::EkrStoreApplicationStepRetention {
+                        step: step.clone(),
+                        objects: w::EkrStoreApplicationStepRetentionObjects {
+                            ess_extra: Default::default(),
+                        },
+                    },
+                    Timestamp::from_millis(4),
+                )
+                .unwrap();
+            retained
+                .elect_application_attempt(
+                    &w::EkrStoreApplicationAttemptRetention {
+                        attempt: attempt.clone(),
+                    },
+                    Timestamp::from_millis(4),
+                )
+                .unwrap();
+            drop(retained);
+            let store = runtime(path, sqlite)
+                .with_review_authority(human.binding.clone())
+                .unwrap();
+            store
+                .propose(&document, context().operator, || Timestamp::from_millis(5))
+                .unwrap();
+            let revision = store.read(None).unwrap().root.revision;
+            let store = if boundary >= 3 {
+                leave_validation_prepared(
+                    store,
+                    path,
+                    &directory
+                        .path()
+                        .join(format!("validation-probe-{boundary}")),
+                    sqlite,
+                    &human,
+                    original_id,
+                    revision,
+                )
+            } else {
+                assert!(matches!(
+                    store
+                        .validate(original_id, revision, || Timestamp::from_millis(5))
+                        .unwrap(),
+                    ValidationCommandResult::Validated(_)
+                ));
+                store
+            };
+            if boundary < 2 || boundary == 3 {
+                let (other, document) = proposal(&store.read(None).unwrap().seed_input);
+                store
+                    .propose(&document, context().operator, || Timestamp::from_millis(6))
+                    .unwrap();
+                assert!(matches!(
+                    store
+                        .validate(other, revision, || Timestamp::from_millis(6))
+                        .unwrap(),
+                    ValidationCommandResult::Validated(_)
+                ));
+                assert!(matches!(
+                    store
+                        .commit(other, context().operator, || Timestamp::from_millis(6))
+                        .unwrap(),
+                    CommitCommandResult::Committed(_)
+                ));
+            }
+            if boundary == 1 {
+                assert!(matches!(
+                    store
+                        .commit(original_id, context().operator, || Timestamp::from_millis(
+                            7
+                        ))
+                        .unwrap(),
+                    CommitCommandResult::Stale(_)
+                ));
+            } else if boundary == 2 {
+                assert!(matches!(
+                    store
+                        .commit(original_id, context().operator, || Timestamp::from_millis(
+                            7
+                        ))
+                        .unwrap(),
+                    CommitCommandResult::Committed(_)
+                ));
+            }
+            let before = store.read(None).unwrap().root;
+            drop(store);
+            let mut reopened = runtime(path, sqlite)
+                .with_review_authority(human.binding.clone())
+                .unwrap();
+            reopened.set_full_replay(true);
+            if boundary == 1 {
+                let events = reopened.published_events().unwrap();
+                assert!(reopened
+                    .apply_schema_proposal(
+                        &shown.proposal.proposal_id,
+                        &approval.review_id,
+                        &shown.proposal_digest,
+                        Timestamp::from_millis(6),
+                    )
+                    .is_err());
+                assert_eq!(
+                    reopened.published_events().unwrap(),
+                    events,
+                    "premature successor retained state before its terminal predecessor"
+                );
+            }
+            let report = reopened
+                .apply_schema_proposal(
+                    &shown.proposal.proposal_id,
+                    &approval.review_id,
+                    &shown.proposal_digest,
+                    Timestamp::from_millis(8),
+                )
+                .unwrap();
+            assert_eq!(*report.progress, w::EkrIntegrateApplicationProgress::V0);
+            assert_eq!(report.application_id, election.application_id);
+            assert_eq!(
+                reopened.read(None).unwrap().root.revision.get(),
+                before.revision.get() + u64::from(boundary != 2)
+            );
+            let (_, captured) = captured_application_history(path, sqlite, &human);
+            assert_eq!(captured.applications.steps().len(), 1);
+            assert_eq!(captured.applications.receipts().len(), 1);
+            if boundary < 2 || boundary == 3 {
+                assert_ne!(report.schema_transaction, attempt.transaction_id);
+                assert_eq!(
+                    reopened.transactions().unwrap()[&original_id].state(),
+                    TransactionState::Stale
+                );
+                let attempts = captured.applications.attempts();
+                assert_eq!(attempts.len(), 2);
+                let mut successor = *attempts[1].transaction.clone();
+                successor.id = attempt.transaction_id.clone();
+                assert_eq!(successor, *attempt.transaction);
+            } else {
+                assert_eq!(report.schema_transaction, attempt.transaction_id);
+                assert_eq!(captured.applications.attempts().len(), 1);
+            }
+            let events = reopened.published_events().unwrap();
+            assert!(
+                reopened
+                    .apply_schema_proposal(
+                        &shown.proposal.proposal_id,
+                        &approval.review_id,
+                        &shown.proposal_digest,
+                        Timestamp::from_millis(9)
+                    )
+                    .unwrap()
+                    .already_complete
+            );
+            assert_eq!(reopened.published_events().unwrap(), events);
+        }
+    }
+}
+
+// Construct the exact pre-publication boundary using a genuine validated decision from a
+// closed snapshot. The provider elects its immutable preparation, but never resumes it.
+fn leave_validation_prepared(
+    store: Runtime,
+    path: &std::path::Path,
+    probe: &std::path::Path,
+    sqlite: bool,
+    human: &Human,
+    transaction: TransactionId,
+    against: RevisionNumber,
+) -> Runtime {
+    drop(store);
+    copy_closed_provider(path, probe);
+    let source = runtime(probe, sqlite)
+        .with_review_authority(human.binding.clone())
+        .unwrap();
+    assert!(matches!(
+        source
+            .validate(transaction, against, || Timestamp::from_millis(5))
+            .unwrap(),
+        ValidationCommandResult::Validated(_)
+    ));
+    drop(source);
+    let (authority, history) = captured_application_history(probe, sqlite, human);
+    let transition = history
+        .occurrences
+        .iter()
+        .rev()
+        .find(|o| {
+            matches!(
+                o.event.payload,
+                ekr_graph::RevisionPayload::AuthorityUpgraded { .. }
+            )
+        })
+        .unwrap();
+    let key = ekr_store::PublicationCommandKey {
+        kind: ekr_store::PublicationCommandKind::Validate,
+        transaction_id: Some(transaction),
+        answer_id: None,
+        predecessor_event_id: Some(transition.event.event_id),
+        predecessor_record_hash: Some(transition.event.record_hash),
+    };
+    let source: Box<dyn RevisionLog> = if sqlite {
+        Box::new(
+            ekr_store::SqliteStore::sqlite(probe, "upgrade-fixture", None)
+                .unwrap()
+                .under(authority),
+        )
+    } else {
+        Box::new(
+            ekr_store::FileStore::file(probe, "upgrade-fixture", None)
+                .unwrap()
+                .under(authority),
+        )
+    };
+    let prepared = source.preparation(&key).unwrap().unwrap();
+    drop(source);
+    let (authority, _) = captured_application_history(path, sqlite, human);
+    let target: Box<dyn RevisionLog> = if sqlite {
+        Box::new(
+            ekr_store::SqliteStore::sqlite(path, "upgrade-fixture", None)
+                .unwrap()
+                .under(authority),
+        )
+    } else {
+        Box::new(
+            ekr_store::FileStore::file(path, "upgrade-fixture", None)
+                .unwrap()
+                .under(authority),
+        )
+    };
+    assert_eq!(
+        target
+            .prepare(&key, prepared.input_hash, &prepared.decision, None)
+            .unwrap(),
+        prepared
+    );
+    drop(target);
+    let store = runtime(path, sqlite)
+        .with_review_authority(human.binding.clone())
+        .unwrap();
+    assert_eq!(
+        store.transactions().unwrap()[&transaction].state(),
+        TransactionState::Proposed
+    );
+    store
+}

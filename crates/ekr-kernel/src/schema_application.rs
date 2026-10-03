@@ -12,7 +12,7 @@ use ekr_store::{
 };
 use std::collections::BTreeMap;
 
-fn wire_time(at: Timestamp) -> Result<w::EssTimestamp, StoreError> {
+pub(crate) fn wire_time(at: Timestamp) -> Result<w::EssTimestamp, StoreError> {
     time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.millis()) * 1_000_000)
         .map(w::EssTimestamp)
         .map_err(error)
@@ -218,52 +218,7 @@ impl<
                 )?
                 .0
         };
-        let attempts = self
-            .store
-            .retained_application_attempts(&step.step_election_id)?;
-        let attempt = if let Some(held) = attempts.last() {
-            held.clone()
-        } else {
-            self.store
-                .elect_application_attempt(
-                    &w::EkrStoreApplicationAttemptRetention {
-                        attempt: Box::new(w::EkrIntegrateRetainedApplicationAttempt {
-                            transaction_id: step.transaction.id.clone(),
-                            transaction: step.transaction.clone(),
-                            step_election_id: step.step_election_id.clone(),
-                            elected_at: at_wire,
-                            predecessor_transaction: w::EssPresence::Absent,
-                            predecessor_record_hash: w::EssPresence::Absent,
-                        }),
-                    },
-                    at,
-                )?
-                .0
-        };
-        let transaction = crate::application_transaction::decode(&attempt.transaction)?;
-        let tx_id = transaction.id;
-        let current = self.transactions().map_err(error)?;
-        if !current.contains_key(&tx_id) {
-            let body = serde_yaml_ng::to_string(&transaction).map_err(error)?;
-            let bytes = format!(
-                "format: ekr.transaction-document/2\ntransaction:\n{}",
-                body.lines()
-                    .map(|line| format!("  {line}\n"))
-                    .collect::<String>()
-            );
-            self.propose(bytes.as_bytes(), transaction.proposer, || at)
-                .map_err(error)?;
-        }
-        let current = self.transactions().map_err(error)?;
-        if current[&tx_id].state() == TransactionState::Proposed {
-            let head = self.read(None).map_err(error)?.root.revision;
-            self.validate(tx_id, head, || at).map_err(error)?;
-        }
-        let current = self.transactions().map_err(error)?;
-        if current[&tx_id].state() == TransactionState::Validated {
-            self.commit(tx_id, transaction.proposer, || at)
-                .map_err(error)?;
-        }
+        self.execute_schema_step(&step, at)?;
         let (history, state) = self.replayed_state().map_err(error)?;
         let receipt = crate::application_auth::committed_receipt(&history, &state, &election)?
             .ok_or_else(|| error("schema transaction has not committed"))?;
@@ -273,5 +228,103 @@ impl<
             .ok_or_else(|| error("committed schema application has no report"))?;
         report.already_complete = false;
         Ok(report)
+    }
+
+    fn execute_schema_step(
+        &self,
+        step: &w::EkrIntegrateRetainedApplicationStep,
+        at: Timestamp,
+    ) -> Result<(), StoreError> {
+        for _ in 0..16 {
+            let at_wire = wire_time(at)?;
+            let attempts = self
+                .store
+                .retained_application_attempts(&step.step_election_id)?;
+            let attempt = if let Some(held) = attempts.last() {
+                let transactions = self.transactions().map_err(error)?;
+                let id = held.transaction_id.0.parse().map_err(error)?;
+                if let Some(stale) = transactions.get(&id).and_then(|t| t.stale.as_ref()) {
+                    if at < stale.stale_at {
+                        return Err(error("successor time precedes terminal stale decision"));
+                    }
+                    let mut transaction = step.transaction.clone();
+                    transaction.id =
+                        Box::new(w::EkrKernelTransactionId(TransactionId::mint().to_string()));
+                    self.store
+                        .elect_application_attempt(
+                            &w::EkrStoreApplicationAttemptRetention {
+                                attempt: Box::new(w::EkrIntegrateRetainedApplicationAttempt {
+                                    transaction_id: transaction.id.clone(),
+                                    transaction,
+                                    step_election_id: step.step_election_id.clone(),
+                                    elected_at: at_wire,
+                                    predecessor_transaction: w::EssPresence::Present(
+                                        held.transaction_id.clone(),
+                                    ),
+                                    predecessor_record_hash: w::EssPresence::Present(Box::new(
+                                        w::EkrKernelContentHash(
+                                            ekr_core::ContentHash::of_bytes(&stale.to_bytes()?)
+                                                .to_string(),
+                                        ),
+                                    )),
+                                }),
+                            },
+                            at,
+                        )?
+                        .0
+                } else {
+                    held.clone()
+                }
+            } else {
+                self.store
+                    .elect_application_attempt(
+                        &w::EkrStoreApplicationAttemptRetention {
+                            attempt: Box::new(w::EkrIntegrateRetainedApplicationAttempt {
+                                transaction_id: step.transaction.id.clone(),
+                                transaction: step.transaction.clone(),
+                                step_election_id: step.step_election_id.clone(),
+                                elected_at: at_wire,
+                                predecessor_transaction: w::EssPresence::Absent,
+                                predecessor_record_hash: w::EssPresence::Absent,
+                            }),
+                        },
+                        at,
+                    )?
+                    .0
+            };
+            let transaction = crate::application_transaction::decode(&attempt.transaction)?;
+            let tx_id = transaction.id;
+            let current = self.transactions().map_err(error)?;
+            if !current.contains_key(&tx_id) {
+                let body = serde_yaml_ng::to_string(&transaction).map_err(error)?;
+                let bytes = format!(
+                    "format: ekr.transaction-document/2\ntransaction:\n{}",
+                    body.lines()
+                        .map(|line| format!("  {line}\n"))
+                        .collect::<String>()
+                );
+                self.propose(bytes.as_bytes(), transaction.proposer, || at)
+                    .map_err(error)?;
+            }
+            let current = self.transactions().map_err(error)?;
+            if current[&tx_id].state() == TransactionState::Proposed {
+                self.validate_application_attempt(tx_id, || at)
+                    .map_err(error)?;
+            }
+            let current = self.transactions().map_err(error)?;
+            if current[&tx_id].state() == TransactionState::Validated {
+                self.commit(tx_id, transaction.proposer, || at)
+                    .map_err(error)?;
+            }
+            match self.transactions().map_err(error)?[&tx_id].state() {
+                TransactionState::Committed => return Ok(()),
+                TransactionState::Stale => continue,
+                TransactionState::Rejected => {
+                    return Err(error("elected schema transaction was rejected"))
+                }
+                _ => return Err(error("elected schema transaction has no terminal outcome")),
+            }
+        }
+        Err(StoreError::Conflict)
     }
 }

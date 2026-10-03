@@ -540,6 +540,7 @@ pub(crate) fn verify_attempt(
             if held.state() != TransactionState::Stale
                 || ContentHash::of_bytes(&stale.to_bytes()?).to_string() != hash.0
                 || predecessor.elected_at > attempt.elected_at
+                || crate::schema_application::wire_time(stale.stale_at)? > attempt.elected_at
             {
                 return Err(error("stale predecessor binding disagrees"));
             }

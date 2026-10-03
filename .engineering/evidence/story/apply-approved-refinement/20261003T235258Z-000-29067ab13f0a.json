@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-03T23:52:58Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 24,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:schema-application-stale-recovery-r1",
+    "review": "review-result:schema-application-stale-recovery-r1",
+    "outcome": "fixed"
+  }
+}

@@ -1,0 +1,31 @@
+Commands ran in the owned sequential Cargo lane; raw evidence is outside disposable outputs.
+Red probes below exited 101; the green probe and eight-target regression exited 0.
+
+application-stale-red.log
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1.99s
+86f40c866a0985ff9dae98e4949ef9b0266906d1df1431af05626889817b5ab6  application-stale-red.log
+
+application-pending-validation-red.log
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 9.87s
+aedff5fdde5a237213206fbea472cb38a493df3b2af77737d887a7a406c8c7ec  application-pending-validation-red.log
+
+application-pending-validation-green.log
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 22.45s
+cdfda716c5df46a66e53288e6e5f90ffb01ab01674971b9d218ae04129619048  application-pending-validation-green.log
+
+application-stale-regression-2.log
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.08s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.87s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+93647c028afd4a163392d7af3d4d9f842128ae8d968dd126a52b2ef2e4fc8696  application-stale-regression-2.log
+
+Strict kernel all-target clippy: exit 0.
+e1198e80a45cfe91d1ace5709e29a77db9dbec405395b097b37eeb582bd901bf  application-stale-clippy.log
+
+Repository xtask fmt --check: exit 0.
+3228d5513951c8aebfbb8e35058938acda7d2d468fe0f5c7050adb887f9af4d1  application-stale-fmt.log

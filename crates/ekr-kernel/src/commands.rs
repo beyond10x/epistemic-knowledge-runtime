@@ -51,6 +51,33 @@ fn require_state(tx: &TransactionRecord, expected: TransactionState) -> Result<(
         })
     }
 }
+fn validation_key(
+    state: &ReplayState,
+    id: TransactionId,
+) -> Result<PublicationCommandKey, CommitError> {
+    let tx = target(state, id)?;
+    Ok(PublicationCommandKey {
+        answer_id: None,
+        kind: PublicationCommandKind::Validate,
+        transaction_id: Some(id),
+        predecessor_event_id: Some(state.transition.as_ref().map_or(
+            Ok(tx.proposal.event_id),
+            |record| {
+                record
+                    .event_id
+                    .0
+                    .parse()
+                    .map_err(|_| replay::refuse("transition-event-id"))
+            },
+        )?),
+        predecessor_record_hash: Some(
+            state
+                .transition
+                .as_ref()
+                .map_or(Ok(tx.proposal_record_hash), crate::upgrade::record_hash)?,
+        ),
+    })
+}
 pub(crate) fn publication(
     event_id: EventId,
     payload: RevisionPayload,
@@ -326,6 +353,27 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         // A proposal moves no head: no checkpoint and no pointer (design § 99).
         Ok(ProposalRecordV1::from_bytes(elected_bytes(&prepared)?)?)
     }
+    /// Resolve the existing elected validation input before choosing a fresh application basis.
+    /// The ordinary handler still authorizes and publishes the exact retained preparation.
+    pub(crate) fn validate_application_attempt(
+        &self,
+        id: TransactionId,
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<ValidationCommandResult, CommitError> {
+        let state = self.read_state()?;
+        let key = validation_key(&state, id)?;
+        let against = match self.store.preparation(&key)? {
+            Some(prepared) => match validation_result(&prepared)? {
+                ValidationCommandResult::Validated(receipt) => receipt.basis.previous_root.revision,
+                ValidationCommandResult::Rejected(record) => {
+                    record.requested_basis.previous_root.revision
+                }
+            },
+            None => state.head().root.revision,
+        };
+        self.validate(id, against, now)
+    }
+
     /// Validates the retained proposal against a complete existing revision basis.
     /// # Errors
     /// Missing target/basis, state conflict or persistence failure.
@@ -341,29 +389,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let (history, state) = self.replayed_state()?;
         let tx = target(&state, id)?;
         require_state(tx, TransactionState::Proposed)?;
-        let key = PublicationCommandKey {
-            answer_id: None,
-            kind: PublicationCommandKind::Validate,
-            transaction_id: Some(id),
-            predecessor_event_id: Some(state.transition.as_ref().map_or(
-                Ok(tx.proposal.event_id),
-                |record| {
-                    record
-                        .event_id
-                        .0
-                        .parse()
-                        .map_err(|_| replay::refuse("transition-event-id"))
-                },
-            )?),
-            predecessor_record_hash: Some(
-                state
-                    .transition
-                    .as_ref()
-                    .map_or(Ok(tx.proposal_record_hash), |record| {
-                        crate::upgrade::record_hash(record)
-                    })?,
-            ),
-        };
+        let key = validation_key(&state, id)?;
         let material = serde_json::to_vec(&(id, &key, against))
             .map_err(|error| replay::refuse(&error.to_string()))?;
         let input = input_hash(

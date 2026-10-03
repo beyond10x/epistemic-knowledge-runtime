@@ -26,7 +26,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 23
+revision: 24
 ---
 ## Outcome
 
@@ -150,3 +150,21 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
 test result: ok. 17 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.96s
 test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+## Terminal-stale and uncertain validation recovery
+
+The schema-only driver now resolves the elected attempt's ordinary outcomes before selecting a successor. A successor requires a verified terminal Stale record, binds its exact content hash, preserves every frozen transaction field except its fresh transaction ID, and cannot predate that terminal decision. Election returns the physical winner; bounded contention remains retryable rather than reported complete. An already committed schema recovers its missing completion receipt without another canonical commit.
+
+Independent bounded review schema-application-stale-recovery-r1 found a pending-validation gap: after an unpublished Validate preparation and unrelated advancement, selecting the new head changes the immutable input hash and permanently refuses recovery. The coordinator reproduced that exact refusal with a genuine checked preparation captured from a closed provider snapshot. The shared ordinary validation-key helper now recovers the original checked preparation's requested basis before invoking the unchanged validate handler; only an unprepared validation chooses the current head. Rereview schema-application-stale-recovery-r2 approves this bounded fix, with no independent execution or full-F acceptance claimed.
+
+The final regression test covers five boundaries on each provider: validated before Stale, already terminal Stale, committed without final receipt, prepared-but-unpublished validation with unrelated advancement, and the same preparation without advancement. It requires preserved allocations, one semantic step, exact attempt/receipt counts, cold full replay and idempotent repeated application. A premature successor attempt must refuse without adding events. Actual eight-target regression results:
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.08s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.87s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+This closes the listed schema-only stale and final-receipt recovery slice. Source/observation-backed schema application, mappings, selected corrections, partial-progress/residual-review material, full conformance and full task check remain unfinished. PR64 remains the sole carrier and no completion is claimed.
