@@ -20,7 +20,7 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-0.0.27 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
+0.0.28 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
 binary, with the user documentation and schema evolution, and the executable specifications of the
 graph projection, observation and integration domains. Product crates: `ekr-core`,
 `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-views`, `ekr-observe`,
@@ -28,13 +28,20 @@ graph projection, observation and integration domains. Product crates: `ekr-core
 
 Repository utility: `xtask`.
 
-| works in 0.0.27 | not in 0.0.27 |
+For a hosted reader, configure a verified-TLS PostgreSQL provider, initialize its tables with
+separate owner credentials, and copy an existing SQLite store into the empty destination.
+`ekr view` and `ekr mcp-http` support explicit listeners behind your private routing and
+authentication service. See [hosted PostgreSQL](docs/cli.md#hosted-postgresql).
+
+| works in 0.0.28 | not in 0.0.28 |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
 | propose → validate → commit of nodes, edges, property updates, assertions, retractions, supersessions and named operations, up to 10,000 operations in one `ekr.transaction-document/2` of at most 8 MiB | evidence from observations after seeding: `AddEvidence` adds human statements of up to 16,384 bytes; larger payloads still enter through the seed with `ekr seed --evidence` |
 | reads: snapshots at any revision, the schema at any revision, what is believed at a valid time, and the full explanation of an assertion | property constraints, operation preconditions and emitted events: declared, but writes touching them are refused |
 | file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema discovery from evidence and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
+| hosted PostgreSQL with verified TLS, bounded connection pools and a preserving initial copy from SQLite | PostgreSQL source copies and atomic incremental suffix publication |
+| read-only HTTP MCP, explicit viewer listeners, Host/Origin admission and health/readiness checks | built-in login, authentication or public routing |
 | the ESS specifications of `ekr.views` (the graph projection `ekr.graph-projection/1` and the overview, neighbourhood, node, search and timeline reads, with their own conformance suite), `ekr.observe` and `ekr.integrate` in `systems/ekr/`; `ekr view` serves them to a read-only graph viewer on 127.0.0.1, and `ekr resolve` resolves a typed reference to a node, a new-node proposal or an ambiguity | polling a source and persisting observations: `ekr-observe` maps a JSONL file to observations but stores nothing |
 | validation profile v3: profile v2 plus a refusal of any `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`) | the same refusal under profiles v1 and v2: they still admit a reused id |
 | `ekr session`: one long-lived process serves the store verbs (`resolve`, `propose`, `validate`, `commit`, `snapshot`, `head` and others) as JSON lines over one opened store, each answer the one-shot verb's document, and the `ekr.views` reads (`overview`, `search`, `describe`, `expand`, `timeline`, `changes`) as `ekr view` serves them; it starts before a store exists, and `--create` seeds one; see [`ekr session`](docs/cli.md#ekr-session) | `snapshot` without rebuilding what it answers: about 0.7 s at 4,127 nodes and 57 commits; `explain` there costs about 0.5 s CPU in a session and about 4 s one-shot, almost all of it opening the store |
@@ -85,7 +92,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 | read | for |
 |---|---|
-| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.27 has versus what is planned |
+| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.28 has versus what is planned |
 | [`docs/guide.md`](docs/guide.md) | a task-oriented walk through a real store: record, change and explain claims, handle `Stale` and `Rejected`, exit codes, reading output, scripting |
 | [`docs/schema-evolution.md`](docs/schema-evolution.md) | growing the schema under validation profile v2, schema versions, `ekr ontology --at`, and every refusal on the way |
 | [`docs/cli.md`](docs/cli.md) | the CLI reference: configuration, every verb, the seed and transaction formats, how to design a schema, a worked example from schema to committed assertion, and the common refusals |

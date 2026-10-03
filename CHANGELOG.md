@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.28] — 2026-10-03
+
 ### Added
 
 - **Read-only HTTP MCP** is available through `ekr mcp-http`, alongside existing stdio
