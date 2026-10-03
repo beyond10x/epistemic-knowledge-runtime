@@ -55,6 +55,7 @@ pub(crate) mod rejections;
 mod resolve;
 mod sample;
 mod schema;
+mod search_page;
 mod seed;
 mod session;
 mod snapshot;
