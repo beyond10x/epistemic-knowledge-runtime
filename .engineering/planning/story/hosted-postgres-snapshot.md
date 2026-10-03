@@ -21,11 +21,21 @@ scope:
   path: crates/ekr-store
 - confidence: cited
   path: crates/ekr/src/cli
+- confidence: cited
+  path: crates/ekr/tests/adversary_sdk01_h_replaced_store.rs
+- confidence: cited
+  path: crates/ekr/tests/adversary_tests_under_load.rs
+- confidence: cited
+  path: crates/ekr/tests/migrate_cli.rs
+- confidence: cited
+  path: crates/ekr/tests/postgres_cli.rs
+- confidence: cited
+  path: crates/ekr/tests/support/inode_tempdir.rs
 - confidence: inferred
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 6
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 5}
@@ -59,3 +69,6 @@ Operator explicitly authorized implementation and publication of missing generic
 
 ## Review-driven copy contract
 Real PostgreSQL testing exposed that the datafeed watermark is not a valid negative observation for destination emptiness; use the provider's consistent tenant capture before the atomic initializer guard. Independent correctness review also reproduced fixed completion-marker bytes appearing as ordinary retained evidence, incorrectly admitting an interrupted destination. Migration now requires a fresh per-copy claim in seed envelope /4 and a Canonical completion receipt bound to both claim and destination seed hash. Ordinary seeds remain /3. Old binaries explicitly refuse /4. Preserve legacy marker reading separately and test both evidence and arbitrary carried Canonical marker-shaped content, plus copying an already migrated source. Additional actual surfaces are seed.rs and commit.rs within the declared ekr-kernel scope. These corrections are pending execution, not completed acceptance.
+
+## Compatibility execution finding
+The required previous-release probe executed against 0.0.27 and observed an old reader returning a head for a /4 destination through its checkpoint shortcut. Envelope rejection alone was insufficient. Corrective contract: derive a /4-state flag from admitted seed on replay and checkpoint restore, emit checkpoint-binding/2 for all such states including later commits, and keep legacy fast-head limited to /1 so new-format reads pass through seed/completion admission. Test both old-reader rejection and an interrupted copy whose final receipt was not published after its checkpoint. Ordinary /3 fast-head remains unchanged. checkpoint.rs and replay.rs are additional paths within the existing kernel scope. This finding remains pending a green execution result.

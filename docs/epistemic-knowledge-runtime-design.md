@@ -5338,6 +5338,15 @@ derives the expected receipt from the retained seed. Arbitrary evidence or carri
 objects containing the old fixed marker bytes cannot complete a new copy. Older binaries reject
 the `/4` envelope rather than serve an unverified prefix. Legacy `/2` and `/3` stores retain their
 separate marker compatibility; an evidence reference alone never proves completion.
+
+A format boundary must cover cached reads too. States admitted from a `/4` seed use a distinct
+`ekr.replay-checkpoint-binding/2` domain for every checkpoint pointer, including pointers written
+after later commits or a reopen. The fact that a state requires this binding is derived from its
+admitted seed, not trusted from a cached flag. The legacy fast-head path admits only `/1` and
+therefore falls through to seed and completion admission for `/4`; an earlier binary cannot use
+its head shortcut to evade the unsupported envelope. Ordinary `/3` states retain their existing
+binding and fast-head behavior. No checkpoint written before the completion receipt may admit
+an interrupted copy.
 An interrupted destination remains retained and unreadable as a complete store. Initial copy
 refuses an already populated destination; it does not silently overwrite, delete or resume one.
 

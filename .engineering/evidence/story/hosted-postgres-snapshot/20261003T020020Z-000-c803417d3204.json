@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T02:00:20Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-postgres-snapshot",
+  "kind": "story",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Focused provider, copy and compatibility gate:21 passed; independent real PostgreSQL rerun:12 passed; broad package gate pending",
+    "reference": "<cache>/ekr-hosted-runtime/postgres/focused-binding.log"
+  }
+}
