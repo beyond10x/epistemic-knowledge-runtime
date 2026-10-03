@@ -241,9 +241,10 @@ flowchart TB
 | importing the two predecessor systems' data | [predecessors](predecessors.md) § 9 | no | P7 |
 
 The phases, the crate map and the exit evidence for each phase are in [the roadmap](roadmap.md).
-The crates that exist are `ekr-core`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-kernel` and the
-`ekr` binary. The other crates in roadmap § 3 (`ekr-observe`, `ekr-incubate`, `ekr-views` and the
-rest) are not written yet.
+The workspace contains `ekr-core`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-kernel`,
+`ekr-views`, `ekr-observe`, `ekr-integrate`, `ekr-sdk` and the `ekr` binary, with `xtask` for
+repository utilities. A crate's presence does not imply every planned subsystem is implemented;
+the capability table above distinguishes shipped behavior from follow-on work.
 
 ```mermaid
 flowchart LR

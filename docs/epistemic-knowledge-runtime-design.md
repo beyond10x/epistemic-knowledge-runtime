@@ -5410,6 +5410,14 @@ full-text search. The graph page and JSON search API retain their routes and sem
 page names its served revision and pins detail and evidence links to that same revision.
 Untrusted query and stored text are escaped in their HTML contexts; generated URL parameters are
 encoded. Missing evidence text is never invented. The entry needs no script, external font or
-graph-library load. Historical and unavailable-store behavior, escaping and route compatibility
-are assigned to the named acceptance cases of `story:search-first-viewer-entry`; integrated
-execution remains pending while its standalone renderer is prepared.
+graph-library load. `GET /evidence/<id>?revision=N` uses the same historical authority as the
+results; omitting the revision retains the current-head behavior. Evidence links are bounded,
+and the page does not fetch or invent evidence previews for each result.
+
+`crates/ekr/tests/search_page.rs` exercises these claims through
+`search_entry_works_without_graph_libraries_and_keeps_response_protections`,
+`historical_search_keeps_its_results_and_retained_evidence_pinned_after_a_commit`,
+`live_search_escapes_query_refuses_bad_bounds_and_matches_json_ranking` and
+`unavailable_search_keeps_query_in_a_useful_html_page`, plus standalone renderer escaping and
+bound tests. The wave records execution and independent review; the final combined gate remains
+the release authority.
