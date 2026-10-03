@@ -30,7 +30,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 17
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 9, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -80,3 +80,11 @@ Publication, retry/replay, CLI/SDK/history, named C conformance, D-F, both end-t
 ESS validation passes over the current nine specification files. Generated runtime and data contracts now include AttentionAnswerApplication, HumanAnswerRecord, AnswerReplacement, the separately versioned answer occurrence, publication recovery and answer history. The source digest is f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b and contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48; see generated/ekr-contracts/plan.json for the exact recorded digests. Generation used the existing development candidate, not a released generator; final released adoption remains required.
 
 Follow design amendment 105.11: deterministic ordinary corrections, explicit temporal replacement links, signed review and material-basis checks, then private reviewed validation and atomic publication/replay. No answer write or completed C conformance is claimed.
+
+## Reviewed correction derivation checkpoint
+
+Unit f1ca0bc2b4e483f33987132d94ae25410afacb8a is integrated at e803416946f0e851d3504a678871476d6901dc04. The generated contracts and deterministic operation derivation are implemented; the answer command still has no publication/replay path. Current generator provenance: {"system":"ekr","specification_version":"v1","source_digest":"f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b","contract_digest":"873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48"}.
+
+Combined-tree measurements from .engineering/reviews/knowledge-answer-integrated/measurements.json: {"format":[],"clippy":[],"cli":[{"status":"ok","passed":29,"failed":0,"ignored":0},{"status":"ok","passed":18,"failed":0,"ignored":0},{"status":"ok","passed":12,"failed":0,"ignored":0},{"status":"ok","passed":14,"failed":0,"ignored":0}],"kernel":[{"status":"ok","passed":7,"failed":0,"ignored":0},{"status":"ok","passed":17,"failed":0,"ignored":0}]}. Workspace all-target Clippy and the actual xtask format gate passed. The provider-backed derivation case exercises file and SQLite after signed upgrade, including evidence attached by an ordinary validated transaction. Removing the attached-evidence copy fails its expected evidence assertion; restoring it returns the focused tests to green. All source/evidence changes are local root work, not an independent review or named C conformance.
+
+Next implement private reviewed lifecycle validation and the generated immutable answer record, versioned native publication/recovery and full replay; then CLI/SDK/history and the named C scenarios. Canonical mutation must still require a sealed ordinary validated transaction. No unsigned validation rule was relaxed. Temporal correction retracts and replaces rather than invoking interval-truncating supersession. Release-generator adoption, D-F, both demonstrations and full task check remain required before PR64 is ready.
