@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "6e6b51b6bd6e58fd549ea5d5d5562997e603f9e0012f19b9285bfadec393cabc",
+  "source_digest": "49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:d7a939b3a792d25991abc98940bd1d05420b4ecc722c36e5a57c93fb66cfc83d",
-    "projection_digest": "7c8d690bf7610e35c912002a130365ffa2d0323053f12f88a98d2f288d31b9d7"
+    "contract_digest": "slice-sha256/2:46d3b3f4766e54fd1dd1590d9f0060fabbea753dd5a368d86cb6a13396d120ce",
+    "projection_digest": "29e6edb4e52c1b64004a6b3b2d4859b01812be7d143cbf0375d22bac16f8c296"
   },
   "generator_version": "0.51.0",
   "target": "rust",
@@ -97,7 +97,9 @@
     "ekr.integrate.InterpretationCoordinate",
     "ekr.integrate.InterpretationDocument",
     "ekr.integrate.InterpretationId",
+    "ekr.integrate.InterpretationImport",
     "ekr.integrate.InterpretationObservation.State",
+    "ekr.integrate.InterpretationRead",
     "ekr.integrate.InterpretationVersion",
     "ekr.integrate.KnowledgeMapping",
     "ekr.integrate.MappingPreview",
@@ -128,6 +130,7 @@
     "ekr.integrate.ResolutionRefusal",
     "ekr.integrate.ResolutionRefusalCode",
     "ekr.integrate.ResolvedReference",
+    "ekr.integrate.RetainedInterpretation",
     "ekr.integrate.ReviewDecision",
     "ekr.integrate.SchemaLearningRequest",
     "ekr.integrate.SchemaLearningResult",
@@ -525,7 +528,9 @@
     "ekr.integrate.InterpretationCoordinate": "EkrIntegrateInterpretationCoordinate",
     "ekr.integrate.InterpretationDocument": "EkrIntegrateInterpretationDocument",
     "ekr.integrate.InterpretationId": "EkrIntegrateInterpretationId",
+    "ekr.integrate.InterpretationImport": "EkrIntegrateInterpretationImport",
     "ekr.integrate.InterpretationObservation.State": "EkrIntegrateInterpretationObservationState",
+    "ekr.integrate.InterpretationRead": "EkrIntegrateInterpretationRead",
     "ekr.integrate.InterpretationVersion": "EkrIntegrateInterpretationVersion",
     "ekr.integrate.KnowledgeMapping": "EkrIntegrateKnowledgeMapping",
     "ekr.integrate.MappingPreview": "EkrIntegrateMappingPreview",
@@ -556,6 +561,7 @@
     "ekr.integrate.ResolutionRefusal": "EkrIntegrateResolutionRefusal",
     "ekr.integrate.ResolutionRefusalCode": "EkrIntegrateResolutionRefusalCode",
     "ekr.integrate.ResolvedReference": "EkrIntegrateResolvedReference",
+    "ekr.integrate.RetainedInterpretation": "EkrIntegrateRetainedInterpretation",
     "ekr.integrate.ReviewDecision": "EkrIntegrateReviewDecision",
     "ekr.integrate.SchemaLearningRequest": "EkrIntegrateSchemaLearningRequest",
     "ekr.integrate.SchemaLearningResult": "EkrIntegrateSchemaLearningResult",
@@ -2292,6 +2298,26 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.integrate.InterpretationImport/properties/payload/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.InterpretationImport/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.InterpretationImport/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.InterpretationImport/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.InterpretationObservation.State/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -2303,6 +2329,21 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.InterpretationObservation.State/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.InterpretationRead/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.InterpretationRead/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.InterpretationRead/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -2823,6 +2864,26 @@
     },
     {
       "pointer": "/$defs/ekr.integrate.ResolvedReference/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedInterpretation/properties/payload/contentEncoding",
+      "rule": "contentEncoding",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedInterpretation/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedInterpretation/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedInterpretation/x-ess-name",
       "rule": "x-ess-name",
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
@@ -8359,6 +8420,11 @@
       "detail": "validate this constraint against the source schema at runtime"
     },
     {
+      "pointer": "/$defs/ekr.integrate.InterpretationImport/properties/payload/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
+    },
+    {
       "pointer": "/$defs/ekr.integrate.InterpretationVersion/properties/version",
       "rule": "integer",
       "detail": "serde_json::Number retains exact JSON numbers but does not enforce integrality; validate the source constraint"
@@ -8402,6 +8468,11 @@
       "pointer": "/$defs/ekr.integrate.ResolutionOutcome",
       "rule": "untagged_selection",
       "detail": "native union decoding chooses the first structurally decodable alternative; it does not certify source branch constraints or external dispatch"
+    },
+    {
+      "pointer": "/$defs/ekr.integrate.RetainedInterpretation/properties/payload/pattern",
+      "rule": "pattern",
+      "detail": "validate this constraint against the source schema at runtime"
     },
     {
       "pointer": "/$defs/ekr.integrate.SchemaProposalId/pattern",

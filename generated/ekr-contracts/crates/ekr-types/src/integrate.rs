@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 6e6b51b6bd6e58fd549ea5d5d5562997e603f9e0012f19b9285bfadec393cabc
-// contract digest a0934f66cde7acd61a5a40778b7848f6896e36e413fcc19560b8f9a78863f051
+// model digest 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa
+// contract digest 8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca
 // do not edit: regenerate with `ess synthesize`
 
 //! Integrate — `ekr.integrate`.
@@ -463,6 +463,15 @@ pub struct InterpretationDocument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InterpretationId(pub crate::primitives::Uuid);
 
+/// InterpretationImport — `ekr.integrate.InterpretationImport`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpretationImport {
+    /// `document` — `ekr.integrate.InterpretationDocument`.
+    pub document: InterpretationDocument,
+    /// `payload` — `Bytes`.
+    pub payload: Vec<u8>,
+}
+
 /// The states of `ekr.integrate.InterpretationObservation`, as runtime values.
 ///
 /// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
@@ -471,6 +480,17 @@ pub struct InterpretationId(pub crate::primitives::Uuid);
 pub enum InterpretationObservationState {
     /// `Recorded`.
     Recorded,
+}
+
+/// InterpretationRead — `ekr.integrate.InterpretationRead`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpretationRead {
+    /// `document` — `ekr.integrate.InterpretationDocument`.
+    pub document: InterpretationDocument,
+    /// `blockers` — `List<ekr.integrate.IntegrationBlockerSnapshot>`.
+    pub blockers: Vec<IntegrationBlockerSnapshot>,
+    /// `receipts` — `List<ekr.integrate.ProcessingReceiptSnapshot>`.
+    pub receipts: Vec<ProcessingReceiptSnapshot>,
 }
 
 /// InterpretationVersion — `ekr.integrate.InterpretationVersion`.
@@ -798,6 +818,19 @@ pub enum ResolutionRefusalCode {
 pub struct ResolvedReference {
     /// `node_id` — `ekr.graph.NodeId`.
     pub node_id: crate::graph::NodeId,
+}
+
+/// RetainedInterpretation — `ekr.integrate.RetainedInterpretation`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedInterpretation {
+    /// `version` — `ekr.integrate.InterpretationVersion`.
+    pub version: InterpretationVersion,
+    /// `interpretation` — `ekr.integrate.InterpretationRead`.
+    pub interpretation: InterpretationRead,
+    /// `payload` — `Bytes`.
+    pub payload: Vec<u8>,
+    /// `root` — `ekr.graph.GraphRootRecord`.
+    pub root: crate::graph::GraphRootRecord,
 }
 
 /// ReviewDecision — `ekr.integrate.ReviewDecision`: one of a closed set of names.

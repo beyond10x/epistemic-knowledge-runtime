@@ -1773,6 +1773,27 @@
       "x-ess-kind": "newtype",
       "x-ess-name": "ekr.integrate.InterpretationId"
     },
+    "ekr.integrate.InterpretationImport": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/ekr.integrate.InterpretationDocument"
+        },
+        "payload": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document",
+        "payload"
+      ],
+      "title": "InterpretationImport",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.InterpretationImport"
+    },
     "ekr.integrate.InterpretationObservation.State": {
       "enum": [
         "Recorded"
@@ -1781,6 +1802,35 @@
       "type": "string",
       "x-ess-kind": "enum",
       "x-ess-name": "ekr.integrate.InterpretationObservation.State"
+    },
+    "ekr.integrate.InterpretationRead": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.IntegrationBlockerSnapshot"
+          },
+          "type": "array"
+        },
+        "document": {
+          "$ref": "#/$defs/ekr.integrate.InterpretationDocument"
+        },
+        "receipts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ProcessingReceiptSnapshot"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "document",
+        "blockers",
+        "receipts"
+      ],
+      "title": "InterpretationRead",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.InterpretationRead"
     },
     "ekr.integrate.InterpretationVersion": {
       "additionalProperties": false,
@@ -2472,6 +2522,35 @@
       "type": "object",
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.ResolvedReference"
+    },
+    "ekr.integrate.RetainedInterpretation": {
+      "additionalProperties": false,
+      "properties": {
+        "interpretation": {
+          "$ref": "#/$defs/ekr.integrate.InterpretationRead"
+        },
+        "payload": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        },
+        "root": {
+          "$ref": "#/$defs/ekr.graph.GraphRootRecord"
+        },
+        "version": {
+          "$ref": "#/$defs/ekr.integrate.InterpretationVersion"
+        }
+      },
+      "required": [
+        "version",
+        "interpretation",
+        "payload",
+        "root"
+      ],
+      "title": "RetainedInterpretation",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedInterpretation"
     },
     "ekr.integrate.ReviewDecision": {
       "enum": [
@@ -10449,8 +10528,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:d7a939b3a792d25991abc98940bd1d05420b4ecc722c36e5a57c93fb66cfc83d",
-    "source_digest": "6e6b51b6bd6e58fd549ea5d5d5562997e603f9e0012f19b9285bfadec393cabc",
+    "contract_digest": "slice-sha256/2:46d3b3f4766e54fd1dd1590d9f0060fabbea753dd5a368d86cb6a13396d120ce",
+    "source_digest": "49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa",
     "specification_version": "v1",
     "system": "ekr"
   }
