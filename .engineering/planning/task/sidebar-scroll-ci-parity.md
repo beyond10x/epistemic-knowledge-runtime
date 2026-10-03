@@ -9,7 +9,7 @@ relations:
 - informed_by: story:live-search-agent-entry
 - serves: vision:o5
 - decomposes: story:live-search-agent-entry
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T12:49:30Z", actor: "agent:codex", revision: 2, decided_on: {"recorded":{"test_result":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T12:49:30Z", actor: "agent:codex", revision: 3, decided_on: {"recorded":{"test_result":1}}}
@@ -35,3 +35,11 @@ If correction is needed, retain a regression that fails before the fix and passe
 Cited source: `crates/ekr/tests/adversary_viewer_compact.rs` and `crates/ekr/src/cli/viewer/index.html`. CI selects `/usr/bin/google-chrome` through `EKR_VIEW_BROWSER`; local headless-shell behavior is not parity proof. The coordinator owns this task's AEP record and integration. Diagnosis uses its own managed tree and scratch; the running release gate keeps the coordinator tree and existing target frozen. Reuse linked test binaries read-only where sufficient, and use a separate bounded target if compilation is necessary.
 
 The source release stays pending until this repeated required-check failure is resolved and the integrated gate is verified.
+
+## Diagnostic checkpoint
+
+Commit 45d327b3cff4f6435ff2a222834d7b4796f412ca corrects a separately reproduced browser-harness startup race: DevTools may announce its listener before a page target exists. Discovery now waits boundedly, a synthetic empty-list-to-page regression holds that sequence, and a child guard reaps a browser even if startup fails. The default scroll assertion and graph page bytes are unchanged.
+
+The original scroll case passes locally with the CI image's documented browser version, including in a cached Ubuntu browser-testing image. This is not full runner parity: actual rendered fonts differ across those local environments and the CI font is still unknown. Browser version alone was not sufficient to reproduce the failure. Native CDP metadata is captured only after a mismatch by default; explicitly enabled rich observations are a separate probe because reading layout before collapse may affect timing.
+
+Ranked predictions to test against actual CI metadata: font or scrollbar geometry changes the left content size; deferred rendering or scroll anchoring moves the sampled position; focus restoration causes native scrolling. None is established as the cause. The next required CI run carries the preserved assertion and failure diagnostics. A pass after observation changes is not automatically proof of a product fix, and no CSS correction has been made speculatively.
