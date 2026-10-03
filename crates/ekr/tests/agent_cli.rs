@@ -682,6 +682,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "schema",
         "view",
         "mcp",
+        "mcp-http",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -768,7 +769,14 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ),
         (
             "view",
-            &["127.0.0.1", "ekr.graph-projection/1", "free one", store],
+            &[
+                "127.0.0.1",
+                "ekr.graph-projection/1",
+                "free one",
+                store,
+                "--allow-host",
+                "non-loopback",
+            ],
         ),
         (
             "session",
@@ -790,6 +798,21 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "ekr explain",
                 "ekr resolve",
                 "untrusted evidence",
+                store,
+            ],
+        ),
+        (
+            "mcp-http",
+            &[
+                "Streamable HTTP",
+                "/mcp",
+                "127.0.0.1",
+                "--allow-host",
+                "--allow-origin",
+                "/healthz",
+                "/readyz",
+                "seeded",
+                "No sessions",
                 store,
             ],
         ),

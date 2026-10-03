@@ -737,6 +737,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::View { .. } => Err(verb_refused("view")),
         Command::Session { .. } => Err(verb_refused("session")),
         Command::Mcp => Err(verb_refused("mcp")),
+        Command::McpHttp { .. } => Err(verb_refused("mcp-http")),
         Command::Migrate { .. } => Err(verb_refused("migrate")),
         Command::PostgresSchema { .. } => Err(verb_refused("postgres-schema")),
         Command::Guide => Err(verb_refused("guide")),

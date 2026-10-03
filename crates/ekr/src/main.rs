@@ -29,7 +29,10 @@ fn remove_copies_when_terminated() {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    if matches!(cli.command, Command::View { .. } | Command::Mcp) {
+    if matches!(
+        cli.command,
+        Command::View { .. } | Command::Mcp | Command::McpHttp { .. }
+    ) {
         remove_copies_when_terminated();
     }
     let mut stdin = std::io::stdin().lock();

@@ -968,6 +968,125 @@ fn tools() -> Vec<Value> {
     ]
 }
 
+/// Stateless Streamable HTTP over the same read-only dispatcher as stdio.
+pub(super) fn run_http(
+    store: &super::Store,
+    bind: std::net::IpAddr,
+    port: u16,
+    hosts: Vec<String>,
+    origins: Vec<String>,
+) -> Result<String, Failure> {
+    let mut server = None;
+    let (listener, authorities) = super::http::bind(bind, port, hosts)?;
+    super::http::serve(listener, authorities, origins, move |request| {
+        if let Err(reply) = http_request(&request) {
+            return reply;
+        }
+        if server.is_none() {
+            server = Held::open(store.clone()).ok().map(Server::new);
+        }
+        match server.as_mut() {
+            Some(server) => server.http(request),
+            None => super::http::Reply::refusal(503, "store is not admitted, seeded and available"),
+        }
+    })
+}
+
+/// Transport refusals do not depend on whether store admission has succeeded yet.
+fn http_request(request: &super::http::Request) -> Result<(), super::http::Reply> {
+    use super::http::Reply;
+    if request.target == "/readyz" {
+        if request.method != "GET" {
+            return Err(Reply::method("GET"));
+        }
+        if !request.body.is_empty() {
+            return Err(Reply::refusal(400, "readiness request has a body"));
+        }
+        return Ok(());
+    }
+    if request.target != "/mcp" {
+        return Err(Reply::refusal(404, "unknown endpoint"));
+    }
+    if request.method != "POST" {
+        return Err(Reply::method("POST"));
+    }
+    match request.header("content-type") {
+        Ok(Some(value))
+            if value
+                .split(';')
+                .next()
+                .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("application/json")) => {}
+        _ => return Err(Reply::refusal(415, "MCP requires application/json")),
+    }
+    match request.header("accept") {
+        Ok(Some(value))
+            if value.split(',').any(|mime| {
+                matches!(
+                    mime.trim().split(';').next(),
+                    Some("application/json" | "*/*")
+                )
+            }) => {}
+        _ => {
+            return Err(Reply::refusal(
+                406,
+                "MCP requires accepting application/json",
+            ))
+        }
+    }
+    let parsed = serde_json::from_slice::<Value>(&request.body);
+    let initialize = parsed
+        .as_ref()
+        .ok()
+        .and_then(|value| value.get("method"))
+        .and_then(Value::as_str)
+        == Some("initialize");
+    match request.header("mcp-protocol-version") {
+        Ok(Some(version)) if PROTOCOLS.contains(&version) => {}
+        Ok(None) if initialize => {}
+        // Stateless serving cannot infer a prior negotiation. The standard's recommended
+        // absent-header fallback is 2025-03-26, which our non-batching dispatcher does not
+        // support. Require a supported explicit version after initialization.
+        _ => {
+            return Err(Reply::refusal(
+                400,
+                "a supported MCP-Protocol-Version is required after initialization",
+            ))
+        }
+    }
+    if request.body.iter().all(u8::is_ascii_whitespace) {
+        return Err(Reply::refusal(400, "MCP requires one JSON-RPC object"));
+    }
+    Ok(())
+}
+
+impl Server {
+    fn http(&mut self, request: super::http::Request) -> super::http::Reply {
+        use super::http::Reply;
+        if request.target == "/readyz" {
+            let mut head = self
+                .read()
+                .and_then(|(runtime, _)| runtime.head().map_err(Unanswered::internal));
+            if head.is_err() && self.store.reopens() {
+                self.store.forget();
+                head = self
+                    .read()
+                    .and_then(|(runtime, _)| runtime.head().map_err(Unanswered::internal));
+            }
+            return match head {
+                Ok(Some(_)) => Reply::json(200, b"{\"ready\":true}".to_vec()),
+                _ => Reply::refusal(503, "store is not admitted, seeded and available"),
+            };
+        }
+        match self.message(&request.body) {
+            Some(response) => match serde_json::to_vec(&response) {
+                Ok(body) => Reply::json(200, body),
+                Err(_) => Reply::refusal(500, "cannot serialize MCP response"),
+            },
+            None => Reply::json(202, Vec::new()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::session::fixture::{replace, seeded, BACKENDS};

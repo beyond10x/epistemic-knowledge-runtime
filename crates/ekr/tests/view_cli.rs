@@ -924,19 +924,18 @@ fn ekr_view_answers_from_a_sqlite_database_copied_over_its_file() {
 fn ekr_view_opens_an_existing_store_only() {
     for backend in BACKENDS {
         let world = World::new(backend);
-        let output = world.run(&["view", "--port", "0"]);
-        assert_eq!(output.status.code(), Some(1), "{backend}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains("store-not-found"), "{backend}: {stderr}");
-        assert!(output.stdout.is_empty(), "{backend}");
+        let mut server = world.serve();
+        assert_eq!(server.get("/healthz").status, 200, "{backend}");
+        assert_eq!(server.get("/readyz").status, 503, "{backend}");
+        assert!(server.alive(), "{backend}");
         assert!(!world.store().exists(), "{backend}: nothing was created");
     }
 }
 
 #[test]
-fn ekr_view_has_no_option_that_binds_another_address() {
+fn ekr_view_binding_is_explicit_and_defaults_to_loopback() {
     let world = World::new("file");
-    for flag in ["--bind", "--address", "--listen", "--addr"] {
+    for flag in ["--address", "--listen", "--addr"] {
         let output = world.run(&["view", flag, "0.0.0.0"]);
         assert_eq!(output.status.code(), Some(2), "{flag}");
     }
@@ -958,7 +957,7 @@ fn ekr_view_has_no_option_that_binds_another_address() {
             )
         })
         .collect();
-    assert_eq!(own, ["--port"], "{help}");
+    assert_eq!(own, ["--port", "--bind", "--allow-host"], "{help}");
 }
 
 /// Every `.rs` file at or below `directory`, with its text.
