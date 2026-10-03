@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T03:23:15Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 14,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Draft PR65 correctness run37092103530 failed the retained read-only viewer cleanup regression: it counted temporary copies immediately after listener bind (0 vs1), before the newly lazy store admission. Correction must request store readiness first and retain the post-termination zero-copy assertion; this records red evidence, not a product failure or a green result.",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37092103530/job/111114423486"
+  }
+}

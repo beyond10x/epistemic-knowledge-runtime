@@ -6,7 +6,7 @@
 //! directory that is not, the private copy's lifetime when `ekr view` is terminated, and single
 //! paths of a store made read-only on their own.
 
-use std::io::{BufRead as _, BufReader, Write as _};
+use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Output, Stdio};
@@ -389,6 +389,25 @@ fn ekr_view_on_a_read_only_file_store_removes_its_copy_when_terminated() {
         .read_line(&mut url)
         .unwrap();
     assert!(url.contains("http://127.0.0.1:"), "{url:?}");
+    // Binding precedes lazy store admission. Prove it serves the store before
+    // checking that the private copy is held and then cleaned up on termination.
+    let authority = url
+        .trim()
+        .strip_prefix("http://")
+        .unwrap()
+        .trim_end_matches('/');
+    let mut request = std::net::TcpStream::connect(authority).unwrap();
+    request
+        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .unwrap();
+    write!(
+        request,
+        "GET /readyz HTTP/1.1\r\nHost: {authority}\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    request.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 200 "), "{response}");
     // TMPDIR is respected: the copy is there while the viewer serves.
     assert_eq!(copies(&tmpdir).len(), 1, "one copy while it serves");
     let killed = std::process::Command::new("kill")
