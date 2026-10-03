@@ -179,6 +179,53 @@ types:
   - name: ekr.kernel.AuthorityTransitionFormat
     kind: enum
     variants: [{name: KnowledgeAuthorityTransition1, wire: ekr.authority-transition/1}]
+  # Generated public answer input; reviewer policy comes only from retained enrollment.
+  - name: ekr.kernel.AttentionAnswerApplication
+    kind: struct
+    fields:
+      - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
+      - {name: dispute_id, type: ekr.kernel.DisputeId}
+      - {name: basis, type: ekr.kernel.ReviewBasis}
+      - {name: corrections, type: List<ekr.kernel.ClaimCorrection>}
+      - {name: statement, type: Bytes}
+  - name: ekr.kernel.AnswerRecordFormat
+    kind: enum
+    variants: [{name: HumanAnswer1, wire: ekr.human-answer/1}]
+  - name: ekr.kernel.ClaimReplacement
+    kind: struct
+    fields:
+      - {name: previous, type: ekr.graph.AssertionId}
+      - {name: replacement, type: ekr.graph.AssertionId}
+  - name: ekr.kernel.HumanAnswerRecord
+    kind: struct
+    fields:
+      - {name: format, type: ekr.kernel.AnswerRecordFormat}
+      - {name: answer_id, type: ekr.kernel.HumanAnswerId}
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: revision_id, type: ekr.kernel.RevisionId}
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: dispute_id, type: ekr.kernel.DisputeId}
+      - {name: basis, type: ekr.kernel.ReviewBasis}
+      - {name: corrections, type: List<ekr.kernel.ClaimCorrection>}
+      - {name: replacements, type: List<ekr.kernel.ClaimReplacement>}
+      - {name: statement_evidence, type: ekr.graph.EvidenceId}
+      - {name: transaction_object_hash, type: ekr.kernel.ContentHash}
+      - {name: validation_hash, type: ekr.kernel.ContentHash}
+      - {name: validators, type: List<ekr.kernel.AgentId>}
+      - {name: result, type: ekr.graph.RevisionRoot}
+      - {name: review, type: ekr.kernel.HumanDecisionRecord}
+      - {name: receipt, type: ekr.kernel.AnswerReceipt}
+    # An immutable answer atomically retains proof, statement, derived ordinary transaction,
+    # validation and resulting revision. Even Unresolved retains statement evidence while
+    # leaving claims unchanged. Remaining receipt items are affected canonical disputes only,
+    # never a live incubation/proposal projection. Exact retries return the original receipt.
+    # Replacement identities are minted before election and remain fixed across retries.
+    # CorrectTime withdraws the prior claim without changing its valid interval and creates
+    # a supported replacement; the pair is recorded explicitly, not inferred from names.
+    # Only this reviewed command context may retire disputed claims; old/unsigned validation
+    # rules remain unchanged. Replay verifies the signature, material basis, predecessor,
+    # derived operations, validator verdict, addresses and resulting roots independently.
+
   - name: ekr.kernel.AnswerOutcome
     kind: enum
     variants: [Resolved, PartiallyResolved, Unresolved, AlreadyApplied]
@@ -1190,6 +1237,30 @@ types:
       - {name: host_binding_object_hash, type: ekr.kernel.ContentHash}
       - {name: target_profile_object_hash, type: ekr.kernel.ContentHash}
 
+  - name: ekr.kernel.AttentionAnsweredPayload
+    kind: struct
+    fields:
+      - {name: answer_id, type: ekr.kernel.HumanAnswerId}
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: revision_id, type: ekr.kernel.RevisionId}
+      - {name: number, type: ekr.kernel.RevisionNumber}
+      - {name: knowledge_root, type: ekr.kernel.ContentHash}
+  - name: ekr.kernel.RevisionPayloadV4
+    kind: union
+    tag: kind
+    variants:
+      AttentionAnswered: ekr.kernel.AttentionAnsweredPayload
+  - name: ekr.kernel.RevisionEventV4
+    kind: struct
+    fields:
+      - {name: format, type: ekr.kernel.RevisionEventFormatV4}
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: record_hash, type: ekr.kernel.ContentHash}
+      - {name: payload, type: ekr.kernel.RevisionPayloadV4}
+  - name: ekr.kernel.RevisionEventFormatV4
+    kind: enum
+    variants: [{name: RevisionEvent4, wire: ekr.revision-event/4}]
+
   - name: ekr.kernel.RevisionEventV2
     kind: struct
     fields:
@@ -1541,6 +1612,8 @@ entities:
       name: answer_id
       type: ekr.kernel.HumanAnswerId
     fields:
+    - {name: record_object_hash, type: ekr.kernel.ContentHash}
+    - {name: transaction_object_hash, type: ekr.kernel.ContentHash}
     - {name: human_proof_digest, type: ekr.kernel.ContentHash}
     - name: dispute_id
       type: ekr.kernel.DisputeId
@@ -1558,6 +1631,9 @@ entities:
     # time requires kernel validation and supporting evidence. Unresolved uncertainty
     # records an answer without settling the dispute.
     relations:
+    - {name: record, kind: references, target: ekr.store.StoredObject, cardinality: one, via: record_object_hash}
+    - {name: transaction_document, kind: references, target: ekr.store.StoredObject, cardinality: one, via: transaction_object_hash}
+    - {name: replacements, kind: owns, target: ekr.kernel.AnswerReplacement, cardinality: many, via: answer_id}
     - {name: human_proof, kind: references, target: ekr.kernel.RetainedHumanDecision, cardinality: one, via: human_proof_digest}
     - name: dispute
       kind: references
@@ -1575,6 +1651,18 @@ entities:
       - Recorded
       terminal:
       - Recorded
+  - name: ekr.kernel.AnswerReplacement
+    identity: {name: replacement, type: ekr.graph.AssertionId}
+    fields:
+      - {name: answer_id, type: ekr.kernel.HumanAnswerId}
+      - {name: previous, type: ekr.graph.AssertionId}
+    relations:
+      - {name: former_claim, kind: references, target: ekr.graph.Assertion, cardinality: one, via: previous}
+      - {name: corrected_claim, kind: references, target: ekr.graph.Assertion, cardinality: one, via: replacement}
+    lifecycle:
+      initial: Recorded
+      states: [Recorded]
+      terminal: [Recorded]
   - name: ekr.kernel.AuthorityTransition
     identity:
       name: transition_id
@@ -1788,6 +1876,7 @@ actors:
     may:
     - ekr.kernel.ListAttention
     - ekr.kernel.ShowAttention
+    - ekr.kernel.ListAnswers
     - ekr.kernel.PreviewUpgrade
   - name: ekr.kernel.HumanOperator
     may:
@@ -1926,6 +2015,19 @@ commands:
       external: Refuse an attention subject whose kind and supplied identity disagree
         or whose source does not exist.
       error: ekr.kernel.KnowledgeRefused
+  - name: ekr.kernel.ListAnswers
+    naming: {wire: attention-history}
+    input:
+      - {name: dispute_id, type: Optional<ekr.kernel.DisputeId>}
+    response:
+      - {name: answers, type: List<ekr.kernel.HumanAnswerRecord>}
+    outcomes:
+      - name: answered
+        emits: [ekr.kernel.ListAnswersResult]
+        payload:
+          ekr.kernel.ListAnswersResult:
+            answers: {generated: true}
+        summary: Read immutable authenticated answer history in publication order, optionally filtered by dispute, including unresolved answers and superseded decisions.
   - name: ekr.kernel.AnswerAttention
     naming:
       wire: attention-answer
@@ -2328,6 +2430,18 @@ commands:
 # named metadata payload for command/view projection. The actual strict wire envelope is
 # RevisionEventV2; record_hash selects the corresponding full retained record (§91).
 events:
+  - name: ekr.kernel.AttentionAnswered
+    fields:
+      - {name: event_id, type: ekr.kernel.EventId}
+      - {name: record_hash, type: ekr.kernel.ContentHash}
+      - {name: answer_id, type: ekr.kernel.HumanAnswerId}
+      - {name: transaction_id, type: ekr.kernel.TransactionId}
+      - {name: revision_id, type: ekr.kernel.RevisionId}
+      - {name: number, type: ekr.kernel.RevisionNumber}
+      - {name: knowledge_root, type: ekr.kernel.ContentHash}
+  - name: ekr.kernel.ListAnswersResult
+    fields:
+      - {name: answers, type: List<ekr.kernel.HumanAnswerRecord>}
   - name: ekr.kernel.AuthorityUpgraded
     fields:
       - {name: event_id, type: ekr.kernel.EventId}

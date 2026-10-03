@@ -10,8 +10,12 @@ relations:
 - derived_from: release-plan:knowledge-inbox-schema-learning
 - depends_on: story:show-disputed-knowledge
 scope:
+- confidence: cited
+  path: Taskfile.yml
 - confidence: inferred
   path: crates/ekr
+- confidence: cited
+  path: crates/ekr-graph
 - confidence: inferred
   path: crates/ekr-kernel
 - confidence: inferred
@@ -20,7 +24,13 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 11
+- confidence: cited
+  path: docs/epistemic-knowledge-runtime-design.md
+- confidence: cited
+  path: generated
+- confidence: cited
+  path: systems/ekr
+revision: 17
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 9, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -64,3 +74,9 @@ Measured local Rust results from .engineering/reviews/knowledge-answer-review/me
 The initial work order listed correction derivation first. Source inspection showed that ordinary lifecycle validation rejects disputed assertions and that SupersedeAssertion truncates the old interval and restricts the replacement start to that interval. The proof and material-basis boundary was therefore implemented first. Next, specify and generate exact transport and immutable answer-publication records, then build the reviewed validation context and ordinary graph-operation derivation. Temporal correction must preserve the old interval and explicitly retain replacement provenance; do not coerce an arbitrary correction into the existing supersession operation. Old replay and unsigned ordinary transaction rules must remain unchanged.
 
 Publication, retry/replay, CLI/SDK/history, named C conformance, D-F, both end-to-end demonstrations, released generator adoption and the full gate remain unfinished. PR64 still contains the last published B checkpoint; this C foundation is local until combined verification and publication.
+
+## Generated answer persistence contracts
+
+ESS validation passes over the current nine specification files. Generated runtime and data contracts now include AttentionAnswerApplication, HumanAnswerRecord, AnswerReplacement, the separately versioned answer occurrence, publication recovery and answer history. The source digest is f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b and contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48; see generated/ekr-contracts/plan.json for the exact recorded digests. Generation used the existing development candidate, not a released generator; final released adoption remains required.
+
+Follow design amendment 105.11: deterministic ordinary corrections, explicit temporal replacement links, signed review and material-basis checks, then private reviewed validation and atomic publication/replay. No answer write or completed C conformance is claimed.

@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
-// contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
+// model digest f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b
+// contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48
 // do not edit: regenerate with `ess synthesize`
 
 //! What the specification fully determines, generated: the behaviour of every command the plan
@@ -568,6 +568,12 @@ impl<P: crate::kernel::obligations::CommitBehavior> crate::kernel::obligations::
 impl<P: crate::kernel::obligations::ExplainBehavior> crate::kernel::obligations::ExplainBehavior for Generated<P> {
     fn explain(&mut self, input: crate::kernel::Explain) -> Result<crate::kernel::ExplainOutcome, UnmetObligation> {
         crate::kernel::obligations::ExplainBehavior::explain(&mut self.ports, input)
+    }
+}
+
+impl<P: crate::kernel::obligations::ListAnswersBehavior> crate::kernel::obligations::ListAnswersBehavior for Generated<P> {
+    fn list_answers(&mut self, input: crate::kernel::ListAnswers) -> Result<crate::kernel::ListAnswersOutcome, UnmetObligation> {
+        crate::kernel::obligations::ListAnswersBehavior::list_answers(&mut self.ports, input)
     }
 }
 
