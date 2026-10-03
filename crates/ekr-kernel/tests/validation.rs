@@ -3151,7 +3151,11 @@ fn a_serialized_lifecycle_invokes_but_unsupported_sets_refuse_at_decode() {
             .clone()],
     };
     let mut serialized = serde_json::to_value(document).unwrap();
-    let supported_yaml = serde_yaml_ng::to_string(&serialized).unwrap();
+    // JSON's arbitrary-precision Number uses a private serde map representation. Pass
+    // through JSON text before writing YAML so the fixture retains numeric scalars.
+    let yaml_value: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&serde_json::to_string(&serialized).unwrap()).unwrap();
+    let supported_yaml = serde_yaml_ng::to_string(&yaml_value).unwrap();
     world.graph.ontology = Ontology::from_yaml(&supported_yaml).unwrap();
     let proposal = world.proposal(vec![GraphOperation::Invoke {
         node: world.open,
@@ -3165,7 +3169,9 @@ fn a_serialized_lifecycle_invokes_but_unsupported_sets_refuse_at_decode() {
 
     serialized["node_types"][0]["operations"]["decide"]["sets"] =
         serde_json::json!({(world.title.to_string()): "requested assignment"});
-    let unsupported_yaml = serde_yaml_ng::to_string(&serialized).unwrap();
+    let yaml_value: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&serde_json::to_string(&serialized).unwrap()).unwrap();
+    let unsupported_yaml = serde_yaml_ng::to_string(&yaml_value).unwrap();
     let refused = Ontology::from_yaml(&unsupported_yaml)
         .expect_err("sets must be refused rather than discarded before Invoke");
     assert!(

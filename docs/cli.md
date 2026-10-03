@@ -156,6 +156,8 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
+| `ekr observe` | writes / reads | `import <file or ->`, `list`, `show <observation-id>` | imports return a retention receipt; reads expose retained source records and exact bytes |
+| `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
@@ -384,6 +386,55 @@ Exit 0 means the document was read and tried, whatever `rejected` holds. Once so
 committed the verb does not fault: if a request then gets no answer it can act on, it prints the
 report with what committed until then and `stopped` saying why. A fault before anything committed
 is exit 1, with nothing written.
+
+### `ekr incubate`
+
+`ekr incubate import interpretation.json` reads a generated `ekr.integrate.InterpretationImport`
+JSON envelope: `document` contains the typed interpretation and `payload` contains the base64
+encoding of that document's exact JSON bytes. Each source observation must already be retained.
+Local declarations and references are checked independently of the canonical schema. Unknown
+canonical vocabulary produces retained blockers; import does not commit facts or change the schema.
+
+`ekr incubate list` returns immutable coordinates and byte digests. Pass all three fields to
+`ekr incubate show <interpretation-id> <version> <document-digest>` to inspect local declarations,
+facts, blockers and processing receipts. An identical import returns the original version and
+blocker identities. Reusing a coordinate with different bytes is refused. The typed SDK's
+`Knowledge` client provides `import_interpretation`, `interpretations` and `interpretation` over
+the same CLI/session transport. The input limit is eight MiB.
+
+### `ekr observe`
+
+Retain supplied source material independently of canonical revisions:
+
+```console
+ekr observe import observation.json
+ekr observe list
+ekr observe show <observation-id>
+```
+
+`import` reads one generated `ekr.observe.ObservationImport` JSON document, from a file or `-`
+for stdin, up to eight MiB. It carries `observation`, `key` and a padded standard-base64 `payload`.
+The key contains `source`, optional `source_native_id` and the SHA-256 `content_hash` of the
+decoded payload. The observation repeats those source fields and digest, plus `observation_id`,
+`kind` and `captured_at` as an RFC 3339 timestamp, as the generated ESS schema requires. The identity must be the existing
+`ObservationIdempotencyKey::observation_id()` result; use the SDK's `knowledge::observation_import`
+builder to construct these fields from source metadata and exact payload bytes.
+
+A first import returns `outcome: Retained`; an identical retry returns `AlreadyRetained` and
+`already_retained: true` with the same identity. A conflicting identity, source key or content
+digest is refused as `ekr.observe.KnowledgeRefused`. Import retains the record and payload
+atomically, and publishes no canonical revision. Source bytes survive a later rejected
+interpretation. `list` returns source records in identity order; `show` returns the source record,
+key and exact base64 payload. Both read commands work after reopening the store.
+
+All three operations are also available through `ekr session` and the SDK's
+`knowledge::Knowledge` client. They use the configured existing store and host. These commands
+do not poll a connector or advance a source checkpoint.
+
+The older `ekr migrate` command refuses a store with independently retained knowledge as
+`migrate-uncarried-streams`, before publishing any destination records. Support for carrying
+those streams through the general format migration is separate work; the refusal preserves
+the source instead of silently dropping observations.
 
 ### `ekr head`
 

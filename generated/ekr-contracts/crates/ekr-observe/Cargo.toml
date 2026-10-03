@@ -1,0 +1,13 @@
+# generated from ekr v1
+# model digest 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa
+# contract digest 8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca
+# do not edit: regenerate with `ess synthesize`
+
+[package]
+name = "ekr-observe"
+description = "The `ekr-observe` component of the `ekr` specification, v1: its port, generated."
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+ekr-types = { path = "../ekr-types" }

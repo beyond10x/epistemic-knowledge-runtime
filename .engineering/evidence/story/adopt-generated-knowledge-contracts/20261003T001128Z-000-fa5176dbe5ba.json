@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T00:11:28Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:adopt-generated-knowledge-contracts",
+  "kind": "story",
+  "revision": 12,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator execution request of supplied knowledge-inbox plan, 2026-10-03",
+    "reference": "release-plan:knowledge-inbox-schema-learning; required generated runtime contracts, release pin and drift gate"
+  }
+}

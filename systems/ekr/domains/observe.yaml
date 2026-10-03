@@ -7,7 +7,7 @@ summary: >-
   the same observation. Design § 15, § 54–57; predecessors A8. The
   observation itself is `ekr.graph.Observation` and is referenced here, not redeclared. Checkpoint
   state is durable but is not canonical knowledge (§ 55). How units, checkpoints, poll health and
-  observations link to one another is held open by four decision-blockers, each named below where
+  observations link to one another remains held open for polling by the remaining decision-blockers, named below where
   it applies. Redaction (A6), the coverage report and adapter declarations are not modelled yet.
 
 naming:
@@ -15,6 +15,36 @@ naming:
   display: Observe
 
 types:
+  - name: ekr.observe.RetainedObservationRead
+    kind: struct
+    fields:
+      - {name: observation, type: ekr.graph.ObservationRecord}
+      - {name: key, type: ekr.observe.ObservationIdempotencyKey}
+      - {name: payload, type: Bytes}
+  - name: ekr.observe.ObservationRetentionOutcome
+    kind: enum
+    variants: [Retained, AlreadyRetained]
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.observe.ObservationImport
+    kind: struct
+    fields:
+    - name: observation
+      type: ekr.graph.ObservationRecord
+    - name: key
+      type: ekr.observe.ObservationIdempotencyKey
+    - name: payload
+      type: Bytes
+  - name: ekr.observe.ObservationImportReceipt
+    kind: struct
+    fields:
+    - {name: outcome, type: ekr.observe.ObservationRetentionOutcome}
+    - name: observation_id
+      type: ekr.graph.ObservationId
+    - name: content_hash
+      type: ekr.kernel.ContentHash
+    - name: already_retained
+      type: Boolean
+
   - name: ekr.observe.SourceUnitId
     kind: newtype
     of: Uuid
@@ -58,9 +88,8 @@ types:
   # The form an observation of one source record takes: the observation, by id, and the key that
   # identifies the record it was observed from. A value, not a stored record.
   #
-  # UNMAPPED: decision-blocker:observation-retention-path — where the observation this names is
-  # retained, whether it depends on a revision, and so whether a deduplication index from key to
-  # observation exists and where it lives. Until that is decided nothing here persists a key.
+  # Decided by the operator, 2026-10-03: RetainedObservation holds the key independently
+  # of canonical revisions. The deduplication index is rebuilt from that append-only stream.
   - name: ekr.observe.SourceRecordObservation
     kind: struct
     fields:
@@ -70,6 +99,39 @@ types:
         type: ekr.graph.ObservationId
 
 entities:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.observe.RetainedObservation
+    identity:
+      name: observation_id
+      type: ekr.graph.ObservationId
+    fields:
+    - name: key
+      type: ekr.observe.ObservationIdempotencyKey
+    - name: content_hash
+      type: ekr.kernel.ContentHash
+    - name: retained_at
+      type: Timestamp
+    # An append-only admission in ekr-store, keyed uniquely by source identity,
+    # source-native id and content hash; never owned by a revision or root. Cited bytes
+    # are Provenance-pinned.
+    relations:
+    - name: observation
+      kind: references
+      target: ekr.graph.Observation
+      cardinality: one
+      via: observation_id
+    - name: bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: content_hash
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+
   # A source unit is the unit of source-side progress this domain names. Its granularity is held
   # open by decision-blocker:source-unit-granularity, below. Predecessors § 8 carries "replies are
   # their own units" as a requirement.
@@ -119,3 +181,107 @@ entities:
       initial: Recorded
       states: [Recorded]
       terminal: [Recorded]
+
+errors:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.observe.KnowledgeRefused
+    summary: A named deterministic refusal; no unreported write occurred. Partial application
+      is a typed report, never this refusal.
+    fields:
+    - name: code
+      type: String
+    - name: reason
+      type: String
+
+events:
+  - name: ekr.observe.ObservationsListed
+    fields:
+      - {name: observations, type: List<ekr.graph.ObservationRecord>}
+  - name: ekr.observe.ObservationShown
+    fields:
+      - {name: retained, type: ekr.observe.RetainedObservationRead}
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.observe.ImportObservationResult
+    fields:
+    - name: receipt
+      type: ekr.observe.ObservationImportReceipt
+
+commands:
+  - name: ekr.observe.ListObservations
+    naming: {wire: observe-list}
+    input: []
+    response:
+      - {name: observations, type: List<ekr.graph.ObservationRecord>}
+    outcomes:
+      - name: listed
+        emits: [ekr.observe.ObservationsListed]
+        payload:
+          ekr.observe.ObservationsListed:
+            observations: {generated: true}
+        summary: Read retained observations independently of canonical revisions and interpretations, in identity order.
+  - name: ekr.observe.ShowObservation
+    naming: {wire: observe-show}
+    input:
+      - {name: observation_id, type: ekr.graph.ObservationId}
+    response:
+      - {name: retained, type: ekr.observe.RetainedObservationRead}
+    outcomes:
+      - name: shown
+        emits: [ekr.observe.ObservationShown]
+        payload:
+          ekr.observe.ObservationShown:
+            retained: {generated: true}
+        summary: Return exact retained bytes and their source metadata after reopen, including observations with no accepted interpretation.
+      - name: refused
+        external: An unknown observation or missing/mismatched retained bytes is refused before answering.
+        error: ekr.observe.KnowledgeRefused
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.observe.ImportObservation
+    naming:
+      wire: observe-import
+    input:
+    - name: document
+      type: ekr.observe.ObservationImport
+    response:
+    - name: receipt
+      type: ekr.observe.ObservationImportReceipt
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.observe.ImportObservationResult
+      payload:
+        ekr.observe.ImportObservationResult:
+          receipt:
+            generated: true
+      summary: Retain the observation and exact bytes atomically through the store abstraction,
+        before interpretation. A matching key returns its original identity without
+        another record. It does not commit a canonical revision.
+    - name: refused
+      external: Payload digest, source key coherence, immutable identity and idempotency
+        are checked against retained records; a reused identity with other bytes is
+        refused.
+      error: ekr.observe.KnowledgeRefused
+
+actors:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.observe.KnowledgeSupplier
+    may:
+    - ekr.observe.ImportObservation
+    - ekr.observe.ListObservations
+    - ekr.observe.ShowObservation
+
+views:
+  - name: ekr.observe.RetainedObservationRecords
+    source: ekr.observe.RetainedObservation
+    consistency: read_your_writes
+    fields:
+    - name: observation_id
+      type: ekr.graph.ObservationId
+    - name: state
+      type: ekr.observe.RetainedObservation.State
+    - name: key
+      type: ekr.observe.ObservationIdempotencyKey
+    - name: content_hash
+      type: ekr.kernel.ContentHash
+    - name: retained_at
+      type: Timestamp

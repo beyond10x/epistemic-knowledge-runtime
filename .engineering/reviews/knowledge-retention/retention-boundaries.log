@@ -1,0 +1,54 @@
+   Compiling ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-views)
+   Compiling ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr)
+   Compiling ekr-sdk v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-sdk)
+    Finished `test` profile [unoptimized] target(s) in 40.32s
+     Running tests/story_contract.rs (target/debug/deps/story_contract-ada8d6b8b717ad98)
+
+running 14 tests
+test every_crate_opts_into_workspace_lints ... ok
+test crate_dependency_edges_match_the_story ... ok
+test no_manifest_carries_a_comment ... ok
+test the_commit_authority_matcher_reads_a_head_by_shape_and_not_by_spelling ... ok
+test external_dependencies_match_the_story ... ok
+test the_expectation_tables_cover_every_crate ... ok
+test the_eventlog_scan_refuses_every_path_and_nothing_else ... ok
+test the_six_crates_are_workspace_members ... ok
+test the_sdk_links_no_kernel_store_or_graph ... ok
+test workspace_dependencies_carry_the_story_qualifiers ... ok
+test seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer ... ok
+test ekr_names_no_eventlog_item ... ok
+test no_rust_source_reads_the_planning_store ... ok
+test only_the_kernel_implements_the_commit_authority ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+
+     Running tests/extraction.rs (target/debug/deps/extraction-9e0e7b3cc7142625)
+
+running 10 tests
+test the_example_reads_into_the_exported_fact_and_evidence_types ... ok
+test incubation_shape_check_does_not_expand_canonical_evidence_admission ... ok
+test the_example_is_accepted_against_the_example_store ... ok
+test a_property_the_subjects_type_does_not_declare_is_refused_by_name ... ok
+test a_fact_citing_no_evidence_is_refused_by_name ... ok
+test a_refusal_before_decoding_names_its_code ... ok
+test a_document_that_is_not_the_format_is_refused_before_it_is_checked ... ok
+test a_type_neither_the_document_nor_the_store_declares_is_refused_by_name ... ok
+test every_refusal_code_is_the_one_the_domain_declares ... ok
+test the_examples_keys_are_the_fields_the_domain_declares ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/knowledge.rs (target/debug/deps/knowledge-df534ab36504ef2c)
+
+running 1 test
+test observation_builder_reuses_the_existing_source_key ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/knowledge_retention.rs (target/debug/deps/knowledge_retention-d86c9f2eb43a2fbc)
+
+running 1 test
+test incubation_port_pins_document_bytes_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s

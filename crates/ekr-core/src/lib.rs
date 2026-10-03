@@ -14,7 +14,7 @@
 //!   with (`architecture-decision-record:0004-timestamp-in-ekr-core`).
 //!
 //! This crate names no domain concept and no graph concept — `AGENTS.md` invariant 8 — and
-//! depends on no other crate of the workspace.
+//! depends on generated contract libraries and no runtime layer.
 //!
 //! ```
 //! use ekr_core::{ContentHash, NodeId};
@@ -27,8 +27,16 @@
 pub mod bytes;
 pub mod canonical;
 pub mod decode;
+pub mod generated_identity;
 pub mod hash;
 pub mod identity;
+pub mod observation;
+pub use observation::ObservationIdempotencyKey;
+
+/// Generated serde documents; serde alone does not validate domain constraints.
+pub use ekr_contract_data as contract_data;
+/// Generated semantic contracts; decoding and runtime obligations remain explicit.
+pub use ekr_contracts as contracts;
 pub mod time;
 
 #[cfg(feature = "schema")]

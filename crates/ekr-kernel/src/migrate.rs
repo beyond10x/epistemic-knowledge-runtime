@@ -155,6 +155,16 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .into());
         }
         let inventory = self.store.inventory()?;
+        if !inventory.uncarried_streams.is_empty() {
+            return Err(migration(
+                "migrate-uncarried-streams",
+                format!(
+                    "migration cannot preserve these retained streams: {:?}",
+                    inventory.uncarried_streams
+                ),
+            )
+            .into());
+        }
         let published: BTreeSet<EventId> = inventory
             .occurrences
             .iter()

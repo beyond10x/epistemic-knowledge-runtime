@@ -138,6 +138,13 @@ naming:
   wire: views
   display: Views
 
+# Knowledge-inbox projection policy (§ 105), effective only under the upgraded authority:
+# default settled-knowledge reads/rendered edges and property values exclude Disputed assertions.
+# The complete graph/assertion inspection and attention/explain surfaces retain both claims and
+# their evidence, including disputed and historical claims. Never infer settled edge membership
+# from the existence of an Edge alone when its supporting claim is disputed. Historical renders
+# before the transition retain their original profile and bytes. This is a cross-record renderer
+# obligation, exercised against real providers, not an ESS filter over a single view entity.
 types:
   # Where the store the projection reads lives, as the host that renders names it. Never emitted in
   # the projection: a location is a fact about the host, not about the revision.
@@ -148,7 +155,7 @@ types:
   # The format name and version in one literal, as every other document of this runtime carries it.
   - name: ekr.views.GraphProjectionFormatV1
     kind: enum
-    variants: [ekr.graph-projection/1]
+    variants: [{name: EkrGraphProjection1, wire: ekr.graph-projection/1}]
 
   # Every time in the format: milliseconds since the Unix epoch in UTC, the runtime's own
   # Timestamp encoding (crates/ekr-core/src/time.rs). Declared rather than ESS's Timestamp, which
@@ -470,19 +477,19 @@ types:
 
   - name: ekr.views.GraphOverviewFormatV1
     kind: enum
-    variants: [ekr.graph-overview/1]
+    variants: [{name: EkrGraphOverview1, wire: ekr.graph-overview/1}]
 
   - name: ekr.views.GraphSliceFormatV1
     kind: enum
-    variants: [ekr.graph-slice/1]
+    variants: [{name: EkrGraphSlice1, wire: ekr.graph-slice/1}]
 
   - name: ekr.views.NodeDetailFormatV1
     kind: enum
-    variants: [ekr.node-detail/1]
+    variants: [{name: EkrNodeDetail1, wire: ekr.node-detail/1}]
 
   - name: ekr.views.NodeMatchesFormatV1
     kind: enum
-    variants: [ekr.node-matches/1]
+    variants: [{name: EkrNodeMatches1, wire: ekr.node-matches/1}]
 
   # The position in a neighbourhood's record sequence (ExpandNeighbourhood): the number of records
   # the earlier pages delivered. A page's `next` is its own `after` plus the records it delivered.
@@ -1065,7 +1072,7 @@ types:
 
   - name: ekr.views.GraphTimelineFormatV1
     kind: enum
-    variants: [ekr.graph-timeline/1]
+    variants: [{name: EkrGraphTimeline1, wire: ekr.graph-timeline/1}]
 
   # The finest bucket width a request asks for; a longer span may be answered coarser.
   - name: ekr.views.TimelineBucketWidth
@@ -1245,7 +1252,7 @@ types:
 
   - name: ekr.views.GraphChangesFormatV1
     kind: enum
-    variants: [ekr.graph-changes/1]
+    variants: [{name: EkrGraphChanges1, wire: ekr.graph-changes/1}]
 
   # Which of the three a `since` is: Revision, a revision number; ValidTime and TransactionTime,
   # an EpochMillis.
@@ -1360,7 +1367,7 @@ types:
 
   - name: ekr.views.StoreQualityFormatV1
     kind: enum
-    variants: [ekr.store-quality/1]
+    variants: [{name: EkrStoreQuality1, wire: ekr.store-quality/1}]
 
   # A share in basis points, 0 to 10000: 10000 times a count divided by its whole, rounded down.
   - name: ekr.views.BasisPoints
@@ -1458,7 +1465,7 @@ types:
   # code stays generic over any ontology (story:store-reading-code-names-no-contents).
   - name: ekr.views.CodeNamesFormatV1
     kind: enum
-    variants: [ekr.code-names/1]
+    variants: [{name: EkrCodeNames1, wire: ekr.code-names/1}]
 
   # One source file as the caller read it: `path` exactly as given, never resolved, and its whole
   # text. The command reads no file itself; the host reads each one and says which it was.
@@ -1683,7 +1690,7 @@ types:
   # hold as for the five bounded formats, and no field of this format is Optional.
   - name: ekr.views.OcelFormatV1
     kind: enum
-    variants: [ekr.ocel/1]
+    variants: [{name: EkrOcel1, wire: ekr.ocel/1}]
 
   # RFC 3339 in UTC with milliseconds: YYYY-MM-DDTHH:MM:SS.mmmZ, a four-digit year.
   - name: ekr.views.OcelTime
@@ -1825,7 +1832,7 @@ types:
 
   - name: ekr.views.FactSampleFormatV1
     kind: enum
-    variants: [ekr.fact-sample/1]
+    variants: [{name: EkrFactSample1, wire: ekr.fact-sample/1}]
 
   # `seed`, `size` and `type` are the request's; `revision` is the revision read, `at` or the head
   # as it stood at the request. `population` counts the revision's facts the draw chose from: its
@@ -1937,7 +1944,7 @@ types:
 
   - name: ekr.views.FactJudgementsFormatV1
     kind: enum
-    variants: [ekr.fact-judgements/1]
+    variants: [{name: EkrFactJudgements1, wire: ekr.fact-judgements/1}]
 
   # ekr.fact-judgements/1: the document a host reads ReportFactQuality's input from, the judged
   # sample. An agent writes it after judging an ekr.fact-sample/1: one judgement per sampled fact
@@ -1954,7 +1961,7 @@ types:
 
   - name: ekr.views.FactQualityFormatV1
     kind: enum
-    variants: [ekr.fact-quality/1]
+    variants: [{name: EkrFactQuality1, wire: ekr.fact-quality/1}]
 
   # `confidence` is the stated confidence in basis points, 9500 when the request states none; `z`
   # the standard normal quantile at (1 + confidence / 10000) / 2; `sample` the judged sample's

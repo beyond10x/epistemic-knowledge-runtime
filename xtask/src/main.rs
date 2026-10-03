@@ -6,6 +6,8 @@
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
+mod contracts;
+mod format;
 
 /// Repository tasks that are not the product.
 #[derive(Parser)]
@@ -116,17 +118,49 @@ mod tests {
 enum Command {
     /// Report the workspace root and the members the manifest declares.
     Doctor,
+    /// Format product workspace members without rewriting generated dependency libraries.
+    Fmt {
+        /// Refuse formatting changes instead of writing them.
+        #[arg(long)]
+        check: bool,
+    },
+    /// Regenerate every contract artifact and compile its semantic workspace.
+    ContractsCheck {
+        /// Exact ESS executable, also checked against its pinned SHA-256.
+        #[arg(long, default_value = "ess")]
+        ess: std::path::PathBuf,
+        /// Verify development output without claiming published-release acceptance.
+        #[arg(long)]
+        development_candidate: bool,
+    },
 }
 
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Doctor => doctor(),
+        Command::Fmt { check } => {
+            let manifest = std::env::var_os("CARGO_MANIFEST_DIR").map(std::path::PathBuf::from);
+            std::env::current_dir()
+                .map_err(|e| e.to_string())
+                .and_then(|current| resolve_workspace(manifest.as_deref(), &current))
+                .and_then(|root| format::run(&root, check))
+        }
+        Command::ContractsCheck {
+            ess,
+            development_candidate,
+        } => {
+            let manifest = std::env::var_os("CARGO_MANIFEST_DIR").map(std::path::PathBuf::from);
+            std::env::current_dir()
+                .map_err(|e| e.to_string())
+                .and_then(|current| resolve_workspace(manifest.as_deref(), &current))
+                .and_then(|root| contracts::check(&root, &ess, development_candidate))
+        }
     };
     match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("xtask doctor: {error}");
+            eprintln!("xtask: {error}");
             std::process::ExitCode::FAILURE
         }
     }

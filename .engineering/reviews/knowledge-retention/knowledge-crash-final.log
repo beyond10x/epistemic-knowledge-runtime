@@ -1,0 +1,9 @@
+   Compiling ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 2.30s
+     Running unittests src/lib.rs (target/debug/deps/ekr_store-ee9eb196e37ed1fc)
+
+running 1 test
+test eventlog::retention_faults::abrupt_exit_retention_reopens_without_duplicates ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.03s
+

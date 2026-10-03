@@ -1,0 +1,15 @@
+    Finished `test` profile [unoptimized] target(s) in 0.14s
+     Running tests/knowledge_retention.rs (target/debug/deps/knowledge_retention-7a29f681bfe452cc)
+
+running 8 tests
+test inconsistent_observation_is_refused_without_retaining_anything ... ok
+test retained_sources_pin_exact_bytes_on_both_providers ... ok
+test rejected_interpretation_retains_its_sources ... ok
+test observation_retry_is_idempotent ... ok
+test concurrent_imports_choose_one_immutable_record ... ok
+test generated_observation_commands_preserve_provider_faults ... ok
+test invalid_local_shape_and_evidence_are_refused_before_any_publication ... ok
+test unmapped_knowledge_survives_reopen ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

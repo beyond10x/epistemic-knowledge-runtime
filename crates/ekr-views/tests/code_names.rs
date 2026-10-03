@@ -70,11 +70,14 @@ fn declared_vocabulary() -> BTreeSet<String> {
                 vocabulary.insert(tag.to_owned());
             }
             match &declared["variants"] {
-                Yaml::Sequence(variants) => vocabulary.extend(
-                    variants
-                        .iter()
-                        .map(|variant| variant.as_str().expect("a variant name").to_owned()),
-                ),
+                Yaml::Sequence(variants) => vocabulary.extend(variants.iter().map(|variant| {
+                    variant
+                        .as_str()
+                        .or_else(|| variant.get("wire").and_then(Yaml::as_str))
+                        .or_else(|| variant.get("name").and_then(Yaml::as_str))
+                        .expect("a variant wire name")
+                        .to_owned()
+                })),
                 Yaml::Mapping(variants) => vocabulary.extend(
                     variants
                         .keys()

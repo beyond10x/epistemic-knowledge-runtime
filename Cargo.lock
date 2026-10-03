@@ -538,9 +538,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ekr-contract-data"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ekr-core"
 version = "0.0.27"
 dependencies = [
+ "ekr-contract-data",
+ "ekr-types",
  "hex",
  "proptest",
  "ring",
@@ -587,6 +597,7 @@ version = "0.0.27"
 dependencies = [
  "ekr-core",
  "ekr-graph",
+ "ekr-integrate",
  "ekr-ontology",
  "ekr-store",
  "eventlog-core",
@@ -634,6 +645,7 @@ name = "ekr-sdk"
 version = "0.0.27"
 dependencies = [
  "ekr",
+ "ekr-contract-data",
  "ekr-core",
  "ekr-graph",
  "ekr-kernel",
@@ -669,6 +681,10 @@ dependencies = [
  "time",
  "tokio",
 ]
+
+[[package]]
+name = "ekr-types"
+version = "1.0.0"
 
 [[package]]
 name = "ekr-views"
@@ -2680,6 +2696,10 @@ name = "xtask"
 version = "0.0.27"
 dependencies = [
  "clap",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
 ]
 
 [[package]]

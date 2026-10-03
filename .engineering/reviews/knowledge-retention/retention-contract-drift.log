@@ -1,0 +1,13 @@
+   Compiling libc v0.2.189
+   Compiling serde_core v1.0.229
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling serde_json v1.0.151
+   Compiling getrandom v0.4.3
+   Compiling tempfile v3.27.0
+   Compiling serde v1.0.229
+   Compiling xtask v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/xtask)
+    Finished `dev` profile [unoptimized] target(s) in 10.02s
+     Running `target/debug/xtask contracts-check --ess <task-scratch>/candidate-126c2b/ess --development-candidate`
+development candidate: 126c2b3905d0f4279086b9d3030096147955dfec; this check does not establish release acceptance
+generated contracts: both complete artifact trees match; synthesized workspace compiles

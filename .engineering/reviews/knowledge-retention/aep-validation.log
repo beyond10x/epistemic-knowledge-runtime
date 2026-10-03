@@ -1,0 +1,32 @@
+446 file(s) in <worktree>/.engineering/planning: 446 artifact(s)
+29 review(s) recorded no findings block:
+  - review-result:adversary-extract-06-r-pass-1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:adversary-extract-07b-a-pass-2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:adversary-extract-07b-fk-pass-1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:adversary-extract-07b-q-pass-1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:adversary-input-08-identity-pass-1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:adversary-input-08-yaml-pass-2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:adversary-read-02-h-pass-1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-three-acceptance-r1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-three-design-r1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-three-parallel-safety-r1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-three-scope-r1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-waves-1001-parallel-safety-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-waves-1001-scope-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-waves-acceptance-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-waves-design-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:next-waves-scope-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-07-decoder-adversary states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-07-independent-correction states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-07-membrane-adversary states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-09-legacy-freeze-adversary states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-10-guards-rereview states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-runtime-context-adversary states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-scope-round-2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-transaction-parser-adversary-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:p1-transaction-parser-mechanism-addendum states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:roadmap-2026-09-28-design-r1 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:roadmap-2026-09-28-design-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:roadmap-2026-09-28-scope-r2 states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+  - review-result:strict-cli-host-input-review states its findings as prose only — nothing can enumerate what it found, so                  the next review starts from nowhere
+valid

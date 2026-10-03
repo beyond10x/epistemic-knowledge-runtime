@@ -10,6 +10,280 @@ naming:
   display: Kernel
 
 types:
+  - name: ekr.kernel.HumanDecisionFormat
+    kind: enum
+    variants:
+    - name: HumanDecision1
+      wire: ekr.human-decision/1
+  - name: ekr.kernel.ReviewerTrustFormat
+    kind: enum
+    variants:
+    - name: ReviewerTrust1
+      wire: ekr.reviewer-trust/1
+  - name: ekr.kernel.ReviewSignatureAlgorithm
+    kind: enum
+    variants:
+    - Ed25519
+  - name: ekr.kernel.HumanDecisionScope
+    kind: enum
+    variants:
+    - AnswerAttention
+    - ApproveSchemaProposal
+    - RejectSchemaProposal
+    - UpgradeAuthority
+  - name: ekr.kernel.HumanDecisionAudience
+    kind: struct
+    fields:
+    - name: tenant
+      type: String
+    - name: seed_anchor
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.ReviewerVerificationKey
+    kind: struct
+    fields:
+    - name: key_digest
+      type: ekr.kernel.ContentHash
+    - name: algorithm
+      type: ekr.kernel.ReviewSignatureAlgorithm
+    - name: public_key
+      type: Bytes
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: scopes
+      type: List<ekr.kernel.HumanDecisionScope>
+  - name: ekr.kernel.ReviewerTrustPolicy
+    kind: struct
+    fields:
+    - name: format
+      type: ekr.kernel.ReviewerTrustFormat
+    - name: audience
+      type: ekr.kernel.HumanDecisionAudience
+    - name: keys
+      type: List<ekr.kernel.ReviewerVerificationKey>
+  - name: ekr.kernel.TrustedReviewHostBinding
+    kind: struct
+    fields:
+    - name: audience
+      type: ekr.kernel.HumanDecisionAudience
+    - name: reviewer_policy_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.AttentionAnswerTarget
+    kind: struct
+    fields:
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: corrections_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.SchemaReviewTarget
+    kind: struct
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+  - name: ekr.kernel.AuthorityUpgradeTarget
+    kind: struct
+    fields:
+    - name: preview_digest
+      type: ekr.kernel.ContentHash
+    - name: reviewer_policy_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.HumanDecisionTarget
+    kind: union
+    tag: kind
+    variants:
+      AnswerAttention: ekr.kernel.AttentionAnswerTarget
+      ApproveSchemaProposal: ekr.kernel.SchemaReviewTarget
+      RejectSchemaProposal: ekr.kernel.SchemaReviewTarget
+      UpgradeAuthority: ekr.kernel.AuthorityUpgradeTarget
+  - name: ekr.kernel.HumanDecisionIntent
+    kind: struct
+    fields:
+    - name: format
+      type: ekr.kernel.HumanDecisionFormat
+    - name: decision_id
+      type: Uuid
+    - name: audience
+      type: ekr.kernel.HumanDecisionAudience
+    - name: reviewer_policy_digest
+      type: ekr.kernel.ContentHash
+    - name: signer_key_digest
+      type: ekr.kernel.ContentHash
+    - name: target
+      type: ekr.kernel.HumanDecisionTarget
+    - name: statement_digest
+      type: ekr.kernel.ContentHash
+    - name: expected_previous_decision
+      type: Optional<ekr.kernel.ContentHash>
+  - name: ekr.kernel.SignedHumanDecision
+    kind: struct
+    fields:
+    - name: intent
+      type: ekr.kernel.HumanDecisionIntent
+    - name: algorithm
+      type: ekr.kernel.ReviewSignatureAlgorithm
+    - name: signature
+      type: Bytes
+  - name: ekr.kernel.HumanDecisionRecord
+    kind: struct
+    fields:
+    - name: decision_id
+      type: Uuid
+    - name: proof_digest
+      type: ekr.kernel.ContentHash
+    - name: policy_digest
+      type: ekr.kernel.ContentHash
+    - name: statement_digest
+      type: ekr.kernel.ContentHash
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: recorded_at
+      type: Timestamp
+  - name: ekr.kernel.ReviewerTrustEnrollment
+    kind: struct
+    fields:
+    - name: audience
+      type: ekr.kernel.HumanDecisionAudience
+    - name: policy_digest
+      type: ekr.kernel.ContentHash
+    - name: host_binding_digest
+      type: ekr.kernel.ContentHash
+    - name: upgrade_proof_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.AuthorityTransitionFormat
+    kind: enum
+    variants: [{name: KnowledgeAuthorityTransition1, wire: ekr.authority-transition/1}]
+  - name: ekr.kernel.AnswerOutcome
+    kind: enum
+    variants: [Resolved, PartiallyResolved, Unresolved, AlreadyApplied]
+  - name: ekr.kernel.AnswerReceipt
+    kind: struct
+    fields:
+      - {name: answer_id, type: ekr.kernel.HumanAnswerId}
+      - {name: outcome, type: ekr.kernel.AnswerOutcome}
+      - {name: transaction_id, type: Optional<ekr.kernel.TransactionId>}
+      - {name: revision, type: Optional<ekr.kernel.RevisionNumber>}
+      - {name: evidence_id, type: ekr.graph.EvidenceId}
+      - {name: remaining, type: List<ekr.kernel.AttentionItem>}
+  - name: ekr.kernel.UpgradeContradiction
+    kind: struct
+    fields:
+      - {name: left, type: ekr.graph.AssertionId}
+      - {name: right, type: ekr.graph.AssertionId}
+      - {name: subject, type: ekr.graph.SubjectProjection}
+      - {name: predicate, type: ekr.graph.PredicateProjection}
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.kernel.DisputeId
+    kind: newtype
+    of: Uuid
+  - name: ekr.kernel.HumanAnswerId
+    kind: newtype
+    of: Uuid
+  - name: ekr.kernel.AuthorityTransitionId
+    kind: newtype
+    of: Uuid
+  - name: ekr.kernel.AttentionKind
+    kind: enum
+    variants:
+    - Dispute
+    - BlockedIntegration
+    - SchemaProposal
+  - name: ekr.kernel.ClaimCorrectionKind
+    kind: enum
+    variants:
+    - Choose
+    - Retract
+    - CorrectTime
+    - Unresolved
+  - name: ekr.kernel.TrustedOperatorIdentity
+    kind: struct
+    fields:
+    - name: actor
+      type: ekr.kernel.AgentId
+    - name: authentication_subject
+      type: String
+  - name: ekr.kernel.ReviewBasis
+    kind: struct
+    fields:
+    - name: observed_revision
+      type: ekr.kernel.RevisionNumber
+    - name: evidence_digest
+      type: ekr.kernel.ContentHash
+    - name: options_digest
+      type: ekr.kernel.ContentHash
+    - name: effects_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.ClaimCorrection
+    kind: struct
+    fields:
+    - name: kind
+      type: ekr.kernel.ClaimCorrectionKind
+    - name: assertion_id
+      type: ekr.graph.AssertionId
+    - name: valid_from
+      type: Optional<Timestamp>
+    - name: valid_to
+      type: Optional<Timestamp>
+    - name: reason
+      type: String
+  - name: ekr.kernel.AttentionSubject
+    kind: struct
+    fields:
+    - name: kind
+      type: ekr.kernel.AttentionKind
+    - name: dispute_id
+      type: Optional<ekr.kernel.DisputeId>
+    - name: blocker_id
+      type: Optional<ekr.integrate.IntegrationBlockerId>
+    - name: proposal_id
+      type: Optional<ekr.integrate.SchemaProposalId>
+  - name: ekr.kernel.AttentionItem
+    kind: struct
+    fields:
+    - name: subject
+      type: ekr.kernel.AttentionSubject
+    - name: question
+      type: String
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: claims
+      type: List<ekr.graph.AssertionId>
+    - name: evidence
+      type: List<ekr.graph.EvidenceId>
+    - name: observations
+      type: List<ekr.graph.ObservationId>
+  - name: ekr.kernel.AuthorityVersion
+    kind: struct
+    fields:
+    - name: ruleset
+      type: ekr.kernel.RulesetV1
+    - name: application
+      type: ekr.kernel.ApplicationProfileV1
+    - name: profile_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.UpgradePreview
+    kind: struct
+    fields:
+    - {name: reviewer_policy_digest, type: ekr.kernel.ContentHash}
+    - name: head_revision
+      type: ekr.kernel.RevisionNumber
+    - name: head_hash
+      type: ekr.kernel.ContentHash
+    - name: from
+      type: ekr.kernel.AuthorityVersion
+    - name: to
+      type: ekr.kernel.AuthorityVersion
+    - name: preview_digest
+      type: ekr.kernel.ContentHash
+    - name: contradictions
+      type: List<ekr.kernel.UpgradeContradiction>
+    - name: pending_revalidation
+      type: List<ekr.kernel.TransactionId>
+
   - name: ekr.kernel.AgentId
     kind: newtype
     of: Uuid
@@ -174,7 +448,7 @@ types:
 
   - name: ekr.kernel.TransactionDocumentFormatV1
     kind: enum
-    variants: [ekr.transaction-document/1, ekr.transaction-document/2]
+    variants: [{name: EkrTransactionDocument1, wire: ekr.transaction-document/1}, {name: EkrTransactionDocument2, wire: ekr.transaction-document/2}]
 
   # Required literal: "ekr-seed/2". Runtime version dispatch enforces it.
   - name: ekr.kernel.SeedDocumentFormatV2
@@ -867,7 +1141,7 @@ types:
   # Full CLI command integration remains unexecuted.
   - name: ekr.kernel.CliHostFormatV1
     kind: enum
-    variants: [ekr.cli-host/1]
+    variants: [{name: EkrCliHost1, wire: ekr.cli-host/1}]
 
   - name: ekr.kernel.CliHostConfigurationV1
     kind: struct
@@ -938,7 +1212,7 @@ types:
   # is refused there; re-reading every committed document per call is the cost this removes.
   - name: ekr.kernel.ExplanationFormatV2
     kind: enum
-    variants: [ekr.explanation/2]
+    variants: [{name: EkrExplanation2, wire: ekr.explanation/2}]
 
   - name: ekr.kernel.ExplainedProposal
     kind: struct
@@ -1058,7 +1332,7 @@ types:
   # nothing and is not refused. ekr.kernel.Rejections below is this document one row per issue.
   - name: ekr.kernel.RejectionsFormatV1
     kind: enum
-    variants: [ekr.rejections/1]
+    variants: [{name: EkrRejections1, wire: ekr.rejections/1}]
 
   - name: ekr.kernel.RejectedTransactionV1
     kind: struct
@@ -1087,6 +1361,206 @@ types:
         type: List<ekr.kernel.RejectedTransactionV1>
 
 entities:
+  - name: ekr.kernel.RetainedHumanDecision
+    identity:
+      name: proof_digest
+      type: ekr.kernel.ContentHash
+    fields:
+    - name: decision_id
+      type: Uuid
+    - name: policy_digest
+      type: ekr.kernel.ContentHash
+    - name: statement_digest
+      type: ekr.kernel.ContentHash
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: recorded_at
+      type: Timestamp
+    relations:
+    - name: proof_bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: proof_digest
+    - name: policy_bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: policy_digest
+    - name: statement_bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: statement_digest
+    lifecycle:
+      initial: Verified
+      states:
+      - Verified
+      terminal:
+      - Verified
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.kernel.Dispute
+    identity:
+      name: dispute_id
+      type: ekr.kernel.DisputeId
+    fields:
+    - name: basis_revision
+      type: ekr.kernel.RevisionNumber
+    - name: subject
+      type: ekr.graph.SubjectProjection
+    - name: predicate
+      type: ekr.graph.PredicateProjection
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+    # A deterministic projection of active assertions under declared One property
+    # or relation semantics with differing values and overlapping valid times. Equal
+    # values, disjoint intervals and Many never conflict. Both competing assertions
+    # are Disputed and remain inspectable.
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.kernel.DisputeClaim
+    identity:
+      name: claim_link_id
+      type: Uuid
+    fields:
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: assertion_id
+      type: ekr.graph.AssertionId
+    # Projected references, recomputed after every affected commit; no dangling
+    # competitors and no separately persisted attention queue.
+    relations:
+    - name: dispute
+      kind: references
+      target: ekr.kernel.Dispute
+      cardinality: one
+      via: dispute_id
+    - name: claim
+      kind: references
+      target: ekr.graph.Assertion
+      cardinality: one
+      via: assertion_id
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.kernel.HumanAnswer
+    identity:
+      name: answer_id
+      type: ekr.kernel.HumanAnswerId
+    fields:
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: corrections
+      type: List<ekr.kernel.ClaimCorrection>
+    - name: statement_evidence
+      type: ekr.graph.EvidenceId
+    - name: transaction_id
+      type: Optional<ekr.kernel.TransactionId>
+    # Immutable authenticated human answer. Choosing, retracting or correcting
+    # time requires kernel validation and supporting evidence. Unresolved uncertainty
+    # records an answer without settling the dispute.
+    relations:
+    - {name: human_proof, kind: references, target: ekr.kernel.RetainedHumanDecision, cardinality: one, via: human_proof_digest}
+    - name: dispute
+      kind: references
+      target: ekr.kernel.Dispute
+      cardinality: one
+      via: dispute_id
+    - name: statement
+      kind: references
+      target: ekr.graph.Evidence
+      cardinality: one
+      via: statement_evidence
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.kernel.AuthorityTransition
+    identity:
+      name: transition_id
+      type: ekr.kernel.AuthorityTransitionId
+    fields:
+    - {name: review_host_binding_digest, type: ekr.kernel.ContentHash}
+    - {name: reviewer_policy_digest, type: ekr.kernel.ContentHash}
+    - {name: trust_enrollment, type: ekr.kernel.ReviewerTrustEnrollment}
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
+    - {name: target_profile_digest, type: ekr.kernel.ContentHash}
+    - {name: format, type: ekr.kernel.AuthorityTransitionFormat}
+    - name: seed_anchor
+      type: ekr.kernel.ContentHash
+    - name: predecessor_head
+      type: ekr.kernel.ContentHash
+    - name: activation_revision
+      type: ekr.kernel.RevisionNumber
+    - name: from
+      type: ekr.kernel.AuthorityVersion
+    - name: to
+      type: ekr.kernel.AuthorityVersion
+    - name: preview_digest
+      type: ekr.kernel.ContentHash
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: recorded_at
+      type: Timestamp
+    # Append-only authority boundary. Historical seed, graph bytes, revision
+    # hashes and replay profiles stay unchanged. New validation/application rules take
+    # effect only after this boundary; pending validations under the old authority are
+    # invalidated and must be revalidated.
+    relations:
+    - {name: reviewer_host_binding, kind: references, target: ekr.store.StoredObject, cardinality: one, via: review_host_binding_digest}
+    - {name: reviewer_policy, kind: references, target: ekr.store.StoredObject, cardinality: one, via: reviewer_policy_digest}
+    - {name: human_proof, kind: references, target: ekr.kernel.RetainedHumanDecision, cardinality: one, via: human_proof_digest}
+    - {name: target_profile, kind: references, target: ekr.store.StoredObject, cardinality: one, via: target_profile_digest}
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.kernel.SchemaTransactionEvidence
+    identity:
+      name: link_id
+      type: Uuid
+    fields:
+    - name: transaction_id
+      type: ekr.kernel.TransactionId
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+    # Supporting evidence retained by an ordinary validated schema transaction
+    # and exposed in schema history. Required evidence is checked by the kernel, whether
+    # the transaction came from a proposal or directly through the SDK.
+    relations:
+    - name: transaction
+      kind: references
+      target: ekr.kernel.GraphTransaction
+      cardinality: one
+      via: transaction_id
+    - name: evidence
+      kind: references
+      target: ekr.graph.Evidence
+      cardinality: one
+      via: evidence_id
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+
   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
   - name: ekr.kernel.Agent
     identity:
@@ -1220,6 +1694,17 @@ entities:
 # Design § 6.10: the actor that proposes is never the sole basis of validation. Three actors, so a
 # conformance suite can hold an implementation to the separation.
 actors:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.kernel.KnowledgeReader
+    may:
+    - ekr.kernel.ListAttention
+    - ekr.kernel.ShowAttention
+    - ekr.kernel.PreviewUpgrade
+  - name: ekr.kernel.HumanOperator
+    may:
+    - ekr.kernel.AnswerAttention
+    - ekr.kernel.ApplyUpgrade
+
   - name: ekr.kernel.Proposer
     may:
       - ekr.kernel.Propose
@@ -1247,6 +1732,16 @@ actors:
       display: Operator
 
 errors:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.kernel.KnowledgeRefused
+    summary: A named deterministic refusal; no unreported write occurred. Partial application
+      is a typed report, never this refusal.
+    fields:
+    - name: code
+      type: String
+    - name: reason
+      type: String
+
   # P1-08 admission acceptance was unexecuted at declaration; the kernel seed suite supplies
   # the behavioral cases. This contract does not certify the later durable writer.
   - name: ekr.kernel.InvalidSeed
@@ -1300,6 +1795,129 @@ errors:
         type: ekr.graph.AssertionId
 
 commands:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.kernel.ListAttention
+    naming:
+      wire: attention-list
+    input: []
+    response:
+    - name: items
+      type: List<ekr.kernel.AttentionItem>
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.kernel.ListAttentionResult
+      payload:
+        ekr.kernel.ListAttentionResult:
+          items:
+            generated: true
+      summary: Project disputes, pending integration blockers and schema proposals from
+        retained state. Exclude settled questions and include all unresolved ones; this
+        is not a queue database.
+  - name: ekr.kernel.ShowAttention
+    naming:
+      wire: attention-show
+    input:
+    - name: subject
+      type: ekr.kernel.AttentionSubject
+    response:
+    - name: item
+      type: ekr.kernel.AttentionItem
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.kernel.ShowAttentionResult
+      payload:
+        ekr.kernel.ShowAttentionResult:
+          item:
+            generated: true
+      summary: Show both claims with retained evidence and a useful clarification question.
+        The viewer renders the same read-only projection.
+    - name: refused
+      external: Refuse an attention subject whose kind and supplied identity disagree
+        or whose source does not exist.
+      error: ekr.kernel.KnowledgeRefused
+  - name: ekr.kernel.AnswerAttention
+    naming:
+      wire: attention-answer
+    input:
+    - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: corrections
+      type: List<ekr.kernel.ClaimCorrection>
+    - name: statement
+      type: Bytes
+    response:
+    - {name: receipt, type: ekr.kernel.AnswerReceipt}
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.kernel.AnswerAttentionResult
+      payload:
+        ekr.kernel.AnswerAttentionResult:
+          receipt: {generated: true}
+      summary: Verify the signed human proof and derive the operator from the pinned reviewer policy, retain the statement, validate supported
+        corrections and commit them. Recompute affected disputes without dangling competitor
+        ids. Resolved questions disappear; evidence and historical assertions remain.
+    - name: refused
+      external: Verify human_proof under the independently enrolled reviewer policy and the exact AnswerAttention target, statement, corrections and predecessor decision. A host operator UUID or supplied key establishes no human authority. Revalidate against current state. Unrelated revisions alone do not invalidate
+        review; changed evidence, choices or intended effects require renewed human
+        review. An agent-provided identity or unsupported claim cannot authorize resolution.
+      error: ekr.kernel.KnowledgeRefused
+  - name: ekr.kernel.PreviewUpgrade
+    naming:
+      wire: upgrade-preview
+    input:
+    - name: target
+      type: ekr.kernel.AuthorityVersion
+    response:
+    - name: preview
+      type: ekr.kernel.UpgradePreview
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.kernel.PreviewUpgradeResult
+      payload:
+        ekr.kernel.PreviewUpgradeResult:
+          preview:
+            generated: true
+      summary: Read the exact head, simulate newly disputed claims under target rules
+        and list pending transactions requiring revalidation. Do not mutate authority
+        or graph.
+    - name: refused
+      external: Unknown rule versions, unverified history and unsupported transitions
+        are refused.
+      error: ekr.kernel.KnowledgeRefused
+  - name: ekr.kernel.ApplyUpgrade
+    naming:
+      wire: upgrade-apply
+    input:
+    - {name: statement, type: Bytes}
+    - {name: human_proof, type: ekr.kernel.SignedHumanDecision}
+    - name: preview
+      type: ekr.kernel.UpgradePreview
+    response:
+    - name: transition_id
+      type: ekr.kernel.AuthorityTransitionId
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.kernel.ApplyUpgradeResult
+      payload:
+        ekr.kernel.ApplyUpgradeResult:
+          transition_id:
+            generated: true
+      summary: Verify the signed human proof and derive the operator from the pinned reviewer policy, then atomically append the authority boundary
+        against the exact preview basis; preserve historical bytes and original replay
+        rules.
+    - name: refused
+      external: Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported
+        target, unauthenticated operator or incomplete historical verification.
+      error: ekr.kernel.KnowledgeRefused
+
   # Design § 8. The seed is the minimal trusted starting state; loading it produces revision 0.
   - name: ekr.kernel.Seed
     naming:
@@ -1613,6 +2231,27 @@ commands:
 # named metadata payload for command/view projection. The actual strict wire envelope is
 # RevisionEventV2; record_hash selects the corresponding full retained record (§91).
 events:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.kernel.ListAttentionResult
+    fields:
+    - name: items
+      type: List<ekr.kernel.AttentionItem>
+  - name: ekr.kernel.ShowAttentionResult
+    fields:
+    - name: item
+      type: ekr.kernel.AttentionItem
+  - name: ekr.kernel.AnswerAttentionResult
+    fields:
+    - {name: receipt, type: ekr.kernel.AnswerReceipt}
+  - name: ekr.kernel.PreviewUpgradeResult
+    fields:
+    - name: preview
+      type: ekr.kernel.UpgradePreview
+  - name: ekr.kernel.ApplyUpgradeResult
+    fields:
+    - name: transition_id
+      type: ekr.kernel.AuthorityTransitionId
+
   - name: ekr.kernel.Seeded
     fields:
       - name: event_id
@@ -1704,6 +2343,116 @@ events:
         type: Integer
 
 views:
+  - name: ekr.kernel.HumanDecisionRecords
+    source: ekr.kernel.RetainedHumanDecision
+    consistency: read_your_writes
+    fields:
+    - name: proof_digest
+      type: ekr.kernel.ContentHash
+    - name: state
+      type: ekr.kernel.RetainedHumanDecision.State
+    - name: decision_id
+      type: Uuid
+    - name: policy_digest
+      type: ekr.kernel.ContentHash
+    - name: statement_digest
+      type: ekr.kernel.ContentHash
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: recorded_at
+      type: Timestamp
+  - name: ekr.kernel.DisputeRecords
+    source: ekr.kernel.Dispute
+    consistency: read_your_writes
+    fields:
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: state
+      type: ekr.kernel.Dispute.State
+    - name: basis_revision
+      type: ekr.kernel.RevisionNumber
+    - name: subject
+      type: ekr.graph.SubjectProjection
+    - name: predicate
+      type: ekr.graph.PredicateProjection
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.kernel.DisputeClaimRecords
+    source: ekr.kernel.DisputeClaim
+    consistency: read_your_writes
+    fields:
+    - name: claim_link_id
+      type: Uuid
+    - name: state
+      type: ekr.kernel.DisputeClaim.State
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: assertion_id
+      type: ekr.graph.AssertionId
+  - name: ekr.kernel.HumanAnswerRecords
+    source: ekr.kernel.HumanAnswer
+    consistency: read_your_writes
+    fields:
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
+    - name: answer_id
+      type: ekr.kernel.HumanAnswerId
+    - name: state
+      type: ekr.kernel.HumanAnswer.State
+    - name: dispute_id
+      type: ekr.kernel.DisputeId
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: corrections
+      type: List<ekr.kernel.ClaimCorrection>
+    - name: statement_evidence
+      type: ekr.graph.EvidenceId
+    - name: transaction_id
+      type: Optional<ekr.kernel.TransactionId>
+  - name: ekr.kernel.AuthorityTransitionRecords
+    source: ekr.kernel.AuthorityTransition
+    consistency: read_your_writes
+    fields:
+    - {name: review_host_binding_digest, type: ekr.kernel.ContentHash}
+    - {name: reviewer_policy_digest, type: ekr.kernel.ContentHash}
+    - {name: trust_enrollment, type: ekr.kernel.ReviewerTrustEnrollment}
+    - {name: human_proof_digest, type: ekr.kernel.ContentHash}
+    - {name: target_profile_digest, type: ekr.kernel.ContentHash}
+    - name: transition_id
+      type: ekr.kernel.AuthorityTransitionId
+    - name: state
+      type: ekr.kernel.AuthorityTransition.State
+    - name: format
+      type: ekr.kernel.AuthorityTransitionFormat
+    - name: seed_anchor
+      type: ekr.kernel.ContentHash
+    - name: predecessor_head
+      type: ekr.kernel.ContentHash
+    - name: activation_revision
+      type: ekr.kernel.RevisionNumber
+    - name: from
+      type: ekr.kernel.AuthorityVersion
+    - name: to
+      type: ekr.kernel.AuthorityVersion
+    - name: preview_digest
+      type: ekr.kernel.ContentHash
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: recorded_at
+      type: Timestamp
+  - name: ekr.kernel.SchemaTransactionEvidenceRecords
+    source: ekr.kernel.SchemaTransactionEvidence
+    consistency: read_your_writes
+    fields:
+    - name: link_id
+      type: Uuid
+    - name: state
+      type: ekr.kernel.SchemaTransactionEvidence.State
+    - name: transaction_id
+      type: ekr.kernel.TransactionId
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
   # All retained states, including Committed, Rejected and Stale, reconstructed from real records.
   # This query is an ESS read surface, not a seventh P1 CLI command.
   - name: ekr.kernel.Transactions

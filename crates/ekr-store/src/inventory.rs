@@ -15,6 +15,9 @@ pub struct StoreInventory {
     pub prepared: Vec<ekr_core::EventId>,
     /// How many events the provider log holds, of every stream.
     pub events: usize,
+    /// Stream kinds the legacy preserving migration does not carry. It must refuse them
+    /// before publication rather than silently dropping independently retained knowledge.
+    pub uncarried_streams: BTreeSet<String>,
 }
 
 /// One stored object as its stream records it.
@@ -95,6 +98,19 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             objects,
             prepared,
             events: events.len(),
+            uncarried_streams: events
+                .iter()
+                .filter(|event| {
+                    !matches!(
+                        event.stream_type.as_str(),
+                        REVISION_STREAM_TYPE
+                            | OBJECT_STREAM_TYPE
+                            | CHECKPOINT_STREAM_TYPE
+                            | "ekr.preparation"
+                    )
+                })
+                .map(|event| event.stream_type.clone())
+                .collect(),
         })
     }
 

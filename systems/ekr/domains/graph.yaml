@@ -13,6 +13,17 @@ naming:
   display: Graph
 
 types:
+  # Exact source observation admission payload, independent of canonical revisions (§ 105).
+  - name: ekr.graph.ObservationRecord
+    kind: struct
+    fields:
+      - {name: observation_id, type: ekr.graph.ObservationId}
+      - {name: source, type: String}
+      - {name: source_native_id, type: Optional<String>}
+      - {name: kind, type: ekr.graph.ObservationKind}
+      - {name: content_hash, type: ekr.kernel.ContentHash}
+      - {name: captured_at, type: Timestamp}
+
   - name: ekr.graph.GraphRootId
     kind: newtype
     of: Uuid
@@ -680,6 +691,49 @@ entities:
       terminal: [Recorded]
 
 views:
+  - name: ekr.graph.SettledAssertions
+    source: ekr.graph.Assertion
+    consistency: read_your_writes
+    filter:
+      all:
+      - assessment.kind == Accepted
+      - lifecycle.kind == Active
+    fields:
+    - name: assertion_id
+      type: ekr.graph.AssertionId
+    - name: root_id
+      type: ekr.graph.GraphRootId
+    - name: subject_kind
+      type: ekr.graph.SubjectKind
+    - name: subject
+      type: Uuid
+    - name: predicate_kind
+      type: ekr.graph.PredicateKind
+    - name: predicate
+      type: Uuid
+    - name: object_kind
+      type: ekr.graph.ObjectKind
+    - name: object_value
+      type: Optional<ekr.graph.TypedValue>
+    - name: object_ref
+      type: Optional<Uuid>
+    - name: proposed_by
+      type: ekr.kernel.AgentId
+    - name: assessment
+      type: ekr.graph.AssessmentProjection
+    - name: lifecycle
+      type: ekr.graph.AssertionLifecycleProjection
+    - name: valid_from
+      type: Optional<Timestamp>
+    - name: valid_to
+      type: Optional<Timestamp>
+    - name: recorded_from
+      type: Timestamp
+    - name: recorded_to
+      type: Optional<Timestamp>
+    naming:
+      wire: settled-assertions
+      display: Settled active assertions
   # Design § 47: the default application query is canonical active knowledge.
   - name: ekr.graph.Assertions
     source: ekr.graph.Assertion

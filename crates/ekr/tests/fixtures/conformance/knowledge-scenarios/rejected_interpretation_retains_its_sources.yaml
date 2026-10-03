@@ -1,0 +1,162 @@
+{
+  "arrange": [],
+  "assert": [],
+  "domain": "ekr.integrate",
+  "scenario": "rejected-interpretation-retains-its-sources",
+  "summary": "Run each command against a reopened native provider; compare retained bytes and typed records.",
+  "timeline": [
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:00Z",
+      "command": "ekr.observe.ImportObservation",
+      "events": [
+        {
+          "event": "ekr.observe.ImportObservationResult",
+          "payload": {}
+        }
+      ],
+      "input": {
+        "document": {
+          "key": {
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "observation": {
+            "captured_at": "2026-10-03T00:00:00Z",
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "kind": "FeedItem",
+            "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+        }
+      },
+      "outcome": "answered"
+    },
+    {
+      "actor": "ekr.integrate.KnowledgeProposer",
+      "at": "2026-10-03T00:00:01Z",
+      "command": "ekr.integrate.ImportInterpretation",
+      "input": {
+        "document": {
+          "entities": [
+            {
+              "aliases": [
+                "fixture-project"
+              ],
+              "node_type": "Project"
+            }
+          ],
+          "evidence": [
+            {
+              "evidence": {
+                "confidence_bp": 7500,
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "extracted_by": "00000000-0000-4000-8000-000000000101",
+                "id": "00000000-0000-4000-8000-000000000401",
+                "observed_at": "2026-10-03T00:00:00Z",
+                "source": {
+                  "kind": "Observation",
+                  "observation": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+                }
+              },
+              "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+            }
+          ],
+          "facts": [
+            {
+              "kind": "Property",
+              "value": {
+                "evidence": [
+                  "00000000-0000-4000-8000-000000000401"
+                ],
+                "property": "health",
+                "subject": {
+                  "aliases": [
+                    "fixture-project"
+                  ],
+                  "node_type": "Project"
+                },
+                "value": {
+                  "canonical_bytes": "DwAAAAAGAAAAAAAAAAVhbWJlcg==",
+                  "kind": "String"
+                }
+              }
+            }
+          ],
+          "local_schema": {
+            "edge_types": [],
+            "node_types": [
+              {
+                "abstract_type": false,
+                "name": "Project",
+                "parents": [],
+                "properties": []
+              }
+            ]
+          },
+          "observations": [
+            "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+          ],
+          "root_id": "00000000-0000-4000-8000-000000001002",
+          "version": {
+            "interpretation_id": "00000000-0000-4000-8000-000000001001",
+            "version": 1
+          }
+        },
+        "payload": "eyJlbnRpdGllcyI6W3siYWxpYXNlcyI6WyJmaXh0dXJlLXByb2plY3QiXSwibm9kZV90eXBlIjoiUHJvamVjdCJ9XSwiZXZpZGVuY2UiOlt7ImV2aWRlbmNlIjp7ImNvbmZpZGVuY2VfYnAiOjc1MDAsImNvbnRlbnRfaGFzaCI6IjlkMWRkYjdlMGFhY2QzZDRmODcxNmI5ODEyZjNmOThkMTYwNjRkMTlmODRmZTg5ZDg2NDczNWU4ZDVkNjFmZjQiLCJleHRyYWN0ZWRfYnkiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAxMDEiLCJpZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDQwMSIsIm9ic2VydmVkX2F0IjoiMjAyNi0xMC0wM1QwMDowMDowMFoiLCJzb3VyY2UiOnsia2luZCI6Ik9ic2VydmF0aW9uIiwib2JzZXJ2YXRpb24iOiI0YWQxNjE3Yy1kNjQ5LTgyZTgtYWNiNy1hMjBkZGE3ZjE5MGYifX0sInBheWxvYWQiOiJVSEp2YW1WamRDQm9aV0ZzZEdnNklHRnRZbVZ5Q2c9PSJ9XSwiZmFjdHMiOlt7ImtpbmQiOiJQcm9wZXJ0eSIsInZhbHVlIjp7ImV2aWRlbmNlIjpbIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDQwMSJdLCJwcm9wZXJ0eSI6ImhlYWx0aCIsInN1YmplY3QiOnsiYWxpYXNlcyI6WyJmaXh0dXJlLXByb2plY3QiXSwibm9kZV90eXBlIjoiUHJvamVjdCJ9LCJ2YWx1ZSI6eyJjYW5vbmljYWxfYnl0ZXMiOiJEd0FBQUFBR0FBQUFBQUFBQUFWaGJXSmxjZz09Iiwia2luZCI6IlN0cmluZyJ9fX1dLCJsb2NhbF9zY2hlbWEiOnsiZWRnZV90eXBlcyI6W10sIm5vZGVfdHlwZXMiOlt7ImFic3RyYWN0X3R5cGUiOmZhbHNlLCJuYW1lIjoiUHJvamVjdCIsInBhcmVudHMiOltdLCJwcm9wZXJ0aWVzIjpbXX1dfSwib2JzZXJ2YXRpb25zIjpbIjRhZDE2MTdjLWQ2NDktODJlOC1hY2I3LWEyMGRkYTdmMTkwZiJdLCJyb290X2lkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAxMDAyIiwidmVyc2lvbiI6eyJpbnRlcnByZXRhdGlvbl9pZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMTAwMSIsInZlcnNpb24iOjF9fQ=="
+      },
+      "outcome": "refused"
+    },
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:02Z",
+      "command": "ekr.observe.ShowObservation",
+      "events": [
+        {
+          "event": "ekr.observe.ObservationShown",
+          "payload": {
+            "retained": {
+              "key": {
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "source": "manual",
+                "source_native_id": "health-1"
+              },
+              "observation": {
+                "captured_at": "2026-10-03T00:00:00Z",
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "kind": "FeedItem",
+                "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+                "source": "manual",
+                "source_native_id": "health-1"
+              },
+              "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+            }
+          }
+        }
+      ],
+      "input": {
+        "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+      },
+      "outcome": "shown"
+    },
+    {
+      "actor": "ekr.integrate.KnowledgeProposer",
+      "at": "2026-10-03T00:00:03Z",
+      "command": "ekr.integrate.ListInterpretations",
+      "events": [
+        {
+          "event": "ekr.integrate.ListInterpretationsResult",
+          "payload": {
+            "interpretations": []
+          }
+        }
+      ],
+      "input": {},
+      "outcome": "answered"
+    }
+  ],
+  "type": "ess-scenario/1"
+}

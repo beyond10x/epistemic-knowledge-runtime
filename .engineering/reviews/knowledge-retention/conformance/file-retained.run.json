@@ -1,0 +1,212 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/13",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa",
+    "contract_digest": "8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca"
+  },
+  "implementation": {
+    "name": "ekr knowledge CLI (File; discard=false)",
+    "version": "0.0.27"
+  },
+  "started_at": 1790998256475,
+  "completed_at": 1790998256482,
+  "status": "passed",
+  "scenarios": [
+    {
+      "scenario": "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
+      "purpose": "Run each command against a reopened native provider; compare retained bytes and typed records.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ImportObservation/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.integrate.ImportInterpretation/refused",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ShowObservation/shown",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ObservationShown",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ObservationShown",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.integrate.ListInterpretations/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.integrate.ListInterpretationsResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.integrate.ListInterpretationsResult",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 1
+    },
+    {
+      "scenario": "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
+      "purpose": "Run each command against a reopened native provider; compare retained bytes and typed records.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ImportObservation/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.integrate.ImportInterpretation/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.integrate.ImportInterpretationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.integrate.ImportInterpretationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.integrate.ListInterpretations/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.integrate.ListInterpretationsResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.integrate.ListInterpretationsResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.integrate.ShowInterpretation/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.integrate.ShowInterpretationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.integrate.ShowInterpretationResult",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 1
+    },
+    {
+      "scenario": "ekr.observe/authored/observation-retry-is-idempotent",
+      "purpose": "Run each command against a reopened native provider; compare retained bytes and typed records.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ImportObservation/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ImportObservation/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ImportObservationResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ListObservations/listed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ObservationsListed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ObservationsListed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.observe.ShowObservation/shown",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.observe.ObservationShown",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.observe.ObservationShown",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 1
+    }
+  ]
+}

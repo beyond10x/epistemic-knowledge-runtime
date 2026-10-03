@@ -9,6 +9,7 @@ tasks:
       - task: test
       - task: doc-check
       - task: vendor-check
+      - task: contracts-check
       - task: spec-check
       - task: conform-fresh
       - task: plan-check
@@ -27,7 +28,7 @@ tasks:
   fmt-check:
     desc: rustfmt, check only
     cmds:
-      - cargo fmt --all -- --check
+      - cargo run --locked -p xtask --bin xtask -- fmt --check
 
   clippy:
     desc: clippy over every target, warnings are errors
@@ -71,6 +72,11 @@ tasks:
     cmds:
       - cargo doc --manifest-path vendor/serde_yaml_ng/Cargo.toml --no-deps --locked --target-dir "${CARGO_TARGET_DIR:-target}/vendor-serde_yaml_ng"
 
+  contracts-check:
+    desc: Exact released ESS provenance, complete generated artifacts and synthesis compilation
+    cmds:
+      - cargo run --locked -p xtask --bin xtask -- contracts-check
+
   spec-check:
     desc: the runtime's own ESS contract validates
     preconditions:
@@ -86,10 +92,10 @@ tasks:
         msg: conform-check needs an ess on PATH whose --version is ess 0.36.0
     cmds:
       - task: conform-fresh
-      - cargo test --locked -p ekr --test conformance -- --nocapture
+      - cargo test --locked -p ekr --test conformance --test conformance_knowledge -- --nocapture
 
   conform-fresh:
-    desc: the committed ekr-kernel, ekr-views and ekr-integrate suites are fresh synthesis
+    desc: the committed kernel, views, integration and supplied-knowledge suites are fresh synthesis
     preconditions:
       - sh: test "$(ess --version)" = "ess 0.36.0"
         msg: conform-fresh needs an ess on PATH whose --version is ess 0.36.0
@@ -101,6 +107,8 @@ tasks:
       - cmp systems/ekr/conformance/views-suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-views-suite.json"
       - ess conform synthesize --path systems/ekr --component ekr-integrate --suite-format 5 --target ir --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-integrate-suite.json"
       - cmp systems/ekr/conformance/integrate-suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-integrate-suite.json"
+      - ess conform synthesize --path systems/ekr --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/knowledge-scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-knowledge-suite.json"
+      - cmp crates/ekr/tests/fixtures/conformance/knowledge-suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-knowledge-suite.json"
 
   plan-check:
     desc: the planning store validates
@@ -113,4 +121,4 @@ tasks:
   fmt:
     desc: rustfmt, in place
     cmds:
-      - cargo fmt --all
+      - cargo run --locked -p xtask --bin xtask -- fmt

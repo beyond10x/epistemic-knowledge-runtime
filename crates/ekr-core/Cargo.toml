@@ -8,6 +8,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+ekr-contracts.workspace = true
+ekr-contract-data.workspace = true
 hex.workspace = true
 schemars = { version = "1.2", optional = true }
 serde.workspace = true

@@ -7,7 +7,20 @@ title: A schema transaction cites the evidence that introduced it
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o2
-revision: 1
+- depends_on: story:show-disputed-knowledge
+- derived_from: release-plan:knowledge-inbox-schema-learning
+scope:
+- confidence: inferred
+  path: crates/ekr
+- confidence: inferred
+  path: crates/ekr-kernel
+- confidence: inferred
+  path: crates/ekr-ontology
+- confidence: inferred
+  path: crates/ekr-sdk
+- confidence: inferred
+  path: crates/ekr-views
+revision: 8
 ---
 ## Context
 
@@ -36,3 +49,13 @@ first, and its design section sits beside the schema-evolution sections.
 - `ekr ontology --at <that revision>` and the lineage name the evidence.
 - A schema transaction that carries any other data operation is still refused as
   `MixedSchemaTransaction`.
+
+## Knowledge inbox delivery scope
+
+Reuse this story as D of release-plan:knowledge-inbox-schema-learning; do not replace its original consumer request. It follows story:show-disputed-knowledge's authority/evidence foundations and precedes approved proposal integration. Source contract commit 07604bf1a5e6c19ef86b78846dc99a603f3d2bfb, spec_digest 29e2f5d0af0bb99248bb46d0dc1f538dedab7d5d209ca07c0fce5d0ac60a1a4e, validates before implementation.
+
+Named scenario schema_change_exposes_supporting_evidence runs against both file and SQLite, including reopen/full replay. Keep mixed schema/data refusals except explicitly admitted evidence operations. Expose supporting evidence through typed SDK, ontology CLI and read-only viewer schema history. Use generated contracts, preserve canonical evidence retention and ordinary validation; full task check plus real conformance closes this story.
+
+## Scope
+
+Scoper source review: ekr-sdk/src/document/transaction.rs:60,115–128 currently derives assertion/attachment evidence and refuses mixed schema transactions; ekr-kernel/src/validate/provenance.rs:98 and reference.rs:25 admit evidence; read.rs:93 schema history lacks per-version evidence links. Inferred implementation: kernel admission/replay under new profile, schema metadata, SDK supporting-evidence builder, cli/ontology.rs:52, ekr-views/src/document.rs:238,499 and index.rs:356. Extend schema_evolution.rs:382, schema_evolution_replay.rs:455 and add_evidence.rs:204,436. Preserve old-profile refusals and all other mixed schema/data refusals.

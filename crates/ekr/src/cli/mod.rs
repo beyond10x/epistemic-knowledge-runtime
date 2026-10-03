@@ -43,9 +43,11 @@ mod explain;
 mod extraction;
 mod hash;
 mod head;
+mod incubation;
 mod input;
 mod mcp;
 mod migrate;
+mod observations;
 mod ocel;
 mod ontology;
 mod propose;
@@ -72,7 +74,9 @@ use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
 pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
+pub use incubation::IncubateCommand;
 pub use mcp::serve_mcp;
+pub use observations::ObserveCommand;
 pub use session::serve;
 pub use transactions::StateFilter;
 
@@ -128,6 +132,20 @@ pub enum Backend {
 /// The kernel verbs, by their ESS wire names, and the agent verbs that describe them.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Import or inspect parked interpretations (`ekr.integrate`).
+    #[command(after_help = SEE)]
+    Incubate {
+        /// The interpretation operation.
+        #[command(subcommand)]
+        command: IncubateCommand,
+    },
+    /// Import or inspect independently retained observations (`ekr.observe`).
+    #[command(after_help = SEE)]
+    Observe {
+        /// The observation operation.
+        #[command(subcommand)]
+        command: ObserveCommand,
+    },
     /// Load the seed (`ekr.kernel.Seed`).
     ///
     /// A store verb: writes revision 0 under the `ekr.cli-host/1` host (--host or EKR_HOST).
@@ -504,6 +522,8 @@ impl Command {
     /// store it migrates.
     pub(crate) fn access(&self) -> Access {
         match self {
+            Self::Observe { command } => command.access(),
+            Self::Incubate { command } => command.access(),
             Self::Seed { .. }
             | Self::Propose { .. }
             | Self::Validate { .. }
@@ -756,6 +776,14 @@ fn dispatch(
     stdin: &mut dyn Read,
 ) -> Result<Printed, Failure> {
     match command {
+        Command::Observe { command } => {
+            let runtime = source.resolve("observe")?.open()?;
+            observations::run(command, &runtime, now, stdin)
+        }
+        Command::Incubate { command } => {
+            let runtime = source.resolve("incubate")?.open()?;
+            incubation::run(command, &runtime, now, stdin)
+        }
         Command::Guide => Ok(Printed::Text(agent::GUIDE.to_owned())),
         Command::Operations { kind: None } => Ok(Printed::Text(agent::operation_list())),
         Command::Operations { kind: Some(kind) } => Ok(Printed::Text(agent::operation(kind))),

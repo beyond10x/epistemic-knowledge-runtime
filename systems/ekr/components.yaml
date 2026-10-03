@@ -10,6 +10,11 @@ components:
         - ekr.kernel
     accepts:
       commands:
+        - ekr.kernel.ListAttention
+        - ekr.kernel.ShowAttention
+        - ekr.kernel.AnswerAttention
+        - ekr.kernel.PreviewUpgrade
+        - ekr.kernel.ApplyUpgrade
         - ekr.kernel.Seed
         - ekr.kernel.Propose
         - ekr.kernel.Validate
@@ -18,6 +23,11 @@ components:
         - ekr.kernel.Explain
     publishes:
       events:
+        - ekr.kernel.ListAttentionResult
+        - ekr.kernel.ShowAttentionResult
+        - ekr.kernel.AnswerAttentionResult
+        - ekr.kernel.PreviewUpgradeResult
+        - ekr.kernel.ApplyUpgradeResult
         - ekr.kernel.Seeded
         - ekr.kernel.TransactionProposed
         - ekr.kernel.TransactionValidated
@@ -29,6 +39,7 @@ components:
         - ekr.store.PublicationPrepared
         - ekr.store.ObjectStored
         - ekr.store.CheckpointWritten
+
 
   - component: ekr-ontology
     summary: >-
@@ -42,7 +53,7 @@ components:
   - component: ekr-graph
     summary: >-
       Graph roots, nodes, edges, bitemporal assertions with their validation state, evidence and
-      observations. Holds no writer of its own; every change arrives as a committed transaction.
+      observations. Canonical graph changes arrive as committed transactions; independent observations are retained through ekr-store before interpretation (§ 105).
     owns:
       domains:
         - ekr.graph
@@ -72,10 +83,21 @@ components:
   - component: ekr-observe
     summary: >-
       The observation layer's vocabulary: source units, checkpoints, the health of one poll and the
-      idempotency key of an observation. Their links and placement are held open by decision-blockers.
+      idempotency key of an observation. Supplied observations are append-only through ekr-store; polling, checkpoint and source-unit links remain held open by decision-blockers.
     owns:
       domains:
         - ekr.observe
+
+    accepts:
+      commands:
+        - ekr.observe.ImportObservation
+        - ekr.observe.ListObservations
+        - ekr.observe.ShowObservation
+    publishes:
+      events:
+        - ekr.observe.ImportObservationResult
+        - ekr.observe.ObservationsListed
+        - ekr.observe.ObservationShown
 
   - component: ekr-integrate
     summary: >-
@@ -87,7 +109,25 @@ components:
         - ekr.integrate
     accepts:
       commands:
+        - ekr.integrate.ImportInterpretation
+        - ekr.integrate.ListInterpretations
+        - ekr.integrate.ShowInterpretation
+        - ekr.integrate.DiscoverSchemaGaps
+        - ekr.integrate.SubmitSchemaProposal
+        - ekr.integrate.ShowSchemaProposal
+        - ekr.integrate.ApproveSchemaProposal
+        - ekr.integrate.RejectSchemaProposal
+        - ekr.integrate.ApplySchemaProposal
         - ekr.integrate.ApplyExtraction
     publishes:
       events:
+        - ekr.integrate.ImportInterpretationResult
+        - ekr.integrate.ListInterpretationsResult
+        - ekr.integrate.ShowInterpretationResult
+        - ekr.integrate.DiscoverSchemaGapsResult
+        - ekr.integrate.SubmitSchemaProposalResult
+        - ekr.integrate.ShowSchemaProposalResult
+        - ekr.integrate.ApproveSchemaProposalResult
+        - ekr.integrate.RejectSchemaProposalResult
+        - ekr.integrate.ApplySchemaProposalResult
         - ekr.integrate.ExtractionApplied
