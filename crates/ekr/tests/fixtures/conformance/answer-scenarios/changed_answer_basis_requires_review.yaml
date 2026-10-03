@@ -1,0 +1,212 @@
+{
+  "type": "ess-scenario/3",
+  "domain": "ekr.kernel",
+  "scenario": "changed-answer-basis-requires-review",
+  "summary": "A review preceding new competing evidence refuses; an independently renewed review resolves the question and preserves historical evidence.",
+  "fixtures": {
+    "original-knowledge-root": "ekr.kernel.ContentHash",
+    "reviewed-human-proof": "ekr.kernel.SignedHumanDecision",
+    "reviewed-dispute-id": "ekr.kernel.DisputeId",
+    "reviewed-basis": "ekr.kernel.ReviewBasis",
+    "reviewed-corrections": "List<ekr.kernel.ClaimCorrection>",
+    "renewed-human-proof": "ekr.kernel.SignedHumanDecision",
+    "renewed-dispute-id": "ekr.kernel.DisputeId",
+    "renewed-basis": "ekr.kernel.ReviewBasis",
+    "renewed-corrections": "List<ekr.kernel.ClaimCorrection>"
+  },
+  "timeline": [
+    {
+      "at": "2026-10-03T00:00:00Z",
+      "command": "ekr.kernel.AnswerAttention",
+      "actor": "ekr.kernel.HumanOperator",
+      "input": {
+        "human_proof": {
+          "$fixture": "reviewed-human-proof"
+        },
+        "dispute_id": {
+          "$fixture": "reviewed-dispute-id"
+        },
+        "basis": {
+          "$fixture": "reviewed-basis"
+        },
+        "corrections": {
+          "$fixture": "reviewed-corrections"
+        },
+        "statement": "cmV2aWV3ZWQgZml4dHVyZSBhbnN3ZXI="
+      },
+      "outcome": "refused",
+      "events": []
+    },
+    {
+      "at": "2026-10-03T00:00:01Z",
+      "command": "ekr.kernel.AnswerAttention",
+      "actor": "ekr.kernel.HumanOperator",
+      "input": {
+        "human_proof": {
+          "$fixture": "renewed-human-proof"
+        },
+        "dispute_id": {
+          "$fixture": "renewed-dispute-id"
+        },
+        "basis": {
+          "$fixture": "renewed-basis"
+        },
+        "corrections": {
+          "$fixture": "renewed-corrections"
+        },
+        "statement": "cmV2aWV3ZWQgZml4dHVyZSBhbnN3ZXI="
+      },
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.AnswerAttentionResult"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:02Z",
+      "command": "ekr.kernel.ListAttention",
+      "actor": "ekr.kernel.KnowledgeReader",
+      "input": {},
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "payload": {
+            "items": []
+          }
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:03Z",
+      "command": "ekr.kernel.ListAnswers",
+      "actor": "ekr.kernel.KnowledgeReader",
+      "input": {},
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.ListAnswersResult"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:04Z",
+      "command": "ekr.kernel.Snapshot",
+      "actor": "ekr.kernel.Operator",
+      "input": {
+        "at": 0
+      },
+      "outcome": "taken",
+      "events": [
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "payload": {
+            "number": 0,
+            "knowledge_root": {
+              "$fixture": "original-knowledge-root"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "assert": [
+    {
+      "view": "ekr.kernel.HumanAnswerRecords",
+      "contains": {
+        "state": "Recorded",
+        "dispute_id": {
+          "$fixture": "renewed-dispute-id"
+        },
+        "basis": {
+          "$fixture": "renewed-basis"
+        },
+        "operator": {
+          "actor": "00000000-0000-4000-8000-000000000003",
+          "authentication_subject": "fixture-human"
+        },
+        "corrections": {
+          "$fixture": "renewed-corrections"
+        }
+      }
+    },
+    {
+      "view": "ekr.kernel.HumanAnswerRecords",
+      "counts": {
+        "at_least": 1,
+        "at_most": 1
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000401",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000402",
+        "lifecycle": {
+          "kind": "Retracted",
+          "at_revision": 3,
+          "reason": "human reviewed the retained source evidence"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "counts": {
+        "at_least": 3,
+        "at_most": 3
+      }
+    },
+    {
+      "view": "ekr.graph.SettledAssertions",
+      "counts": {
+        "at_least": 1,
+        "at_most": 1
+      }
+    },
+    {
+      "view": "ekr.kernel.RetainedEvidence",
+      "contains": {
+        "evidence_id": "00000000-0000-4000-8000-000000000500",
+        "extracted_by": "00000000-0000-4000-8000-000000000003"
+      }
+    },
+    {
+      "view": "ekr.kernel.RetainedEvidence",
+      "contains": {
+        "evidence_id": "00000000-0000-4000-8000-000000000501",
+        "extracted_by": "00000000-0000-4000-8000-000000000003"
+      }
+    },
+    {
+      "view": "ekr.kernel.Revisions",
+      "contains": {
+        "number": 0,
+        "knowledge_root": {
+          "$fixture": "original-knowledge-root"
+        }
+      }
+    },
+    {
+      "view": "ekr.kernel.Revisions",
+      "counts": {
+        "at_least": 4,
+        "at_most": 4
+      }
+    }
+  ]
+}

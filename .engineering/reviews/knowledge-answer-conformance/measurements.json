@@ -1,0 +1,228 @@
+{
+  "completed_at": "2026-10-03T13:44:46Z",
+  "base_commit": "b55e33591e6b8ac70ab9f73d10621b006a2856d2",
+  "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+  "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c",
+  "generator": {
+    "version": "0.51.0",
+    "source_revision": "126c2b3905d0f4279086b9d3030096147955dfec",
+    "binary_sha256": "9481253cd158080118c9fc532dd0a70d1907d77d345bdb4102f7acdca2a88ac6",
+    "release": null
+  },
+  "records": [
+    {
+      "run": "first",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 1
+    },
+    {
+      "run": "first",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 1
+    },
+    {
+      "run": "material-mutant",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "material-mutant",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "material-mutant2",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 1,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "material-mutant2",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 1,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "revision-mutant",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 1,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "revision-mutant",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 1,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final1",
+      "file": "answer-file-no-op.report.json",
+      "error": 0,
+      "failed": 2,
+      "passed": 0,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final1",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final1",
+      "file": "answer-sqlite-no-op.report.json",
+      "error": 0,
+      "failed": 2,
+      "passed": 0,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final1",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final2",
+      "file": "answer-file-no-op.report.json",
+      "error": 0,
+      "failed": 2,
+      "passed": 0,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final2",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final2",
+      "file": "answer-sqlite-no-op.report.json",
+      "error": 0,
+      "failed": 2,
+      "passed": 0,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final2",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final3",
+      "file": "answer-file-no-op.report.json",
+      "error": 0,
+      "failed": 2,
+      "passed": 0,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final3",
+      "file": "answer-file-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final3",
+      "file": "answer-sqlite-no-op.report.json",
+      "error": 0,
+      "failed": 2,
+      "passed": 0,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    },
+    {
+      "run": "final3",
+      "file": "answer-sqlite-persisted.report.json",
+      "error": 0,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "unsupported": 0
+    }
+  ],
+  "files": {
+    "Taskfile.yml": "29754a8d4dd216397ca1a3adf2f337dfbbb59895c6ff29f9cdf400e2b47bbcee",
+    "crates/ekr/tests/conformance_knowledge.rs": "e8f8b59908872eb86320611bf12659cc432039573650f195f17bcd6f4c1a5b4f",
+    "crates/ekr/tests/support/answer_target.rs": "99633e029a3109b9792dd9aeba9f7ee53cab1db6ae94c29bd2c574766090b65d",
+    "crates/ekr/tests/support/upgrade_target.rs": "4db885d8e7edaaf72d5d6f6757313b666a18e7f32a0b0a3a8d1c6c933009d5f6",
+    "crates/ekr/tests/support/upgrade_fixture.rs": "cf93f6115beecd44e1545d17ef29516a80544d95acd185e8557a79f88999a869",
+    "crates/ekr/tests/fixtures/conformance/answer-suite.json": "177f96c24274cfdd4bcc616e9c5a9fbf02186623fea67a7ae3a76fc404284661",
+    "crates/ekr/tests/fixtures/conformance/answer-scenarios/changed_answer_basis_requires_review.yaml": "f956e676f2c0628632cab07cd983c9953f4f943e9596ded4aab1cefe9870afa4",
+    "crates/ekr/tests/fixtures/conformance/answer-scenarios/human_resolution_preserves_evidence_and_history.yaml": "979d8744b767f53a3c06870e31e1844ddbb9f88cbdba1b733f24421ceec7468a"
+  },
+  "restored_production": {
+    "crates/ekr-kernel/src/human_review/attention.rs": "9c546c7397dd3c014b1b521e3a0c2ce8224bb6a7cec555d3c7604786b6e15eb5",
+    "crates/ekr-kernel/src/human_review/corrections.rs": "927737dc7b1bc82854d0718e77851290b2132978392160900a923069b0abc183"
+  }
+}

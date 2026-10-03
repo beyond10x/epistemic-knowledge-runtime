@@ -1,0 +1,259 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/19",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c"
+  },
+  "implementation": {
+    "name": "EKR native Runtime Sqlite, no-op=false",
+    "version": "0.0.27"
+  },
+  "started_at": 1791035059429,
+  "completed_at": 1791035059454,
+  "status": "passed",
+  "scenarios": [
+    {
+      "scenario": "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "purpose": "A review preceding new competing evidence refuses; an independently renewed review resolves the question and preserves historical evidence.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.AnswerAttention/refused",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.AnswerAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AnswerAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.AnswerAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAnswers/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAnswersResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAnswersResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 11
+    },
+    {
+      "scenario": "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+      "purpose": "A signed answer remains valid across an unrelated ordinary commit; reopened full replay retains the reviewed correction and prior evidence.",
+      "status": "passed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.AnswerAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.AnswerAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.AnswerAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAttention/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAttentionResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.ListAnswers/answered",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.ListAnswersResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.ListAnswersResult",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.HumanAnswerRecords",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.Assertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.graph.SettledAssertions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 11
+    }
+  ]
+}

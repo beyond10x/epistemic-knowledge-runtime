@@ -1,0 +1,13 @@
+diff --git a/crates/ekr-kernel/src/human_review/attention.rs b/crates/ekr-kernel/src/human_review/attention.rs
+index cdf10bd41..70b6e7f3c 100644
+--- a/crates/ekr-kernel/src/human_review/attention.rs
++++ b/crates/ekr-kernel/src/human_review/attention.rs
+@@ -75,7 +75,7 @@ impl Reviewer {
+         checked.basis(&current.basis)?;
+         let prior = &reviewed.basis;
+         let now = &current.basis;
+-        if prior.observed_revision.0 > now.observed_revision.0
++        if prior.observed_revision.0 != now.observed_revision.0
+             || prior.evidence_digest != now.evidence_digest
+             || prior.options_digest != now.options_digest
+             || prior.effects_digest != now.effects_digest

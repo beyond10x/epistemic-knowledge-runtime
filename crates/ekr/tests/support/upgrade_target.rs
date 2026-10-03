@@ -1,4 +1,6 @@
 //! Native Runtime adapter. Reopens and fully replays on every command and view query.
+#[path = "answer_target.rs"]
+mod answer;
 #[path = "upgrade_fixture.rs"]
 mod fixture;
 use super::knowledge_target::{json_input, node, unavailable};
@@ -21,6 +23,7 @@ pub struct UpgradeTarget {
     provider: Provider,
     work: PathBuf,
     no_op: bool,
+    answers: bool,
     state: RefCell<Option<State>>,
     observed: RefCell<Vec<ObservedEvent>>,
 }
@@ -94,8 +97,15 @@ impl UpgradeTarget {
             provider,
             work: work.into(),
             no_op,
+            answers: false,
             state: RefCell::new(None),
             observed: RefCell::new(vec![]),
+        }
+    }
+    pub fn answers(provider: Provider, work: &Path, no_op: bool) -> Self {
+        Self {
+            answers: true,
+            ..Self::new(provider, work, no_op)
         }
     }
     fn open(&self, state: &State) -> Result<Runtime, TargetError> {
@@ -182,10 +192,21 @@ impl ConformanceTarget for UpgradeTarget {
             ),
         }
         .map_err(|e| unavailable("provisioning fixture store", e))?;
+        let mut seed = fixture::seed(exclusions);
+        if self.answers {
+            seed.graph
+                .assertions
+                .retain(|_, claim| matches!(claim.predicate, ekr_graph::Predicate::Property(_)));
+        }
         let seeded = runtime
-            .seed(fixture::seed(exclusions), || Timestamp::EPOCH)
+            .seed(seed, || Timestamp::EPOCH)
             .map_err(|e| unavailable("admitting original fixture", e))?;
         let human = fixture::Human::new(seeded.seed_hash);
+        let human = if self.answers {
+            human.with_answers()
+        } else {
+            human
+        };
         let runtime = runtime
             .with_review_authority(human.binding.clone())
             .map_err(|e| unavailable("provisioning trusted test host", e))?;
@@ -215,6 +236,13 @@ impl ConformanceTarget for UpgradeTarget {
                 node(json!(read.root.agent_root.to_string()))?,
             ),
         ]);
+        if self.answers {
+            supplied.extend(answer::prepare(
+                &runtime,
+                &human,
+                &scenario.scenario.to_string(),
+            )?);
+        }
         supplied.retain(|name, _| {
             contract
                 .fields
@@ -259,10 +287,10 @@ impl ConformanceTarget for UpgradeTarget {
     ) -> Result<SemanticCommandResult, TargetError> {
         let command = request.command.to_string();
         let actor = match command.as_str() {
-            "ekr.kernel.PreviewUpgrade" | "ekr.kernel.ListAttention" => {
+            "ekr.kernel.PreviewUpgrade" | "ekr.kernel.ListAttention" | "ekr.kernel.ListAnswers" => {
                 "ekr.kernel.KnowledgeReader"
             }
-            "ekr.kernel.ApplyUpgrade" => "ekr.kernel.HumanOperator",
+            "ekr.kernel.ApplyUpgrade" | "ekr.kernel.AnswerAttention" => "ekr.kernel.HumanOperator",
             "ekr.kernel.Snapshot" => "ekr.kernel.Operator",
             _ => {
                 return Err(TargetError::unsupported(
@@ -301,6 +329,9 @@ impl ConformanceTarget for UpgradeTarget {
                     unavailable("reading inert fixture boundary", e)
                 })?)?);
             return Ok(result);
+        }
+        if command == "ekr.kernel.AnswerAttention" {
+            return answer::execute(self, &runtime, &request);
         }
         let input = |name: &str| {
             request
@@ -391,6 +422,10 @@ impl ConformanceTarget for UpgradeTarget {
                 "ekr.kernel.ListAttentionResult",
                 json!({"items": runtime.attention().map_err(|e| unavailable("reading actual attention", e))?}),
             ),
+            "ekr.kernel.ListAnswers" => (
+                "ekr.kernel.ListAnswersResult",
+                json!({"answers": runtime.answer_history(None).map_err(|e| unavailable("reading retained answers", e))?}),
+            ),
             "ekr.kernel.Snapshot" => {
                 let at = request
                     .input
@@ -426,8 +461,8 @@ impl ConformanceTarget for UpgradeTarget {
             ));
         }
         let state = self.state()?;
-        let read = self
-            .open(&state)?
+        let runtime = self.open(&state)?;
+        let read = runtime
             .read(None)
             .map_err(|e| unavailable("replaying persisted view", e))?;
         check_consistency(&read, &request.consistency)?;
@@ -451,6 +486,13 @@ impl ConformanceTarget for UpgradeTarget {
                     .collect::<Result<Vec<_>, _>>()?
             }
             "ekr.kernel.Revisions" => revision_rows(&read)?,
+            "ekr.kernel.HumanAnswerRecords" => answer::rows(&runtime)?,
+            "ekr.kernel.RetainedEvidence" => read.graph.evidence.values().map(|e| {
+                let bytes = runtime.content(&e.content_hash).map_err(|e| unavailable("reading retained evidence bytes", e))?
+                    .ok_or_else(|| unavailable("reading retained evidence bytes", "missing payload"))?;
+                if ContentHash::of_bytes(&bytes) != e.content_hash { return Err(unavailable("checking evidence address", "hash mismatch")); }
+                map(json!({"evidence_id":e.id.to_string(),"content_hash":e.content_hash.to_string(),"extracted_by":e.extracted_by.to_string()}))
+            }).collect::<Result<Vec<_>,_>>()?,
             _ => {
                 return Err(TargetError::unsupported(
                     request.view.to_string(),
@@ -479,6 +521,15 @@ impl ConformanceTarget for UpgradeTarget {
         &self,
         request: ExternalOutcomeControl,
     ) -> Result<(), TargetError> {
+        // The answer fixture already committed new evidence after the supplied human review.
+        // Acknowledge that precondition only; never save the requested outcome or use it to
+        // choose the command result. The ordinary runtime must produce the refusal itself.
+        if self.answers
+            && request.force.command.to_string() == "ekr.kernel.AnswerAttention"
+            && request.force.outcome.to_string() == "refused"
+        {
+            return Ok(());
+        }
         Err(TargetError::unsupported(
             request.force.to_string(),
             "this target never forces an outcome",

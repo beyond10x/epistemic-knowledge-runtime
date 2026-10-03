@@ -1,0 +1,32 @@
+diff --git a/crates/ekr-kernel/src/human_review/attention.rs b/crates/ekr-kernel/src/human_review/attention.rs
+index cdf10bd41..ccfded3db 100644
+--- a/crates/ekr-kernel/src/human_review/attention.rs
++++ b/crates/ekr-kernel/src/human_review/attention.rs
+@@ -76,9 +76,9 @@ impl Reviewer {
+         let prior = &reviewed.basis;
+         let now = &current.basis;
+         if prior.observed_revision.0 > now.observed_revision.0
+-            || prior.evidence_digest != now.evidence_digest
++            || false && (prior.evidence_digest != now.evidence_digest
+             || prior.options_digest != now.options_digest
+-            || prior.effects_digest != now.effects_digest
++            || prior.effects_digest != now.effects_digest)
+         {
+             return Err(refuse(
+                 "answer-review-required",
+diff --git a/crates/ekr-kernel/src/human_review/corrections.rs b/crates/ekr-kernel/src/human_review/corrections.rs
+index 034df7397..c002d46ac 100644
+--- a/crates/ekr-kernel/src/human_review/corrections.rs
++++ b/crates/ekr-kernel/src/human_review/corrections.rs
+@@ -75,9 +75,9 @@ impl VerifiedDecision {
+         let old = &target.basis;
+         let now = &current.basis;
+         if old.observed_revision.0 > now.observed_revision.0
+-            || old.evidence_digest != now.evidence_digest
++            || false && (old.evidence_digest != now.evidence_digest
+             || old.options_digest != now.options_digest
+-            || old.effects_digest != now.effects_digest
++            || old.effects_digest != now.effects_digest)
+         {
+             return Err(refuse(
+                 "answer-review-required",
