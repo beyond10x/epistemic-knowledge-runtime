@@ -9,6 +9,8 @@ relations:
 - serves: vision:o2
 - derived_from: task:hosted-postgres-copy-and-read-serving
 scope:
+- confidence: cited
+  path: .engineering/planning/story/workspace-crate-skeleton.md
 - confidence: inferred
   path: Cargo.lock
 - confidence: inferred
@@ -26,16 +28,20 @@ scope:
 - confidence: cited
   path: crates/ekr/tests/adversary_tests_under_load.rs
 - confidence: cited
+  path: crates/ekr/tests/agent_cli.rs
+- confidence: cited
   path: crates/ekr/tests/migrate_cli.rs
 - confidence: cited
   path: crates/ekr/tests/postgres_cli.rs
+- confidence: cited
+  path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: crates/ekr/tests/support/inode_tempdir.rs
 - confidence: inferred
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 5}
