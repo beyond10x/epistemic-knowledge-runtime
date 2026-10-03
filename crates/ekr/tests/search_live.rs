@@ -580,6 +580,81 @@ fn embedded_assets_work_without_store_and_keep_http_admission() {
 }
 
 #[test]
+fn adversary_clearing_an_inflight_read_keeps_the_empty_state_after_late_failure() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    browser.navigate(&format!("{}/find", world.origin));
+    browser.until("data-live-search=\"ready\"");
+    browser.call("Network.enable", json!({}));
+    browser.call(
+        "Fetch.enable",
+        json!({"patterns":[{"urlPattern":"*/find?q=*","requestStage":"Request"}]}),
+    );
+    browser.focus();
+    browser.type_text("Alice");
+    let pending = browser.paused("q=Alice");
+    browser.key("a", 65, 2);
+    browser.key("Backspace", 8, 0);
+    browser.until("data-search-state=\"empty\"");
+    let late = browser.raw_call(
+        "Fetch.fulfillRequest",
+        json!({"requestId":pending["requestId"],"responseCode":503}),
+    );
+    if late.get("error").is_some() {
+        assert_eq!(late["error"]["message"], "Invalid InterceptionId.");
+    }
+    browser.call("Browser.getVersion", json!({}));
+    let html = browser.html();
+    assert!(html.contains("data-search-state=\"empty\""));
+    assert!(html.contains("Start with a name."));
+    assert!(!html.contains("Search is unavailable"));
+    assert!(!html.contains("class=\"result\""));
+    assert_eq!(browser.query_value(), "");
+    assert!(browser.events.iter().any(|event| {
+        event["method"] == "Network.loadingFailed" && event["params"]["canceled"] == true
+    }));
+    // A later successful query must still render: an empty/error state cannot disable the adapter.
+    browser.type_text("Alice");
+    let next = browser.paused("q=Alice");
+    let (_, alice) = world.get("/find?q=Alice");
+    browser.fulfill(&next, 200, &alice);
+    browser.until("class=\"result\"");
+    assert_eq!(browser.query_value(), "Alice");
+}
+
+#[test]
+fn adversary_reserved_characters_round_trip_as_one_query_without_navigation() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    let entry = format!("{}/find", world.origin);
+    browser.navigate(&entry);
+    browser.until("data-live-search=\"ready\"");
+    browser.call(
+        "Fetch.enable",
+        json!({"patterns":[{"urlPattern":"*/find?q=*","requestStage":"Request"}]}),
+    );
+    browser.focus();
+    let query = "Å<&+?#%'\"";
+    browser.type_text(query);
+    let encoded = "%C3%85%3C%26%2B%3F%23%25%27%22";
+    let pending = browser.paused(encoded);
+    assert_eq!(pending["request"]["url"], format!("{entry}?q={encoded}"));
+    let (headers, body) = world.get(&format!("/find?q={encoded}"));
+    assert!(headers.starts_with("HTTP/1.1 200"));
+    browser.fulfill(&pending, 200, &body);
+    let html = browser.until("No matches");
+    assert_eq!(browser.query_value(), query);
+    assert_eq!(html.matches("<script").count(), 1);
+    assert!(!html.contains("class=\"result\""));
+    let frame = browser.call("Page.getFrameTree", json!({}));
+    assert_eq!(frame["frameTree"]["frame"]["url"], entry);
+}
+
+#[test]
 fn browser_result_and_evidence_links_stay_at_the_selected_revision() {
     let Some(mut browser) = Browser::new() else {
         return;
