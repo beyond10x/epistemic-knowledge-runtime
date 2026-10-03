@@ -32,7 +32,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 18
+revision: 19
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -90,3 +90,7 @@ Generated SubmitSchemaProposal and ShowSchemaProposal obligations now admit exac
 ## Proposal presentation checkpoint
 
 Typed attention now includes retained proposals and links to Rust-rendered read-only proposal pages. A repeated evidence identity renders both retained and canonical source material; no canonical source is shadowed. Real CLI/session tests cover both providers and full replay, while Firefox inspection of the saved route response is retained in .engineering/reviews/knowledge-schema-proposal-viewer/. Independent review and correction are schema-proposal-viewer-independent-r1 and -r2. Review-aware filtering and signed human decision retention remain pending; neither this presentation increment nor the unvalidated F atomicity candidate establishes completed E/F acceptance.
+
+## Human review retention ownership
+
+Next bounded E unit: physical retention of the already-generated RetainedProposalReview in its own managed tree based on f39ea736eaafeeed87e7a1bd516dbc3973f38157. Own crates/ekr-store/src/proposal_reviews.rs, module/export-only changes in crates/ekr-store/src/eventlog.rs and lib.rs, and crates/ekr-store/tests/proposal_review_retention.rs. Preserve exact proof/policy/statement bytes atomically with generated review records, compare the effective proposal predecessor, and bind decision identity immutably. Per-proposal review streams must retain physical cursor semantics separately from human decision meaning so the later F marker can share the atomic stream guard. No new F marker format is implemented before its ESS contract validates. Kernel signature/admission, CLI, projections and AEP remain coordinator-owned and do not overlap. The unit tests physical retention only and cannot authorize a human decision. One owned Cargo lane is reserved exclusively for this store unit until handback; root will write tests/admission without running a concurrent build.
