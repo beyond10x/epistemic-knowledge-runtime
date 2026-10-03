@@ -26,7 +26,7 @@ fn fixtures() -> PathBuf {
 fn selected() -> AdmittedInput {
     select("knowledge-suite.json", SCENARIOS)
 }
-fn select(file: &str, scenarios: [&str; 3]) -> AdmittedInput {
+fn select<const N: usize>(file: &str, scenarios: [&str; N]) -> AdmittedInput {
     let raw = std::fs::read_to_string(fixtures().join(file)).unwrap();
     let full = AdmittedInput::from_suite(AdmittedSuite::from_json(&raw).unwrap()).unwrap();
     let mut ids = scenarios.map(|id| id.parse().unwrap());
@@ -240,4 +240,74 @@ fn retention_scenarios_keep_their_positive_read_assertions() {
             );
         }
     }
+}
+
+const ANSWER_SCENARIOS: [&str; 2] = [
+    "ekr.kernel/authored/human-resolution-preserves-evidence-and-history",
+    "ekr.kernel/authored/changed-answer-basis-requires-review",
+];
+fn run_answers(no_op: bool) {
+    let input = select("answer-suite.json", ANSWER_SCENARIOS);
+    let selected = input.selected();
+    let mut failures = Vec::new();
+    for provider in [Provider::File, Provider::Sqlite] {
+        let work = tempfile::tempdir().unwrap();
+        let target = upgrade_target::UpgradeTarget::answers(provider, work.path(), no_op);
+        let started = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+        )
+        .unwrap();
+        let run = Runner::new(
+            RunnerConfig::default(),
+            AdvancingClock::new(started, 1),
+            Ids::for_suite(selected.suite()),
+        )
+        .run_admitted(selected, &target);
+        let report = CountReport::from_run(&run, selected).unwrap();
+        let json = report.to_canonical_json().unwrap();
+        eprintln!("{provider:?} answers no-op={no_op}: {json}");
+        if let Some(directory) = std::env::var_os("EKR_KNOWLEDGE_REPORT_DIR") {
+            let directory = PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let name = format!(
+                "answer-{}-{}",
+                match provider {
+                    Provider::File => "file",
+                    Provider::Sqlite => "sqlite",
+                },
+                if no_op { "no-op" } else { "persisted" }
+            );
+            std::fs::write(directory.join(format!("{name}.report.json")), &json).unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.suite-input.json")),
+                input.document().to_canonical_json().unwrap(),
+            )
+            .unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.run.json")),
+                serde_json::to_vec_pretty(&run.report()).unwrap(),
+            )
+            .unwrap();
+        }
+        let counts = report.counts();
+        if counts.total != 2
+            || counts.error + counts.unsupported + counts.skipped != 0
+            || counts.passed != if no_op { 0 } else { 2 }
+            || counts.failed != if no_op { 2 } else { 0 }
+        {
+            failures.push(format!("{provider:?}: {:#?}", run.report()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+#[test]
+fn human_answers_conform_after_reopen_and_full_replay() {
+    run_answers(false);
+}
+#[test]
+fn every_answer_scenario_detects_an_inert_target() {
+    run_answers(true);
 }

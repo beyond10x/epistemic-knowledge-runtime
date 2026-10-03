@@ -1,0 +1,62 @@
+{
+  "completed_at": 1791035030845,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 2,
+    "skipped": 0,
+    "total": 2,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 2,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/changed-answer-basis-requires-review",
+          "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:177f96c24274cfdd4bcc616e9c5a9fbf02186623fea67a7ae3a76fc404284661",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/changed-answer-basis-requires-review",
+      "ekr.kernel/authored/human-resolution-preserves-evidence-and-history"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:291e2ed916109e05ee9fd35a65d07534d52310c9e95c199ba9adbafd8e87545b",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}

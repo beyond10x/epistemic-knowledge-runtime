@@ -17,7 +17,7 @@ use std::{collections::BTreeSet, fmt::Debug, str::FromStr};
 
 pub const TENANT: &str = "upgrade-conformance";
 pub const STATEMENT: &[u8] = b"reviewed fixture upgrade";
-fn id<T: FromStr>(n: u64) -> T
+pub fn id<T: FromStr>(n: u64) -> T
 where
     T::Err: Debug,
 {
@@ -154,6 +154,28 @@ pub struct Human {
     pub binding: m::TrustedReviewHostBinding,
 }
 impl Human {
+    pub fn with_answers(mut self) -> Self {
+        self.policy.keys[0]
+            .scopes
+            .insert(0, m::HumanDecisionScope::AnswerAttention);
+        self.binding.reviewer_policy_digest = m::ContentHash(
+            review::digest(&review::policy_bytes(&self.policy).unwrap()).to_string(),
+        );
+        self
+    }
+
+    pub fn sign(&self, proof: &mut wire::EkrKernelSignedHumanDecision) {
+        let semantic = review::proof_from_document(proof).unwrap();
+        proof.signature = ekr_core::bytes::encode(
+            self.key
+                .sign(&review::signing_bytes(&semantic.intent).unwrap())
+                .as_ref(),
+        );
+    }
+
+    pub fn key_digest(&self) -> String {
+        review::digest(self.key.public_key().as_ref()).to_string()
+    }
     pub fn new(seed: ContentHash) -> Self {
         let key = Ed25519KeyPair::from_seed_unchecked(&[37; 32]).unwrap();
         let document: wire::EkrKernelReviewerTrustPolicy = serde_json::from_value(json!({
