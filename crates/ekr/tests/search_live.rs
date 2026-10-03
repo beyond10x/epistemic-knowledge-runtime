@@ -202,6 +202,7 @@ impl Browser {
             events: vec![],
         };
         browser.call("Page.enable", json!({}));
+        browser.call("Page.setLifecycleEventsEnabled", json!({"enabled":true}));
         Some(browser)
     }
     fn call(&mut self, method: &str, params: Value) -> Value {
@@ -263,21 +264,40 @@ impl Browser {
         }
     }
     fn navigate(&mut self, url: &str) {
-        self.events.retain(|e| e["method"] != "Page.loadEventFired");
+        let previous = self.loader();
         self.call("Page.navigate", json!({"url":url}));
+        self.wait_for_document(&previous);
+    }
+    fn loader(&mut self) -> String {
+        self.call("Page.getFrameTree", json!({}))["frameTree"]["frame"]["loaderId"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+    fn submit_get(&mut self) {
+        let previous = self.loader();
+        self.key("Enter", 13, 0);
+        self.wait_for_document(&previous);
+    }
+    /// Both explicit navigation and ordinary form submission replace CDP's document/node ids.
+    /// Wait for the new loader's own load event before any multi-command DOM observation.
+    /// Old load events cannot satisfy this barrier; every protocol error remains fatal.
+    fn wait_for_document(&mut self, previous: &str) {
         let start = Instant::now();
         loop {
-            self.call("Browser.getVersion", json!({}));
-            if self
-                .events
-                .iter()
-                .any(|e| e["method"] == "Page.loadEventFired")
+            let current = self.loader();
+            if current != previous
+                && self.events.iter().any(|event| {
+                    event["method"] == "Page.lifecycleEvent"
+                        && event["params"]["name"] == "load"
+                        && event["params"]["loaderId"] == current
+                })
             {
                 break;
             }
             assert!(
                 start.elapsed() < Duration::from_secs(30),
-                "page load event absent"
+                "new document's load event absent"
             );
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -506,7 +526,7 @@ fn composition_suppresses_partial_queries_and_no_script_get_still_works() {
     browser.focus();
     browser.type_text("Alice");
     assert_eq!(browser.query_value(), "Alice");
-    browser.key("Enter", 13, 0);
+    browser.submit_get();
     let html = browser.until("class=\"result\"");
     assert!(html.contains("Historical view"));
     assert!(html.contains("/#revision=0&amp;node="));
