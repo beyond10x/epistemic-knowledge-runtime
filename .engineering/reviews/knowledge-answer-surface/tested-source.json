@@ -1,0 +1,56 @@
+{
+  "parent": "a23d44e6c96d2462f25a8c2207b0affff696140d",
+  "observed_at": "2026-10-03T12:27:08.989Z",
+  "files": [
+    {
+      "path": "crates/ekr-kernel/src/answers/durable.rs",
+      "sha256": "bb598e49612befc78464e372ba34e0fedd987a10f1b20e437ac603f0c3f7fb13"
+    },
+    {
+      "path": "crates/ekr-kernel/src/human_review.rs",
+      "sha256": "86b454329a27f2ac7cd3a27beff5be0a3a66af1bc955b8363804241828cf2e0f"
+    },
+    {
+      "path": "crates/ekr-kernel/src/human_review/wire.rs",
+      "sha256": "bc6858bb84618266c4e71a2fe1185cc908b2c862d720f9ebe87fee936bae9911"
+    },
+    {
+      "path": "crates/ekr-kernel/src/runtime.rs",
+      "sha256": "936b19321304e9b4dbcaeda56a185f9134e01417256fbde7296517c70664582d"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/human_review.rs",
+      "sha256": "5be5baa029a94df988a351ad1b89994f760ca6ddab0a40d0616eaacca522fac3"
+    },
+    {
+      "path": "crates/ekr-sdk/src/knowledge.rs",
+      "sha256": "047fe3dc7b74e82661a5e87956c33bd118cb2273aade5dbb101dc79f1ef64188"
+    },
+    {
+      "path": "crates/ekr/src/cli/attention.rs",
+      "sha256": "5402766c0cee6ce176cbee044907eeeba57e5e6dcfdefc01cfdb34f5c2f987e6"
+    },
+    {
+      "path": "crates/ekr/src/cli/attention/tests.rs",
+      "sha256": "84b93c71b8c47a60b3fe79292a051bbb8ce99049dfd6be354124a203396ba41c"
+    },
+    {
+      "path": "crates/ekr/src/cli/mod.rs",
+      "sha256": "33ee329bd99405726946366f029f9a298e2dc4a990d7c64b1e994fe0b2427aaa"
+    },
+    {
+      "path": "crates/ekr/tests/docs_cli.rs",
+      "sha256": "bde5e755db4ebd2394fe283965ab7525c3a6e1d4cab892320aa0380042354ed7"
+    },
+    {
+      "path": "crates/ekr/tests/read_only_store.rs",
+      "sha256": "6ba629c9a035578470bbbc764519c68fca08eed25ed369449ba9cc7349fad9ed"
+    },
+    {
+      "path": "docs/cli.md",
+      "sha256": "058256a18d9454ffb69e1b20edab23518f4c17f4fa79d81948ed2133de264c62"
+    }
+  ],
+  "source_digest": "f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b",
+  "contract_digest": "873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48"
+}

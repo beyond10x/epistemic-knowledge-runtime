@@ -61,24 +61,6 @@ fn correction(value: &m::ClaimCorrection) -> EkrKernelClaimCorrection {
         valid_to: presence(value.valid_to.as_ref().map(|v| v.0.clone())),
     }
 }
-fn semantic_correction(value: &EkrKernelClaimCorrection) -> m::ClaimCorrection {
-    m::ClaimCorrection {
-        kind: match *value.kind {
-            EkrKernelClaimCorrectionKind::V0 => m::ClaimCorrectionKind::Choose,
-            EkrKernelClaimCorrectionKind::V1 => m::ClaimCorrectionKind::CorrectTime,
-            EkrKernelClaimCorrectionKind::V2 => m::ClaimCorrectionKind::Retract,
-            EkrKernelClaimCorrectionKind::V3 => m::ClaimCorrectionKind::Unresolved,
-        },
-        assertion_id: g::AssertionId(Uuid(value.assertion_id.0.clone())),
-        reason: value.reason.clone(),
-        valid_from: optional(&value.valid_from)
-            .cloned()
-            .map(ekr_core::contracts::primitives::Timestamp),
-        valid_to: optional(&value.valid_to)
-            .cloned()
-            .map(ekr_core::contracts::primitives::Timestamp),
-    }
-}
 pub(super) fn replacements(record: &EkrKernelHumanAnswerRecord) -> Vec<m::ClaimReplacement> {
     record
         .replacements
@@ -107,7 +89,7 @@ pub(super) fn input(
         corrections: record
             .corrections
             .iter()
-            .map(|v| semantic_correction(v))
+            .map(|v| review::correction_from_document(v))
             .collect(),
         statement: history
             .content(

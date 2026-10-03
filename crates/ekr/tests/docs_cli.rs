@@ -706,7 +706,25 @@ fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
         "the operation-kind table of docs/cli.md and `ekr operations` disagree"
     );
 
-    // Every kind-shaped name the page writes as code or as a YAML tag is one the binary has.
+    // Reviewed answer correction kinds share verbs with graph operations (notably Retract).
+    // Admit only actual generated correction labels, not arbitrary operation-shaped prose.
+    use ekr_core::contract_data::EkrKernelClaimCorrectionKind as Correction;
+    let corrections: BTreeSet<String> = [
+        Correction::V0,
+        Correction::V1,
+        Correction::V2,
+        Correction::V3,
+    ]
+    .into_iter()
+    .map(|kind| {
+        serde_json::to_value(kind)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned()
+    })
+    .collect();
+    // Every kind-shaped name is a graph operation or a generated answer correction.
     let mut named = BTreeSet::new();
     for (at, _) in page.match_indices(['`', '!']) {
         let word: String = page[at + 1..]
@@ -719,7 +737,10 @@ fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
             named.insert(word);
         }
     }
-    let unknown: Vec<&String> = named.iter().filter(|w| !binary.contains_key(*w)).collect();
+    let unknown: Vec<&String> = named
+        .iter()
+        .filter(|w| !binary.contains_key(*w) && !corrections.contains(*w))
+        .collect();
     assert!(
         unknown.is_empty(),
         "docs/cli.md names operation kinds the binary does not have: {unknown:?}"

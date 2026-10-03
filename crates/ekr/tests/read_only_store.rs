@@ -265,12 +265,13 @@ fn write_verbs_on_a_read_only_store_are_refused_by_name_with_exit_2() {
         let guard = world.read_only();
         let propose = fixture("propose-alice.yaml").display().to_string();
         let seed = fixture("seed.yaml").display().to_string();
-        let verbs: [&[&str]; 5] = [
+        let verbs: [&[&str]; 6] = [
             &["propose", &propose],
             &["validate", transaction, "--against", "0"],
             &["commit", transaction],
             &["seed", &seed],
             &["apply-extraction", &propose],
+            &["attention", "answer", "-"],
         ];
         for verb in verbs {
             let output = world.run(verb);
@@ -485,6 +486,8 @@ fn a_session_on_a_read_only_store_reads_and_refuses_a_write_by_name() {
             json!({"argv": ["propose", propose]}),
             json!({"argv": ["resolve", "-"],
                    "stdin": "type_id: 00000000-0000-4000-8000-000000000201\naliases: [Alice]\n"}),
+            json!({"argv": ["attention", "answer", "-"], "stdin": "{}"}),
+            json!({"argv": ["attention", "history"]}),
         ]
         .iter()
         .map(|line| format!("{line}\n"))
@@ -503,7 +506,7 @@ fn a_session_on_a_read_only_store_reads_and_refuses_a_write_by_name() {
             .lines()
             .map(|line| serde_json::from_str(line).unwrap())
             .collect();
-        assert_eq!(answers.len(), 3, "{backend}: {answers:?}");
+        assert_eq!(answers.len(), 5, "{backend}: {answers:?}");
         assert_eq!(answers[0]["exit"], 0, "{backend}: {}", answers[0]);
         assert_eq!(answers[0]["stdout"], head, "{backend}");
         assert_eq!(answers[1]["exit"], 2, "{backend}: {}", answers[1]);
@@ -515,6 +518,13 @@ fn a_session_on_a_read_only_store_reads_and_refuses_a_write_by_name() {
             answers[1]
         );
         assert_eq!(answers[2]["exit"], 0, "{backend}: {}", answers[2]);
+        assert_eq!(answers[3]["exit"], 2, "{backend}: {}", answers[3]);
+        assert!(answers[3]["stderr"]
+            .as_str()
+            .unwrap()
+            .starts_with("ekr: store-read-only: "));
+        assert_eq!(answers[4]["exit"], 0, "{backend}: {}", answers[4]);
+        assert_eq!(answers[4]["stdout"], json!([]));
     }
 }
 

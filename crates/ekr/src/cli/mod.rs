@@ -154,14 +154,17 @@ pub enum Command {
         #[command(subcommand)]
         command: UpgradeCommand,
     },
-    /// Inspect unresolved knowledge questions (`ekr.kernel.ListAttention` and `ShowAttention`).
+    /// Inspect or answer knowledge questions (`ekr.kernel.ListAttention`, `ShowAttention`,
+    /// `AnswerAttention` and `ListAnswers`).
     ///
-    /// A read-only store verb under the `ekr.cli-host/1` host. List and show return generated
+    /// Under the `ekr.cli-host/1` host, list and show return generated
     /// `ekr.kernel.AttentionItem` records with claim/evidence identities and a review basis.
     /// Start with `ekr attention list`; use its typed subject with `ekr attention show`.
+    /// Answer reads an `ekr.kernel.AttentionAnswerApplication` JSON file (or `-`); history
+    /// reads retained `ekr.kernel.HumanAnswerRecord` values. Provisioning: docs/cli.md.
     #[command(after_help = SEE)]
     Attention {
-        /// The inbox query.
+        /// The inbox query or signed answer.
         #[command(subcommand)]
         command: AttentionCommand,
     },
@@ -566,6 +569,7 @@ impl Command {
     pub(crate) fn access(&self) -> Access {
         match self {
             Self::Upgrade { command } => command.access(),
+            Self::Attention { command } => command.access(),
             Self::Observe { command } => command.access(),
             Self::Incubate { command } => command.access(),
             Self::Seed { .. }
@@ -573,8 +577,7 @@ impl Command {
             | Self::Validate { .. }
             | Self::Commit { .. }
             | Self::ApplyExtraction { .. } => Access::Write,
-            Self::Attention { .. }
-            | Self::Snapshot { .. }
+            Self::Snapshot { .. }
             | Self::Explain { .. }
             | Self::Resolve { .. }
             | Self::Guide
@@ -827,7 +830,7 @@ fn dispatch(
         }
         Command::Attention { command } => {
             let runtime = source.resolve("attention")?.open()?;
-            attention::run(command, &runtime)
+            attention::run(command, &runtime, now, stdin)
         }
         Command::Observe { command } => {
             let runtime = source.resolve("observe")?.open()?;

@@ -81,6 +81,32 @@ impl Runtime {
             Backend::Sqlite(kernel) => kernel.apply_upgrade(preview, policy, proof, statement, now),
         }
     }
+    /// Apply an externally signed answer and return its immutable original receipt on retry.
+    /// # Errors
+    /// Untrusted or stale review, invalid corrections, read-only store or persistence failure.
+    pub fn answer_attention(
+        &self,
+        input: &ekr_core::contracts::kernel::AttentionAnswerApplication,
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrKernelAnswerReceipt, crate::CommitError> {
+        let record = match &self.backend {
+            Backend::File(k) => k.answer_attention(input, now),
+            Backend::Sqlite(k) => k.answer_attention(input, now),
+        }?;
+        Ok(*record.receipt)
+    }
+    /// Read authenticated answer records in revision order, including settled questions.
+    /// # Errors
+    /// Untrusted reviewer provisioning, invalid retained history or persistence failure.
+    pub fn answer_history(
+        &self,
+        dispute: Option<&ekr_core::contracts::kernel::DisputeId>,
+    ) -> Result<Vec<ekr_core::contract_data::EkrKernelHumanAnswerRecord>, crate::CommitError> {
+        match &self.backend {
+            Backend::File(k) => k.answer_history(dispute),
+            Backend::Sqlite(k) => k.answer_history(dispute),
+        }
+    }
     /// Lists evidence-backed questions without creating queue state or canonical revisions.
     /// # Errors
     /// Invalid history, missing retained evidence or provider failure.
