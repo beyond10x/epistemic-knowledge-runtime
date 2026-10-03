@@ -1,0 +1,19 @@
+   Compiling ekr v0.0.27 (<user-home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-conformance-20261003/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 3.74s
+     Running unittests src/lib.rs (<owned-build-cache>/target/debug/deps/ekr-36f1557db15e028e)
+
+running 1 test
+
+thread 'conformance::integrate::knowledge::tests::canonical_guard_rejects_real_proposal_with_unchanged_head_on_both_providers' (3790885) panicked at crates/ekr/src/conformance/knowledge.rs:685:9:
+canonical writes escaped the guard: [File, Sqlite]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test conformance::integrate::knowledge::tests::canonical_guard_rejects_real_proposal_with_unchanged_head_on_both_providers ... FAILED
+
+failures:
+
+failures:
+    conformance::integrate::knowledge::tests::canonical_guard_rejects_real_proposal_with_unchanged_head_on_both_providers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p ekr --lib`

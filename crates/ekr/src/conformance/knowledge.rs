@@ -26,6 +26,34 @@ struct State {
     binding: Option<m::TrustedReviewHostBinding>,
     values: BTreeMap<String, Node>,
 }
+/// A/E may retain metadata, but must leave both graph state and canonical occurrences intact.
+struct CanonicalObservation {
+    head: Option<ekr_graph::Root>,
+    occurrences: Vec<ekr_kernel::runtime::PublishedEvent>,
+}
+impl CanonicalObservation {
+    fn capture(runtime: &Runtime) -> Result<Self, TargetError> {
+        let head = runtime
+            .head()
+            .map_err(|e| unavailable("verifying canonical knowledge before/after command", e))?;
+        let occurrences = runtime
+            .published_events()
+            .map_err(|e| unavailable("reading actual canonical occurrences", e))?
+            .into_iter()
+            .filter(|event| event.stream_type == "ekr.revision" && event.stream_id == "canonical")
+            .collect();
+        Ok(Self { head, occurrences })
+    }
+    fn require_unchanged(&self, after: &Self) -> Result<(), TargetError> {
+        if self.head != after.head || self.occurrences != after.occurrences {
+            return Err(unavailable(
+                "checking knowledge command canonical side effects",
+                "A/E command changed canonical head or canonical occurrences",
+            ));
+        }
+        Ok(())
+    }
+}
 pub(super) struct KnowledgeAdapter {
     provider: Provider,
     host: CliHostConfigurationV1,
@@ -521,6 +549,7 @@ impl KnowledgeAdapter {
             input["human_proof"]["intent"]["format"] = json!("ekr.human-decision/1");
         }
         let review_proposal = input["proposal_id"].clone();
+        let before = CanonicalObservation::capture(&runtime)?;
         let answer:Result<Value,PersistenceError>=match operation {
             "ImportInterpretation"=>runtime.import_interpretation(&decode(input)?,Timestamp::from_millis(3)).map(|receipt|json!({"receipt":receipt})),
             "ListInterpretations"=>runtime.interpretations().map(|rows|json!({"interpretations":rows})),
@@ -532,11 +561,14 @@ impl KnowledgeAdapter {
             "RejectSchemaProposal"=>runtime.reject_schema_proposal(&decode(input.clone())?,Timestamp::from_millis(3)).map(|review|json!({"review_id":review.review_id})),
             _=>return Err(TargetError::unsupported(command,"knowledge adapter does not implement this operation")),
         };
+        drop(runtime);
+        // Reopen with full replay even for refusals, and observe only the canonical stream:
+        // observation/incubation/proposal/review retention is allowed to append metadata.
+        let reopened = self.open(state)?;
+        before.require_unchanged(&CanonicalObservation::capture(&reopened)?)?;
         if matches!(operation, "ApproveSchemaProposal" | "RejectSchemaProposal") {
-            drop(runtime);
             // The generated event only checks an id shape. Verify that this id is a durable,
             // authenticated decision after reopening and full replay, before reporting it.
-            let reopened = self.open(state)?;
             let held = reopened
                 .schema_proposal_reviews(&decode(review_proposal)?)
                 .map_err(|e| unavailable("replaying retained schema review", e))?;
@@ -596,5 +628,63 @@ impl KnowledgeAdapter {
             Err(fault) => return Err(unavailable("executing native knowledge command", fault)),
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_guard_rejects_real_proposal_with_unchanged_head_on_both_providers() {
+        let fixtures = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("tests/fixtures/conformance");
+        let mut missed = Vec::new();
+        for provider in [Provider::File, Provider::Sqlite] {
+            let work = tempfile::tempdir().unwrap();
+            let target =
+                super::super::IntegrateTarget::new(provider, &fixtures, work.path()).unwrap();
+            let adapter = &target.knowledge;
+            let scenario = ScenarioContext::new(
+                "ekr.integrate.ListInterpretations/outcome/answered"
+                    .parse()
+                    .unwrap(),
+                ess_primitives::ids::CorrelationId::new("canonical-write-control").unwrap(),
+            );
+            adapter.prepare(&scenario).unwrap();
+            let state = adapter.state.borrow();
+            let state = state.as_ref().unwrap();
+            let runtime = adapter.open(state).unwrap();
+            let before = CanonicalObservation::capture(&runtime).unwrap();
+            before
+                .require_unchanged(&CanonicalObservation::capture(&runtime).unwrap())
+                .unwrap();
+
+            // A real ordinary proposal appends canonical history without moving graph head.
+            // This is the same comparison used before the adapter reports success or refusal.
+            runtime
+                .propose(
+                    &std::fs::read(fixtures.join("propose-node.yaml")).unwrap(),
+                    adapter.host.context.operator,
+                    || Timestamp::from_millis(3),
+                )
+                .unwrap();
+            drop(runtime);
+            let reopened = adapter.open(state).unwrap();
+            let after = CanonicalObservation::capture(&reopened).unwrap();
+            assert_eq!(before.head, after.head, "{provider:?}");
+            assert_eq!(
+                after.occurrences.len(),
+                before.occurrences.len() + 1,
+                "{provider:?}: the ordinary proposal must really append a canonical occurrence"
+            );
+            if before.require_unchanged(&after).is_ok() {
+                missed.push(provider);
+            }
+        }
+        assert!(
+            missed.is_empty(),
+            "canonical writes escaped the guard: {missed:?}"
+        );
     }
 }

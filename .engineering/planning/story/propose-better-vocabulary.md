@@ -34,7 +34,7 @@ scope:
   path: generated/ekr-contracts
 - confidence: cited
   path: systems/ekr
-revision: 25
+revision: 26
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"test_result":1,"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T17:43:43Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"test_result":1,"approval":1}}}
@@ -126,3 +126,9 @@ The native adapter now executes retained interpretation operations, discovery, s
 The event-suppression control adds eight failures and signature corruption adds exactly the two approval/rejection positive failures, measured against the existing Submit failure. Review IDs and decisions are independently read after reopen/full replay. The full Rust target has five passing and three failing tests; bounded clippy/format checks pass. Fixed report fixture-clock timestamps are not execution UTC and are not imported as fresh conformance evidence.
 
 Independent source review identified an additional observation gap: the adapter must compare verified canonical head and actual canonical publication occurrences before and after every A/E result, including refusals. The scoped correction is being implemented with a real-write negative control. This checkpoint records partial execution, not global conformance or E completion. F design review is separate and does not authorize reporting runtime application as implemented.
+
+## Canonical observation review disposition
+
+Review knowledge-adapter-independent-r1 found that returned events and persisted review IDs did not detect an unintended canonical write. The adapter now captures the verified head and actual ekr.revision/canonical occurrence history before every A/E operation, reopens with full replay after every result, and requires both observations to remain identical. Intended observation/incubation/proposal/review metadata writes remain observable through their existing result/history checks.
+
+The real ordinary Propose negative control failed against an intermediate head-only comparison on both providers: the head stayed equal while the canonical occurrence stream grew. Adding exact occurrence comparison made that same control pass. The focused integration target remains five tests passed and three failed; both providers still report 16 passed, one failed, two unsupported, total 19. No existing floor was relaxed. Bounded clippy and formatting pass. Independent source/log round two approves the correction, without claiming independent execution. Exact reports and red/green logs are retained in .engineering/reviews/knowledge-integrate-adapter/canonical-guard/; report clock values remain synthetic.
