@@ -1,0 +1,56 @@
+   Compiling ekr-kernel v0.0.27 ($WORKTREE/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 5.31s
+     Running tests/adversary_p1_13_explain_1.rs ($BUILD/target/debug/deps/adversary_p1_13_explain_1-11428b379fd7eb2a)
+
+running 5 tests
+test a_consistent_forgery_of_the_captured_graph_is_refused_by_explain ... ok
+test a_snapshot_never_pairs_a_root_with_a_graph_it_does_not_commit_to ... ok
+test the_carriers_serialise_with_the_names_and_kind_tags_kernel_yaml_declares ... ok
+test a_lifecycle_transaction_contributes_its_own_evidence_set ... ok
+test a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revision ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/adversary_p1_13_explain_r2_bound.rs ($BUILD/target/debug/deps/adversary_p1_13_explain_r2_bound-92e6d3345d93d65f)
+
+running 6 tests
+test a_seed_only_lineage_is_admitted_across_a_reopen ... ok
+test a_root_forged_with_its_coordinate_is_refused_by_the_retained_record ... ok
+test missing_revision_coordinates_are_refused_by_both_projections ... ok
+test earlier_revisions_after_a_supersession_are_admitted_and_bounded ... ok
+test a_forged_seed_result_is_refused_by_both_projections ... ok
+test a_rewritten_graph_root_is_refused_by_snapshot ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/attention_explanations.rs ($BUILD/target/debug/deps/attention_explanations-2b023adbf34adf59)
+
+running 1 test
+test all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+
+     Running tests/explain.rs ($BUILD/target/debug/deps/explain-3703f0efbb43d464)
+
+running 11 tests
+test an_unknown_assertion_is_refused_with_its_identity ... ok
+test a_seeded_assertion_explains_through_the_retained_seed_to_its_evidence ... ok
+test a_supersession_follows_the_replacement_and_its_distinct_evidence ... ok
+test a_committed_assertion_explains_through_its_proposal_validation_and_commit ... ok
+test a_captured_read_explained_after_another_commit_does_not_show_the_later_change ... ok
+test every_selected_assertion_is_visited_once_in_stable_order ... ok
+test a_replacement_accepted_before_the_supersession_is_explained_from_its_own_acceptance ... ok
+test a_retraction_keeps_the_original_acceptance_and_adds_the_lifecycle_change ... ok
+test a_snapshot_carries_the_complete_graph_and_root_and_the_shared_valid_time_selection ... ok
+test every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed ... ok
+test missing_or_corrupt_required_support_refuses_the_whole_chain ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/explain_index.rs ($BUILD/target/debug/deps/explain_index-a71812b916bd5e7d)
+
+running 2 tests
+test explain_reads_only_the_documents_of_its_own_chain ... ok
+test an_explanation_does_not_grow_with_its_origin_transaction ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.49s

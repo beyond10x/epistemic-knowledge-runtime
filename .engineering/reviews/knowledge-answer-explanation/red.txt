@@ -1,0 +1,29 @@
+   Compiling ekr-contract-data v0.0.0 ($WORKTREE/generated/ekr-contract-data)
+   Compiling ekr-types v1.0.0 ($WORKTREE/generated/ekr-contracts/crates/ekr-types)
+   Compiling ekr-core v0.0.27 ($WORKTREE/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 ($WORKTREE/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 ($WORKTREE/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 ($WORKTREE/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 ($WORKTREE/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 ($WORKTREE/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 28.71s
+     Running tests/attention_explanations.rs ($BUILD/target/debug/deps/attention_explanations-2b023adbf34adf59)
+
+running 1 test
+test all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers ... FAILED
+
+failures:
+
+---- all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers stdout ----
+
+thread 'all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers' (3775663) panicked at crates/ekr-kernel/tests/attention_explanations.rs:29:10:
+an authority transition is a valid snapshot boundary: Unverified { code: "root-record-disagrees" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    all_reviewed_corrections_explain_their_signed_origin_and_evidence_on_both_providers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p ekr-kernel --test attention_explanations`

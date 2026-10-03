@@ -5727,3 +5727,26 @@ remaining canonical disputes, not concurrently changing incubation roots or prop
 
 This amendment defines the implementation contract. Generating these types does not establish
 publication, recovery, replay or human-resolution conformance.
+
+## 105.12 Explaining reviewed corrections (2026-10-03)
+
+`ekr.explanation/2` adds the generated `ExplainedAnswer` as a `HumanAnswer` link. It contains
+an immutable `HumanAnswerRecord` and its exact retained record address. Existing SDKs skip
+unknown link kinds; new SDKs retain this typed record. Do not fabricate an ordinary proposal,
+validation receipt or commit receipt for a reviewed answer.
+
+A verified read captures answer records through its own revision. Its root must bind to the
+actual retained seed, ordinary commit, authority transition or answer record. Explanation
+verifies the retained answer and derived transaction addresses and their revision coordinates.
+It includes answers which explicitly correct the selected assertion, create its replacement,
+or withdraw it as a reviewed competitor, including Unresolved and a chosen claim whose own
+lifecycle stays active. Each answer contributes the human statement and the ordinary derived
+transaction's supporting evidence. Explicit temporal replacement links are followed in both
+directions, visiting each assertion and answer once; original intervals remain unchanged.
+Historical captures do not query a newer head or include a subsequent answer. An unrecognized
+or contradictory retained origin/lifecycle refuses rather than returning an incomplete chain.
+
+The link itself includes the full reviewed record, even without `--documents`. That option
+continues to add retained evidence payloads, including the human statement. Proof, policy and
+derived transaction remain referenced by their immutable addresses. This changes a read
+projection only; historical event bytes, signature rules and publication remain unchanged.

@@ -329,6 +329,8 @@ pub enum ExplanationLink {
     Lifecycle(Map<String, Value>),
     /// Evidence attached to it after it was added, with the attaching commit by reference.
     Attachment(ExplainedAttachment),
+    /// A signed correction, its immutable record and exact record address.
+    HumanAnswer(Box<crate::contracts::EkrKernelExplainedAnswer>),
     /// Evidence cited, by its content hash, and with `documents` its retained bytes.
     Evidence(ExplainedEvidence),
     /// A kind this SDK does not know, added by a newer `ekr`.

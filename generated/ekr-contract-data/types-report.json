@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b",
+  "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:648d4a4fc1a1bc4fb6529cc822f29695efc9b811ed7914cfe52ede1e2d906b76",
-    "projection_digest": "9f64609e46ed45d5b677442442a8f8c399555b1d249ff04b50fd97300468eb52"
+    "contract_digest": "slice-sha256/2:911dd946d4fce70360a69234f9ab522499906e14280300b8b7997fb2d8d065da",
+    "projection_digest": "451ee193e27fe7004c73a4df0e0ac96ff8b75b95676f91be66cfac6769772060"
   },
   "generator_version": "0.51.0",
   "target": "rust",
@@ -188,6 +188,7 @@
     "ekr.kernel.EventId",
     "ekr.kernel.EvidenceAdditionProjection",
     "ekr.kernel.EvidenceAttachmentProjection",
+    "ekr.kernel.ExplainedAnswer",
     "ekr.kernel.ExplainedAttachment",
     "ekr.kernel.ExplainedCommit",
     "ekr.kernel.ExplainedLifecycle",
@@ -634,6 +635,7 @@
     "ekr.kernel.EventId": "EkrKernelEventId",
     "ekr.kernel.EvidenceAdditionProjection": "EkrKernelEvidenceAdditionProjection",
     "ekr.kernel.EvidenceAttachmentProjection": "EkrKernelEvidenceAttachmentProjection",
+    "ekr.kernel.ExplainedAnswer": "EkrKernelExplainedAnswer",
     "ekr.kernel.ExplainedAttachment": "EkrKernelExplainedAttachment",
     "ekr.kernel.ExplainedCommit": "EkrKernelExplainedCommit",
     "ekr.kernel.ExplainedLifecycle": "EkrKernelExplainedLifecycle",
@@ -3948,6 +3950,21 @@
       "detail": "model identity and wire mapping retained in source.schema.json"
     },
     {
+      "pointer": "/$defs/ekr.kernel.ExplainedAnswer/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ExplainedAnswer/x-ess-kind",
+      "rule": "x-ess-kind",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ExplainedAnswer/x-ess-name",
+      "rule": "x-ess-name",
+      "detail": "model identity and wire mapping retained in source.schema.json"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.ExplainedAttachment/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -4099,6 +4116,11 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.ExplanationLink/oneOf/7/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ExplanationLink/oneOf/8/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
     },

@@ -1441,6 +1441,15 @@ types:
       - name: commit
         type: ekr.kernel.ExplainedCommit
 
+  # A reviewed answer is its actual immutable record, never a synthetic ordinary proposal.
+  # Added compatibly to explanation/2: old SDKs skip unknown link kinds. The record includes
+  # exact signed review references, correction/replacement links, validation and receipt.
+  - name: ekr.kernel.ExplainedAnswer
+    kind: struct
+    fields:
+      - {name: record_hash, type: ekr.kernel.ContentHash}
+      - {name: record, type: ekr.kernel.HumanAnswerRecord}
+
   - name: ekr.kernel.ExplanationLink
     kind: union
     tag: kind
@@ -1453,6 +1462,15 @@ types:
       Lifecycle: ekr.kernel.ExplainedLifecycle
       Evidence: ekr.graph.EvidenceRecord
       Attachment: ekr.kernel.ExplainedAttachment
+      HumanAnswer: ekr.kernel.ExplainedAnswer
+
+  # A capture binds its root to the actual seed, ordinary commit, authority transition or
+  # human-answer record. Answers through that boundary join an assertion's explanation when
+  # they correct it, create its replacement, or retire it as a reviewed competitor. Include
+  # uncertainty and the retained human statement even when no claim changes. Verify record
+  # and derived-transaction addresses against the captured bytes and revision coordinate;
+  # follow explicit replacement links in both directions, once per assertion/answer. Never
+  # query a newer head to explain an older capture. Ordinary origins retain their own links.
 
   - name: ekr.kernel.ExplanationResult
     kind: struct

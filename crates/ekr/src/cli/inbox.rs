@@ -144,6 +144,42 @@ pub(super) fn render(runtime: &Runtime) -> Result<Vec<u8>, String> {
         )
         .unwrap();
     }
+    let answers = runtime.answer_history(None).map_err(|e| e.to_string())?;
+    if !answers.is_empty() {
+        page.push_str("<h2>Answer history</h2><p>Reviewed decisions remain available after their questions are settled.</p>");
+    }
+    for answer in answers {
+        let revision = answer
+            .result
+            .revision
+            .0
+            .as_u64()
+            .ok_or("invalid answer revision")?;
+        let read = runtime
+            .read(Some(RevisionNumber::new(revision)))
+            .map_err(|e| e.to_string())?;
+        let evidence: EvidenceId = answer
+            .statement_evidence
+            .0
+            .parse()
+            .map_err(|e: ekr_core::IdParseError| e.to_string())?;
+        let entry = read
+            .graph
+            .evidence
+            .get(&evidence)
+            .ok_or("missing human statement evidence")?;
+        let statement = read
+            .content(&entry.content_hash)
+            .ok_or("missing human statement bytes")?;
+        let outcome = match *answer.receipt.outcome {
+            ekr_core::contract_data::EkrKernelAnswerOutcome::V0 => "Already applied",
+            ekr_core::contract_data::EkrKernelAnswerOutcome::V1 => "Partially resolved",
+            ekr_core::contract_data::EkrKernelAnswerOutcome::V2 => "Resolved",
+            ekr_core::contract_data::EkrKernelAnswerOutcome::V3 => "Unresolved",
+        };
+        write!(page, "<article id=\"answer-{}\"><h3>{outcome}</h3><p>Reviewed by {} · {} · revision {revision}</p><pre>{}</pre><p><a href=\"/evidence/{evidence}\">Human statement evidence</a></p><details><summary>Corrections and effective times</summary><pre>{}</pre></details><details><summary>Signed decision and provenance</summary><pre>{}</pre></details></article>",
+            escaped(&answer.answer_id.0), escaped(&answer.review.operator.authentication_subject), escaped(&answer.review.recorded_at), excerpt(statement), document(&answer.corrections)?, document(&answer)?).unwrap();
+    }
     page.push_str("</main></html>");
     Ok(page.into_bytes())
 }
