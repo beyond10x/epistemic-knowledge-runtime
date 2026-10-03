@@ -1,0 +1,22 @@
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+error[E0061]: this function takes 5 arguments but 4 arguments were supplied
+   --> crates/ekr-kernel/src/validate/structural.rs:729:26
+    |
+729 |         let mut issues = check(graph, tx, candidate, true).err().unwrap_or_default();
+    |                          ^^^^^---------------------------- argument #5 of type `std::option::Option<&std::collections::BTreeSet<ekr_core::AssertionId>>` is missing
+    |
+note: function defined here
+   --> crates/ekr-kernel/src/validate/structural.rs:816:4
+    |
+816 | fn check(
+    |    ^^^^^
+...
+821 |     reviewed_withdrawals: Option<&BTreeSet<ekr_core::AssertionId>>,
+    |     --------------------------------------------------------------
+help: provide the argument
+    |
+729 |         let mut issues = check(graph, tx, candidate, true, /* std::option::Option<&std::collections::BTreeSet<ekr_core::AssertionId>> */).err().unwrap_or_default();
+    |                                                          +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0061`.
+error: could not compile `ekr-kernel` (lib test) due to 1 previous error

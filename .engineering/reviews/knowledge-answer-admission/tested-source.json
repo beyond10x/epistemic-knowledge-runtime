@@ -1,0 +1,57 @@
+{
+  "parent": "f1ca0bc2b4e483f33987132d94ae25410afacb8a",
+  "files": [
+    {
+      "path": "crates/ekr-kernel/src/answers.rs",
+      "sha256": "a08e9348c6c26827f30248062bfa46fd4fded3188e9c28419e68002ef58ff529"
+    },
+    {
+      "path": "crates/ekr-kernel/src/answers/tests.rs",
+      "sha256": "b2372807b96cdb9647444a781f82613d063d9f1d9adb09506df3dc960fde5432"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/support/authority_review_fixture.rs",
+      "sha256": "031846344689a77c3d82fc86682260deaabaae610094bce32d8d1b7afb201b80"
+    },
+    {
+      "path": "crates/ekr-kernel/src/attention.rs",
+      "sha256": "85e0cc9e700ab5255e5f40c8af58de86bd0247df88e8eb024485983d1a434569"
+    },
+    {
+      "path": "crates/ekr-kernel/src/checkpoint.rs",
+      "sha256": "7a36ac239074e5222974289b081fac5cfaff01e725bc7591daaa26d413b85b42"
+    },
+    {
+      "path": "crates/ekr-kernel/src/human_review/corrections.rs",
+      "sha256": "927737dc7b1bc82854d0718e77851290b2132978392160900a923069b0abc183"
+    },
+    {
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "sha256": "71167390537fc4289fca0202298b6446f191112d9e954f4f0812916d494f92e3"
+    },
+    {
+      "path": "crates/ekr-kernel/src/replay.rs",
+      "sha256": "dfe238935c8d8a25ccab32af1d0266bc5ead42e7623bcbcf56c5f46f6da2120a"
+    },
+    {
+      "path": "crates/ekr-kernel/src/upgrade.rs",
+      "sha256": "1e19de36fa567215cb1488f78cc5283454f19b6bfdb5828b19587bd38b122824"
+    },
+    {
+      "path": "crates/ekr-kernel/src/validate/lifecycle.rs",
+      "sha256": "42e231f686d701a3b629269545fafa78cee65a9494589dee535cc7da66ea3b1b"
+    },
+    {
+      "path": "crates/ekr-kernel/src/validate/mod.rs",
+      "sha256": "dff7ced0655d00f39e2322668251857482a27a940693ecb44de990e264878804"
+    },
+    {
+      "path": "crates/ekr-kernel/src/validate/structural.rs",
+      "sha256": "5ce3782a87fbb9b917add673c587ac241f89cde25af30b658f92e63d6b74e6b2"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/authority_upgrade.rs",
+      "sha256": "8947518eac67be2bc1265671db24939f7cbea76e1d74be5bcbb9f843e2a663c1"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+    Checking ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `dev` profile [unoptimized] target(s) in 28.09s

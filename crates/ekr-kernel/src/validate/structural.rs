@@ -145,7 +145,7 @@ impl Check for Structural {
         tx: &GraphTransaction,
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
-        check(graph, tx, candidate, false)
+        check(graph, tx, candidate, false, None)
     }
 }
 
@@ -174,7 +174,7 @@ impl Check for SchemaStructural {
         tx: &GraphTransaction,
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
-        check(graph, tx, candidate, true)
+        check(graph, tx, candidate, true, None)
     }
 }
 
@@ -702,6 +702,7 @@ impl HeldIdentities {
 pub(crate) struct IdentityStructural {
     /// Every node and edge identity the lineage up to the snapshot held.
     pub(crate) held: HeldIdentities,
+    pub(crate) reviewed_withdrawals: Option<BTreeSet<ekr_core::AssertionId>>,
 }
 
 impl Validator for IdentityStructural {
@@ -725,7 +726,15 @@ impl Check for IdentityStructural {
         tx: &GraphTransaction,
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
-        let mut issues = check(graph, tx, candidate, true).err().unwrap_or_default();
+        let mut issues = check(
+            graph,
+            tx,
+            candidate,
+            true,
+            self.reviewed_withdrawals.as_ref(),
+        )
+        .err()
+        .unwrap_or_default();
         once_held(graph, &self.held, tx, &mut issues);
         finish(issues)
     }
@@ -817,6 +826,7 @@ fn check(
     tx: &GraphTransaction,
     candidate: &Candidate<'_>,
     admits_schema: bool,
+    reviewed_withdrawals: Option<&BTreeSet<ekr_core::AssertionId>>,
 ) -> Result<(), Vec<ValidationIssue>> {
     let mut issues = Vec::new();
     if tx.operations.is_empty() {
@@ -1047,7 +1057,7 @@ fn check(
         }
     }
 
-    issues.extend(super::lifecycle::check(graph, tx));
+    issues.extend(super::lifecycle::check(graph, tx, reviewed_withdrawals));
     issues.extend(super::attachment::check(graph, tx));
     finish(issues)
 }

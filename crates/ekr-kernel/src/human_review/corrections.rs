@@ -45,6 +45,33 @@ impl VerifiedDecision {
                     "reviewed dispute is no longer current",
                 )
             })?;
+        self.corrections_at(
+            &read.graph,
+            &current,
+            corrections,
+            replacements,
+            statement_evidence,
+        )
+    }
+    pub(crate) fn corrections_at(
+        &self,
+        graph: &CanonicalGraph,
+        current: &m::AttentionItem,
+        corrections: &[m::ClaimCorrection],
+        replacements: &[m::ClaimReplacement],
+        statement_evidence: EvidenceId,
+    ) -> Result<Vec<GraphOperation>, Refusal> {
+        let m::HumanDecisionTarget::AnswerAttention(target) = &self.intent().target else {
+            return Err(refuse("review-target", "proof is not an attention answer"));
+        };
+        if current.subject.dispute_id.as_ref() != Some(&target.dispute_id)
+            || digest(&corrections_bytes(corrections)?).to_string() != target.corrections_digest.0
+        {
+            return Err(refuse(
+                "review-target",
+                "corrections or dispute differ from the signed answer",
+            ));
+        }
         let old = &target.basis;
         let now = &current.basis;
         if old.observed_revision.0 > now.observed_revision.0
@@ -70,7 +97,7 @@ impl VerifiedDecision {
             .parse()
             .map_err(|_| invalid("invalid operator"))?;
         derive(
-            &read.graph,
+            graph,
             &claims,
             corrections,
             replacements,

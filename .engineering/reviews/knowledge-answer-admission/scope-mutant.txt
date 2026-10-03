@@ -1,0 +1,22 @@
+   Compiling ekr-kernel v0.0.27 (<answer-unit>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 8.36s
+     Running unittests src/lib.rs (<answer-build>/target/debug/deps/ekr_kernel-e0ca0e018189ad43)
+
+running 1 test
+test answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals ... FAILED
+
+failures:
+
+---- answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals stdout ----
+
+thread 'answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals' (1985915) panicked at crates/ekr-kernel/src/answers/tests.rs:155:18:
+called `Result::unwrap_err()` on an `Ok` value: ValidatedTransaction { transaction: GraphTransaction { id: TransactionId(2165215708006735743239898516414143054), proposer: AgentId(302240678275694148452355), operations: [RetractAssertion(Retraction { assertion: AssertionId(2165215707980140615256076942081086465), reason: RetractionReason("human reviewed the retained source evidence") }), AddEvidence(EvidenceAddition { evidence: Evidence { id: EvidenceId(2165215708006735743239898515093525389), source: HumanStatement { identity: Some("fixture-human") }, content_hash: ContentHash([118, 196, 40, 160, 8, 77, 176, 126, 169, 145, 140, 50, 66, 172, 187, 57, 29, 97, 25, 12, 159, 198, 134, 11, 237, 77, 130, 155, 174, 141, 87, 27]), extracted_by: AgentId(302240678275694148452355), observed_at: Timestamp(2), confidence: Confidence(10000) }, payload: [114, 101, 118, 105, 101, 119, 101, 100, 32, 97, 110, 115, 119, 101, 114] }), RetractAssertion(Retraction { assertion: AssertionId(2165215707980140615256076931929567989), reason: RetractionReason("outside reviewed withdrawal set") })], evidence: {}, schema_version: None }, validated_against: RevisionNumber(1), validation_hash: ContentHash([132, 213, 81, 26, 181, 39, 89, 240, 232, 199, 140, 14, 31, 141, 30, 254, 57, 56, 196, 154, 227, 204, 41, 19, 142, 216, 30, 214, 89, 215, 222, 116]) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    answers::tests::signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_withdrawals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p ekr-kernel --lib`

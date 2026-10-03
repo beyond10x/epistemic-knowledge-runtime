@@ -82,7 +82,7 @@ fn review_record(
     })
 }
 impl KernelAuthority {
-    fn reviewer(
+    pub(crate) fn reviewer(
         &self,
         state: &ReplayState,
         policy: &m::ReviewerTrustPolicy,
