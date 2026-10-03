@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T05:39:25Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:retain-supplied-knowledge",
+  "kind": "story",
+  "revision": 23,
+  "change": {
+    "change": "evidence",
+    "kind": "ess_conformance_coverage_v1",
+    "source": "{\"completed_at\":\"1791005965312\",\"conformance_status\":\"passed\",\"counts\":{\"error\":0,\"failed\":0,\"passed\":3,\"skipped\":0,\"total\":3,\"unsupported\":0},\"coverage\":{\"counts\":{\"authored\":3,\"generated\":0,\"outside\":115,\"refused\":0},\"knowledge\":\"complete_inventory\",\"refused\":[],\"selection\":{\"filter\":{\"ids\":[\"ekr.integrate/authored/rejected-interpretation-retains-its-sources\",\"ekr.integrate/authored/unmapped-knowledge-survives-reopen\",\"ekr.observe/authored/observation-retry-is-idempotent\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:85985f6fe303b620f4a0a69ac6368553cdeb11ce1d13d5303c4aaefcb59dfb59\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/13\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}}},\"execution_status\":\"passed\",\"format\":\"ess-conformance-report/2\",\"implementation\":\"ekr knowledge CLI (Sqlite; discard=false) 0.0.27\",\"input_transport\":\"original_input\",\"policy\":\"complete-selection/1\",\"producer_profile\":\"rust-scenario-status/1\",\"report_input\":\".engineering/reviews/knowledge-disputes/conformance/sqlite-retained.report.json\",\"selected_ids\":[\"ekr.integrate/authored/rejected-interpretation-retains-its-sources\",\"ekr.integrate/authored/unmapped-knowledge-survives-reopen\",\"ekr.observe/authored/observation-retry-is-idempotent\"],\"selection\":{\"filter\":{\"ids\":[\"ekr.integrate/authored/rejected-interpretation-retains-its-sources\",\"ekr.integrate/authored/unmapped-knowledge-survives-reopen\",\"ekr.observe/authored/observation-retry-is-idempotent\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:85985f6fe303b620f4a0a69ac6368553cdeb11ce1d13d5303c4aaefcb59dfb59\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/13\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}},\"spec_digest\":\"11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07\",\"specification\":\"ekr/v1\",\"suite\":{\"digest\":\"sha256:864939ed59880a2935dd870339560f22dfc3a4ddf9dbea59a6796a96fce38254\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/13\"},\"suite_input\":\".engineering/reviews/knowledge-disputes/conformance/suite-input.json\"}",
+    "reference": ".engineering/reviews/knowledge-disputes/conformance/sqlite-retained.report.json"
+  }
+}

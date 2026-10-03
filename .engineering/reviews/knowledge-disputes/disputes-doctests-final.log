@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized] target(s) in 0.07s
+   Doc-tests ekr_kernel
+
+running 2 tests
+test crates/ekr-kernel/src/human_review.rs - human_review::VerifiedDecision (line 333) - compile fail ... ok
+test crates/ekr-kernel/src/lib.rs - (line 46) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+

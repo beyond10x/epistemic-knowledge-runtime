@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 23
+revision: 24
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
@@ -217,3 +217,7 @@ table is a red gate for whoever touches a manifest next.
 
 
 `serde_yaml_ng` moves from `ekr`'s dev-dependencies to its dependencies: `ekr resolve` reads a typed-reference YAML document (`story:ekr-resolve-verb`).
+
+## Amendment, human review verification
+
+`story:show-disputed-knowledge` adds the already pinned `ring` dependency to ekr-kernel for Ed25519 human-decision verification and the review protocol's plain SHA-256 digests. This reuses the workspace's existing resolved package; Cargo.lock gains the kernel dependency edge only. Signing remains outside product code. The generated models stay in the existing ESS contract crates; no handwritten decision model is added. The external-dependency table in crates/ekr/tests/story_contract.rs is amended in the same delivery. This historical skeleton story stays implemented.

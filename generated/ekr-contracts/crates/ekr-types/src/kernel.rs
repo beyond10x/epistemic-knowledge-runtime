@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa
-// contract digest 8c63803964860a51eaf7284bd1ba96a1676e0adb7e274e4b8c9b873e94e76fca
+// model digest 11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07
+// contract digest 2b377fb4add5fe71fdcad8f8a265bd67875e200a26268677d3534e1d6ce9f11d
 // do not edit: regenerate with `ess synthesize`
 
 //! Kernel — `ekr.kernel`.
@@ -639,6 +639,12 @@ pub struct HumanDecisionIntent {
 /// HumanDecisionRecord — `ekr.kernel.HumanDecisionRecord`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HumanDecisionRecord {
+    /// `proof_object_hash` — `ekr.kernel.ContentHash`.
+    pub proof_object_hash: ContentHash,
+    /// `policy_object_hash` — `ekr.kernel.ContentHash`.
+    pub policy_object_hash: ContentHash,
+    /// `statement_object_hash` — `ekr.kernel.ContentHash`.
+    pub statement_object_hash: ContentHash,
     /// `decision_id` — `Uuid`.
     pub decision_id: crate::primitives::Uuid,
     /// `proof_digest` — `ekr.kernel.ContentHash`.
@@ -1650,13 +1656,17 @@ impl AnyAgent {
 pub struct AuthorityTransitionData {
     /// The identity: `transition_id` — `ekr.kernel.AuthorityTransitionId`.
     pub transition_id: AuthorityTransitionId,
-    /// `review_host_binding_digest` — `ekr.kernel.ContentHash`.
+    /// `review_host_binding_object_hash` — `ekr.kernel.ContentHash`.
     ///
     /// Carries `reviewer_host_binding`: `ekr.kernel.AuthorityTransition` references one `ekr.store.StoredObject`.
-    pub review_host_binding_digest: ContentHash,
-    /// `reviewer_policy_digest` — `ekr.kernel.ContentHash`.
+    pub review_host_binding_object_hash: ContentHash,
+    /// `reviewer_policy_object_hash` — `ekr.kernel.ContentHash`.
     ///
     /// Carries `reviewer_policy`: `ekr.kernel.AuthorityTransition` references one `ekr.store.StoredObject`.
+    pub reviewer_policy_object_hash: ContentHash,
+    /// `review_host_binding_digest` — `ekr.kernel.ContentHash`.
+    pub review_host_binding_digest: ContentHash,
+    /// `reviewer_policy_digest` — `ekr.kernel.ContentHash`.
     pub reviewer_policy_digest: ContentHash,
     /// `trust_enrollment` — `ekr.kernel.ReviewerTrustEnrollment`.
     pub trust_enrollment: ReviewerTrustEnrollment,
@@ -2507,18 +2517,24 @@ impl AnyHumanAnswer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedHumanDecisionData {
     /// The identity: `proof_digest` — `ekr.kernel.ContentHash`.
+    pub proof_digest: ContentHash,
+    /// `proof_object_hash` — `ekr.kernel.ContentHash`.
     ///
     /// Carries `proof_bytes`: `ekr.kernel.RetainedHumanDecision` references one `ekr.store.StoredObject`.
-    pub proof_digest: ContentHash,
+    pub proof_object_hash: ContentHash,
+    /// `policy_object_hash` — `ekr.kernel.ContentHash`.
+    ///
+    /// Carries `policy_bytes`: `ekr.kernel.RetainedHumanDecision` references one `ekr.store.StoredObject`.
+    pub policy_object_hash: ContentHash,
+    /// `statement_object_hash` — `ekr.kernel.ContentHash`.
+    ///
+    /// Carries `statement_bytes`: `ekr.kernel.RetainedHumanDecision` references one `ekr.store.StoredObject`.
+    pub statement_object_hash: ContentHash,
     /// `decision_id` — `Uuid`.
     pub decision_id: crate::primitives::Uuid,
     /// `policy_digest` — `ekr.kernel.ContentHash`.
-    ///
-    /// Carries `policy_bytes`: `ekr.kernel.RetainedHumanDecision` references one `ekr.store.StoredObject`.
     pub policy_digest: ContentHash,
     /// `statement_digest` — `ekr.kernel.ContentHash`.
-    ///
-    /// Carries `statement_bytes`: `ekr.kernel.RetainedHumanDecision` references one `ekr.store.StoredObject`.
     pub statement_digest: ContentHash,
     /// `operator` — `ekr.kernel.TrustedOperatorIdentity`.
     pub operator: TrustedOperatorIdentity,
@@ -3817,6 +3833,10 @@ pub struct TransactionStateConflict {
 /// see the plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorityTransitionRecords {
+    /// `review_host_binding_object_hash` — `ekr.kernel.ContentHash`.
+    pub review_host_binding_object_hash: ContentHash,
+    /// `reviewer_policy_object_hash` — `ekr.kernel.ContentHash`.
+    pub reviewer_policy_object_hash: ContentHash,
     /// `review_host_binding_digest` — `ekr.kernel.ContentHash`.
     pub review_host_binding_digest: ContentHash,
     /// `reviewer_policy_digest` — `ekr.kernel.ContentHash`.
@@ -3938,6 +3958,12 @@ pub struct HumanAnswerRecords {
 /// see the plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HumanDecisionRecords {
+    /// `proof_object_hash` — `ekr.kernel.ContentHash`.
+    pub proof_object_hash: ContentHash,
+    /// `policy_object_hash` — `ekr.kernel.ContentHash`.
+    pub policy_object_hash: ContentHash,
+    /// `statement_object_hash` — `ekr.kernel.ContentHash`.
+    pub statement_object_hash: ContentHash,
     /// `proof_digest` — `ekr.kernel.ContentHash`.
     pub proof_digest: ContentHash,
     /// `state` — `ekr.kernel.RetainedHumanDecision.State`.

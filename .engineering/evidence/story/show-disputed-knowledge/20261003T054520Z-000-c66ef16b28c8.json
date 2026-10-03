@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T05:45:20Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 13,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Focused dispute and human-proof tests, kernel regression, workspace Clippy, generated drift and CLI architecture checks; development checkpoint only",
+    "reference": ".engineering/reviews/knowledge-disputes/README.md"
+  }
+}

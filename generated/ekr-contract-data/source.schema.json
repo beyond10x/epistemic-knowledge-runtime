@@ -4330,7 +4330,13 @@
         "policy_digest": {
           "$ref": "#/$defs/ekr.kernel.ContentHash"
         },
+        "policy_object_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
         "proof_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "proof_object_hash": {
           "$ref": "#/$defs/ekr.kernel.ContentHash"
         },
         "recorded_at": {
@@ -4339,9 +4345,15 @@
         },
         "statement_digest": {
           "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "statement_object_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
         }
       },
       "required": [
+        "proof_object_hash",
+        "policy_object_hash",
+        "statement_object_hash",
         "decision_id",
         "proof_digest",
         "policy_digest",
@@ -10528,8 +10540,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:46d3b3f4766e54fd1dd1590d9f0060fabbea753dd5a368d86cb6a13396d120ce",
-    "source_digest": "49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa",
+    "contract_digest": "slice-sha256/2:e014d3db8013e817ff8a0fa74a7392db52960eaef9ff4a4ac98dc45199281c6c",
+    "source_digest": "11cc0c9caa5a32a7c92b297de0ddfe5f3e110f8c122e0daece60f6bb6c818d07",
     "specification_version": "v1",
     "system": "ekr"
   }

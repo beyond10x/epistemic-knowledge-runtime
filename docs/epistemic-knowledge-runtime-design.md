@@ -5534,6 +5534,13 @@ statement bytes. Proof digest is SHA-256 of the canonical SignedHumanDecision en
 its intent, algorithm and signature. None of these documents contains its own digest or signature
 inside the signed intent. The exact canonical proof, policy, host-binding and statement bytes are
 retained as Provenance-or-stronger StoredObjects and verified by digest before admission/replay.
+Protocol digests above are plain SHA-256, whereas a StoredObject address is the existing
+`ContentHash::of_bytes` hash with its payload-domain prefix. Retained decisions therefore carry
+separate `proof_object_hash`, `policy_object_hash` and `statement_object_hash` fields; authority
+transitions carry `review_host_binding_object_hash` and `reviewer_policy_object_hash`. ESS
+StoredObject relations use these addresses. Replay must verify both the storage address and the
+protocol digest against the same bytes. This distinction leaves the original storage addressing
+and review-signature formats intact. Provider/replay conformance for these relations is unexecuted.
 The human-readable input serialization may vary; the signing bytes and retained canonical bytes
 may not. Signing a different interpretation of the input document is never accepted.
 

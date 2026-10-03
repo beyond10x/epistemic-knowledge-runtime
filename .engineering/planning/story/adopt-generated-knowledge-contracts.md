@@ -39,7 +39,7 @@ scope:
   path: systems/ekr
 - confidence: inferred
   path: xtask
-revision: 21
+revision: 22
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"approval":1}}}
@@ -93,3 +93,9 @@ The frozen ess-ekr-synthesis-publish-20261003 managed tree was finished and garb
 ## AEP report-reader compatibility pin
 
 The actual ESS suite/13 reports exposed AEP 0.64's report ingestion limit. Published AEP 0.68.0 (tag commit 6d7a44d3607d2d9a6ffdf0a165993c546c43d0db, release published 2026-09-30) admits later ESS coverage-suite versions with original-byte and complete-parent checks; it leaves execution grammar to ESS. The x86_64 Linux archive was fetched from the official release and verified against both the release asset digest and SHA256SUMS: 02bf6a2c4bc9a3ffd717edfb365f665491005004f159774a8847d3cbd18c5e91. The extracted CLI reports aep 0.68.0 and validates the existing project/5 store without migration. Update the EKR local/CI tool pin and documentation together; retain the protocol source and artifact lifecycle. This closes a necessary evidence-reader prerequisite, not the held ESS publication decision.
+
+## ESS delivery ancestry hold
+
+The release integrator reports that ESS main e68684efb6a4ac22052c77d3ed8292fd44f9ace5 passed source gates and site build, but no 0.52 tag exists. Gates refused optional prebuild publication with “merged pull request missing or ambiguous”: update-branch commit 258594c86 is in main ancestry but is not a completed PR merge admitted by the full-DAG published_merge verifier. The ESS store records dependency-blocker:release-0-52-delivery-ancestry alongside the publication-identity decision. This is an operator-supplied coordination report, not an EKR rerun of those gates.
+
+Do not bypass the refusal, rewrite ESS main, change trust policy or publish its descendants without the approved provenance resolution. ESS release ownership remains with its integrator; the held ess/21 bundle and transport session remain separate. EKR development continues independently with the explicitly unreleased generator candidate. Final released-generator adoption and the EKR full gate remain pending.
