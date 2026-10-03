@@ -225,6 +225,7 @@ fn event_occurrence_and_record_addresses_contribute_independently() {
         identity.as_u128()
     );
     let event = RevisionEvent {
+        application: None,
         format: RevisionEvent::FORMAT.into(),
         event_id: identity,
         record_hash: ContentHash::of_bytes(b"one"),

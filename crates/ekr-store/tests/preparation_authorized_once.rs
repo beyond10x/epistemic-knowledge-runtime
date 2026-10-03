@@ -87,6 +87,7 @@ fn object(bytes: &[u8]) -> PublicationObject {
 fn decision(event_id: u64, payload: RevisionPayload, record: &[u8], at: u64) -> Publication {
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: id::<EventId>(event_id),
             record_hash: ContentHash::of_bytes(record),

@@ -72,6 +72,7 @@ fn every_variant() -> Vec<RevisionEvent> {
     ]
     .into_iter()
     .map(|payload| RevisionEvent {
+        application: None,
         format: payload.format().into(),
         event_id,
         record_hash: hash,
@@ -97,6 +98,7 @@ const NAMES: [&str; 8] = [
 fn transition_requires_version_three_and_historical_payloads_keep_version_two() {
     for (index, event) in every_variant().into_iter().enumerate() {
         assert!(event.supported());
+        assert_eq!(event.is_human_decision(), index == 6 || index == 7);
         assert_eq!(
             event.schema_version(),
             match index {
@@ -260,6 +262,7 @@ fn an_event_encodes_as_a_function_of_its_value() {
 #[test]
 fn the_current_envelope_binds_format_occurrence_record_and_payload() {
     let event = RevisionEvent {
+        application: None,
         format: "ekr.revision-event/2".into(),
         event_id: "00000000-0000-7000-8000-000000000001".parse().unwrap(),
         record_hash: ContentHash::from_bytes([0x21; 32]),

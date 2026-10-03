@@ -163,6 +163,7 @@ fn run(file: bool) {
         }
         let record = Written::intact(b"provider-mechanics seed record", "Canonical");
         let seeded = RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.to_owned(),
             event_id: EventId::mint(),
             record_hash: record.hash,

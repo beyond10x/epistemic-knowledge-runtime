@@ -54,6 +54,67 @@ fn statement(
         payload: ekr_core::bytes::encode(proof.statement()),
     }
 }
+
+/// Verify a retained signature against an already authenticated historical material capture.
+/// The caller separately checks audience-wide decision identity and supplies the enrolled policy.
+pub(crate) fn verify_captured_review(
+    reviewer: &h::Reviewer,
+    policy_bytes: &[u8],
+    record: &w::EkrIntegrateRetainedProposalReview,
+    projected: &w::EkrIntegrateSchemaProposalRead,
+    read: &crate::VerifiedRead,
+    previous: Option<ContentHash>,
+) -> Result<h::VerifiedDecision, StoreError> {
+    if ekr_core::bytes::decode(&record.policy).map_err(error)? != policy_bytes {
+        return Err(error("review policy differs from enrolled policy"));
+    }
+    let snapshot = &record.review;
+    if snapshot.proposal_id != projected.proposal.proposal_id
+        || snapshot.proposal_digest != projected.proposal_digest
+        || snapshot.basis != projected.basis
+        || snapshot.operator != record.decision.operator
+        || snapshot.human_proof_digest != record.decision.proof_digest
+        || snapshot.recorded_at != record.decision.recorded_at
+        || snapshot.basis.observed_revision.0.as_u64() != Some(read.root.revision.get())
+    {
+        return Err(error(
+            "retained review differs from historical material or decision",
+        ));
+    }
+    let current = target(
+        &projected.proposal.proposal_id,
+        &projected.proposal_digest,
+        &projected.basis,
+    )?;
+    let approve = matches!(*snapshot.decision, w::EkrIntegrateReviewDecision::V0);
+    if approve {
+        super::schema_proposal_corrections::validate(read, &projected.proposal)?;
+    }
+    let proof = checked(h::read_proof(
+        &ekr_core::bytes::decode(&record.proof).map_err(error)?,
+    ))?;
+    let bytes = ekr_core::bytes::decode(&record.statement.payload).map_err(error)?;
+    let verified =
+        checked(reviewer.verify_schema_proposal(&proof, &current, approve, &bytes, previous))?;
+    let at = crate::incubation_document::timestamp_value(&record.decision.recorded_at)?;
+    let expected = crate::upgrade::review_record(&verified, at)?;
+    if *record.decision != expected
+        || *record.statement != statement(&verified, &expected, snapshot.evidence_id.clone())
+    {
+        return Err(error(
+            "retained review decision or statement differs from verified proof",
+        ));
+    }
+    if !read
+        .authority_at(read.root.revision)
+        .agents
+        .contains_key(&verified.operator().actor.0 .0.parse().map_err(error)?)
+    {
+        return Err(error("review operator is not registered"));
+    }
+    Ok(verified)
+}
+
 impl<
         S: RevisionLog
             + ObjectStore
@@ -137,57 +198,28 @@ impl<
                     "review decision identity differs from its audience-wide binding",
                 ));
             }
-            if ekr_core::bytes::decode(&record.policy).map_err(error)? != policy_bytes {
-                return Err(error("review policy differs from enrolled policy"));
-            }
-            let proof = checked(h::read_proof(
-                &ekr_core::bytes::decode(&record.proof).map_err(error)?,
-            ))?;
-            let snapshot = &record.review;
-            let basis = checked(h::basis_from_document(&snapshot.basis))?;
-            let revision = u64::try_from(basis.observed_revision.0).map_err(error)?;
+            let revision = record
+                .review
+                .basis
+                .observed_revision
+                .0
+                .as_u64()
+                .ok_or_else(|| error("review revision must be a nonnegative integer"))?;
             let read = self
                 .read(Some(RevisionNumber::new(revision)))
                 .map_err(error)?;
             let projected = self.project_schema_proposal_at(proposal, false, &read)?;
-            let current = target(
-                &snapshot.proposal_id,
-                &snapshot.proposal_digest,
-                &projected.basis,
-            )?;
-            if basis != current.basis {
-                return Err(error(
-                    "retained review basis differs from historical material",
-                ));
-            }
-            let approve = matches!(*snapshot.decision, w::EkrIntegrateReviewDecision::V0);
-            if approve {
-                super::schema_proposal_corrections::validate(&read, &proposal.proposal)?;
-            }
-            let bytes = ekr_core::bytes::decode(&record.statement.payload).map_err(error)?;
-            let verified = checked(
-                reviewer.verify_schema_proposal(&proof, &current, approve, &bytes, previous),
-            )?;
-            let at = crate::incubation_document::timestamp(
-                &crate::incubation_document::timestamp_text(&record.decision.recorded_at)?,
-            )?;
-            let expected = crate::upgrade::review_record(&verified, at)?;
-            if *record.decision != expected
-                || *record.statement
-                    != statement(&verified, &expected, snapshot.evidence_id.clone())
-            {
-                return Err(error(
-                    "retained review decision or statement differs from verified proof",
-                ));
-            }
-            if !read
-                .authority_at(read.root.revision)
-                .agents
-                .contains_key(&verified.operator().actor.0 .0.parse().map_err(error)?)
-            {
-                return Err(error("review operator is not registered"));
-            }
-            previous = Some(verified.proof_digest());
+            previous = Some(
+                verify_captured_review(
+                    &reviewer,
+                    policy_bytes,
+                    record,
+                    &projected,
+                    &read,
+                    previous,
+                )?
+                .proof_digest(),
+            );
         }
         Ok(records)
     }

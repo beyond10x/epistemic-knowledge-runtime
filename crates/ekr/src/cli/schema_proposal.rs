@@ -2,7 +2,7 @@
 use super::{input, render, Access, Printed};
 use crate::exit::Failure;
 use clap::Subcommand;
-use ekr_core::generated_identity::{Identity, SchemaProposalId};
+use ekr_core::generated_identity::{Identity, ProposalReviewId, SchemaProposalId};
 use ekr_kernel::{PersistenceError, Runtime};
 use std::{io::Read, path::PathBuf};
 
@@ -26,6 +26,17 @@ pub enum SchemaProposalCommand {
         /// SchemaProposalReviewApplication JSON file, or `-` for stdin; at most eight MiB.
         document: PathBuf,
     },
+    /// Apply or resume the exact retained human approval through validated transactions.
+    Apply {
+        /// Stable proposal identity returned by submit.
+        #[arg(value_parser = SchemaProposalId::parse_identity)]
+        proposal_id: SchemaProposalId,
+        /// Exact retained approval identity returned by approve.
+        #[arg(value_parser = ProposalReviewId::parse_identity)]
+        review_id: ProposalReviewId,
+        /// Exact proposal byte digest returned by show.
+        proposal_digest: ekr_core::ContentHash,
+    },
     /// Show retained proposal bytes and the current material review basis.
     Show {
         /// Stable proposal identity returned by submit.
@@ -37,7 +48,10 @@ pub enum SchemaProposalCommand {
 impl SchemaProposalCommand {
     pub(super) fn access(&self) -> Access {
         match self {
-            Self::Submit { .. } | Self::Approve { .. } | Self::Reject { .. } => Access::Write,
+            Self::Submit { .. }
+            | Self::Approve { .. }
+            | Self::Reject { .. }
+            | Self::Apply { .. } => Access::Write,
             _ => Access::Read,
         }
     }
@@ -57,6 +71,20 @@ pub(super) fn run(
     stdin: &mut dyn Read,
 ) -> Result<Printed, Failure> {
     match command {
+        SchemaProposalCommand::Apply {
+            proposal_id,
+            review_id,
+            proposal_digest,
+        } => render(
+            &runtime
+                .apply_schema_proposal(
+                    &proposal_id,
+                    &review_id,
+                    &ekr_core::contract_data::EkrKernelContentHash(proposal_digest.to_string()),
+                    now(),
+                )
+                .map_err(refusal)?,
+        ),
         SchemaProposalCommand::Approve { document } => {
             review(&document, runtime, now(), stdin, true)
         }

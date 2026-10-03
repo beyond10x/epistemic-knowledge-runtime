@@ -185,6 +185,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .into());
         }
         let history = RetainedHistory {
+            applications: Default::default(),
             occurrences: inventory.occurrences.clone(),
             objects: inventory
                 .objects
@@ -477,6 +478,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
         }
         let publication = Publication {
             event: RevisionEvent {
+                application: None,
                 format: RevisionEvent::FORMAT.into(),
                 event_id: occurrence.event.event_id,
                 record_hash,
@@ -509,6 +511,7 @@ impl<D: RevisionLog + ObjectStore> Commit<D> {
         let record = |bytes: Vec<u8>, payload: RevisionPayload| {
             (
                 RevisionEvent {
+                    application: event.application.clone(),
                     format: event.format.clone(),
                     event_id: event.event_id,
                     record_hash: ContentHash::of_bytes(&bytes),

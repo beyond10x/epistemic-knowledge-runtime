@@ -41,6 +41,7 @@ pub fn inject(path: &std::path::Path, file: bool, ontology: Ontology, bytes: &[u
         .unwrap();
     drop(raw);
     let event = RevisionEvent {
+        application: None,
         format: RevisionEvent::FORMAT.into(),
         event_id: record.event_id,
         record_hash,

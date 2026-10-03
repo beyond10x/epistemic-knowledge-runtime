@@ -53,6 +53,24 @@ pub struct Knowledge<T: Transport> {
 }
 
 impl<T: Transport> Knowledge<T> {
+    /// Applies or resumes an exact retained human approval through validated transactions.
+    /// The returned report distinguishes committed progress from remaining work.
+    /// # Errors
+    /// Transport, missing approval, changed material, unsupported effects or provider failure.
+    pub fn apply_schema_proposal(
+        &mut self,
+        proposal: &crate::contracts::EkrIntegrateSchemaProposalId,
+        review: &crate::contracts::EkrIntegrateProposalReviewId,
+        digest: &crate::contracts::EkrKernelContentHash,
+    ) -> Result<crate::contracts::EkrIntegrateApplicationReport, ReadError> {
+        Reader::new(&mut self.transport).read_request(Request::new([
+            "schema-proposal".into(),
+            "apply".into(),
+            proposal.0.clone(),
+            review.0.clone(),
+            digest.0.clone(),
+        ]))
+    }
     /// Retains an exact externally signed approval under independently provisioned host trust.
     /// The proof covers the proposal digest, reviewed material, statement and predecessor.
     /// # Errors

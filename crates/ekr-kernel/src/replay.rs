@@ -999,7 +999,7 @@ impl KernelAuthority {
         crate::migrate::finished(self, history)?;
         // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
         // selected revision is computed in full, as before.
-        let shared = ontology.is_none() && selected.is_none();
+        let shared = ontology.is_none() && selected.is_none() && history.applications.is_empty();
         let digests = if shared && !history.occurrences.is_empty() {
             self.cache()?.digests(&history.occurrences)
         } else {
@@ -1079,9 +1079,27 @@ impl KernelAuthority {
             (cache.keep, cache.retained.map(|(_, revision)| revision))
         };
         let bases = Self::bases(history, start);
+        let application_bases: BTreeSet<_> = history
+            .applications
+            .coordination()
+            .iter()
+            .flat_map(|p| p.entries.iter())
+            .filter_map(|e| match &*e.record {
+                ekr_core::contract_data::EkrIntegrateProposalCoordinationRecord::V1(r) => r
+                    .value
+                    .review
+                    .basis
+                    .observed_revision
+                    .0
+                    .as_u64()
+                    .map(RevisionNumber::new),
+                _ => None,
+            })
+            .collect();
         let kept = |number: RevisionNumber, version: u64| {
             Some(number) == keep
                 || Some(number) == checkpointed
+                || application_bases.contains(&number)
                 || bases.get(&number).is_some_and(|last| *last > version)
         };
         let version = state.version;
@@ -1093,6 +1111,7 @@ impl KernelAuthority {
                 "occurrence-order-or-identity",
             )?;
             let event = &occurrence.event;
+            crate::application_auth::verify_occurrence(self, history, &state, occurrence)?;
             let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
             let active = state
                 .upgraded_authority

@@ -276,6 +276,7 @@ fn canonical(bytes: &[u8]) -> (ContentHash, PublicationObject) {
 fn publication(event_id: u64, payload: RevisionPayload, record: &[u8], at: u64) -> Publication {
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: id::<EventId>(event_id),
             record_hash: ContentHash::of_bytes(record),
@@ -413,7 +414,7 @@ fn load_cost(proposals: u64) -> (usize, RetainedHistory) {
 }
 
 #[test]
-fn a_history_load_costs_five_provider_calls_whatever_its_length() {
+fn a_history_load_including_application_audit_costs_seven_calls_within_one_feed_page() {
     let mut costs = Vec::new();
     for proposals in [2, 24] {
         let (calls, history) = load_cost(proposals);
@@ -431,9 +432,10 @@ fn a_history_load_costs_five_provider_calls_whatever_its_length() {
         costs.push((proposals, calls));
     }
     assert!(
-        costs.iter().all(|&(_, calls)| calls == 5),
+        costs.iter().all(|&(_, calls)| calls == 7),
         "a history load is one revision-stream read, then a stream batch and a blob batch for the \
-         objects the occurrences name and again for the objects the authority requires; \
+         objects the occurrences name and again for the objects the authority requires, plus \
+         the application election stream and complete tenant feed audit (one page here); \
          (proposals, provider calls) measured {costs:?}"
     );
 }
@@ -535,11 +537,10 @@ fn a_merge_expectation_is_refused_by_the_preparation_capture() {
     );
 }
 
-/// `story:commit-cost-flat-with-store-size`: a handle that cannot read the log feed cannot tell
-/// which held streams moved, so it reads every held object below the strongest again, as it did
-/// before it looked at the log, and the load is not refused for it.
+/// Historical bytes stay readable, but the application audit now requires the tenant feed:
+/// known object/decision streams cannot establish absence of unknown-proposal orphan markers.
 #[test]
-fn a_feed_the_handle_cannot_read_has_every_held_object_read_again() {
+fn application_audit_refuses_unreadable_feed_without_weakening_object_memo_checks() {
     let directory = tempfile::tempdir().unwrap();
     written(directory.path(), 1);
     let evidence = FileStore::file(directory.path(), "ekr", None)
@@ -571,33 +572,23 @@ fn a_feed_the_handle_cannot_read_has_every_held_object_read_again() {
     let readable = crate::verified::stream_reads();
     assert_eq!(
         (readable.object, readable.feed),
-        (0, 1),
-        "with the feed readable and the log not moved, a load reads the log once and no object \
-         stream"
+        (0, 2),
+        "unchanged objects need no stream reread; the object memo and full application audit \
+         each read the feed once"
     );
 
     store.store.refuse_feed.store(true, Ordering::SeqCst);
-    let refused = load();
-    let reads = crate::verified::stream_reads();
-    assert_eq!(
-        reads.object, 1,
-        "a load whose log feed is refused read {} object streams, not the held evidence's one",
-        reads.object
-    );
-    assert_eq!(refused, first, "the load differs from the first");
-    let again = load();
-    assert_eq!(
-        crate::verified::stream_reads().object,
-        1,
-        "the next load with the feed still refused did not read the held evidence again"
-    );
-    assert_eq!(again, first);
+    for _ in 0..2 {
+        let refused = store.load_history_requiring(MAX_READ_LIMIT, None, |_| Ok(required.clone()));
+        assert!(
+            matches!(refused, Err(StoreError::Document(ref reason)) if reason == "application-audit-unavailable")
+        );
+    }
 }
 
-/// A replay hint can omit already verified evidence only while the feed proves its stream
-/// has not changed. An unavailable feed requires the complete payload set on every attempt.
+/// Cached evidence never bypasses the complete application audit's availability requirement.
 #[test]
-fn replay_without_a_readable_feed_keeps_the_complete_payload_set() {
+fn replay_without_a_readable_feed_refuses_application_audit() {
     let directory = tempfile::tempdir().unwrap();
     written(directory.path(), 1);
     let evidence = FileStore::file(directory.path(), "ekr", None)
@@ -622,7 +613,9 @@ fn replay_without_a_readable_feed_keeps_the_complete_payload_set() {
     store.store.refuse_feed.store(true, Ordering::SeqCst);
     for _ in 0..2 {
         let _ = crate::verified::stream_reads();
-        assert!(replay().objects.contains_key(&evidence));
-        assert!(crate::verified::stream_reads().object > 0);
+        let result = store.replayed(|history| store.authority()?.verify(history, None, None));
+        assert!(
+            matches!(result, Err(StoreError::Document(ref reason)) if reason == "application-audit-unavailable")
+        );
     }
 }

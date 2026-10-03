@@ -428,6 +428,7 @@ fn unbacked_v3_seed() -> (Publication, ContentHash) {
     };
     let publication = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: record.event_id,
             record_hash,

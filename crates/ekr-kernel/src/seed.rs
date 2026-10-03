@@ -1076,6 +1076,7 @@ mod shared_payloads {
         let mut broken = damaged.clone();
         broken[3] ^= 1;
         let history = RetainedHistory {
+            applications: Default::default(),
             occurrences: Vec::new(),
             objects: BTreeMap::from([
                 (hash(&equal), retained(equal.clone(), hash(&equal))),

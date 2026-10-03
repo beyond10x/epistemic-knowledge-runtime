@@ -216,13 +216,28 @@ fn replay_of_the_head_revision_equals_the_fold<S: RevisionLog + ObjectStore + In
         RevisionNumber::new(4),
         "and it reaches the last committed revision"
     );
+    let selected = store
+        .history_at(RevisionNumber::new(4))
+        .expect("the history through revision 4 reads one page at a time");
+    let complete = store.history().expect("the whole history reads");
     assert_eq!(
-        store
-            .history_at(RevisionNumber::new(4))
-            .expect("the history through revision 4 reads one page at a time"),
-        store.history().expect("the whole history reads"),
-        "one occurrence per page and one page for all of them retain the same history"
+        selected.occurrences, complete.occurrences,
+        "same complete canonical prefix"
     );
+    assert_eq!(selected.objects, complete.objects, "same verified payloads");
+    assert_eq!(
+        serde_json::to_vec(selected.applications.as_data()).unwrap(),
+        serde_json::to_vec(complete.applications.as_data()).unwrap(),
+        "same application records"
+    );
+    assert_eq!(
+        selected.applications.observations(),
+        complete.applications.observations()
+    );
+    // Scope is part of equality: a selected prefix must never silently become a complete
+    // capture merely because it currently ends at the same occurrence.
+    assert_eq!(selected.applications.canonical_through(), Some(version));
+    assert_eq!(complete.applications.canonical_through(), None);
     assert_eq!(
         store
             .replay(RevisionNumber::SEED)
@@ -710,6 +725,7 @@ fn occurrence(
     }
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id,
             record_hash,

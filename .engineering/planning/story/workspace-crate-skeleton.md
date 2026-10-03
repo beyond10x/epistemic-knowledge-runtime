@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 24
+revision: 25
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
@@ -221,3 +221,7 @@ table is a red gate for whoever touches a manifest next.
 ## Amendment, human review verification
 
 `story:show-disputed-knowledge` adds the already pinned `ring` dependency to ekr-kernel for Ed25519 human-decision verification and the review protocol's plain SHA-256 digests. This reuses the workspace's existing resolved package; Cargo.lock gains the kernel dependency edge only. Signing remains outside product code. The generated models stay in the existing ESS contract crates; no handwritten decision model is added. The external-dependency table in crates/ekr/tests/story_contract.rs is amended in the same delivery. This historical skeleton story stays implemented.
+
+## Reviewed application guard dependency
+
+Story apply-approved-refinement promotes ekr-graph's already pinned serde_json from dev-dependencies to dependencies. The checked generated ApplicationGuard codec in crates/ekr-graph/src/events.rs uses it to preserve the complete generated record while enforcing UUID, digest, cursor and step-shape constraints. No dependency version is added or changed. crates/ekr-graph/tests/application_guard.rs executes its codec/refusal contract, and crates/ekr/tests/story_contract.rs now holds the manifest inventory to this change. This updates the dependency scope only; it does not reopen or reaccept the historical skeleton story.

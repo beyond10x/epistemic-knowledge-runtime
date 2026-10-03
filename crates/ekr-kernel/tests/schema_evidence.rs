@@ -17,6 +17,8 @@ fn schema(evidence: EvidenceId) -> GraphTransaction {
 fn run<S: RevisionLog + ObjectStore + Initialize + ObservationRetention + IncubationRetention>(
     open: impl Fn(Option<m::TrustedReviewHostBinding>, bool) -> Commit<S>,
 ) {
+    assert!(!ValidationProfileV1::knowledge(context().validator).supports_schema_evidence());
+    assert!(ValidationProfileV1::knowledge_evidence(context().validator).supports_schema_evidence());
     let doc = seed();
     let old = open(None, false);
     let seeded = old.seed(doc.clone(), || Timestamp::EPOCH).unwrap();

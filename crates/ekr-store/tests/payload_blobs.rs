@@ -88,6 +88,7 @@ fn decision(payload: Option<&[u8]>) -> Publication {
     }
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash: ContentHash::of_bytes(RECORD),

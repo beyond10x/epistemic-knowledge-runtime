@@ -26,7 +26,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 16
+revision: 23
 ---
 ## Outcome
 
@@ -93,3 +93,60 @@ The exact additive schema operation extractor is committed at 03dc4892bfa2b2dbda
 The next refactor extracts provider-free read capture, immutable document validation and review-material projection from the existing production paths. Existing regression output recorded 31 library, 14 knowledge-retention and 8 schema-review cases passed, with no failures or ignored cases. Kernel library clippy and exact changed-file formatting passed. Independent review approved the refactor with explicit preconditions: future replay must authenticate every captured input and historical boundary before invoking these helpers. This is mechanical preparation, with no new application authorization or publication claimed. Evidence is in .engineering/reviews/knowledge-application-captured-input/.
 
 The delegated generated transaction codec has focused and library tests green but remains integration-incomplete: strict clippy reports unused internal helpers until real F callers exist. The physical application unit is still implementing retention and atomic marker publication. None of these checkpoints meets full F acceptance, repairs the recursive generated fixture blocker or completes PR64.
+
+## Coordination audit availability disposition
+
+## Coordination audit availability disposition
+
+Physical worker package-2.log (retained privately under the application-store evidence directory) reports four baseline targets failing because complete marker absence checks add provider reads and refuse an unreadable tenant feed. Exact observations: history-call cases (2,7) and (24,7) versus previous 5; unchanged-feed cases 2 versus 1; replay_without_a_readable_feed_keeps_the_complete_payload_set now refuses Backend(feed refused). These are measured regressions, not a passing package gate.
+
+Coordinator decision: normative design 105.17.2 records stricter provider availability. The current EventStore offers stream_version and read_feed, with no tenant high-water API; checking known streams or an empty election list cannot exclude orphan markers on an unknown proposal stream. Both product providers supply the feed. Update exact call-count expectations for necessary audit work, retain no-payload-reread checks, and replace unreadable-feed success with a named audit refusal. Preserve positive historical reads and negative unknown-marker controls on both providers. Complete feed byte cost remains proportional to tenant history. No historical hash or canonical-rule change is authorized by this disposition.
+
+Independent review agent assessed this decision from the supplied measured facts and approved its rationale with the above qualifications; it did not inspect source or execute tests for this assessment. This is an availability-design assessment, not F conformance or an implementation approval. Full package rerun and independent source review remain required.
+
+## Application read projection unit
+
+## Application read projection unit
+
+Within the existing F runtime scope, author_contracts owns a bounded generated-data to generated-semantic projection in a new crates/ekr-kernel/src/application_projection.rs and matching unit tests, plus the exact call-site update in schema_proposal_projection.rs and lib.rs module declaration. It projects existing generated ApplicationRead, receipts, attempts, steps, publication guards, mappings, derivations and canonical transaction records without dropping fields or inventing admission. No ESS or generated file edits. Root owns canonical application/replay behavior; store worker owns physical persistence. Root will integrate the lib.rs declaration manually to avoid shared edits. Source-only initially; one shared Cargo lane remains with store worker until an explicit handoff. No independent branch publication. This is presentation plumbing, not F acceptance or conformance.
+
+## Schema-only application checkpoint
+
+The integrated physical application store and exact historical capture correction pass 316 graph/store tests with zero failures and three pre-existing ignores. Strict store clippy and format checks pass. The first integrated kernel application run failed both provider positives at the historical receipt boundary; physical capture now excludes future application records before reading pinned objects and retains the exact coordination marker for every selected guarded occurrence. The corrected focused run passes four application tests and eight existing proposal-review tests with zero failures or ignores. Strict kernel clippy passes after correcting one needless borrow.
+
+The supported runtime slice commits exact approved schema additions through ordinary guarded Propose/Validate/Commit, preserves supporting evidence, repeats without new canonical effects, and reopens under full replay. Direct warm replay rejects removed/rebound guards. Source/observation-backed proposals, selected mappings, corrections, stale successors and residual reapproval remain unfinished; this checkpoint does not claim Story F, generated conformance or PR completion. The full kernel package run stopped during linking with a bus error before tests executed; a bounded exact-target retry is pending. All raw logs remain retained outside build output. Independent source review of the integrated slice is in progress.
+
+## Kernel regression execution
+
+The full kernel package first stopped in the linker with a bus error. The bounded exact-target retry reported Disk quota exceeded (OS error 122) while writing symbols.o. After verifying the Cargo lane was terminal and raw evidence was outside output, cargo clean -p ekr-kernel removed 3400 completed reproducible files (3.9 GiB) from the owned temporary target. No other workspace output was cleaned. The following complete kernel package run exited 0; it predates the independent review's two new regression cases. Independent source review identified premature-time retention and an election/step transaction reservation gap; these remain implementation findings, not completed acceptance evidence.
+
+## Independent review dispositions
+
+Round 1's two kernel findings were reproduced: an apply timestamp before approval retained invalid election metadata, and generic Propose could reuse a genuine election/step transaction before its attempt existed. The latter test uses exact real application records and proposal bytes with a closed provider snapshot; an empty-operation draft was not a sufficient probe and was replaced before claiming reproduction. Both cases now pass on file and SQLite after pre-retention chronology validation and reservation checks at command attachment/replay. A separate physical red case showed new preparation capture missed the current reservation; new candidate authorization now checks current audited metadata without changing immutable historical preparation reads. Fourteen application-retention tests and two preparation-cache tests pass.
+
+Round 2 identifies a separate physical contract gap: a new application could adopt an ID already held by an ordinary pending Propose preparation. It is reproduced at the provider API boundary, not claimed as a Runtime-generated-ID collision. Election/step admission now refuses an existing ordinary preparation before retaining that ID; the regression also requires the original prepared request to survive reopen and resume. Final focused results are pending. Both reviews are retained unedited as schema-application-authority-independent-r1/r2; neither independently executed tests or accepted full F.
+
+## Reviewed schema-only integration results
+
+All three independent application-authority findings are fixed and their review outcomes recorded. The latest focused application/review run and the complete graph/store run report:
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.20s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+Complete graph/store: 318 passed, 0 failed, 3 ignored across 72 runner summaries.
+
+The CLI library's two selected proposal tests pass through actual SDK/session dispatch on both providers. Strict all-target clippy for kernel, store, SDK and CLI passed. Repository xtask formatting passed after formatting the new store assertion. The first cross-crate CLI check exposed an omitted schema-proposal help-contract entry; the group help and required test row are corrected and the rerun is pending. Public checkpoint evidence is under .engineering/reviews/knowledge-schema-application-runtime/. Worker reports remain historical unit evidence; the full kernel run predates these review fixes. Source mappings, corrections, stale successors, residual review, generated conformance and full task check remain unfinished. This updates the earlier pending-result paragraphs without claiming F or PR completion.
+
+## Cross-crate contract disposition
+
+The final CLI/documentation/public-surface/story checks pass after registering the schema-proposal own-help contract, exercising the public typed APIs, and recording the already-pinned graph serde_json dependency's promotion. The synthetic physical authority fixture moved from src into tests/support while retaining its cfg(test) module and private recovery checks; no production authority exception was added. Actual run summaries:
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.86s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.97s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+The subsequent focused kernel and store runs include the added public-API controls:
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.16s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+test result: ok. 17 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.96s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s

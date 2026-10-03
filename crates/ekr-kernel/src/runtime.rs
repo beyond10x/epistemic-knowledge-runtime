@@ -17,6 +17,22 @@ enum Backend {
     Sqlite(Box<Commit<SqliteStore>>),
 }
 impl Runtime {
+    /// Applies an exactly reviewed proposal through ordinary validated transactions.
+    /// # Errors
+    /// Missing or changed approval, invalid application history, or provider failure.
+    pub fn apply_schema_proposal(
+        &self,
+        proposal: &ekr_core::contract_data::EkrIntegrateSchemaProposalId,
+        review: &ekr_core::contract_data::EkrIntegrateProposalReviewId,
+        digest: &ekr_core::contract_data::EkrKernelContentHash,
+        at: Timestamp,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateApplicationReport, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.apply_schema_proposal(proposal, review, digest, at),
+            Backend::Sqlite(kernel) => kernel.apply_schema_proposal(proposal, review, digest, at),
+        }
+    }
+
     /// Read authenticated proposal decisions and their retained human statement evidence.
     /// # Errors
     /// Unknown proposal, invalid retained decision or unavailable evidence.

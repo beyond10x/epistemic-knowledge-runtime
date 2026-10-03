@@ -102,7 +102,11 @@
 //! ```
 
 mod answers;
+mod application_auth;
+mod application_inputs;
 mod application_plan;
+mod application_projection;
+mod application_transaction;
 mod apply;
 mod attention;
 mod attention_behavior;
@@ -130,6 +134,7 @@ mod replay;
 pub mod runtime;
 #[cfg(feature = "schema")]
 pub mod schema;
+mod schema_application;
 mod schema_gaps;
 mod schema_proposal_behavior;
 mod schema_proposal_corrections;

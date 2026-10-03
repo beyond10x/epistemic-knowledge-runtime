@@ -61,6 +61,7 @@ pub(crate) fn publication(
     let hash = ContentHash::of_bytes(&bytes);
     Publication {
         event: RevisionEvent {
+            application: None,
             format: match &payload {
                 RevisionPayload::AuthorityUpgraded { .. }
                 | RevisionPayload::AttentionAnswered(_) => RevisionEvent::SIGNED_FORMAT,
@@ -179,8 +180,10 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                             continue;
                         }
                     }
-                    let state = self.read_state()?;
+                    let (history, state) = self.replayed_state()?;
                     let next = after_conflict(&state, &prepared)?;
+                    let next =
+                        crate::application_auth::attach(&self.authority, &history, &state, next)?;
                     prepared = self.store.prepare(
                         &prepared.command_key,
                         prepared.input_hash,
@@ -266,7 +269,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         actor: AgentId,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ProposalRecordV1, CommitError> {
-        let state = self.read_state()?;
+        let (history, state) = self.replayed_state()?;
         let parsed = crate::TransactionDocument::parse(bytes)?;
         let id = parsed.transaction().id;
         if !self.authority.anchor.agents.contains_key(&actor)
@@ -305,6 +308,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 at,
                 state.version,
             );
+            let decision =
+                crate::application_auth::attach(&self.authority, &history, &state, decision)?;
             self.store.prepare(&key, input, &decision, None)?
         };
         let prepared = self.drive(prepared, |state, prior| {
@@ -462,12 +467,13 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                     )
                 }
             };
-            self.store.prepare(
-                &key,
-                input,
-                &publication(event_id, payload, bytes, at, state.version),
-                None,
-            )?
+            let decision = crate::application_auth::attach(
+                &self.authority,
+                history,
+                &state,
+                publication(event_id, payload, bytes, at, state.version),
+            )?;
+            self.store.prepare(&key, input, &decision, None)?
         };
         let prepared = self.drive(prepared, |state, prior| {
             require_state(target(state, id)?, TransactionState::Proposed)?;
@@ -489,7 +495,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     ) -> Result<CommitCommandResult, CommitError> {
         // A graph a decision below leaves for the admitting replay is not held past this command.
         let _release = crate::apply::ReleaseDecided;
-        let state = self.read_state()?;
+        let (history, state) = self.replayed_state()?;
         let tx = target(&state, id)?;
         replay::registered(&self.authority.anchor, actor)?;
         if let Some(held) = &tx.committed {
@@ -514,6 +520,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             replay::require(at >= validation.validated_at, "commit-time-order")?;
             let decision =
                 self.commit_decision(&state, id, actor, at, EventId::mint(), RevisionId::mint())?;
+            let decision =
+                crate::application_auth::attach(&self.authority, &history, &state, decision)?;
             self.store.prepare(&key, input, &decision, None)?
         };
         let prepared = self.drive(prepared, |state, prior| {

@@ -60,6 +60,8 @@ identities! {
     SchemaProposalId => EkrIntegrateSchemaProposalId,
     ProposalReviewId => EkrIntegrateProposalReviewId,
     ApplicationReceiptId => EkrIntegrateApplicationReceiptId,
+    SchemaApplicationId => EkrIntegrateSchemaApplicationId,
+    ApplicationStepId => EkrIntegrateApplicationStepId,
     MappingRecordId => EkrIntegrateMappingRecordId,
     GapGroupId => EkrIntegrateGapGroupId,
     DisputeId => EkrKernelDisputeId,

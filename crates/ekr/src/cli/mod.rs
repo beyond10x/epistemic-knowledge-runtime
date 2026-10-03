@@ -153,7 +153,11 @@ pub enum Command {
     ///
     /// `ekr schema-proposal discover` returns an `ekr.integrate.SchemaLearningRequest`
     /// under the `ekr.cli-host/1` host, for a consumer-supplied agent to interpret.
-    /// Requires a seeded store; reads current schema and retained sources without writing.
+    /// `ekr schema-proposal submit` reads an `ekr.integrate.SchemaProposalImport` JSON envelope.
+    /// Approve and reject read `ekr.integrate.SchemaProposalReviewApplication` JSON containing
+    /// an externally signed human decision. Document inputs accept `-` for stdin and eight MiB.
+    /// `ekr schema-proposal apply` uses the exact proposal ID, review ID and proposal digest.
+    /// Requires a seeded store; discover and show only read. Commands and examples: docs/cli.md.
     #[command(after_help = SEE)]
     SchemaProposal {
         /// The schema proposal operation.

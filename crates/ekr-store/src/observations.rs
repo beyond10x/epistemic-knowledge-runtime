@@ -23,14 +23,27 @@ pub trait ObservationRetention {
     ) -> Result<bool, StoreError>;
 }
 
-impl<S: AtomicBlobEventStore> ObservationRetention for EventlogStore<S> {
-    fn retained_observations(&self) -> Result<Vec<EkrObserveObservationImport>, StoreError> {
+impl<S: EventStore> EventlogStore<S> {
+    pub(super) fn read_observations(&self) -> Result<Vec<EkrObserveObservationImport>, StoreError> {
+        self.read_observations_selected(None)
+    }
+    pub(super) fn read_observations_selected(
+        &self,
+        selected: Option<&BTreeSet<String>>,
+    ) -> Result<Vec<EkrObserveObservationImport>, StoreError> {
         self.entered()?;
         let stream = StreamId::new(self.tenant.clone(), STREAM, "observations")?;
         let mut identities = BTreeSet::new();
         let mut keys = BTreeSet::new();
         let mut imports = Vec::new();
         for event in self.read_all(&stream, MAX_READ_LIMIT)? {
+            if selected.is_some_and(|ids| {
+                !event.data["observation"]["observation_id"]
+                    .as_str()
+                    .is_some_and(|id| ids.contains(id))
+            }) {
+                continue;
+            }
             if event.name != RECORDED || event.schema_version != 1 {
                 return Err(StoreError::Document("observation-envelope".into()));
             }
@@ -57,7 +70,11 @@ impl<S: AtomicBlobEventStore> ObservationRetention for EventlogStore<S> {
         }
         Ok(imports)
     }
-
+}
+impl<S: AtomicBlobEventStore> ObservationRetention for EventlogStore<S> {
+    fn retained_observations(&self) -> Result<Vec<EkrObserveObservationImport>, StoreError> {
+        self.read_observations()
+    }
     fn retain_observation(
         &self,
         input: &EkrObserveObservationImport,

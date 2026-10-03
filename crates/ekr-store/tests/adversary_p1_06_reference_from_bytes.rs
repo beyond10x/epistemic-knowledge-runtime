@@ -77,6 +77,7 @@ fn a_store_cannot_turn_dangling_document_bytes_into_canonical_state() {
     let record_hash = ContentHash::of_bytes(record);
     let seed = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.to_owned(),
             event_id: EventId::mint(),
             record_hash,

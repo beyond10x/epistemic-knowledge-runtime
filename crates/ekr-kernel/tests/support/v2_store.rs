@@ -293,6 +293,7 @@ pub fn seed_v2(
     }
     let decision = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: record.event_id,
             record_hash,

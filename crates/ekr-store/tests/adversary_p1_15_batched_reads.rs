@@ -77,6 +77,7 @@ async fn intact_object<S: EventStore>(provider: &S, bytes: &[u8], key: &str) -> 
 
 async fn seeded<S: EventStore>(provider: &S, record: ContentHash, seed: ContentHash) {
     let seeded = RevisionEvent {
+        application: None,
         format: RevisionEvent::FORMAT.to_owned(),
         event_id: EventId::mint(),
         record_hash: record,

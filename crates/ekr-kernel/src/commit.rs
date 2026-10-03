@@ -25,6 +25,48 @@ pub struct KernelAuthority {
 /// A seed input assembled from verified retained bytes, with the seed envelope address it is for.
 type HeldSeedInput = (ContentHash, Arc<SeedDocument>);
 impl CommitAuthority for KernelAuthority {
+    fn verify_application_history(&self, history: &RetainedHistory) -> Result<(), StoreError> {
+        if history.applications.is_empty()
+            && !history
+                .occurrences
+                .iter()
+                .any(|o| o.event.application.is_some())
+        {
+            return Ok(());
+        }
+        let state = self
+            .reconstruct_in_full(history)?
+            .ok_or(StoreError::NotSeeded)?;
+        crate::application_auth::verify_history(self, history, &state)
+    }
+    fn verify_application_attempt(
+        &self,
+        history: &RetainedHistory,
+        attempt: &ekr_core::contract_data::EkrIntegrateRetainedApplicationAttempt,
+    ) -> Result<(), StoreError> {
+        let state = self
+            .reconstruct_in_full(history)?
+            .ok_or(StoreError::NotSeeded)?;
+        crate::application_auth::verify_history(self, history, &state)?;
+        if !history
+            .applications
+            .attempts()
+            .iter()
+            .any(|held| held.as_ref() == attempt)
+            && state.transactions.contains_key(
+                &attempt
+                    .transaction_id
+                    .0
+                    .parse()
+                    .map_err(|_| StoreError::Document("application-attempt-identity".into()))?,
+            )
+        {
+            return Err(StoreError::Document(
+                "application-attempt-identity-already-used".into(),
+            ));
+        }
+        crate::application_auth::verify_attempt(self, history, &state, attempt)
+    }
     fn tenant_audience(&self) -> Option<&str> {
         self.review_host
             .as_ref()
@@ -96,6 +138,7 @@ impl CommitAuthority for KernelAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<Option<AdmittedRevision>, StoreError> {
+        self.verify_application_history(history)?;
         self.reconstruct(history, ontology, revision)?
             .map(|state| state.head().admitted())
             .transpose()
@@ -108,6 +151,7 @@ impl CommitAuthority for KernelAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<(), StoreError> {
+        self.verify_application_history(history)?;
         if let Some(state) = self.reconstruct(history, ontology, revision)? {
             state.head().graph()?;
         }
@@ -121,6 +165,7 @@ impl CommitAuthority for KernelAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<Option<Root>, StoreError> {
+        self.verify_application_history(history)?;
         let Some(state) = self.reconstruct(history, ontology, revision)? else {
             return Ok(None);
         };
@@ -129,6 +174,9 @@ impl CommitAuthority for KernelAuthority {
         Ok(Some(head.root))
     }
     fn restore(&self, history: &RetainedHistory, checkpoint: &[u8]) -> Result<(), StoreError> {
+        if !history.applications.is_empty() {
+            return self.verify_application_history(history);
+        }
         self.restore_checkpoint(history, checkpoint)
     }
     fn checkpointed_head(
@@ -136,6 +184,10 @@ impl CommitAuthority for KernelAuthority {
         history: &RetainedHistory,
         binding: ContentHash,
     ) -> Result<Option<Root>, StoreError> {
+        if !history.applications.is_empty() {
+            self.verify_application_history(history)?;
+            return Ok(None);
+        }
         self.head_by_binding(history, binding)
     }
 }
@@ -616,6 +668,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         }
         let publication = Publication {
             event: RevisionEvent {
+                application: None,
                 format: RevisionEvent::FORMAT.into(),
                 event_id: record.event_id,
                 record_hash,

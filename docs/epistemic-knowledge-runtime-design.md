@@ -6036,3 +6036,24 @@ including reopen/full replay where relevant:
 
 Those scenarios remain unexecuted contract obligations at this stage. They complement, rather
 than replace, the existing rejection-race, frozen-attempt and recovery acceptance requirements.
+
+### 105.17.2 Complete coordination audit and provider availability
+
+An absent application election is not proof that no application marker exists. A marker on an
+unknown proposal stream must also be detected. Before reporting an admitted history, the provider
+must establish a complete tenant coordination boundary and reconcile every application marker
+with its ordinary occurrence. With the current EventStore interface, this requires a readable
+complete tenant feed. Failure to read that feed refuses the coordination audit; the previous
+unreadable-feed fallback cannot establish absence and is no longer sufficient for an admitted
+read. File and SQLite provide the required feed. This is a stricter provider availability
+requirement, including when a store has no application elections; historical event encodings,
+hashes and canonical replay rules do not change.
+
+The audit may share an already verified traversal. A future incremental implementation must bind
+its verified cursor to the provider's immutable feed semantics and check the current tail on every
+read; an empty election list or unchanged known proposal streams never substitutes for this check.
+Call-count regression tests retain exact bounds for the added audit work. A complete feed traversal
+still reads bytes proportional to tenant history even when the number of provider calls is fixed;
+call counts alone must not be reported as constant read cost. Object memo tests continue to require
+that unchanged payloads are not fetched again. Both providers must retain positive historical-read
+controls and negative unreadable-feed and unknown-proposal-orphan controls.

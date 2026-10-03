@@ -7,7 +7,7 @@ use ekr_core::contract_data::{
 use ekr_core::{ContentHash, ObservationId, Timestamp};
 use ekr_store::{ObjectStore, ObservationRetention, RevisionLog, StoreError};
 
-fn validate(input: &EkrObserveObservationImport) -> Result<ObservationId, StoreError> {
+pub(crate) fn validate(input: &EkrObserveObservationImport) -> Result<ObservationId, StoreError> {
     let hash: ContentHash = input
         .key
         .content_hash

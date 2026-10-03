@@ -199,6 +199,7 @@ fn occurrence(
     }
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash,

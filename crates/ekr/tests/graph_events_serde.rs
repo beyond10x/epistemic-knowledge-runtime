@@ -59,6 +59,7 @@ fn every_variant() -> Vec<RevisionEvent> {
     ]
     .into_iter()
     .map(|payload| RevisionEvent {
+        application: None,
         format: RevisionEvent::FORMAT.to_owned(),
         event_id,
         record_hash,

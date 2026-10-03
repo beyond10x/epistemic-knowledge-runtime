@@ -28,6 +28,42 @@ const MARCH_12: i64 = 1_773_273_600_000;
 /// 2020-01-01T00:00:00Z.
 const JAN_2020: i64 = 1_577_836_800_000;
 
+#[test]
+fn schema_application_cli_checks_the_three_exact_identifiers() {
+    use clap::Parser;
+    let proposal = ekr_core::EventId::mint().to_string();
+    let review = ekr_core::EventId::mint().to_string();
+    let digest = ekr_core::ContentHash::of_bytes(b"approved proposal").to_string();
+    let args = [
+        "ekr",
+        "schema-proposal",
+        "apply",
+        &proposal,
+        &review,
+        &digest,
+    ];
+    let parsed = ekr::cli::Cli::try_parse_from(args).unwrap();
+    let ekr::cli::Command::SchemaProposal {
+        command:
+            ekr::cli::SchemaProposalCommand::Apply {
+                proposal_id,
+                review_id,
+                proposal_digest,
+            },
+    } = parsed.command
+    else {
+        panic!("wrong application command")
+    };
+    assert_eq!(proposal_id.0, proposal);
+    assert_eq!(review_id.0, review);
+    assert_eq!(proposal_digest.to_string(), digest);
+    for index in 3..6 {
+        let mut invalid = args;
+        invalid[index] = "invalid";
+        assert!(ekr::cli::Cli::try_parse_from(invalid).is_err());
+    }
+}
+
 /// The kind name of a parsed operation, through the binary's own `OperationKind::of` — the
 /// exhaustive `match` over `GraphOperation` with no `_` arm, so a new variant does not compile
 /// until it has a kind, and a kind is not listed until it has an example this suite parses.
@@ -742,6 +778,21 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             ],
         ),
         ("mint", &["node", "assertion", "transaction"]),
+        (
+            "schema-proposal",
+            &[
+                "ekr.integrate.SchemaLearningRequest",
+                "ekr.integrate.SchemaProposalImport",
+                "ekr.integrate.SchemaProposalReviewApplication",
+                "ekr schema-proposal discover",
+                "ekr schema-proposal submit",
+                "ekr schema-proposal apply",
+                "externally signed human decision",
+                "eight MiB",
+                "docs/cli.md",
+                store,
+            ],
+        ),
         (
             "upgrade",
             &[

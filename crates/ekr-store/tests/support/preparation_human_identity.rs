@@ -31,6 +31,7 @@ fn seeded<S: AtomicBlobEventStore>(store: &EventlogStore<S>) -> Publication {
     let hash = ContentHash::of_bytes(&bytes);
     let seed = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash: hash,
@@ -73,6 +74,7 @@ fn candidate(seed: &Publication, answer: bool, new: bool) -> (PublicationCommand
     };
     let publication = Publication {
         event: RevisionEvent {
+            application: None,
             format: if new {
                 RevisionEvent::SIGNED_FORMAT
             } else {
@@ -191,7 +193,7 @@ fn new<S: AtomicBlobEventStore>(store: EventlogStore<S>, answer: bool) {
         .fingerprint()
         .unwrap();
     assert!(
-        matches!(store.authorize_preparation(&missing),Err(StoreError::Document(ref reason)) if reason=="preparation-human-binding-missing")
+        matches!(store.authorize_preparation(&missing, false),Err(StoreError::Document(ref reason)) if reason=="preparation-human-binding-missing")
     );
     let mut wrong = prepared.clone();
     let append = wrong
@@ -208,7 +210,7 @@ fn new<S: AtomicBlobEventStore>(store: EventlogStore<S>, answer: bool) {
         .fingerprint()
         .unwrap();
     assert!(
-        matches!(store.authorize_preparation(&wrong),Err(StoreError::Document(ref reason)) if reason=="preparation-human-binding")
+        matches!(store.authorize_preparation(&wrong, false),Err(StoreError::Document(ref reason)) if reason=="preparation-human-binding")
     );
     assert_eq!(store.resume(&prepared).unwrap(), Appended::Written);
     assert_eq!(store.resume(&prepared).unwrap(), Appended::AlreadyRecorded);

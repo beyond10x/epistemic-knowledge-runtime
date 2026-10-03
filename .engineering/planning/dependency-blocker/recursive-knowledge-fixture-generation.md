@@ -8,7 +8,7 @@ relations:
 - blocks: story:propose-better-vocabulary
 - blocks: story:apply-approved-refinement
 withholds: test_result
-revision: 1
+revision: 2
 ---
 ## Missing capability
 
@@ -25,3 +25,7 @@ A supported upstream release must admit finite values under these recursive type
 ## Ownership and continuing work
 
 ESS source, releases and integration remain owned by the existing release coordinator. The message bridge refused delivery of the capability report, so no upstream acknowledgement is claimed. No new ESS pull request or source mutation was made. EKR can continue adapter compilation, truthful authored checks and F contract/runtime work while generated conformance remains incomplete. Specification validation and passing kernel tests are not substitutes for this missing conformance evidence.
+
+## Upstream issue
+
+A minimal two-file reproduction was validated and synthesized with released ESS 0.52.0. Validation exits 0; synthesis exits 0 but writes zero scenarios and one ESS-SYNTH-001 refusal for the finite recursive List input fixture. The complete reproduction and exact diagnostic are published in https://github.com/beyond10x/ess/issues/416, created through the bot-authenticated Gates API as b10x-bot[bot]. No ESS source, ref, release or held bundle was changed. The blocker remains open until a supported released capability closes it and EKR executes the generated obligations.

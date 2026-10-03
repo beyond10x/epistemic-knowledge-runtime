@@ -181,7 +181,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr attention` | reads / writes | `list`, `show <kind> <id>`, `answer <file or ->`, `history [--dispute <id>]` | evidence-backed questions, a signed-answer receipt or immutable answer history |
 | `ekr upgrade` | reads / writes | `preview <policy-file or ->`, `apply <application-file or ->` | an exact authority preview or the retained signed transition record |
 | `ekr incubate` | writes / reads | `import <file or ->`, `list`, `show <interpretation-id> <version> <document-digest>` | retain local interpretations; inspect parked facts, blockers and processing receipts |
-| `ekr schema-proposal` | reads/writes | `discover`, `submit <document>`, `show <proposal-id>` | typed gap discovery, immutable proposal retention and mapping preview |
+| `ekr schema-proposal` | reads/writes | `discover`, `submit <document>`, `show <proposal-id>`, `approve <document>`, `reject <document>`, `apply <proposal-id> <review-id> <proposal-digest>` | typed gap discovery, reviewed proposals and validated application |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
@@ -561,6 +561,15 @@ including after a later rejection; it never reinstates an older approval. Reusin
 identity with changed content refuses across all human review kinds. SDK equivalents are
 `Knowledge::approve_schema_proposal` and `Knowledge::reject_schema_proposal`, using the same
 generated input and output types. Approval does not itself apply schema additions or mapped facts.
+
+`ekr schema-proposal apply <proposal-id> <review-id> <proposal-digest>` applies or resumes the
+exact retained approval and returns `ekr.integrate.ApplicationReport`. Take all three values from
+the retained proposal and approval responses. The current implementation supports schema additions
+backed by existing canonical evidence; proposals containing source observations, interpretation
+selections, mappings or corrections still refuse. Schema changes use ordinary validated transactions
+and cite the proposal's evidence and the approved human statement. A completed retry returns its
+original application and schema transaction without another canonical revision. Read-only sessions
+refuse application. The typed SDK equivalent is `Knowledge::apply_schema_proposal`.
 
 Retained proposals whose latest decision is not a rejection appear in `attention list`.
 Rejected proposals remain inspectable through `schema-proposal show` and their viewer page.

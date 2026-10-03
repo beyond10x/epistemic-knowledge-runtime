@@ -152,6 +152,12 @@ impl<
                     w::EssPresence::Present(r.review.human_proof_digest.clone())
                 });
             result.reviews = reviews.into_iter().map(|r| r.review).collect();
+            let (history, _) = self.replayed_state().map_err(error)?;
+            result.application =
+                crate::application_auth::read(&history, &record.proposal.proposal_id);
+            if let w::EssPresence::Present(application) = &result.application {
+                result.receipts = application.receipts.clone();
+            }
         }
         Ok(result)
     }

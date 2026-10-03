@@ -242,12 +242,23 @@ impl PublicationPreparationV1 {
     pub const FORMAT_V5: &'static str = "ekr.publication-preparation/5";
     /// Signed publication with a required shared human-decision identity append.
     pub const FORMAT_V6: &'static str = "ekr.publication-preparation/6";
+    /// Guarded ordinary publication with its exact nonempty proposal-stream marker.
+    pub const FORMAT_V7: &'static str = "ekr.publication-preparation/7";
     fn hash(&self) -> Result<ContentHash, StoreError> {
         Ok(ContentHash::of_bytes(
             &serde_json::to_vec(self).map_err(json_error)?,
         ))
     }
     fn is_supported(&self) -> bool {
+        if self.decision.event.application.is_some() {
+            return self.format == Self::FORMAT_V7
+                && matches!(
+                    self.command_key.kind,
+                    PublicationCommandKind::Propose
+                        | PublicationCommandKind::Validate
+                        | PublicationCommandKind::Commit
+                );
+        }
         if self.decision.event.requires_human_binding() {
             return self.format == Self::FORMAT_V6
                 && matches!(
@@ -271,6 +282,9 @@ impl PublicationPreparationV1 {
     }
     /// The format a new attempt electing `decision` is written in.
     fn format_for(decision: &Publication) -> &'static str {
+        if decision.event.application.is_some() {
+            return Self::FORMAT_V7;
+        }
         if decision.event.requires_human_binding() {
             return Self::FORMAT_V6;
         }
@@ -905,6 +919,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     fn authorize_preparation(
         &self,
         prepared: &PublicationPreparationV1,
+        new_election: bool,
     ) -> Result<BlobAppendGroup, StoreError> {
         prepared.command_key.check()?;
         require(prepared.is_supported(), "preparation-format")?;
@@ -1015,7 +1030,26 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             None
         };
         let mut human_append = false;
+        let expected_marker = self.application_append(&decision.event)?;
+        let mut marker_append = false;
         for append in request.group.appends.iter().skip(1) {
+            if append.stream.stream_type() == proposal_reviews::STREAM {
+                let expected = expected_marker.as_ref().ok_or_else(|| {
+                    StoreError::Document("preparation-unexpected-application-marker".into())
+                })?;
+                require(
+                    !marker_append
+                        && append.stream == expected.stream
+                        && native_expected(append.expected)? == native_expected(expected.expected)?
+                        && append.events.len() == 1
+                        && append.events[0].name == expected.events[0].name
+                        && append.events[0].schema_version == expected.events[0].schema_version
+                        && append.events[0].data == expected.events[0].data,
+                    "preparation-application-marker",
+                )?;
+                marker_append = true;
+                continue;
+            }
             if append.stream.stream_type() == human_decisions::STREAM {
                 let expected = self.binding_append(human_record.as_ref().ok_or_else(|| {
                     StoreError::Document("preparation-unexpected-human-binding".into())
@@ -1090,6 +1124,10 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         require(
             human_append == human_record.is_some(),
             "preparation-human-binding-missing",
+        )?;
+        require(
+            marker_append == expected_marker.is_some(),
+            "preparation-application-marker-missing",
         )?;
         for (hash, object) in &decision.objects {
             if !object_appends.contains(hash) {
@@ -1177,9 +1215,18 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         }
         self.load_objects(&mut history, required)?;
         self.require_human_bindings(&history)?;
+        self.load_application_material(
+            &mut history,
+            if new_election {
+                applications::ApplicationCapture::NewCandidate(&decision.event)
+            } else {
+                applications::ApplicationCapture::Candidate(&decision.event)
+            },
+        )?;
         // Both admissions only replay, so each history holds what that replay reads
         // (`verify_replayed`), and the complete one where it is refused.
         if history.occurrences.is_empty() {
+            self.authority()?.verify_application_history(&history)?;
             self.authority()?
                 .verify(&history, self.ontology.as_ref(), None)?;
         } else {
@@ -1204,6 +1251,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             provider_event_id: "prepared-domain-occurrence".into(),
             event: decision.event.clone(),
         });
+        self.stage_application_marker(&mut history, &decision.event)?;
         self.load_object(&mut history, decision.event.record_hash)?;
         self.verify_replayed(&mut history)?;
         Ok(request)
@@ -1319,7 +1367,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             // `bytes` hash to `selection.preparation_hash`: at an address this handle authorized,
             // they are the bytes it authorized, and their authorization is not repeated.
             if !self.authorized_before(selection.preparation_hash) {
-                self.authorize_preparation(&prepared)?;
+                self.authorize_preparation(&prepared, false)?;
                 self.remember_authorized(selection.preparation_hash);
             }
             previous = Some(selection.preparation_hash);
@@ -1350,6 +1398,9 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 .publication_decision(decision)?
                 .ok_or_else(|| StoreError::Document("preparation-human-binding-missing".into()))?;
             appends.push(self.new_human_binding(&record)?);
+        }
+        if let Some(marker) = self.application_append(&decision.event)? {
+            appends.push(marker);
         }
         for (hash, object) in &decision.objects {
             if let Some(append) = self.object_append(*hash, object)? {
@@ -1428,7 +1479,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         if let Some(prior) = previous {
             check_successor(prior, &prepared)?;
         }
-        self.authorize_preparation(&prepared)?;
+        self.authorize_preparation(&prepared, true)?;
         let bytes = serde_json::to_vec(&prepared).map_err(json_error)?;
         let hash = ContentHash::of_bytes(&bytes);
         self.remember_authorized(hash);
@@ -1537,6 +1588,25 @@ fn check_successor(
     if a.event == b.event && a.objects == b.objects {
         return Ok(());
     }
+    // A lost review-stream CAS elects a new, independently authorized preparation.
+    // Only its review authorization may change; command input, ordinary record, template,
+    // elected step and transaction identity remain frozen. Never edit the prior request.
+    if let (Some(first), Some(second)) = (&a.event.application, &b.event.application) {
+        let mut refreshed = first.as_data().clone();
+        refreshed.review_id = second.as_data().review_id.clone();
+        refreshed.human_proof_digest = second.as_data().human_proof_digest.clone();
+        refreshed.review_stream_version = second.as_data().review_stream_version.clone();
+        let mut event = a.event.clone();
+        event.application = Some(second.clone());
+        if prior.format == PublicationPreparationV1::FORMAT_V7
+            && next.format == PublicationPreparationV1::FORMAT_V7
+            && refreshed == *second.as_data()
+            && event == b.event
+            && a.objects == b.objects
+        {
+            return Ok(());
+        }
+    }
     let stale = matches!((&a.event.payload,&b.event.payload),(RevisionPayload::RevisionCommitted {transaction_id:first,..},RevisionPayload::TransactionStale {transaction_id:second,..}) if first==second)
         && a.event.event_id != b.event.event_id;
     let original_time = a.objects.values().next().map(|object| object.stored_at);
@@ -1550,5 +1620,5 @@ fn check_successor(
 }
 
 #[cfg(test)]
-#[path = "preparation_human_identity_tests.rs"]
+#[path = "../tests/support/preparation_human_identity.rs"]
 mod human_identity_tests;
