@@ -7,7 +7,7 @@ title: Hosted PostgreSQL, preserving store copy and remote read serving
 relations:
 - serves: vision:o5
 - serves: vision:o2
-revision: 2
+revision: 3
 ---
 # Hosted storage and read serving requirements
 
@@ -30,4 +30,4 @@ Support an independently operated hosted EKR instance initialized from an existi
 
 ## Ownership and next action
 
-The EKR session owns decomposition, ESS changes, implementation and release. These outcomes extend existing store and view domains; this handoff introduces no consumer-specific entity or fixture. Review the existing eventlog PostgreSQL provider and preserving migration kernel before selecting implementation units. This task remains draft until that session scopes and schedules it.
+The operator authorized implementation and publication of the missing generic upstream capabilities in separate managed worktrees. story:hosted-postgres-snapshot is active and owns backend configuration plus initial consistent copy. Network listener and read-only HTTP MCP follow as a separate unit. Atomic suffix publication remains follow-on work; a read-only snapshot pilot does not need paid extraction or an incremental publisher. This parent task is not complete until its full requirements have evidence. The owning session keeps all fixtures and artifacts generic.

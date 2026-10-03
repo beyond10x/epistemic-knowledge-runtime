@@ -5297,3 +5297,55 @@ The default gate counts work. The ignored release benchmark in
 limits at its unchanged default SQLite sizes, alongside its existing aggregate checks. Exact
 measurements, load and unresolved results are recorded on the task. A counted improvement or a
 passing aggregate statistic alone does not establish that timing acceptance.
+
+# 105. Hosted PostgreSQL and preserving initial copies (2026-10-03)
+
+This amendment extends provider placement, not canonical authority. The PostgreSQL eventlog
+provider stores the same retained occurrences and objects as File and SQLite. Kernel admission,
+immutable revisions, retained evidence and logical roots keep their existing meanings.
+
+## 105.1 Hosted authority and operational configuration
+
+An `ekr.postgres/1` provider configuration references a connection file and trusted CA file;
+credential contents never enter command arguments or diagnostics. Hosted connections verify the
+server certificate and name, use an explicitly provisioned owner schema, and hold bounded pools
+and operation deadlines. Schema setup uses a separate operator role. Normal application open
+uses the provider's DML-only admission and finite role/deployment connection budgets. Provider
+configuration is an operational input; it does not introduce a canonical knowledge entity.
+
+Read serving must not gain proposal, validation, seed or commit authority merely because a
+provider role can write eventlog tables. The runtime's read-only mode remains the boundary;
+checkpoint/cache behavior is part of its implementation contract, not an outward write tool.
+
+## 105.2 One captured source and an unpublished incomplete destination
+
+An initial SQLite-to-PostgreSQL copy captures one consistent SQLite image before inventory. A
+writable source is not an excuse to combine independent inventory reads from different moments.
+The generic preserving-copy kernel verifies retained history through the existing authority and
+compares every historical logical knowledge, evidence, ontology and authority root. Retained
+payload bytes and stable identities survive. Legacy seed-envelope upgrades can rewrite physical
+record hashes; the migration report maps those explicitly rather than claiming byte equality of
+all physical records.
+
+The migration-started marker and first copied seed publish in the same atomic provider group.
+Only `Appended::Written` owns this initial copy; `AlreadyRecorded` is a competing initializer,
+not permission to append another history. An ordinary seed and a copy contend on the same empty
+revision stream. A losing copy must neither mark the winner incomplete nor complete another
+copy's history. The finished marker is written only after admitted replay and equivalence pass.
+An interrupted destination remains retained and unreadable as a complete store. Initial copy
+refuses an already populated destination; it does not silently overwrite, delete or resume one.
+
+These requirements are assigned to `story:hosted-postgres-snapshot`. Execution is pending at
+this amendment's introduction. Named cases in `crates/ekr-kernel/tests/hosted_postgres.rs` include
+`sqlite_to_postgres_preserves_every_revision_schema_and_evidence_byte`,
+`interrupted_postgres_copy_is_unreadable_after_reopen`,
+`competing_ordinary_seed_is_not_poisoned_by_losing_copy` and
+`identical_seed_copies_cannot_finish_another_interrupted_history`.
+
+## 105.3 Separate follow-on contracts
+
+Initial preserving copy does not implement atomic incremental suffix publication into a served
+store. Such publication still needs a captured base, expected-head condition, all-or-nothing
+suffix validation/publication and exact retry behavior. Network read serving is also a separate
+boundary: explicit listeners and accepted authorities, bounded HTTP requests, read-only MCP,
+and an external authentication/routing owner. A provider release alone proves none of those.
