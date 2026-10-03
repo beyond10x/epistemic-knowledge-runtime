@@ -81,4 +81,9 @@ New renderer/test files may be prepared independently; `view.rs` and CLI docs in
 after the HTTP unit. The active-scope selection output is retained at
 `<cache>/ekr-hosted-runtime/serving/active-waves.json`; these three hosted units deliberately
 share integration surfaces and are sequenced, not asserted disjoint. Other backlog items remain
-out of scope. Worktree and build identities will be recorded before this unit is dispatched.
+out of scope. Search unit: managed id `ekr-search-entry`, branch `impl/search-first-entry`,
+base `3fef957a5b`; target `/dev/shm/ekr-search-entry-target`; scratch
+`<cache>/ekr-hosted-runtime/search`. The provider implementor may prepare its new renderer
+after freezing the PostgreSQL candidate, with only one of its builds active at once. Route
+wiring and a complete gate wait for HTTP integration. Preflight: 20 GiB filesystem free and
+18 GiB shared-memory free; all targets remain checkout-specific.
