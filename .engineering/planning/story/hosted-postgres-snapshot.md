@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:hosted-postgres-snapshot
 kind: story
-status: active
+status: implemented
 title: Open hosted PostgreSQL stores and preserve an initial SQLite snapshot
 relations:
 - serves: vision:o5
@@ -41,10 +41,11 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 10
+revision: 13
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 5}
+- {from: "active", to: "implemented", at: "2026-10-03T04:58:21Z", actor: "agent:codex", revision: 12, decided_on: {"recorded":{"test_result":5,"review_outcome":3}}}
 ---
 ## Outcome
 Expose the existing eventlog PostgreSQL provider through the runtime, CLI and SDK; initialize an empty hosted store from one consistent SQLite snapshot. Existing filesystem stores remain compatible. This is the snapshot-only hosted foundation. Incremental suffix publication and network serving remain separate work.
@@ -91,3 +92,21 @@ inspection of the final corrections and the earlier direct provider rerun, witho
 independent execution of the entire focused set. The broad collection was intentionally stopped
 at a completed target boundary, exit 143; full combined workspace acceptance remains pending.
 The corrected marker-evidence case also covers task:migration-marker-cannot-be-evidence.
+
+## Final acceptance and release
+
+The full local gate on 70761eaed64e3d5893a93d8ae3d5552c874a9987 passed: 2189 passed, 0 failed, 13 ignored across 358 completed runner summaries. All 10 recorded gate steps exited zero. Required real PostgreSQL and previous-release prerequisites were enabled; these scoped acceptance cases executed. Logs remain at `<cache>/ekr-hosted-runtime/release-gate/`. Existing ignored helper cases are not acceptance passes.
+
+Exact-head GitHub Repository correctness and common / Security and privacy checks passed; correctness job https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37096359423/job/111126998509 completed successfully. Remote main and annotated 0.0.28 tag were verified at this commit. Release https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.28 was read back as published at 2026-10-03T04:56:40Z. This fulfills the scoped source-release contract, not a consumer deployment claim.
+
+Acceptance cases are literal executable names unless otherwise noted. Kernel cases below live in `crates/ekr-kernel/tests/hosted_postgres.rs`; CLI/SDK cases in `crates/ekr/tests/postgres_cli.rs`.
+
+| Acceptance line | Existing evidence and conclusion |
+|---|---|
+| `postgres_runtime_reopens_seed_and_committed_history` | Same-named real-provider case passes: admitted head and historical reads survive reopen and hosted read handles reject writes. `postgres_hosted_open_refuses_schema_authority_and_unbounded_budget` and `postgres_pool_overrides_cannot_remove_connection_or_timeout_bounds` pass for separate authority and finite bounds. Verified TLS configuration/opening is covered by the required TLS fixture plus the provider review, not by a new TLS protocol implementation. |
+| `postgres_configuration_errors_never_expose_credentials` | Same-named CLI case passes; sanitized malformed-configuration error omits its synthetic secret-shaped input. Configuration path handling and sanitized provider error boundaries were inspected in `review-result:hosted-postgres-final-2`; this is not an exhaustive proof against arbitrary future diagnostics. |
+| `sqlite_to_postgres_preserves_every_revision_schema_and_evidence_byte` | Same-named kernel case passes, advances the source after a single captured image, compares every captured revision's graph/roots, schema history, identities, retained bytes and hashes, and verifies original source events/bytes unchanged. `sqlite_to_postgres_cli_copies_and_reopens_one_history` asserts the machine-readable migration report. Logical roots remain equal; deliberately rewritten physical envelope hashes are mapped, not falsely asserted equal. |
+| `copy_refuses_nonempty_destination_without_mutation` | Same-named case plus `copy_refuses_an_object_only_postgres_destination`, `interrupted_postgres_copy_is_unreadable_after_reopen`, `legacy_marker_evidence_cannot_complete_an_interrupted_copy`, `identical_seed_copies_cannot_finish_another_interrupted_history`, and `a_checkpoint_cannot_admit_a_copy_without_its_completion_receipt` pass. `previous_release_reads_ordinary_seeds_and_refuses_claimed_migrations` passes for the old-reader format boundary, including later commits/checkpoints. |
+| `sdk_postgres_session_passes_only_configuration_paths` | Same-named real CLI/SDK subprocess case passes; existing constructor/configuration compatibility is also exercised by the combined SDK suites. |
+
+Review anchor: `review-result:hosted-postgres-final-2`, with its exact candidate identities and bounded independent direct execution. Earlier incomplete broad runs remain historical evidence and are superseded for acceptance by the complete local gate, not reclassified as passes.

@@ -133,3 +133,14 @@ The current combined build target is `<cache>/ekr-hosted-runtime/postgres-target
 after shared-memory quota failures. Earlier HTTP/search targets were reclaimed only after
 their owners confirmed all builds and reviews had stopped. Source trees and retained evidence
 remain managed and intact. The SDK correction uses its own bounded target.
+
+
+## Final acceptance and release
+
+The full local gate on 70761eaed64e3d5893a93d8ae3d5552c874a9987 passed: 2189 passed, 0 failed, 13 ignored across 358 completed runner summaries. All 10 recorded gate steps exited zero. Required real PostgreSQL and previous-release prerequisites were enabled; these scoped acceptance cases executed. Logs remain at `<cache>/ekr-hosted-runtime/release-gate/`. Existing ignored helper cases are not acceptance passes.
+
+Exact-head GitHub Repository correctness and common / Security and privacy checks passed; correctness job https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37096359423/job/111126998509 completed successfully. Remote main and annotated 0.0.28 tag were verified at this commit. Release https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.28 was read back as published at 2026-10-03T04:56:40Z. This fulfills the scoped source-release contract, not a consumer deployment claim.
+
+The three scoped stories are implemented. Their acceptance mappings are retained in their final sections. Earlier failed and partial runs remain historical evidence; the final complete gate supersedes pending local-gate wording above. The unchanged SDK startup and viewer concurrency regressions pass after reviewed corrections.
+
+The parent hosted requirement stays open for atomic suffix publication and inline retained-evidence previews; search currently offers labeled evidence links. Consumer deployment and external access control remain consumer-owned acceptance. HTTP and search worktrees and disposable build targets were retired only after publication, review and exact-id managed cleanup; retained logs remain. The PostgreSQL and integration trees remain for closing verification.

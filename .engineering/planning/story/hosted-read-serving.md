@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:hosted-read-serving
 kind: story
-status: active
+status: implemented
 title: Serve the viewer and read-only MCP through bounded explicit HTTP listeners
 relations:
 - serves: vision:o5
@@ -56,10 +56,11 @@ scope:
   path: docs/sdk.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 15
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:14:16Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T01:27:02Z", actor: "agent:codex", revision: 9}
+- {from: "active", to: "implemented", at: "2026-10-03T04:58:21Z", actor: "agent:codex", revision: 17, decided_on: {"recorded":{"test_result":8,"review_outcome":2}}}
 ---
 ## Outcome
 Keep existing loopback viewer and stdio MCP behavior; add explicit hosted viewer binding and stateless Streamable HTTP MCP. This is a read-only transport over existing views, not an identity provider or canonical writer. Run after the hosted snapshot unit because CLI dispatch and docs overlap.
@@ -94,3 +95,23 @@ The existing viewer has whole-revision name/alias search, clickable details and 
 ## Release integration scope
 
 The authorized source release updates Cargo.toml and Cargo.lock, the release section in CHANGELOG.md, README.md and docs/overview.md to the new released interface. These existing release surfaces are cited; docs_cli.rs already guards the README version. Root owns these changes after the search unit is integrated, then runs the combined release gate. No source tag is described as released before its remote verification.
+
+## Final acceptance and release
+
+The full local gate on 70761eaed64e3d5893a93d8ae3d5552c874a9987 passed: 2189 passed, 0 failed, 13 ignored across 358 completed runner summaries. All 10 recorded gate steps exited zero. Required real PostgreSQL and previous-release prerequisites were enabled; these scoped acceptance cases executed. Logs remain at `<cache>/ekr-hosted-runtime/release-gate/`. Existing ignored helper cases are not acceptance passes.
+
+Exact-head GitHub Repository correctness and common / Security and privacy checks passed; correctness job https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37096359423/job/111126998509 completed successfully. Remote main and annotated 0.0.28 tag were verified at this commit. Release https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.28 was read back as published at 2026-10-03T04:56:40Z. This fulfills the scoped source-release contract, not a consumer deployment claim.
+
+Process cases below live in `crates/ekr/tests/hosted_http.rs` unless specified. Acceptance labels sometimes differ from final executable names; this table gives the actual cases.
+
+| Acceptance line | Existing evidence and conclusion |
+|---|---|
+| `viewer_defaults_to_loopback_and_accepts_only_configured_authorities` | `view_cli::ekr_view_binding_is_explicit_and_defaults_to_loopback` and `external_binding_requires_and_enforces_explicit_authorities` pass. The latter refuses external bind without explicit authority and rejects forged forwarded Host authority. |
+| `readiness_refuses_unseeded_incomplete_or_unavailable_store` | `health_stays_live_before_seed_and_readiness_recovers_after_seed`, `readiness_refuses_an_incomplete_copy_even_with_a_seed_and_checkpoint`, `readiness_recovers_when_sqlite_is_replaced_in_place`, and `hosted_viewer_exposes_liveness_and_admitted_seeded_readiness` pass. SDK compatibility is additionally held by unchanged `ekr-sdk/tests/session.rs::viewer_spawn_zero_returns_a_url_whose_head_answers`, the version-gating case, and both `viewer_require_ready_*` process cases. Default lazy health survives; opt-in eager admission rejects before URL announcement and reuses the admitted handle. |
+| `http_and_stdio_mcp_return_identical_tool_documents` | `http_and_stdio_mcp_return_identical_nine_tool_documents` passes with real initialization, tool listing and calls, preserving result documents and rejecting a mutation tool. The protocol case in the next row supplies notification coverage. |
+| `mcp_http_protocol_statuses_and_versions` | `mcp_http_protocol_statuses_versions_and_origins` and `unavailable_store_does_not_override_transport_refusals` pass: notification/response202, method405, version400 and admission-independent transport routing. Accepted tool errors retain the existing JSON-RPC response contract. |
+| `mcp_http_rejects_unapproved_origin_host_and_ambiguous_framing` | The preceding protocol case plus `mcp_http_rejects_ambiguous_framing_and_unapproved_hosts` pass for Origin/Host authority, duplicate/ambiguous lengths, transfer encoding and size bounds. |
+| `timed_out_requests_do_not_grow_the_queue` | `cli::http::tests::timed_out_jobs_cannot_grow_the_bounded_queue` and `health_bypasses_a_saturated_store_queue` pass. Existing `adversary_stream_pass1::sixty_four_concurrent_streams_each_deliver_the_whole_page` passes unchanged after restoring the viewer queue capacity; HTTP MCP retains its smaller bounded queue. Deadline/store-thread implementation was inspected in the transport review; no new hosted load benchmark is claimed. |
+| `http_readers_observe_commits_without_mixing_revisions` | `http_readers_observe_external_commits_and_keep_historical_documents` passes for File/SQLite, preserving explicit historical responses while latest advances. `both_http_listeners_read_nonwritable_stores_without_changing_files` preserves all source bytes under the physical read-only contract. PostgreSQL read consistency also has the separate kernel acceptance above; this process suite is not a PostgreSQL network deployment test. |
+
+Review anchors: `review-result:hosted-http-final-2`, `hosted-readiness-copy-final-1`, `hosted-viewer-capacity-final-1`, and `hosted-sdk-startup-final-1`. Host/origin allowlists and external authentication documentation establish the generic integration boundary; no identity provider is implemented. The synthetic loopback client smoke is additional interoperability evidence, not consumer deployment acceptance.
