@@ -1,5 +1,5 @@
-//! Response-loss injection around real native atomic writes. These are restart tests, not
-//! evidence of process death inside a provider transaction; native crash gates remain separate.
+//! Response loss and abrupt child-process exit immediately around real native atomic writes.
+//! These do not inject faults inside the provider's own transaction implementation.
 use super::*;
 use ekr_core::contract_data::{EkrIntegrateRetainedInterpretation, EkrObserveObservationImport};
 use ekr_core::generated_identity::{Identity, InterpretationId};
@@ -7,15 +7,200 @@ use std::cell::Cell;
 
 thread_local! { static LOSS: Cell<u8> = const { Cell::new(0) }; }
 pub(super) fn before_write() -> bool {
+    if LOSS.with(|loss| loss.get() == 3) {
+        std::process::exit(86);
+    }
     LOSS.with(|loss| loss.get() == 1)
 }
 pub(super) fn after_write(
     result: Result<eventlog_core::AppendGroupResult, EventLogError>,
 ) -> Result<eventlog_core::AppendGroupResult, EventLogError> {
+    if result.is_ok() && LOSS.with(|loss| loss.get() == 4) {
+        std::process::exit(86);
+    }
     if result.is_ok() && LOSS.with(|loss| loss.get() == 2) {
         Err(EventLogError::UnknownCommit)
     } else {
         result
+    }
+}
+
+/// Invoked only by the parent below, with exact fixture bytes and a private temporary store.
+#[test]
+#[ignore = "child-process entry point; executed by abrupt_exit_retention_reopens_without_duplicates"]
+fn retention_crash_child() {
+    let directory =
+        std::path::PathBuf::from(std::env::var_os("EKR_RETENTION_CRASH_DIRECTORY").unwrap());
+    let (observation, interpretation): (
+        EkrObserveObservationImport,
+        EkrIntegrateRetainedInterpretation,
+    ) = serde_json::from_slice(&std::fs::read(directory.join("input.json")).unwrap()).unwrap();
+    let mode: u8 = std::env::var("EKR_RETENTION_CRASH_MODE")
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!([3, 4].contains(&mode));
+    let operation = std::env::var("EKR_RETENTION_CRASH_OPERATION").unwrap();
+    fn write<S: AtomicBlobEventStore>(
+        store: EventlogStore<S>,
+        observation: &EkrObserveObservationImport,
+        interpretation: &EkrIntegrateRetainedInterpretation,
+        mode: u8,
+        operation: &str,
+    ) {
+        LOSS.with(|loss| loss.set(mode));
+        match operation {
+            "observe" => {
+                store
+                    .retain_observation(observation, Timestamp::EPOCH)
+                    .unwrap();
+            }
+            "incubate" => {
+                store
+                    .retain_interpretation(interpretation, Timestamp::EPOCH)
+                    .unwrap();
+            }
+            _ => panic!("unknown crash operation"),
+        }
+        panic!("native boundary did not exit the process");
+    }
+    if std::env::var("EKR_RETENTION_CRASH_PROVIDER").unwrap() == "sqlite" {
+        write(
+            SqliteStore::sqlite(&directory.join("store"), "retention", None).unwrap(),
+            &observation,
+            &interpretation,
+            mode,
+            &operation,
+        );
+    } else {
+        write(
+            FileStore::file(&directory.join("store"), "retention", None).unwrap(),
+            &observation,
+            &interpretation,
+            mode,
+            &operation,
+        );
+    }
+}
+
+#[test]
+fn abrupt_exit_retention_reopens_without_duplicates() {
+    fn check<S: AtomicBlobEventStore>(
+        store: EventlogStore<S>,
+        observation: &EkrObserveObservationImport,
+        interpretation: &EkrIntegrateRetainedInterpretation,
+        mode: u8,
+        operation: &str,
+    ) {
+        let applied = mode == 4;
+        if operation == "observe" {
+            assert_eq!(
+                store.retained_observations().unwrap().len(),
+                usize::from(applied)
+            );
+            assert_eq!(
+                store
+                    .get(&observation.key.content_hash.0.parse().unwrap())
+                    .unwrap()
+                    .is_some(),
+                applied
+            );
+            assert_eq!(
+                store
+                    .retain_observation(observation, Timestamp::from_millis(20))
+                    .unwrap(),
+                !applied
+            );
+            assert!(!store
+                .retain_observation(observation, Timestamp::from_millis(30))
+                .unwrap());
+            assert_eq!(
+                store.retained_observations().unwrap(),
+                std::slice::from_ref(observation)
+            );
+        } else {
+            assert_eq!(
+                store.retained_interpretations().unwrap().len(),
+                usize::from(applied)
+            );
+            assert_eq!(
+                store
+                    .get(&interpretation.version.document_digest.0.parse().unwrap())
+                    .unwrap()
+                    .is_some(),
+                applied
+            );
+            assert_eq!(
+                store
+                    .retain_interpretation(interpretation, Timestamp::from_millis(20))
+                    .unwrap()
+                    .1,
+                !applied
+            );
+            assert!(
+                !store
+                    .retain_interpretation(interpretation, Timestamp::from_millis(30))
+                    .unwrap()
+                    .1
+            );
+            assert_eq!(
+                store.retained_interpretations().unwrap(),
+                std::slice::from_ref(interpretation)
+            );
+        }
+        assert!(store.head().unwrap().is_none());
+    }
+    for provider in ["file", "sqlite"] {
+        for operation in ["observe", "incubate"] {
+            for mode in [3, 4] {
+                let directory = tempfile::tempdir().unwrap();
+                let fixtures = fixtures();
+                std::fs::write(
+                    directory.path().join("input.json"),
+                    serde_json::to_vec(&fixtures).unwrap(),
+                )
+                .unwrap();
+                let output = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "eventlog::retention_faults::retention_crash_child",
+                        "--ignored",
+                        "--nocapture",
+                    ])
+                    .env("EKR_RETENTION_CRASH_DIRECTORY", directory.path())
+                    .env("EKR_RETENTION_CRASH_PROVIDER", provider)
+                    .env("EKR_RETENTION_CRASH_OPERATION", operation)
+                    .env("EKR_RETENTION_CRASH_MODE", mode.to_string())
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    output.status.code(),
+                    Some(86),
+                    "{provider}/{operation}/{mode}: {} {}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                if provider == "sqlite" {
+                    check(
+                        SqliteStore::sqlite(&directory.path().join("store"), "retention", None)
+                            .unwrap(),
+                        &fixtures.0,
+                        &fixtures.1,
+                        mode,
+                        operation,
+                    );
+                } else {
+                    check(
+                        FileStore::file(&directory.path().join("store"), "retention", None)
+                            .unwrap(),
+                        &fixtures.0,
+                        &fixtures.1,
+                        mode,
+                        operation,
+                    );
+                }
+            }
+        }
     }
 }
 struct Reset;

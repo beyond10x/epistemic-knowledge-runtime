@@ -98,6 +98,14 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
         input: &EkrIntegrateInterpretationImport,
         at: Timestamp,
     ) -> Result<EkrIntegrateIncubationImportReceipt, StoreError> {
+        super::incubation_behavior::import(self, input, at)
+    }
+
+    pub(super) fn retain_interpretation(
+        &self,
+        input: &EkrIntegrateInterpretationImport,
+        at: Timestamp,
+    ) -> Result<EkrIntegrateIncubationImportReceipt, StoreError> {
         let bytes = ekr_core::bytes::decode(&input.payload).map_err(error)?;
         if bytes.len() > 8 * 1024 * 1024 {
             return Err(error("document exceeds eight MiB"));
@@ -177,6 +185,12 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
     /// # Errors
     /// Corrupt retained records or provider failure.
     pub fn interpretations(&self) -> Result<Vec<EkrIntegrateInterpretationVersion>, StoreError> {
+        super::incubation_behavior::list(self)
+    }
+
+    pub(super) fn retained_interpretation_versions(
+        &self,
+    ) -> Result<Vec<EkrIntegrateInterpretationVersion>, StoreError> {
         let mut result = Vec::new();
         for record in self.store.retained_interpretations()? {
             coordinate(&record.interpretation.document)?;
@@ -195,6 +209,13 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
     /// # Errors
     /// Unknown coordinate, changed digest, invalid retained source or provider failure.
     pub fn interpretation(
+        &self,
+        version: &EkrIntegrateInterpretationVersion,
+    ) -> Result<EkrIntegrateInterpretationRead, StoreError> {
+        super::incubation_behavior::show(self, version)
+    }
+
+    pub(super) fn retained_interpretation(
         &self,
         version: &EkrIntegrateInterpretationVersion,
     ) -> Result<EkrIntegrateInterpretationRead, StoreError> {

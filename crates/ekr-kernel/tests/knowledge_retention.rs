@@ -61,6 +61,79 @@ fn observation() -> EkrObserveObservationImport {
 }
 
 #[test]
+fn generated_observation_commands_preserve_provider_faults() {
+    use ekr_kernel::Commit;
+    use ekr_store::{
+        FileStore, ObjectStore, ObservationRetention, RevisionLog, SqliteStore, StoreError,
+    };
+
+    fn check<S: RevisionLog + ObjectStore + ObservationRetention>(
+        commit: Commit<S>,
+        original: &EkrObserveObservationImport,
+    ) {
+        assert_eq!(
+            commit.observations().unwrap(),
+            [*original.observation.clone()]
+        );
+        let mut input = original.clone();
+        let payload = b"another observation";
+        let hash = ContentHash::of_bytes(payload);
+        let id = ekr_core::ObservationIdempotencyKey {
+            source: "manual".into(),
+            source_native_id: Some("health-1".into()),
+            content_hash: hash,
+        }
+        .observation_id();
+        input.payload = bytes::encode(payload);
+        input.key.content_hash.0 = hash.to_hex();
+        input.observation.content_hash.0 = hash.to_hex();
+        input.observation.observation_id.0 = id.to_string();
+        let refused = commit
+            .import_observation(&input, Timestamp::EPOCH)
+            .unwrap_err();
+        assert!(
+            matches!(refused, StoreError::ReadOnly(_)),
+            "provider fault was reclassified: {refused:?}"
+        );
+        assert_eq!(
+            commit.observations().unwrap(),
+            [*original.observation.clone()]
+        );
+    }
+
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("store");
+        let (context, anchor) = host();
+        let original = observation();
+        let runtime = open(&path, sqlite, context, &anchor);
+        runtime
+            .import_observation(&original, Timestamp::EPOCH)
+            .unwrap();
+        drop(runtime);
+        if sqlite {
+            check(
+                Commit::over_with_authority(context, anchor, |authority| {
+                    SqliteStore::sqlite_read_only(&path, "retention", None)
+                        .map(|store| store.under(authority))
+                })
+                .unwrap(),
+                &original,
+            );
+        } else {
+            check(
+                Commit::over_with_authority(context, anchor, |authority| {
+                    FileStore::file_read_only(&path, "retention", None)
+                        .map(|store| store.under(authority))
+                })
+                .unwrap(),
+                &original,
+            );
+        }
+    }
+}
+
+#[test]
 fn observation_retry_is_idempotent() {
     for sqlite in [false, true] {
         let dir = tempfile::tempdir().unwrap();

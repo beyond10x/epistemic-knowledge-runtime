@@ -61,6 +61,14 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention> Commit<S> {
         input: &EkrObserveObservationImport,
         at: Timestamp,
     ) -> Result<EkrObserveObservationImportReceipt, StoreError> {
+        super::observation_behavior::import(self, input, at)
+    }
+
+    pub(super) fn retain_observation(
+        &self,
+        input: &EkrObserveObservationImport,
+        at: Timestamp,
+    ) -> Result<EkrObserveObservationImportReceipt, StoreError> {
         validate(input)?;
         let inserted = self.store.retain_observation(input, at)?;
         Ok(EkrObserveObservationImportReceipt {
@@ -79,6 +87,12 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention> Commit<S> {
     /// # Errors
     /// Invalid retained metadata, missing or changed payload, or provider failure.
     pub fn observations(&self) -> Result<Vec<EkrGraphObservationRecord>, StoreError> {
+        super::observation_behavior::list(self)
+    }
+
+    pub(super) fn retained_observation_records(
+        &self,
+    ) -> Result<Vec<EkrGraphObservationRecord>, StoreError> {
         let inputs = self.store.retained_observations()?;
         let mut records = Vec::with_capacity(inputs.len());
         for input in inputs {
@@ -93,6 +107,13 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention> Commit<S> {
     /// # Errors
     /// Unknown observation, invalid retained metadata/content, or provider failure.
     pub fn observation(
+        &self,
+        id: ObservationId,
+    ) -> Result<EkrObserveRetainedObservationRead, StoreError> {
+        super::observation_behavior::show(self, id)
+    }
+
+    pub(super) fn retained_observation(
         &self,
         id: ObservationId,
     ) -> Result<EkrObserveRetainedObservationRead, StoreError> {
