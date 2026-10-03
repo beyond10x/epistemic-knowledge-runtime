@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T10:15:06Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:resolve-knowledge-question",
+  "kind": "story",
+  "revision": 11,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Human answer codec, signature and material-basis tests; effects mutation; kernel Clippy and compile-fail doctests",
+    "reference": ".engineering/reviews/knowledge-answer-review/README.md"
+  }
+}

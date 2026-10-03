@@ -20,7 +20,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 9, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -54,3 +54,13 @@ Start by deriving ordinary graph corrections from the existing generated ClaimCo
 Verified source surfaces: crates/ekr-kernel/src/attention.rs supplies immutable question basis and competing claims; human_review.rs verifies independent reviewer signatures; transaction.rs already declares evidence addition, retraction and supersession; apply.rs preserves lifecycle/history and recomputes disputes. Reuse these rather than invent another mutation path. Subsequent work must add generated transport and immutable answer records through ESS before their runtime code, publish only after kernel validation, implement durable retry/replay and changed-basis refusal, and expose CLI/SDK/history with real conformance on both providers.
 
 Keep one managed C unit and one active build lane. No new agent dispatch or independent-review claim; all source eventually joins the existing PR. Raw evidence remains outside disposable outputs; no persistent compiler cache is started under the resource limit.
+
+## Signed-answer verification foundation
+
+Unit 13c48f1543dbf79087346f963925bfb29f3dddd4 is integrated locally. Existing generated contracts now drive canonical correction-list bytes and exact signed-answer verification against a fresh material review basis. The signature remains valid after unrelated revision or wording changes; different evidence, options, effects, subject, corrections, statement or effective predecessor refuses. The original signed intent is preserved rather than rewritten to the new revision.
+
+Measured local Rust results from .engineering/reviews/knowledge-answer-review/measurements.json: {"red":[{"status":"FAILED","passed":14,"failed":3,"ignored":0}],"green":[{"status":"ok","passed":17,"failed":0,"ignored":0}],"clippy":[],"doctests":[{"status":"ok","passed":2,"failed":0,"ignored":0}],"effects-mutant":[{"status":"FAILED","passed":0,"failed":1,"ignored":0}],"restored":[{"status":"ok","passed":6,"failed":0,"ignored":0},{"status":"ok","passed":17,"failed":0,"ignored":0}]}. Kernel test-target Clippy passed. Removing the effects-digest comparison made the advancement test fail; original bytes were restored and the verifier/upgrade targets passed. These are component tests, not C implementation conformance, an independent review or a completed answer command.
+
+The initial work order listed correction derivation first. Source inspection showed that ordinary lifecycle validation rejects disputed assertions and that SupersedeAssertion truncates the old interval and restricts the replacement start to that interval. The proof and material-basis boundary was therefore implemented first. Next, specify and generate exact transport and immutable answer-publication records, then build the reviewed validation context and ordinary graph-operation derivation. Temporal correction must preserve the old interval and explicitly retain replacement provenance; do not coerce an arbitrary correction into the existing supersession operation. Old replay and unsigned ordinary transaction rules must remain unchanged.
+
+Publication, retry/replay, CLI/SDK/history, named C conformance, D-F, both end-to-end demonstrations, released generator adoption and the full gate remain unfinished. PR64 still contains the last published B checkpoint; this C foundation is local until combined verification and publication.
