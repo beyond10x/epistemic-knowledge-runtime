@@ -482,6 +482,10 @@ fn classified() -> Inventory {
         // These remaining references are inside cfg(test) modules, using locally built fixtures.
         // They are still enumerated so a new product use in the same file cannot hide behind it.
         (
+            "crates/ekr/src/cli/view.rs",
+            &[("serde_yaml_ng : : to_string", 1)],
+        ),
+        (
             "crates/ekr-kernel/src/replay.rs",
             &[
                 ("serde_yaml_ng : : to_string", 2),

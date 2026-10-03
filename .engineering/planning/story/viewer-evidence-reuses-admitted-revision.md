@@ -9,6 +9,8 @@ relations:
 - serves: vision:o2
 scope:
 - confidence: cited
+  path: crates/ekr-ontology/tests/yaml_ingress.rs
+- confidence: cited
   path: crates/ekr/src/cli/view.rs
 - confidence: inferred
   path: crates/ekr/tests/search_page.rs
@@ -16,7 +18,7 @@ scope:
   path: crates/ekr/tests/view_cli.rs
 - confidence: inferred
   path: docs/cli.md
-revision: 7
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T06:18:03Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T06:19:09Z", actor: "agent:codex", revision: 7}
@@ -44,3 +46,9 @@ First add and run a deterministic regression at the viewer request seam. Warm a 
 ## Objective and authority
 
 This serves evidence access and the generic agent platform. The operator's standing authorization covers implementing and publishing upstream capabilities needed for hosted read serving, including a corrective release after verification. This story introduces no new domain entity or wire format.
+
+## Cross-crate inventory correction
+
+The required CI run for source candidate 033817eec8b4f5defcf3c79dcb968deeefa619aa failed `every_production_yaml_reader_has_an_explicit_input_policy`; the local full gate reproduced the same failure. The new historical-membership fixture serializes a synthetic transaction inside the viewer's cfg(test) module. The YAML guard inventories test-only source-module references too, but that writer had not been classified. Add its exact single `to_string` entry beside the other test-only fixture writers, retaining the guard's refusal of additional readers/imports. No production reader, input bound or runtime behavior changes in this correction.
+
+The first local full-gate process was stopped after the reproduced failure, with observed exit 143 and no surviving process-group members; its incomplete log is preserved under `<cache>/ekr-evidence-cache/gate/before-inventory-correction`. It is not a completed or passing full gate. Focused inventory verification and a fresh full gate are required on the corrected candidate.
