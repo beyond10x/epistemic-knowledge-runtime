@@ -1064,7 +1064,10 @@ that revision, whichever path, reads the store's head and answers from that inde
 answer (a revision's first `/timeline` also ranks its row types once; `/changes` also reads the
 store's retained transaction records and parses the transactions of the revisions it chooses,
 and replays the seed only when it chooses the seed). The
-indexes of the 3 revisions used most recently are kept. A committed revision never changes and no
+indexes of the 3 revisions used most recently are kept. `/evidence/<id>` resolves membership
+through that same admitted revision index, then reads the retained bytes through the kernel's
+content verification. A cached evidence request does not replay the selected revision from the
+seed; its first request may load the index. A committed revision never changes and no
 answer names the head, so a commit loads nothing again; a request naming no revision reads the
 new head. `/projection` and `/roles` also keep their rendered answers, byte for byte what the first
 answer was, for at most 8 revisions, the one used longest ago going first.
