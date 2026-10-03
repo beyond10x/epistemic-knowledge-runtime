@@ -145,10 +145,18 @@ fn rust_members(name: &str) -> Option<Vec<String>> {
             continue;
         };
         let mut depth = 1usize;
+        let mut attribute_depth = 0usize;
         let mut members = Vec::new();
         for line in lines {
             let line = line.trim();
             if line.starts_with("//") || line.is_empty() {
+                continue;
+            }
+            // rustfmt expands multi-option field attributes across several lines. Attribute
+            // arguments are not fields, including when they start with ordinary identifiers.
+            if attribute_depth > 0 || line.starts_with("#[") {
+                attribute_depth += line.matches('[').count();
+                attribute_depth -= line.matches(']').count().min(attribute_depth);
                 continue;
             }
             if depth == 1 && !line.starts_with('#') && !line.starts_with('}') {

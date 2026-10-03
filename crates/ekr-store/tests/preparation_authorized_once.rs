@@ -113,6 +113,7 @@ fn seed(store: &dyn RevisionLog) {
         object(b"seed envelope"),
     );
     let bootstrap = PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Bootstrap,
         transaction_id: None,
         predecessor_event_id: None,
@@ -131,6 +132,7 @@ fn seed(store: &dyn RevisionLog) {
 
 fn propose_key(transaction: u64) -> PublicationCommandKey {
     PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Propose,
         transaction_id: Some(id(transaction)),
         predecessor_event_id: None,

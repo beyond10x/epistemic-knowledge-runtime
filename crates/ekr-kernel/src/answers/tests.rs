@@ -1,54 +1,7 @@
 //! Provider-backed admission through retained reviewer enrollment and the actual sealed pipeline.
 use crate as ekr_kernel;
-include!("../../tests/support/authority_review_fixture.rs");
+include!("../../tests/support/attention_answer_fixture.rs");
 
-fn answer(
-    human: &Human,
-    read: &crate::VerifiedRead,
-    kind: m::ClaimCorrectionKind,
-) -> m::AttentionAnswerApplication {
-    let current =
-        crate::attention_behavior::item(&read.dispute_attention().unwrap().remove(0)).unwrap();
-    let corrections = vec![m::ClaimCorrection {
-        kind,
-        assertion_id: current.claims[0].clone(),
-        valid_from: (kind == m::ClaimCorrectionKind::CorrectTime)
-            .then(|| ekr_core::contracts::primitives::Timestamp("2000-01-01T00:00:00Z".into())),
-        valid_to: None,
-        reason: "human reviewed the retained source evidence".into(),
-    }];
-    let target = m::HumanDecisionTarget::AnswerAttention(m::AttentionAnswerTarget {
-        dispute_id: current.subject.dispute_id.clone().unwrap(),
-        basis: current.basis.clone(),
-        corrections_digest: hash(&review::corrections_bytes(&corrections).unwrap()),
-    });
-    let intent = m::HumanDecisionIntent {
-        format: m::HumanDecisionFormat::HumanDecision1,
-        decision_id: Uuid(ekr_core::EventId::mint().to_string()),
-        audience: human.binding.audience.clone(),
-        reviewer_policy_digest: human.binding.reviewer_policy_digest.clone(),
-        signer_key_digest: hash(human.key.public_key().as_ref()),
-        target,
-        statement_digest: hash(b"reviewed answer"),
-        expected_previous_decision: None,
-    };
-    let signature = human
-        .key
-        .sign(&review::signing_bytes(&intent).unwrap())
-        .as_ref()
-        .to_vec();
-    m::AttentionAnswerApplication {
-        human_proof: m::SignedHumanDecision {
-            intent,
-            algorithm: m::ReviewSignatureAlgorithm::Ed25519,
-            signature,
-        },
-        dispute_id: current.subject.dispute_id.unwrap(),
-        basis: current.basis,
-        corrections,
-        statement: b"reviewed answer".to_vec(),
-    }
-}
 fn run<S: RevisionLog + ObjectStore + Initialize>(
     open: impl Fn(Option<m::TrustedReviewHostBinding>) -> Commit<S>,
 ) {
@@ -428,4 +381,271 @@ fn signed_answers_validate_through_the_ordinary_pipeline_with_private_reviewed_w
         }
         .unwrap()
     });
+}
+
+fn publish_and_reopen<S: RevisionLog + ObjectStore + Initialize>(
+    open: impl Fn(Option<m::TrustedReviewHostBinding>) -> Commit<S>,
+    kind: m::ClaimCorrectionKind,
+) {
+    let kernel = open(None);
+    let seeded = kernel.seed(seed(), || Timestamp::EPOCH).unwrap();
+    let graph = kernel.read(None).unwrap();
+    let claim = *graph.graph.assertions.keys().next().unwrap();
+    let evidence_id = EvidenceId::mint();
+    let payload = b"additional retained support from an ordinary transaction".to_vec();
+    let transaction = GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations: vec![
+            GraphOperation::AddEvidence(Box::new(crate::EvidenceAddition {
+                evidence: Evidence {
+                    id: evidence_id,
+                    source: EvidenceSource::HumanStatement { identity: None },
+                    content_hash: ContentHash::of_bytes(&payload),
+                    extracted_by: context().operator,
+                    observed_at: Timestamp::EPOCH,
+                    confidence: Confidence::CERTAIN,
+                },
+                payload,
+            })),
+            GraphOperation::AttachEvidence(crate::EvidenceAttachment {
+                assertion: claim,
+                evidence: evidence_id,
+            }),
+        ],
+        evidence: BTreeSet::from([evidence_id]),
+        schema_version: None,
+    };
+    kernel
+        .propose(&encode(&transaction), context().operator, || {
+            Timestamp::EPOCH
+        })
+        .unwrap();
+    assert!(matches!(
+        kernel
+            .validate(transaction.id, RevisionNumber::SEED, || Timestamp::EPOCH)
+            .unwrap(),
+        ValidationCommandResult::Validated(_)
+    ));
+    assert!(matches!(
+        kernel
+            .commit(transaction.id, context().operator, || Timestamp::EPOCH)
+            .unwrap(),
+        CommitCommandResult::Committed(_)
+    ));
+    let mut human = Human::new(seeded.seed_hash);
+    human.policy.keys[0]
+        .scopes
+        .insert(0, m::HumanDecisionScope::AnswerAttention);
+    human.binding.reviewer_policy_digest = hash(&review::policy_bytes(&human.policy).unwrap());
+    drop(kernel);
+    let kernel = open(Some(human.binding.clone()));
+    let preview = kernel.preview_upgrade(&human.policy).unwrap();
+    kernel
+        .apply_upgrade(
+            &preview,
+            &human.policy,
+            &human.proof(&preview),
+            b"reviewed contradictions and pending validations",
+            || Timestamp::from_millis(1),
+        )
+        .unwrap();
+    let before = kernel.read(None).unwrap();
+    let input = answer(&human, &before, kind);
+    let chosen: AssertionId = input.corrections[0].assertion_id.0 .0.parse().unwrap();
+    let record = kernel
+        .answer_attention(&input, || Timestamp::from_millis(2))
+        .unwrap();
+    let after = kernel.read(None).unwrap();
+    assert_eq!(after.graph.revision, before.graph.revision.next().unwrap());
+    let statement: EvidenceId = record.statement_evidence.0.parse().unwrap();
+    assert_eq!(
+        after.graph.evidence[&statement].content_hash,
+        ContentHash::of_bytes(&input.statement)
+    );
+    for (id, evidence) in &before.graph.evidence {
+        assert_eq!(&after.graph.evidence[id], evidence);
+    }
+    let current = after.dispute_attention().unwrap();
+    if kind == m::ClaimCorrectionKind::Unresolved {
+        assert_eq!(after.graph.assertions, before.graph.assertions);
+        assert_eq!(current.len(), 1);
+    } else if kind == m::ClaimCorrectionKind::CorrectTime {
+        assert_eq!(current.len(), 1);
+        assert_eq!(
+            *record.receipt.outcome,
+            ekr_core::contract_data::EkrKernelAnswerOutcome::V1
+        );
+    } else {
+        assert!(current.is_empty());
+    }
+    if kind == m::ClaimCorrectionKind::CorrectTime {
+        assert_eq!(
+            after.graph.assertions[&chosen].valid_time,
+            before.graph.assertions[&chosen].valid_time
+        );
+        let replacement: AssertionId = record.replacements[0].replacement.0.parse().unwrap();
+        assert!(after.graph.assertions[&replacement]
+            .evidence
+            .iter()
+            .any(|r| r.id() == statement));
+    }
+    assert_eq!(
+        record,
+        kernel
+            .answer_attention(&input, || panic!("retry must not allocate"))
+            .unwrap()
+    );
+    let mut changed = input.clone();
+    changed.statement.push(b'!');
+    assert!(kernel
+        .answer_attention(&changed, || panic!("conflict must not allocate"))
+        .is_err());
+    let (_, state) = kernel.replayed_state().unwrap();
+    let root = state.head().root;
+    let version = state.version;
+    assert_eq!(kernel.answer_history(None).unwrap(), vec![record.clone()]);
+    drop(kernel);
+    let reopened = open(Some(human.binding.clone()));
+    assert_eq!(reopened.answer_history(None).unwrap(), vec![record.clone()]);
+    assert_eq!(
+        reopened
+            .answer_attention(&input, || panic!("reopened retry must not allocate"))
+            .unwrap(),
+        record
+    );
+    let history = reopened.store.history().unwrap();
+    let full = reopened
+        .authority
+        .reconstruct_in_full(&history)
+        .unwrap()
+        .unwrap();
+    assert_eq!(full.head().root, root);
+    assert_eq!(full.version, version);
+    assert_eq!(full.head().graph().unwrap(), after.graph.as_ref());
+    assert_eq!(full.answers.values().collect::<Vec<_>>(), vec![&record]);
+    // Re-address the changed object and occurrence, so content hashing alone cannot catch the
+    // forgery. Full replay must independently reconstruct the signed input and resulting record.
+    for pointer in [
+        "/basis/evidence_digest",
+        "/validation_hash",
+        "/review/policy_digest",
+        "/transaction_object_hash",
+        "/corrections/0/reason",
+        "/result/knowledge_root",
+    ] {
+        let mut forged = history.clone();
+        let mut value = serde_json::to_value(&record).unwrap();
+        *value.pointer_mut(pointer).unwrap() = if pointer.ends_with("reason") {
+            serde_json::json!("unreviewed reason")
+        } else {
+            serde_json::json!(ContentHash::of_bytes(b"forged").to_string())
+        };
+        let data = serde_json::to_vec(&value).unwrap();
+        let address = ContentHash::of_bytes(&data);
+        let occurrence = forged.occurrences.last_mut().unwrap();
+        let mut object = forged.objects[&occurrence.event.record_hash].clone();
+        object.bytes = std::sync::Arc::new(data);
+        object.metadata.content_hash = address;
+        object.metadata.byte_len = object.bytes.len() as u64;
+        forged.objects.insert(address, object);
+        occurrence.event.record_hash = address;
+        assert!(
+            reopened.authority.reconstruct_in_full(&forged).is_err(),
+            "admitted forged {pointer}"
+        );
+    }
+    assert_eq!(
+        reopened.read(Some(before.graph.revision)).unwrap().graph,
+        before.graph
+    );
+    if !current.is_empty() {
+        let mut next = answer(&human, &after, m::ClaimCorrectionKind::Choose);
+        if next.dispute_id == input.dispute_id {
+            next.human_proof.intent.expected_previous_decision =
+                Some(m::ContentHash(record.review.proof_digest.0.clone()));
+        }
+        next.human_proof.signature = human
+            .key
+            .sign(&review::signing_bytes(&next.human_proof.intent).unwrap())
+            .as_ref()
+            .to_vec();
+        let second = reopened
+            .answer_attention(&next, || Timestamp::from_millis(3))
+            .unwrap();
+        assert!(reopened
+            .read(None)
+            .unwrap()
+            .dispute_attention()
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            reopened.answer_history(None).unwrap(),
+            vec![record.clone(), second]
+        );
+        let history = reopened.store.history().unwrap();
+        let full = reopened
+            .authority
+            .reconstruct_in_full(&history)
+            .unwrap()
+            .unwrap();
+        assert!(full
+            .head()
+            .graph()
+            .unwrap()
+            .assertions
+            .values()
+            .all(|claim| !matches!(claim.assessment, Assessment::Disputed { .. })));
+        assert_eq!(
+            reopened
+                .answer_attention(&input, || panic!("old retry after another answer"))
+                .unwrap(),
+            record
+        );
+    }
+}
+#[test]
+fn reviewed_answers_publish_retry_reopen_and_fully_replay_on_both_providers() {
+    for kind in [
+        m::ClaimCorrectionKind::Choose,
+        m::ClaimCorrectionKind::Retract,
+        m::ClaimCorrectionKind::CorrectTime,
+        m::ClaimCorrectionKind::Unresolved,
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        publish_and_reopen(
+            |binding| {
+                let open =
+                    |authority| {
+                        Ok(FileStore::file(directory.path(), "upgrade-fixture", None)?
+                            .under(authority))
+                    };
+                match binding {
+                    Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
+                    None => Commit::over_with_authority(context(), anchor(), open),
+                }
+                .unwrap()
+            },
+            kind,
+        );
+        let directory = tempfile::tempdir().unwrap();
+        publish_and_reopen(
+            |binding| {
+                let open = |authority| {
+                    Ok(SqliteStore::sqlite(
+                        &directory.path().join("store.db"),
+                        "upgrade-fixture",
+                        None,
+                    )?
+                    .under(authority))
+                };
+                match binding {
+                    Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
+                    None => Commit::over_with_authority(context(), anchor(), open),
+                }
+                .unwrap()
+            },
+            kind,
+        );
+    }
 }

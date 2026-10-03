@@ -2,6 +2,7 @@
 use super::*;
 use ekr_core::bytes::{Spell, Spelled};
 use ekr_core::{EventId, TransactionId};
+use ekr_graph::HumanAnswerId;
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use std::fmt;
 
@@ -11,7 +12,14 @@ use std::fmt;
 pub struct PublicationCommandKey {
     /// Supported command family.
     pub kind: PublicationCommandKind,
-    /// Required except for the one bootstrap slot.
+    /// Generated HumanAnswerId wire UUID, present only for reviewed answer slots.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "answer_identity"
+    )]
+    pub answer_id: Option<HumanAnswerId>,
+    /// Required for ordinary transaction slots; absent for bootstrap and reviewed commands.
     pub transaction_id: Option<TransactionId>,
     /// Required for validation and commit, tying the slot to its retained predecessor.
     pub predecessor_event_id: Option<EventId>,
@@ -31,31 +39,42 @@ pub enum PublicationCommandKind {
     Commit,
     /// One explicit authority transition attempt per reviewed stream prefix.
     UpgradeAuthority,
+    /// One reviewed decision per exact stream predecessor.
+    AnswerAttention,
+}
+fn answer_identity<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<Option<HumanAnswerId>, D::Error> {
+    HumanAnswerId::deserialize(decoder).map(Some)
 }
 impl PublicationCommandKey {
     fn check(&self) -> Result<(), StoreError> {
-        let valid = match self.kind {
-            PublicationCommandKind::Bootstrap => {
-                self.transaction_id.is_none()
-                    && self.predecessor_event_id.is_none()
-                    && self.predecessor_record_hash.is_none()
-            }
-            PublicationCommandKind::Propose => {
-                self.transaction_id.is_some()
-                    && self.predecessor_event_id.is_none()
-                    && self.predecessor_record_hash.is_none()
-            }
-            PublicationCommandKind::UpgradeAuthority => {
-                self.transaction_id.is_none()
-                    && self.predecessor_event_id.is_some()
-                    && self.predecessor_record_hash.is_some()
-            }
-            PublicationCommandKind::Validate | PublicationCommandKind::Commit => {
-                self.transaction_id.is_some()
-                    && self.predecessor_event_id.is_some()
-                    && self.predecessor_record_hash.is_some()
-            }
-        };
+        let identity_valid =
+            (self.kind == PublicationCommandKind::AnswerAttention) == self.answer_id.is_some();
+        let valid = identity_valid
+            && match self.kind {
+                PublicationCommandKind::Bootstrap => {
+                    self.transaction_id.is_none()
+                        && self.predecessor_event_id.is_none()
+                        && self.predecessor_record_hash.is_none()
+                }
+                PublicationCommandKind::Propose => {
+                    self.transaction_id.is_some()
+                        && self.predecessor_event_id.is_none()
+                        && self.predecessor_record_hash.is_none()
+                }
+                PublicationCommandKind::UpgradeAuthority
+                | PublicationCommandKind::AnswerAttention => {
+                    self.transaction_id.is_none()
+                        && self.predecessor_event_id.is_some()
+                        && self.predecessor_record_hash.is_some()
+                }
+                PublicationCommandKind::Validate | PublicationCommandKind::Commit => {
+                    self.transaction_id.is_some()
+                        && self.predecessor_event_id.is_some()
+                        && self.predecessor_record_hash.is_some()
+                }
+            };
         require(valid, "preparation-command-key")
     }
     fn slot(&self) -> Result<String, StoreError> {
@@ -193,7 +212,7 @@ pub struct NativePublicationRequest {
 /// is elected in `/2` as before. In memory every attempt holds every staged object's bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationPreparationV1 {
-    /// `ekr.publication-preparation/2` or `/3`, or `/1` for an attempt elected before them.
+    /// Versions `/1`–`/3` for ordinary attempts, `/4` for upgrades, `/5` for answers.
     pub format: String,
     /// Logical CAS slot.
     pub command_key: PublicationCommandKey,
@@ -219,12 +238,17 @@ impl PublicationPreparationV1 {
     pub const FORMAT_V3: &'static str = "ekr.publication-preparation/3";
     /// Authority-transition recovery, carrying its version-three revision envelope.
     pub const FORMAT_V4: &'static str = "ekr.publication-preparation/4";
+    /// Reviewed answer recovery, carrying its version-four revision envelope.
+    pub const FORMAT_V5: &'static str = "ekr.publication-preparation/5";
     fn hash(&self) -> Result<ContentHash, StoreError> {
         Ok(ContentHash::of_bytes(
             &serde_json::to_vec(self).map_err(json_error)?,
         ))
     }
     fn is_supported(&self) -> bool {
+        if self.command_key.kind == PublicationCommandKind::AnswerAttention {
+            return self.format == Self::FORMAT_V5;
+        }
         if matches!(
             self.command_key.kind,
             PublicationCommandKind::UpgradeAuthority
@@ -237,6 +261,12 @@ impl PublicationPreparationV1 {
     }
     /// The format a new attempt electing `decision` is written in.
     fn format_for(decision: &Publication) -> &'static str {
+        if matches!(
+            decision.event.payload,
+            RevisionPayload::AttentionAnswered(_)
+        ) {
+            return Self::FORMAT_V5;
+        }
         if matches!(
             decision.event.payload,
             RevisionPayload::AuthorityUpgraded { .. }
@@ -879,6 +909,13 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         let tx = prepared.command_key.transaction_id;
         let matches = match (&prepared.command_key.kind, &decision.event.payload) {
             (
+                PublicationCommandKind::AnswerAttention,
+                RevisionPayload::AttentionAnswered(answer),
+            ) => {
+                decision.expected_version > 0
+                    && prepared.command_key.answer_id == Some(answer.answer_id().into())
+            }
+            (
                 PublicationCommandKind::UpgradeAuthority,
                 RevisionPayload::AuthorityUpgraded { .. },
             ) => decision.expected_version > 0,
@@ -1062,8 +1099,11 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     held.event.event_id == predecessor
                         && Some(held.event.record_hash)
                             == prepared.command_key.predecessor_record_hash
-                        && (if prepared.command_key.kind == PublicationCommandKind::UpgradeAuthority
-                        {
+                        && (if matches!(
+                            prepared.command_key.kind,
+                            PublicationCommandKind::UpgradeAuthority
+                                | PublicationCommandKind::AnswerAttention
+                        ) {
                             held.version == decision.expected_version
                         } else {
                             match held.event.payload {

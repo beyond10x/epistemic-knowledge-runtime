@@ -63,6 +63,12 @@ fn every_variant() -> Vec<RevisionEvent> {
             number,
             knowledge_root: hash,
         },
+        RevisionPayload::AttentionAnswered(ekr_graph::AnswerOccurrence::try_from(
+            serde_json::from_value::<ekr_core::contract_data::EkrKernelAttentionAnsweredPayload>(
+                serde_json::json!({"answer_id": event_id, "transaction_id": transaction_id,
+                    "revision_id": revision_id, "number": number, "knowledge_root": hash}),
+            ).unwrap(),
+        ).unwrap()),
     ]
     .into_iter()
     .map(|payload| RevisionEvent {
@@ -76,7 +82,7 @@ fn every_variant() -> Vec<RevisionEvent> {
 
 /// The six `ekr.kernel` event names of `systems/ekr/domains/kernel.yaml`, in the order the story's
 /// scope lists them — which is the order the variant indices count in.
-const NAMES: [&str; 7] = [
+const NAMES: [&str; 8] = [
     "ekr.kernel.Seeded",
     "ekr.kernel.TransactionProposed",
     "ekr.kernel.TransactionValidated",
@@ -84,15 +90,23 @@ const NAMES: [&str; 7] = [
     "ekr.kernel.TransactionStale",
     "ekr.kernel.RevisionCommitted",
     "ekr.kernel.AuthorityUpgraded",
+    "ekr.kernel.AttentionAnswered",
 ];
 
 #[test]
 fn transition_requires_version_three_and_historical_payloads_keep_version_two() {
     for (index, event) in every_variant().into_iter().enumerate() {
         assert!(event.supported());
-        assert_eq!(event.schema_version(), if index == 6 { 3 } else { 2 });
+        assert_eq!(
+            event.schema_version(),
+            match index {
+                6 => 3,
+                7 => 4,
+                _ => 2,
+            }
+        );
         let mut wrong = event;
-        wrong.format = if index == 6 {
+        wrong.format = if index >= 6 {
             RevisionEvent::FORMAT
         } else {
             RevisionEvent::TRANSITION_FORMAT
@@ -104,7 +118,7 @@ fn transition_requires_version_three_and_historical_payloads_keep_version_two() 
 
 #[test]
 fn transition_metadata_is_a_lossless_bridge_to_the_generated_contract() {
-    let event = every_variant().pop().unwrap();
+    let event = every_variant().remove(6);
     let mut payload = serde_json::to_value(&event.payload).unwrap();
     payload.as_object_mut().unwrap().remove("event");
     let generated: ekr_core::contract_data::EkrKernelAuthorityUpgradedPayload =
@@ -358,7 +372,7 @@ fn the_declaration_order_of_the_variants_equals_their_numbering() {
             let head = line.trim();
             let name = head
                 .strip_suffix(" {")
-                .or_else(|| head.strip_suffix('('))
+                .or_else(|| head.split_once('(').map(|(name, _)| name))
                 .or_else(|| head.strip_suffix(','))?;
             (!name.is_empty()
                 && name.starts_with(char::is_uppercase)
@@ -439,4 +453,27 @@ fn the_declaration_order_of_the_variants_equals_their_numbering() {
         NAMES.len(),
         "NAMES is the transcription the other case reads; it and the type have come apart"
     );
+}
+
+#[test]
+fn answer_metadata_is_generated_checked_and_version_four_only() {
+    let event = every_variant().pop().unwrap();
+    let mut value = serde_json::to_value(&event.payload).unwrap();
+    value.as_object_mut().unwrap().remove("event");
+    let generated: ekr_core::contract_data::EkrKernelAttentionAnsweredPayload =
+        serde_json::from_value(value.clone()).unwrap();
+    let checked = ekr_graph::AnswerOccurrence::try_from(generated).unwrap();
+    assert_eq!(serde_json::to_value(&checked).unwrap(), value);
+    for (field, invalid) in [
+        ("answer_id", serde_json::json!("bad")),
+        ("knowledge_root", serde_json::json!("bad")),
+        ("number", serde_json::json!(-1)),
+    ] {
+        let mut forged = value.clone();
+        forged[field] = invalid;
+        assert!(serde_json::from_value::<ekr_graph::AnswerOccurrence>(forged).is_err());
+    }
+    let mut undeclared = value;
+    undeclared["self_approved"] = true.into();
+    assert!(serde_json::from_value::<ekr_graph::AnswerOccurrence>(undeclared).is_err());
 }

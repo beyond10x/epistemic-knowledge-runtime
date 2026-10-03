@@ -65,6 +65,7 @@ fn bootstrap() -> (PublicationCommandKey, ContentHash, Publication) {
         expected_version: 0,
     };
     let key = PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Bootstrap,
         transaction_id: None,
         predecessor_event_id: None,
@@ -182,4 +183,19 @@ fn the_command_key_has_fixed_slot_bytes() {
         "1f065563ff037ae605a438215b0b0bbf06dda20192fc543426629b8c854596bb",
     );
     pins.finish();
+}
+
+#[test]
+fn answer_identity_is_absent_from_historical_slots_and_never_explicit_null() {
+    let (key, _, _) = bootstrap();
+    let mut value = serde_json::to_value(&key).unwrap();
+    assert!(value.get("answer_id").is_none());
+    assert_eq!(
+        serde_json::from_value::<PublicationCommandKey>(value.clone()).unwrap(),
+        key
+    );
+    value["answer_id"] = serde_json::Value::Null;
+    assert!(serde_json::from_value::<PublicationCommandKey>(value.clone()).is_err());
+    value["answer_id"] = serde_json::json!("not-a-uuid");
+    assert!(serde_json::from_value::<PublicationCommandKey>(value).is_err());
 }

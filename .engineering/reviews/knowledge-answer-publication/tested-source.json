@@ -1,0 +1,165 @@
+{
+  "parent": "f76d35ba24e26d27ca25a4d8644e3d79b1a847e8",
+  "files": [
+    {
+      "path": "crates/ekr-graph/src/answer_occurrence.rs",
+      "sha256": "cb06403668a0e1a6bbd6a0454cbd5001fc077e9d8ae8293fcb1a6ec463aee10e"
+    },
+    {
+      "path": "crates/ekr-graph/src/events.rs",
+      "sha256": "f9cab3d1adf9731d9195a01d58f1b48063a6eca5be461d59575e6b049724db8c"
+    },
+    {
+      "path": "crates/ekr-graph/src/lib.rs",
+      "sha256": "e541a3cc10cfaf9c897e427fd5aa28a0c92d4404c65c7889c69421d7b35f9591"
+    },
+    {
+      "path": "crates/ekr-graph/tests/adversary_p1_14_exit_compile_fail/a_canonical_dispute_names_its_competitors_by_canonical_reference.stderr",
+      "sha256": "8ba2e7baa9ea7d3ab5d944283d533fdf443327dea28fb346aa1bbc3d5de2e75e"
+    },
+    {
+      "path": "crates/ekr-graph/tests/adversary_p1_14_exit_compile_fail/a_canonical_supersession_names_its_replacement_by_canonical_reference.stderr",
+      "sha256": "6e41245d016068531060afb4c989774a274af9d927b244de274fd915aac22b18"
+    },
+    {
+      "path": "crates/ekr-graph/tests/adversary_p1_14_exit_compile_fail/retained_evidence_names_its_source_assertion_by_canonical_reference.stderr",
+      "sha256": "98a8c5eb472ad468702ac5ef17b1e0d422b1fddd286f3caf9b573ac7f094fbe8"
+    },
+    {
+      "path": "crates/ekr-graph/tests/compile_fail/a_canonical_assertion_cites_evidence_by_canonical_reference.stderr",
+      "sha256": "189c27a298ceb21f10a49994a170cb9d482e63ab9303dd0429967f69f492f788"
+    },
+    {
+      "path": "crates/ekr-graph/tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.stderr",
+      "sha256": "34f0f2aa032edbd0db27431df6646c01fffe62dbc3a6686e2a7bbc3cb40cb0ba"
+    },
+    {
+      "path": "crates/ekr-graph/tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.stderr",
+      "sha256": "4782cf0171282e103b9f05056a56a46e3935b3714769966ce4e4ab1b9229ce66"
+    },
+    {
+      "path": "crates/ekr-graph/tests/compile_fail/transient_state_has_no_content_address.stderr",
+      "sha256": "0b7e1be08127e5b9117f28473bee986f8a4327759a4de8c333e43943f72f751d"
+    },
+    {
+      "path": "crates/ekr-graph/tests/review_p1_compile_fail/a_canonical_edge_may_target_a_candidate_node.stderr",
+      "sha256": "45da89c547e741931199f04f8b37af4d3f135b77ad973a39cdcb83f1fa59be9f"
+    },
+    {
+      "path": "crates/ekr-graph/tests/revision_events.rs",
+      "sha256": "94b2f89d07180a907a70d57d389f824abbc541969832acee17d79fc2466df0ea"
+    },
+    {
+      "path": "crates/ekr-kernel/src/answers.rs",
+      "sha256": "4372e0f11ed6a3a42fee37921ddaafaabf8baa7477efd51dc17eb46c281c8358"
+    },
+    {
+      "path": "crates/ekr-kernel/src/answers/durable.rs",
+      "sha256": "50404b4c51b361938c6ac48b22a6e9e486fe43ac1817e73ccef7404acefd89ca"
+    },
+    {
+      "path": "crates/ekr-kernel/src/answers/publish.rs",
+      "sha256": "1c1efd91b26957f642e8956245a87d84630a3a8063df9853c2512ab832064b7d"
+    },
+    {
+      "path": "crates/ekr-kernel/src/answers/tests.rs",
+      "sha256": "37c74aaa6f2b684b93f781e485af53a0420e02e4270c69b9bba2997777922f0d"
+    },
+    {
+      "path": "crates/ekr-kernel/src/checkpoint.rs",
+      "sha256": "b55a25f44833da5dcca7a993dfab25ac4ccc1806beb27733d015c5af9ce5cbca"
+    },
+    {
+      "path": "crates/ekr-kernel/src/commands.rs",
+      "sha256": "d416f3a233bf7a2b198262ddd47771be61e86c85b0034cf64c210a422d0e4649"
+    },
+    {
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "sha256": "92e0ad7d7cd886275afcd6b3e112c0cc9db16accf68e7b7f5cfb407c5f56d3cc"
+    },
+    {
+      "path": "crates/ekr-kernel/src/migrate.rs",
+      "sha256": "03b427e2b587f87292515b317dadbd39987520e77de03aa5534537cc253b5b01"
+    },
+    {
+      "path": "crates/ekr-kernel/src/replay.rs",
+      "sha256": "1bab739b7158c86ef6173d319a5f50790dee91af27f81c1cb85d2bf72153eb1f"
+    },
+    {
+      "path": "crates/ekr-kernel/src/upgrade.rs",
+      "sha256": "fce2484acf26c889942c9025f7a293c3a9cd462c4b810b7db2702a27a1923de9"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/adversary_p1_12_recovery_1.rs",
+      "sha256": "ffea1586825a8c25691339f9cdfd84a64107db8cc76b07960790330f3721c581"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/attention_answers_recovery.rs",
+      "sha256": "fbf1cfdb92569bc38f649309b861b70334dfe425d6877347f64ba2e7d93ccc01"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/durable_commands.rs",
+      "sha256": "3dedc0e85bbbc942abd8505c766c788956654f7a54466edbd667f45a39f3dcaa"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/support/attention_answer_fixture.rs",
+      "sha256": "1451c2a23ebd34ffaee55779f78a7411d0307250893d270a29058be9c42e92fd"
+    },
+    {
+      "path": "crates/ekr-kernel/tests/support/v2_store.rs",
+      "sha256": "c3f3f7bb256b2b6d0621edf7ee2b9ce7b027001a53e48aa7b536202b2712ae0d"
+    },
+    {
+      "path": "crates/ekr-store/src/eventlog.rs",
+      "sha256": "6062802fda3c630dc4e435a9fde5486ad5ac068b29337788af1061c19d92df35"
+    },
+    {
+      "path": "crates/ekr-store/src/preparation.rs",
+      "sha256": "226c4b8e0529ae2348264bb7e1bb68c542e71e21e90a01e85289260a85a8b257"
+    },
+    {
+      "path": "crates/ekr-store/tests/adversary_p1_12_recovery_r2_identity.rs",
+      "sha256": "a980fbcacf0fb1e75cb41e6036747daaccb5a5a17e7451f6e54a8f0deb6f293e"
+    },
+    {
+      "path": "crates/ekr-store/tests/adversary_p1_12_vectors_identity_preparation.rs",
+      "sha256": "e50383ad5955f4ace123d78fb2a9e9b14acfff4e095ee7da7c248f0933a659e7"
+    },
+    {
+      "path": "crates/ekr-store/tests/adversary_p1_14_store_bindings.rs",
+      "sha256": "de49c9aad08126c5887a257400695fa9a304328848905eeb64e1957b9b17b11b"
+    },
+    {
+      "path": "crates/ekr-store/tests/adversary_runtime_context.rs",
+      "sha256": "3c559015d3c5fd740a17acb9d4fc59052a306959f5156383b9a96a9e8aae8a23"
+    },
+    {
+      "path": "crates/ekr-store/tests/current_vectors.rs",
+      "sha256": "a8d0a6d431ab8c88038b976ae5a7f50572115b5811ef4f83c61fe8383ea71246"
+    },
+    {
+      "path": "crates/ekr-store/tests/domain_projection.rs",
+      "sha256": "e53c4f15bc542d2ec71e3ecf2782c7176a119f1c12ef1c0d8921bcb4854b5c25"
+    },
+    {
+      "path": "crates/ekr-store/tests/fold_rules.rs",
+      "sha256": "4f272dd212f93bfa268a32474994b0ca1391de1eb25a4745fad14fbe34557d1a"
+    },
+    {
+      "path": "crates/ekr-store/tests/payload_blobs.rs",
+      "sha256": "e7adc8df5fdc5114ae3f7e912dec34a15133178a87f8a45c1b24f24c7c08d926"
+    },
+    {
+      "path": "crates/ekr-store/tests/preparation_authorized_once.rs",
+      "sha256": "be78016fde7ebffb666f81c4ab9d56f403ed0cd639843d20739851a01554fba7"
+    },
+    {
+      "path": "crates/ekr-store/tests/review_p1_invariant_one_at_the_store.rs",
+      "sha256": "09f615aa91134d4185a68584ec8376de9debd502e7cb7e8319aafed40bd16dfb"
+    },
+    {
+      "path": "crates/ekr-store/tests/runtime_context.rs",
+      "sha256": "4bdf6d9d4dd516166d3df5e54887fd129b0c818782cb806c0fc8eff9db8f056c"
+    }
+  ]
+}

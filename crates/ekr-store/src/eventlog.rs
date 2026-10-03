@@ -225,6 +225,7 @@ impl HeldRevisions {
 /// Whether `event` is the occurrence that made committed revision `revision`.
 fn makes(event: &RevisionEvent, revision: RevisionNumber) -> bool {
     match event.payload {
+        RevisionPayload::AttentionAnswered(ref answer) => answer.number() == revision,
         RevisionPayload::Seeded { .. } => revision == RevisionNumber::SEED,
         RevisionPayload::RevisionCommitted { number, .. }
         | RevisionPayload::AuthorityUpgraded { number, .. } => number == revision,
@@ -673,6 +674,7 @@ impl<S: EventStore> EventlogStore<S> {
                 RevisionPayload::Seeded { .. }
                     | RevisionPayload::RevisionCommitted { .. }
                     | RevisionPayload::AuthorityUpgraded { .. }
+                    | RevisionPayload::AttentionAnswered(_)
             )
             .then_some(held.event.record_hash)
         }) else {

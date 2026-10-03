@@ -524,7 +524,7 @@ impl<D: RevisionLog + ObjectStore> Commit<D> {
                 .ok_or(StoreError::ProposalMissing { transaction_id })
         };
         Ok(match event.payload {
-            RevisionPayload::AuthorityUpgraded { .. } => {
+            RevisionPayload::AuthorityUpgraded { .. } | RevisionPayload::AttentionAnswered(_) => {
                 return Err(StoreError::Document(
                     "migration-authority-transition-requires-review-host".into(),
                 )

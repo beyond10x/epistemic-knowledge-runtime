@@ -138,6 +138,7 @@
 //! ```
 
 pub mod aliases;
+mod answer_occurrence;
 pub mod assertion;
 pub mod attachment;
 pub mod canonical;
@@ -154,6 +155,7 @@ pub mod value;
 mod schema;
 
 pub use aliases::AliasIndex;
+pub use answer_occurrence::{AnswerOccurrence, HumanAnswerId};
 pub use assertion::{
     Assertion, AssertionLifecycle, Assessment, InvertedRange, Object, Predicate, RetractionReason,
     Subject, TemporalRange, TransactionTime,

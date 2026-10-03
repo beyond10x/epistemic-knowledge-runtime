@@ -48,6 +48,7 @@ impl CommitAuthority for KernelAuthority {
         let mut required = if named { BTreeSet::new() } else { payloads };
         required.extend(self.added_evidence_required(history, false)?);
         required.extend(crate::upgrade::required(history)?);
+        required.extend(crate::answers::required(history)?);
         Ok(required)
     }
     /// [`Self::required_objects`] with only the added payloads a replay continuing from the state
@@ -67,6 +68,7 @@ impl CommitAuthority for KernelAuthority {
         let mut required = if named { BTreeSet::new() } else { payloads };
         required.extend(self.added_evidence_required(history, true)?);
         required.extend(crate::upgrade::required(history)?);
+        required.extend(crate::answers::required(history)?);
         Ok(required)
     }
     fn objects_if_held(
@@ -540,6 +542,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             return Ok(result);
         }
         let key = ekr_store::PublicationCommandKey {
+            answer_id: None,
             kind: ekr_store::PublicationCommandKind::Bootstrap,
             transaction_id: None,
             predecessor_event_id: None,

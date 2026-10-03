@@ -4,5 +4,5 @@ error[E0271]: type mismatch resolving `<CanonicalValue as ValueSpace>::NodeRef =
 38 |     let into_the_forest = Edge::new(EdgeId::mint(), root.id, TypeId::mint(), held.id, candidate);
    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `NodeId`, found `CanonicalRef<Node>`
    |
-   = note: expected struct `NodeId`
+   = note: expected struct `ekr_core::NodeId`
               found struct `CanonicalRef<ekr_graph::Node>`

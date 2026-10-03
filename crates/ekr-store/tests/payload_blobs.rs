@@ -55,6 +55,7 @@ const ENVELOPE: &[u8] = b"seed envelope bytes";
 
 fn key() -> PublicationCommandKey {
     PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Bootstrap,
         transaction_id: None,
         predecessor_event_id: None,

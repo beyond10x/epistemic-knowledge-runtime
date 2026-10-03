@@ -61,7 +61,7 @@ fn time_text(at: Timestamp) -> Result<String, StoreError> {
         .format(&time::format_description::well_known::Rfc3339)
         .map_err(error)
 }
-fn review_record(
+pub(crate) fn review_record(
     proof: &review::VerifiedDecision,
     at: Timestamp,
 ) -> Result<EkrKernelHumanDecisionRecord, StoreError> {
@@ -187,6 +187,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .get(reviewed_version)
             .ok_or_else(|| error("upgrade-preview-position"))?;
         let key = PublicationCommandKey {
+            answer_id: None,
             kind: PublicationCommandKind::UpgradeAuthority,
             transaction_id: None,
             predecessor_event_id: Some(predecessor.event.event_id),

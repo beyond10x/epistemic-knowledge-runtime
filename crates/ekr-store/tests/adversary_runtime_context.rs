@@ -377,6 +377,7 @@ fn populated_boundary<S: AtomicBlobEventStore>(store: EventlogStore<S>, root: &P
     // A pending, unpublished preparation: the attempt must neither re-elect nor resume it.
     let pending_transaction = TransactionId::mint();
     let key = PublicationCommandKey {
+        answer_id: None,
         kind: PublicationCommandKind::Propose,
         transaction_id: Some(pending_transaction),
         predecessor_event_id: None,

@@ -350,6 +350,7 @@ fn every_event_the_crate_writes_carries_the_fields_the_domain_declares() {
             expected_version: 0,
         };
         let key = ekr_store::PublicationCommandKey {
+            answer_id: None,
             kind: ekr_store::PublicationCommandKind::Bootstrap,
             transaction_id: None,
             predecessor_event_id: None,
@@ -548,7 +549,7 @@ const BINDINGS: &[(&str, Carrier)] = &[
         "ekr.store.PublicationPreparationFormatV1",
         Carrier::Constants(
             "PublicationPreparationV1",
-            &["FORMAT_V1", "FORMAT", "FORMAT_V3", "FORMAT_V4"],
+            &["FORMAT_V1", "FORMAT", "FORMAT_V3", "FORMAT_V4", "FORMAT_V5"],
         ),
     ),
     (
