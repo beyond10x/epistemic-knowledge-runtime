@@ -26,7 +26,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 16
+revision: 17
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T14:55:25Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-10-03T14:55:26Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -79,3 +79,11 @@ Review-result:schema-evidence-kernel-independent-r1 found a masked mixed-data re
 Curated executable evidence, specification digests and inspected viewer screenshot are retained in .engineering/reviews/knowledge-schema-evidence-presentation/README.md and its adjacent logs. Fresh generated contracts, specification/suite regeneration, focused regressions, formatting and touched-crate clippy passed. The authored ESS schema-evidence scenario and complete integrated gate remain required; story D and PR64 are incomplete.
 
 Attribution correction: the earlier draft-to-proposed transition attributed to human:timo was issued by the coordinating agent without setting AEP_ACTOR. It relied on the existing operator execution request and was not a separate human action. The immutable transition is preserved; subsequent writes explicitly identify agent:codex-ekr-knowledge.
+
+## Authored conformance checkpoint
+
+The authored ESS scenario schema-change-exposes-supporting-evidence executes real SDK-built schema transactions on file and SQLite providers. It observes literal retained/inline evidence IDs from production rendering after reopening with full replay and verifies historical citation boundaries and retained payload hashes. Both native provider reports pass. Both the inert target and a real production mutation that drops citations fail that exact scenario; restored code passes. Original report/2 documents and complete selection lineage are retained under .engineering/reviews/knowledge-schema-evidence-conformance/.
+
+The independent bounded source/log review is review-result:schema-evidence-conformance-independent-r4 and finds no actionable defects. This is not an independent execution. Fresh generated contracts, complete suite regeneration, the views inventory, the complete knowledge target and touched-target clippy passed; the full integrated task check remains pending.
+
+The first uncommitted evidence imports captured local absolute report paths despite an explicit reference. Those unpublished records are preserved in private raw scratch, and the CLI imports were recreated using committed relative report/input paths. No committed record or historical transition was rewritten. The story remains active until the integrated gate and delivery requirements pass.

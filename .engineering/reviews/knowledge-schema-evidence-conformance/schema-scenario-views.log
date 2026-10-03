@@ -1,0 +1,20 @@
+   Compiling ekr-contract-data v0.0.0 (<unit>/generated/ekr-contract-data)
+   Compiling serde_yaml_ng v0.10.0 (<unit>/vendor/serde_yaml_ng)
+   Compiling ekr-core v0.0.27 (<unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<unit>/crates/ekr-views)
+    Finished `test` profile [unoptimized] target(s) in 28.15s
+     Running tests/conformance.rs (<build>/target/debug/deps/conformance-5331a7cfa61234e8)
+
+running 4 tests
+test the_provenance_and_the_baseline_name_every_authored_scenario_file ... ok
+test the_committed_suite_is_the_complete_views_inventory ... ok
+test the_sqlite_provider_passes_every_admitted_views_scenario ... ok
+test the_file_provider_passes_every_admitted_views_scenario ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.27s
+

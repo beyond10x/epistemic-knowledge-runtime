@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T16:34:02Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:schema-transaction-cites-evidence",
+  "kind": "story",
+  "revision": 16,
+  "change": {
+    "change": "evidence",
+    "kind": "ess_conformance_coverage_v1",
+    "source": "{\"completed_at\":\"1791045242473\",\"conformance_status\":\"passed\",\"counts\":{\"error\":0,\"failed\":0,\"passed\":1,\"skipped\":0,\"total\":1,\"unsupported\":0},\"coverage\":{\"counts\":{\"authored\":1,\"generated\":0,\"outside\":116,\"refused\":0},\"knowledge\":\"complete_inventory\",\"refused\":[],\"selection\":{\"filter\":{\"ids\":[\"ekr.kernel/authored/schema-change-exposes-supporting-evidence\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/19\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}}},\"execution_status\":\"passed\",\"format\":\"ess-conformance-report/2\",\"implementation\":\"EKR native Runtime Sqlite, no-op=false 0.0.27\",\"input_transport\":\"original_input\",\"policy\":\"complete-selection/1\",\"producer_profile\":\"rust-scenario-status/1\",\"report_input\":\".engineering/reviews/knowledge-schema-evidence-conformance/sqlite-persisted.report.json\",\"selected_ids\":[\"ekr.kernel/authored/schema-change-exposes-supporting-evidence\"],\"selection\":{\"filter\":{\"ids\":[\"ekr.kernel/authored/schema-change-exposes-supporting-evidence\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/19\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}},\"spec_digest\":\"7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb\",\"specification\":\"ekr/v1\",\"suite\":{\"digest\":\"sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/19\"},\"suite_input\":\".engineering/reviews/knowledge-schema-evidence-conformance/suite-input.json\"}",
+    "reference": ".engineering/reviews/knowledge-schema-evidence-conformance/sqlite-persisted.report.json"
+  }
+}

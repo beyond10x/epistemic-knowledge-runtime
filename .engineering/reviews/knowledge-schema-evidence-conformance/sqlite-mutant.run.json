@@ -1,0 +1,173 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/19",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+    "contract_digest": "1156942f269e6e4ef491bc151de186bdd43b08754f822f8d88caa825382dcd7b"
+  },
+  "implementation": {
+    "name": "EKR native Runtime Sqlite, no-op=false",
+    "version": "0.0.27"
+  },
+  "started_at": 1791045239778,
+  "completed_at": 1791045239786,
+  "status": "failed",
+  "scenarios": [
+    {
+      "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+      "purpose": "An SDK-built schema transaction cites retained and inline evidence; reopened full replay exposes exact citations and preserves earlier history.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Propose/proposed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.TransactionProposed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.TransactionProposed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Validate/validated",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.TransactionValidated",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.TransactionValidated",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Commit/committed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.RevisionCommitted",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.RevisionCommitted",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.views.ProjectGraph/projected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.views.GraphProjected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.views.GraphProjected",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-PAYLOAD",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.views.GraphProjected"
+              }
+            ],
+            "input": "ekr.views.ProjectGraph(store = \"schema-store\")",
+            "expected": [
+              "ekr.views.GraphProjected.supporting_evidence = [{\"evidence\":[\"00000000-0000-4000-8000-000000000500\",\"00000000-0000-4000-8000-000000000703\"],\"revision\":2.0,\"schema_version\":\"00000000-0000-4000-8000-000000000700\",\"transaction_id\":\"00000000-0000-4000-8000-000000000701\"}]"
+            ],
+            "observed": [
+              "supporting_evidence = []"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.views.ProjectGraph/projected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.views.GraphProjected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.views.GraphProjected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.views.ProjectGraph/projected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.views.GraphProjected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.views.GraphProjected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-PAYLOAD",
+          "about": "payload of ekr.kernel.SnapshotTaken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "passed"
+        }
+      ],
+      "duration_ms": 6
+    }
+  ]
+}

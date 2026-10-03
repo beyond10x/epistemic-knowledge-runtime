@@ -1,0 +1,264 @@
+   Compiling ekr-contract-data v0.0.0 (<unit>/generated/ekr-contract-data)
+   Compiling ekr-types v1.0.0 (<unit>/generated/ekr-contracts/crates/ekr-types)
+   Compiling ekr-core v0.0.27 (<unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<unit>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 56.44s
+     Running tests/conformance_knowledge.rs (<build>/target/debug/deps/conformance_knowledge-108d0b472817d569)
+
+running 2 tests
+File schema no-op=true: {
+  "completed_at": 1791045185183,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 0,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+File schema no-op=false: {
+  "completed_at": 1791045185188,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 1,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite schema no-op=true: {
+  "completed_at": 1791045185308,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 0,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=true 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test schema_evidence_scenario_detects_an_inert_target ... ok
+Sqlite schema no-op=false: {
+  "completed_at": 1791045185407,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 1,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+test schema_change_exposes_supporting_evidence ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.57s
+
