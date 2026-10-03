@@ -1,0 +1,56 @@
+{
+  "completed_at": "2026-10-03T13:24:00Z",
+  "base_commit": "563d87e37d40cf690f2c76922dab6511400cafcf",
+  "native_cases": 16,
+  "boundaries": [
+    "before",
+    "first inline event",
+    "last inline event",
+    "after native commit"
+  ],
+  "providers": [
+    "file",
+    "sqlite"
+  ],
+  "corrections": [
+    "Choose",
+    "CorrectTime"
+  ],
+  "results": {
+    "recovery": [
+      {
+        "status": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "status": "ok",
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "regressions": [
+      {
+        "status": "ok",
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "clippy": [],
+    "format": []
+  },
+  "files": {
+    "crates/ekr-kernel/tests/attention_answers_recovery.rs": "4e6e672c9c533a65ee1a22662a4c0bda6955c285f2f5558b7cc91522111b415e",
+    "crates/ekr-kernel/tests/recovery/answer_native.rs": "db35e90d422a17b01d786c9d4cbc0f04d40c5dab20d7720c078a904d77829f7d",
+    "crates/ekr-kernel/tests/recovery/support.rs": "ff081fe8b00162af9dc79db3753a623cb64736d084a500b5458a4add93d0bdca"
+  }
+}

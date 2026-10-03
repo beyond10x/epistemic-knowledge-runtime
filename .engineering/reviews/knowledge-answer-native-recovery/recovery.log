@@ -1,0 +1,37 @@
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `test` profile [unoptimized] target(s) in 0.87s
+     Running tests/attention_answers_recovery.rs (<scratch>/target/debug/deps/attention_answers_recovery-e91bd6f4cc648027)
+
+running 2 tests
+native answer recovery: provider=file point=before temporal=false passed
+native answer recovery: provider=file point=before temporal=true passed
+test answer_port_fault_resumes_exactly_in_a_fresh_process ... ok
+native answer recovery: provider=sqlite point=before temporal=false passed
+native answer recovery: provider=sqlite point=before temporal=true passed
+native answer recovery: provider=file point=first temporal=false passed
+native answer recovery: provider=file point=first temporal=true passed
+native answer recovery: provider=sqlite point=first temporal=false passed
+native answer recovery: provider=sqlite point=first temporal=true passed
+native answer recovery: provider=file point=last temporal=false passed
+native answer recovery: provider=file point=last temporal=true passed
+native answer recovery: provider=sqlite point=last temporal=false passed
+native answer recovery: provider=sqlite point=last temporal=true passed
+native answer recovery: provider=file point=after temporal=false passed
+native answer recovery: provider=file point=after temporal=true passed
+native answer recovery: provider=sqlite point=after temporal=false passed
+native answer recovery: provider=sqlite point=after temporal=true passed
+test answer_native_process_death_resumes_without_partial_corrections ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+     Running tests/recovery.rs (<scratch>/target/debug/deps/recovery-eb8ed1467b65ed0e)
+
+running 5 tests
+test a_lost_response_after_the_native_write_reports_the_original_decision_in_a_fresh_process ... ok
+test an_elected_unpublished_decision_resumes_exactly_in_a_fresh_process_for_every_kind ... ok
+test two_handles_racing_for_revision_one_commit_it_exactly_once_on_both_providers ... ok
+test missing_corrupt_and_forged_private_preparations_refuse_by_name_and_change_nothing ... ok
+test same_slot_contention_elects_one_preparation_and_the_loser_binds_nothing ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+

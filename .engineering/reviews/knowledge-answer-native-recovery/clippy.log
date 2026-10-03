@@ -1,0 +1,8 @@
+    Checking ekr-contract-data v0.0.0 (<worktree>/generated/ekr-contract-data)
+    Checking ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<worktree>/crates/ekr-ontology)
+    Checking ekr-graph v0.0.27 (<worktree>/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Finished `dev` profile [unoptimized] target(s) in 14.17s

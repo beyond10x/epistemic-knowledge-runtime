@@ -1,6 +1,10 @@
-//! Fresh-process recovery after port-level unsent/lost response injection, not a native crash.
+//! Port-level response loss and real process death inside native atomic answer publication.
+//! Native cases replay the kernel-elected request, then resume through the kernel after reopen.
+//! Process death preserves the OS page cache; these are not power-loss/fsync tests.
 #![allow(dead_code, unused_imports)]
 include!("support/attention_answer_fixture.rs");
+#[path = "recovery/answer_native.rs"]
+mod native;
 #[path = "recovery/support.rs"]
 mod recovery;
 
@@ -10,6 +14,7 @@ struct RetryPlan {
     proof: Vec<u8>,
     binding: Vec<u8>,
     assertion: String,
+    temporal: bool,
 }
 impl RetryPlan {
     fn input(&self) -> m::AttentionAnswerApplication {
@@ -22,9 +27,15 @@ impl RetryPlan {
             basis: target.basis.clone(),
             human_proof: proof,
             corrections: vec![m::ClaimCorrection {
-                kind: m::ClaimCorrectionKind::Choose,
+                kind: if self.temporal {
+                    m::ClaimCorrectionKind::CorrectTime
+                } else {
+                    m::ClaimCorrectionKind::Choose
+                },
                 assertion_id: ekr_core::contracts::graph::AssertionId(Uuid(self.assertion.clone())),
-                valid_from: None,
+                valid_from: self.temporal.then(|| {
+                    ekr_core::contracts::primitives::Timestamp("2000-01-01T00:00:00Z".into())
+                }),
                 valid_to: None,
                 reason: "human reviewed the retained source evidence".into(),
             }],
@@ -37,12 +48,16 @@ fn resume<S: RevisionLog + ObjectStore>(kernel: Commit<S>, plan: &RetryPlan) -> 
         .answer_attention(&plan.input(), || panic!("retry sampled time"))
         .unwrap();
     assert_eq!(kernel.answer_history(None).unwrap(), vec![result.clone()]);
-    assert!(kernel
-        .read(None)
-        .unwrap()
-        .dispute_attention()
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        kernel
+            .read(None)
+            .unwrap()
+            .dispute_attention()
+            .unwrap()
+            .is_empty(),
+        !plan.temporal
+    );
+    assert_eq!(result.replacements.len(), usize::from(plan.temporal));
     serde_json::to_vec(&result).unwrap()
 }
 fn child(path: &std::path::Path) {
@@ -77,6 +92,8 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
     path: &std::path::Path,
     file: bool,
     fault: recovery::Fault,
+    crash: Option<&str>,
+    temporal: bool,
     open: impl Fn(Option<m::TrustedReviewHostBinding>, recovery::Hooks) -> Commit<recovery::Probe<S>>,
 ) {
     let seeded = open(None, recovery::Hooks::new(recovery::Fault::Pass))
@@ -104,7 +121,11 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
     let input = answer(
         &human,
         &kernel.read(None).unwrap(),
-        m::ClaimCorrectionKind::Choose,
+        if temporal {
+            m::ClaimCorrectionKind::CorrectTime
+        } else {
+            m::ClaimCorrectionKind::Choose
+        },
     );
     drop(kernel);
     let hooks = recovery::Hooks::new(fault);
@@ -132,8 +153,27 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
         proof: review::proof_bytes(&input.human_proof).unwrap(),
         binding: review::host_binding_bytes(&human.binding).unwrap(),
         assertion: input.corrections[0].assertion_id.0 .0.clone(),
+        temporal,
     };
     std::fs::write(path.join("retry.json"), serde_json::to_vec(&plan).unwrap()).unwrap();
+    if let Some(point) = crash {
+        native::crash(path, file, point, &elected);
+        let reopened = open(
+            Some(human.binding.clone()),
+            recovery::Hooks::new(recovery::Fault::Pass),
+        );
+        let history = reopened.answer_history(None).unwrap();
+        assert_eq!(history.len(), usize::from(point == "after"));
+        assert_eq!(
+            reopened
+                .read(None)
+                .unwrap()
+                .dispute_attention()
+                .unwrap()
+                .is_empty(),
+            point == "after" && !temporal
+        );
+    }
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args([
             "answer_port_fault_resumes_exactly_in_a_fresh_process",
@@ -154,6 +194,7 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
         result,
         elected.decision.objects[&elected.decision.event.record_hash].bytes
     );
+    let native_before_retry = crash.map(|_| native::capture(path, file, &elected));
     assert_eq!(
         resume(
             open(
@@ -164,6 +205,13 @@ fn recover<S: RevisionLog + ObjectStore + Initialize>(
         ),
         result
     );
+    if let Some(before) = native_before_retry {
+        assert_eq!(
+            native::capture(path, file, &elected),
+            before,
+            "kernel retry must preserve all native event coordinates and blob bytes"
+        );
+    }
 }
 #[test]
 fn answer_port_fault_resumes_exactly_in_a_fresh_process() {
@@ -173,37 +221,110 @@ fn answer_port_fault_resumes_exactly_in_a_fresh_process() {
     }
     for fault in [recovery::Fault::BeforeWrite, recovery::Fault::AfterWrite] {
         let directory = tempfile::tempdir().unwrap();
-        recover(directory.path(), true, fault, |binding, hooks| {
-            let open = |a| {
-                Ok(recovery::Probe {
-                    inner: FileStore::file(directory.path(), "upgrade-fixture", None)?.under(a),
-                    hooks,
-                })
-            };
-            match binding {
-                Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
-                None => Commit::over_with_authority(context(), anchor(), open),
-            }
-            .unwrap()
-        });
+        recover(
+            directory.path(),
+            true,
+            fault,
+            None,
+            false,
+            |binding, hooks| {
+                let open = |a| {
+                    Ok(recovery::Probe {
+                        inner: FileStore::file(directory.path(), "upgrade-fixture", None)?.under(a),
+                        hooks,
+                    })
+                };
+                match binding {
+                    Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
+                    None => Commit::over_with_authority(context(), anchor(), open),
+                }
+                .unwrap()
+            },
+        );
         let directory = tempfile::tempdir().unwrap();
-        recover(directory.path(), false, fault, |binding, hooks| {
-            let open = |a| {
-                Ok(recovery::Probe {
-                    inner: SqliteStore::sqlite(
+        recover(
+            directory.path(),
+            false,
+            fault,
+            None,
+            false,
+            |binding, hooks| {
+                let open = |a| {
+                    Ok(recovery::Probe {
+                        inner: SqliteStore::sqlite(
+                            &directory.path().join("store.db"),
+                            "upgrade-fixture",
+                            None,
+                        )?
+                        .under(a),
+                        hooks,
+                    })
+                };
+                match binding {
+                    Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
+                    None => Commit::over_with_authority(context(), anchor(), open),
+                }
+                .unwrap()
+            },
+        );
+    }
+}
+
+#[test]
+fn answer_native_process_death_resumes_without_partial_corrections() {
+    if let Some(path) = std::env::var_os("EKR_ANSWER_NATIVE_PATH") {
+        native::child(std::path::Path::new(&path));
+        return;
+    }
+    for point in ["before", "first", "last", "after"] {
+        for file in [true, false] {
+            for temporal in [false, true] {
+                let directory = tempfile::tempdir().unwrap();
+                macro_rules! exercise {
+                    ($store:expr) => {
+                        recover(
+                            directory.path(),
+                            file,
+                            recovery::Fault::BeforeWrite,
+                            Some(point),
+                            temporal,
+                            |binding, hooks| {
+                                let open = |a| {
+                                    let mut store = $store?.under(a);
+                                    store.set_full_replay(true);
+                                    Ok(recovery::Probe {
+                                        inner: store,
+                                        hooks,
+                                    })
+                                };
+                                match binding {
+                                    Some(b) => Commit::over_with_review_authority(
+                                        context(),
+                                        anchor(),
+                                        b,
+                                        open,
+                                    ),
+                                    None => Commit::over_with_authority(context(), anchor(), open),
+                                }
+                                .unwrap()
+                            },
+                        );
+                    };
+                }
+                if file {
+                    exercise!(FileStore::file(directory.path(), "upgrade-fixture", None));
+                } else {
+                    exercise!(SqliteStore::sqlite(
                         &directory.path().join("store.db"),
                         "upgrade-fixture",
-                        None,
-                    )?
-                    .under(a),
-                    hooks,
-                })
-            };
-            match binding {
-                Some(b) => Commit::over_with_review_authority(context(), anchor(), b, open),
-                None => Commit::over_with_authority(context(), anchor(), open),
+                        None
+                    ));
+                }
+                eprintln!(
+                    "native answer recovery: provider={} point={point} temporal={temporal} passed",
+                    if file { "file" } else { "sqlite" }
+                );
             }
-            .unwrap()
-        });
+        }
     }
 }
