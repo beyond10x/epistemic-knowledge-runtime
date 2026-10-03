@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T14:16:11Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "dependency-blocker:rust-contract-generation",
+  "kind": "dependency-blocker",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Verified released ESS 0.52 archive and exact regeneration plus generated workspace compilation without development-candidate flag",
+    "reference": ".engineering/reviews/knowledge-contracts-052/contracts-check.log"
+  }
+}

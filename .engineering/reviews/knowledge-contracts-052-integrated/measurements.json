@@ -1,0 +1,12 @@
+{
+  "unit": "77b42a488131aa6ad055727465c37f8090457284",
+  "integration": "7a8d032e4225d702271e729c1840b30f2b14ed01",
+  "source_diff": [],
+  "suite_inputs": "byte-identical to ../knowledge-contracts-052",
+  "named_conformance_tests": {
+    "passed": 9,
+    "failed": 0
+  },
+  "released_contracts_check": "passed",
+  "full_task_check": false
+}

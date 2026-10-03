@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T14:33:51Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:adopt-generated-knowledge-contracts",
+  "kind": "story",
+  "revision": 24,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Released ESS regeneration, timestamp replay, CLI/SDK, architecture controls and workspace all-target Clippy; component binding gaps remain explicit",
+    "reference": ".engineering/reviews/knowledge-contracts-052/README.md"
+  }
+}

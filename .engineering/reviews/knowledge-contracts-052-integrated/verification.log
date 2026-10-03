@@ -1,0 +1,29 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.12s
+     Running `<build>/target/debug/xtask contracts-check --ess <evidence-cache>/ess-052/ess-0.52.0-x86_64-unknown-linux-gnu/ess`
+generated contracts: both complete artifact trees match; synthesized workspace compiles
+   Compiling ekr-contract-data v0.0.0 (<worktree>/generated/ekr-contract-data)
+   Compiling ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<worktree>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<worktree>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<worktree>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<worktree>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 52.95s
+     Running tests/conformance_knowledge.rs (<build>/target/debug/deps/conformance_knowledge-108d0b472817d569)
+
+running 9 tests
+test event_projection_preserves_large_integer_values ... ok
+test upgrade_target::consistency_requires_the_same_verified_revision_record ... ok
+test retention_scenarios_keep_their_positive_read_assertions ... ok
+test every_retention_scenario_detects_discarded_state ... ok
+test supplied_knowledge_conforms_after_reopen_and_full_replay ... ok
+test every_upgrade_scenario_detects_an_inert_target ... ok
+test disputes_and_upgrades_conform_after_reopen_and_full_replay ... ok
+test every_answer_scenario_detects_an_inert_target ... ok
+test human_answers_conform_after_reopen_and_full_replay ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.57s
+

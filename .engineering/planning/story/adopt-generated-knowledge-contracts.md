@@ -23,6 +23,8 @@ scope:
   path: crates/ekr-core
 - confidence: inferred
   path: crates/ekr-integrate
+- confidence: cited
+  path: crates/ekr-kernel
 - confidence: inferred
   path: crates/ekr-sdk
 - confidence: inferred
@@ -30,16 +32,24 @@ scope:
 - confidence: inferred
   path: crates/ekr-views
 - confidence: cited
+  path: crates/ekr/src
+- confidence: cited
+  path: crates/ekr/tests
+- confidence: cited
   path: crates/ekr/tests/conformance.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
+- confidence: cited
+  path: docs/epistemic-knowledge-runtime-design.md
+- confidence: cited
+  path: docs/sdk.md
 - confidence: inferred
   path: generated
 - confidence: inferred
   path: systems/ekr
 - confidence: inferred
   path: xtask
-revision: 22
+revision: 24
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"approval":1}}}
@@ -99,3 +109,39 @@ The actual ESS suite/13 reports exposed AEP 0.64's report ingestion limit. Publi
 The release integrator reports that ESS main e68684efb6a4ac22052c77d3ed8292fd44f9ace5 passed source gates and site build, but no 0.52 tag exists. Gates refused optional prebuild publication with “merged pull request missing or ambiguous”: update-branch commit 258594c86 is in main ancestry but is not a completed PR merge admitted by the full-DAG published_merge verifier. The ESS store records dependency-blocker:release-0-52-delivery-ancestry alongside the publication-identity decision. This is an operator-supplied coordination report, not an EKR rerun of those gates.
 
 Do not bypass the refusal, rewrite ESS main, change trust policy or publish its descendants without the approved provenance resolution. ESS release ownership remains with its integrator; the held ess/21 bundle and transport session remain separate. EKR development continues independently with the explicitly unreleased generator candidate. Final released-generator adoption and the EKR full gate remain pending.
+
+## Released ESS 0.52 adoption checkpoint
+
+The published ESS 0.52.0 release resolves the historical delivery hold above. Verified release
+metadata, exact-commit workflows, uploaded Linux archive SHA256SUMS and executable digest are
+retained in .engineering/reviews/knowledge-contracts-052. Exact source:
+4d6a4ecafc0feb4e11e4bee777b19c7351fa3647. Unit commit
+77b42a488131aa6ad055727465c37f8090457284 is integrated at
+7a8d032e4225d702271e729c1840b30f2b14ed01.
+
+The released generator, Cargo libraries/lock, CI archive checksum, local guards, README and
+conformance provenance are pinned together. Both generated trees regenerate without drift and
+the semantic workspace compiles without a development-candidate flag. Source digest
+16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146 and contract digest
+b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c are unchanged.
+
+The generated timestamp representation required checked kernel/SDK/viewer adapters and
+historical answer-record serialization compatibility. Full replay accepts original equivalent
+correction spellings without rewriting retained bytes and refuses altered instants. Removing
+that compatibility check makes the regression fail. Named authored fixtures now survive ESS
+0.52 external controls without being replaced by generic refusal fixtures.
+
+Measured local verification: both complete generated trees, six fresh suites, 62 targeted
+kernel/recovery/review Rust tests, six CLI/session/pin controls, sixteen SDK tests, fourteen
+xtask tests, 53 identity tests, fourteen architecture tests and workspace/all-target Clippy pass.
+All 78 views scenarios pass on each provider. Named A/B/C conformance and all inert-target
+controls pass their nine Rust tests.
+
+The complete kernel inventory requires 72 scenarios but currently passes 62 with ten unsupported
+new bindings per provider; integrate requires eighteen but passes two with sixteen unsupported.
+No scenario was removed, unavailable ceiling raised or floor lowered. The component tests stay
+red until those bindings are implemented. Full task check, independent review, remaining D–F and
+both demonstrations remain required; this story and PR64 are not complete.
+
+Scope additions are cited from the actual released-generator migration: crates/ekr-kernel,
+crates/ekr/src, crates/ekr/tests, docs/sdk.md and the appended normative design amendment.
