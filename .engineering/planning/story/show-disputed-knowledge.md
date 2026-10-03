@@ -34,7 +34,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 20
+revision: 21
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -144,3 +144,19 @@ Synthesis reports authored=3, generated=115, refused=0; these are synthesis coun
 The Taskfile conformance target already runs conformance_knowledge; its freshness gate now also compares the authored upgrade suite. Taskfile.yml is an observed shared gate surface added to machine-readable scope. The existing ESS 0.36.0 prerequisite still needs coordinated adoption of a verified released generator before the final gate can succeed.
 
 The resource hold remains in effect. Owned completed build targets are absent; no further space was reclaimed and no other owner's cache or process was changed. These new tests and the preceding upgrade surface are uncompiled, unexecuted and local only. Next: focused compilation/tests, actual inert-target failure, production mutation checks, fresh reports, native crash recovery and public dispute-viewer inspection, then the remaining C-F delivery. Keep the original complete scope, single PR and ESS ownership boundaries.
+
+## Executed upgrade conformance checkpoint
+
+Unit 921afe75e743204c43e96b2809712d72ed979dc0 is now integrated locally. This supersedes the earlier uncompiled resource-hold notes; it does not close acceptance. Reports from the actual native implementations and their complete exact suite inputs are imported through AEP.
+
+ekr knowledge CLI (File; discard=false) 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+EKR native Runtime File, no-op=false 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+ekr knowledge CLI (Sqlite; discard=false) 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+EKR native Runtime Sqlite, no-op=false 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+Focused surface executions measured from retained logs: [{"suite":"kernel","groups":2,"passed":19,"failed":0,"ignored":0},{"suite":"cli","groups":6,"passed":136,"failed":0,"ignored":0}]. Workspace Clippy passed in the unit. Root-local production mutations in property conflicts, relation conflicts, value equality, time overlap, cardinality and historical reads each failed their intended scenario on both providers. Restored-source runs passed; inert and discarded-state controls failed every selected scenario as required. This is not independent review.
+
+A private tmpfs target with one compiler job avoids new persistent build storage. The combined-tree fmt check exposed existing generator output that rustfmt would rewrite; no generated source was hand-edited. Combined-tree Clippy and cross-crate checks are running. Released generator adoption, generated formatting reconciliation, native process-crash verification, the disputed viewer demonstration, C-F, end-to-end demonstrations and the complete task check remain required. Evidence: .engineering/reviews/knowledge-upgrade-conformance/README.md and .engineering/reviews/knowledge-upgrade-surface/README.md.

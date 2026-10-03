@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T09:40:10Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:retain-supplied-knowledge",
+  "kind": "story",
+  "revision": 23,
+  "change": {
+    "change": "evidence",
+    "kind": "ess_conformance_coverage_v1",
+    "source": "{\"completed_at\":\"1791020410645\",\"conformance_status\":\"passed\",\"counts\":{\"error\":0,\"failed\":0,\"passed\":3,\"skipped\":0,\"total\":3,\"unsupported\":0},\"coverage\":{\"counts\":{\"authored\":3,\"generated\":0,\"outside\":115,\"refused\":0},\"knowledge\":\"complete_inventory\",\"refused\":[],\"selection\":{\"filter\":{\"ids\":[\"ekr.integrate/authored/rejected-interpretation-retains-its-sources\",\"ekr.integrate/authored/unmapped-knowledge-survives-reopen\",\"ekr.observe/authored/observation-retry-is-idempotent\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:04c3af6103edd933e955ec38a13286840d5113e9e82d4be6dca3618df0230168\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/13\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}}},\"execution_status\":\"passed\",\"format\":\"ess-conformance-report/2\",\"implementation\":\"ekr knowledge CLI (Sqlite; discard=false) 0.0.27\",\"input_transport\":\"original_input\",\"policy\":\"complete-selection/1\",\"producer_profile\":\"rust-scenario-status/1\",\"report_input\":\".engineering/reviews/knowledge-upgrade-conformance/reports/final3-sqlite-retained.report.json\",\"selected_ids\":[\"ekr.integrate/authored/rejected-interpretation-retains-its-sources\",\"ekr.integrate/authored/unmapped-knowledge-survives-reopen\",\"ekr.observe/authored/observation-retry-is-idempotent\"],\"selection\":{\"filter\":{\"ids\":[\"ekr.integrate/authored/rejected-interpretation-retains-its-sources\",\"ekr.integrate/authored/unmapped-knowledge-survives-reopen\",\"ekr.observe/authored/observation-retry-is-idempotent\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:04c3af6103edd933e955ec38a13286840d5113e9e82d4be6dca3618df0230168\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/13\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}},\"spec_digest\":\"147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad\",\"specification\":\"ekr/v1\",\"suite\":{\"digest\":\"sha256:3d342043505609154f2374cb254b85a6b646e3d5eee5e0bfe1976cda3a348437\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/13\"},\"suite_input\":\".engineering/reviews/knowledge-upgrade-conformance/retention-suite-input.json\"}",
+    "reference": ".engineering/reviews/knowledge-upgrade-conformance/reports/final3-sqlite-retained.report.json"
+  }
+}

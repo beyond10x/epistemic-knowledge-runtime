@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T09:40:11Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 20,
+  "change": {
+    "change": "evidence",
+    "kind": "ess_conformance_coverage_v1",
+    "source": "{\"completed_at\":\"1791020411046\",\"conformance_status\":\"passed\",\"counts\":{\"error\":0,\"failed\":0,\"passed\":3,\"skipped\":0,\"total\":3,\"unsupported\":0},\"coverage\":{\"counts\":{\"authored\":3,\"generated\":0,\"outside\":115,\"refused\":0},\"knowledge\":\"complete_inventory\",\"refused\":[],\"selection\":{\"filter\":{\"ids\":[\"ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict\",\"ekr.kernel/authored/overlapping-single-value-claims-become-disputed\",\"ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:44b35148613b55f6843f0585b9aabb5b29ad098d688ac960e49c766f4951833b\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/19\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}}},\"execution_status\":\"passed\",\"format\":\"ess-conformance-report/2\",\"implementation\":\"EKR native Runtime Sqlite, no-op=false 0.0.27\",\"input_transport\":\"original_input\",\"policy\":\"complete-selection/1\",\"producer_profile\":\"rust-scenario-status/1\",\"report_input\":\".engineering/reviews/knowledge-upgrade-conformance/reports/final3-upgrade-sqlite-persisted.report.json\",\"selected_ids\":[\"ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict\",\"ekr.kernel/authored/overlapping-single-value-claims-become-disputed\",\"ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes\"],\"selection\":{\"filter\":{\"ids\":[\"ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict\",\"ekr.kernel/authored/overlapping-single-value-claims-become-disputed\",\"ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes\"],\"kind\":\"explicit\",\"parent\":{\"digest\":\"sha256:44b35148613b55f6843f0585b9aabb5b29ad098d688ac960e49c766f4951833b\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/19\"}},\"origins\":\"generated_and_authored\",\"scope\":{\"kind\":\"system\"}},\"spec_digest\":\"147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad\",\"specification\":\"ekr/v1\",\"suite\":{\"digest\":\"sha256:72738724a8b8987b9414e4940ceb695b9bf2ef22733ad03de604024db672c0b0\",\"digest_profile\":\"sha256-json-bytes/1\",\"version\":\"ess-conformance/19\"},\"suite_input\":\".engineering/reviews/knowledge-upgrade-conformance/upgrade-suite-input.json\"}",
+    "reference": ".engineering/reviews/knowledge-upgrade-conformance/reports/final3-upgrade-sqlite-persisted.report.json"
+  }
+}

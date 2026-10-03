@@ -47,3 +47,19 @@ Do not publish this increment as verified or treat earlier conformance digests a
 ## Authored B conformance resource checkpoint
 
 Unit 36739a32eee65d70be5c0e46c6ac36af0c0c4df4 adds the named upgrade scenarios, real reopen/full-replay adapter, original-byte/event-prefix checks and an inert-target detector. The A suite was regenerated at the current digest. Repeat synthesis, member formatting and whitespace checks passed; compilation, actual reports and mutation detection remain unexecuted under the disk hold. The preceding public upgrade interface is also awaiting execution. See the unit's knowledge-upgrade-conformance review record. No new build lane or additional PR was started, and no source is claimed ready for publication.
+
+## Executed upgrade conformance checkpoint
+
+Unit 921afe75e743204c43e96b2809712d72ed979dc0 is now integrated locally. This supersedes the earlier uncompiled resource-hold notes; it does not close acceptance. Reports from the actual native implementations and their complete exact suite inputs are imported through AEP.
+
+ekr knowledge CLI (File; discard=false) 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+EKR native Runtime File, no-op=false 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+ekr knowledge CLI (Sqlite; discard=false) 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+EKR native Runtime Sqlite, no-op=false 0.0.27: {"error":0,"failed":0,"passed":3,"skipped":0,"total":3,"unsupported":0}; spec_digest=147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad.
+
+Focused surface executions measured from retained logs: [{"suite":"kernel","groups":2,"passed":19,"failed":0,"ignored":0},{"suite":"cli","groups":6,"passed":136,"failed":0,"ignored":0}]. Workspace Clippy passed in the unit. Root-local production mutations in property conflicts, relation conflicts, value equality, time overlap, cardinality and historical reads each failed their intended scenario on both providers. Restored-source runs passed; inert and discarded-state controls failed every selected scenario as required. This is not independent review.
+
+A private tmpfs target with one compiler job avoids new persistent build storage. The combined-tree fmt check exposed existing generator output that rustfmt would rewrite; no generated source was hand-edited. Combined-tree Clippy and cross-crate checks are running. Released generator adoption, generated formatting reconciliation, native process-crash verification, the disputed viewer demonstration, C-F, end-to-end demonstrations and the complete task check remain required. Evidence: .engineering/reviews/knowledge-upgrade-conformance/README.md and .engineering/reviews/knowledge-upgrade-surface/README.md.
