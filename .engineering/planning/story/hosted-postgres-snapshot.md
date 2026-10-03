@@ -25,7 +25,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T00:49:55Z", actor: "agent:codex", revision: 5}
@@ -56,3 +56,6 @@ Reuses existing store domain, runtime authority and preserving migration. No new
 
 ## Authorization
 Operator explicitly authorized implementation and publication of missing generic upstream capabilities. Fixtures, docs and commits remain entirely generic. Shared identity, paid extraction and deployment-specific details are outside this story.
+
+## Review-driven copy contract
+Real PostgreSQL testing exposed that the datafeed watermark is not a valid negative observation for destination emptiness; use the provider's consistent tenant capture before the atomic initializer guard. Independent correctness review also reproduced fixed completion-marker bytes appearing as ordinary retained evidence, incorrectly admitting an interrupted destination. Migration now requires a fresh per-copy claim in seed envelope /4 and a Canonical completion receipt bound to both claim and destination seed hash. Ordinary seeds remain /3. Old binaries explicitly refuse /4. Preserve legacy marker reading separately and test both evidence and arbitrary carried Canonical marker-shaped content, plus copying an already migrated source. Additional actual surfaces are seed.rs and commit.rs within the declared ekr-kernel scope. These corrections are pending execution, not completed acceptance.

@@ -38,7 +38,28 @@ Codex native agents run the `aep:implementor` and `aep:adversary` reference proc
 does not expose plugin-specific subagent types. Root is the sole AEP writer. All committed
 running code is Rust. No consumer identity, data or operational hostname enters this tree.
 
-Current stage: accepted, before implementation. Independent review and full gate pending.
+Current stage: PostgreSQL implementation under real-provider tests and independent review.
+Initial CLI lane passed three cases; kernel lane passed six of seven and exposed a destination
+emptiness observation issue. Review exposed fixed completion-marker/evidence collision.
+Corrections and final gates remain pending; neither result is completed acceptance.
+
+## HTTP unit preparation
+
+The authorized `story:hosted-read-serving` is active. Read-only scoping established the CLI,
+session refusal and viewer compatibility surfaces. Its integration remains sequential after
+the PostgreSQL unit because `mod.rs`, `session.rs` and `docs/cli.md` overlap. Preparation may
+run in its own tree now, restricted to the new `http.rs`, new transport tests and existing
+viewer/MCP modules that the PostgreSQL unit does not edit. Do not wire the overlapping CLI
+or documentation until the PostgreSQL result is integrated. This staged ownership replaces
+idle waiting without pretending the complete stories are disjoint.
+
+HTTP unit: managed id `ekr-hosted-http`, branch `impl/hosted-read-serving`, initially based on
+the integration head recorded in its brief. Build `/dev/shm/ekr-hosted-http-target`; scratch
+`<cache>/ekr-hosted-runtime/serving`. Preparation adds no second large build while the provider
+gate is running. Preflight: 29 GiB filesystem and 19 GiB shared-memory capacity free. Native
+implementor and independent adversary roles follow the same procedures. Root retains AEP,
+architecture, integration and release ownership. All accepted evidence and remaining failures
+are recorded before source publication.
 
 ## Required verification
 

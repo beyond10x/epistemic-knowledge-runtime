@@ -5327,11 +5327,17 @@ payload bytes and stable identities survive. Legacy seed-envelope upgrades can r
 record hashes; the migration report maps those explicitly rather than claiming byte equality of
 all physical records.
 
-The migration-started marker and first copied seed publish in the same atomic provider group.
+The copied seed carries a fresh migration identity in `ekr-seed-envelope/4`; publishing that
+seed atomically establishes the copy's start claim. Ordinary seeding remains envelope `/3`.
 Only `Appended::Written` owns this initial copy; `AlreadyRecorded` is a competing initializer,
 not permission to append another history. An ordinary seed and a copy contend on the same empty
 revision stream. A losing copy must neither mark the winner incomplete nor complete another
-copy's history. The finished marker is written only after admitted replay and equivalence pass.
+copy's history. A Canonical `ekr.migration-finished/2` receipt naming both the claim and the
+destination seed hash is written only after admitted replay and equivalence pass. Admission
+derives the expected receipt from the retained seed. Arbitrary evidence or carried Canonical
+objects containing the old fixed marker bytes cannot complete a new copy. Older binaries reject
+the `/4` envelope rather than serve an unverified prefix. Legacy `/2` and `/3` stores retain their
+separate marker compatibility; an evidence reference alone never proves completion.
 An interrupted destination remains retained and unreadable as a complete store. Initial copy
 refuses an already populated destination; it does not silently overwrite, delete or resume one.
 

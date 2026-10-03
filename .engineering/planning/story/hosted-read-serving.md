@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:hosted-read-serving
 kind: story
-status: proposed
+status: active
 title: Serve the viewer and read-only MCP through bounded explicit HTTP listeners
 relations:
 - serves: vision:o5
@@ -15,18 +15,25 @@ scope:
 - confidence: cited
   path: crates/ekr/src/cli/mod.rs
 - confidence: cited
+  path: crates/ekr/src/cli/session.rs
+- confidence: cited
   path: crates/ekr/src/cli/view.rs
 - confidence: cited
   path: crates/ekr/src/main.rs
 - confidence: inferred
   path: crates/ekr/tests/hosted_http.rs
 - confidence: cited
+  path: crates/ekr/tests/view_cli.rs
+- confidence: cited
+  path: crates/ekr/tests/view_stream.rs
+- confidence: cited
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 4
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:14:16Z", actor: "agent:codex", revision: 4}
+- {from: "proposed", to: "active", at: "2026-10-03T01:27:02Z", actor: "agent:codex", revision: 9}
 ---
 ## Outcome
 Keep existing loopback viewer and stdio MCP behavior; add explicit hosted viewer binding and stateless Streamable HTTP MCP. This is a read-only transport over existing views, not an identity provider or canonical writer. Run after the hosted snapshot unit because CLI dispatch and docs overlap.
@@ -52,3 +59,8 @@ Official protocol source inspected 2026-10-03: https://modelcontextprotocol.io/s
 
 ## Follow-on
 Search-first entry design is separate from changing transport. Incremental publication is separate from all read serving.
+
+## Scoper correction
+Read-only inspection confirms `crates/ekr/src/cli/session.rs` must refuse the new long-running verb in its exhaustive dispatch. Existing viewer suites are `tests/view_cli.rs` and `tests/view_stream.rs`, not `tests/view.rs`. The former deliberately forbids `--bind`; replace that old interface assertion while preserving loopback defaults, Host checks and ephemeral-port output. New queue admission must be bounded independently of connection timeouts, and discard expired jobs before store work. Preserve NDJSON streaming separately. Do not silently map a missing MCP protocol header to the newest revision: the stateless fallback in the transport specification is 2025-03-26, which this implementation does not support. Document and test an explicit missing-header policy compatible with the versions it advertises.
+
+The existing viewer has whole-revision name/alias search, clickable details and evidence, but remains graph-oriented and loads graph libraries during startup. This transport story does not claim a search-first UI or natural-language answering.
