@@ -1010,3 +1010,221 @@ fn no_read_route_copies_the_head_graph_through_runtime_snapshot() {
         "read routes that copy the head graph through `Runtime::snapshot()`: {copying:?}"
     );
 }
+
+/// Publish synthetic retained bytes through the same kernel transaction membrane as the CLI.
+fn adversary_add_evidence(world: &World, id: ekr_core::EvidenceId, payload: &[u8]) -> u64 {
+    let runtime = world.runtime();
+    let read = runtime.read(None).unwrap();
+    let mut evidence = read.graph.evidence.values().next().unwrap().clone();
+    evidence.id = id;
+    evidence.content_hash = ContentHash::of_bytes(payload);
+    let actor = evidence.extracted_by;
+    let transaction = ekr_kernel::GraphTransaction {
+        id: ekr_core::TransactionId::mint(),
+        proposer: actor,
+        operations: vec![ekr_kernel::GraphOperation::AddEvidence(Box::new(
+            ekr_kernel::EvidenceAddition {
+                evidence,
+                payload: payload.to_vec(),
+            },
+        ))],
+        evidence: Default::default(),
+        schema_version: None,
+    };
+    #[derive(serde::Serialize)]
+    struct Wire<'a> {
+        format: &'static str,
+        transaction: &'a ekr_kernel::GraphTransaction,
+    }
+    let bytes = serde_yaml_ng::to_string(&Wire {
+        format: "ekr.transaction-document/2",
+        transaction: &transaction,
+    })
+    .unwrap();
+    let revision = read.graph.revision;
+    let clock = || ekr_core::Timestamp::from_millis(1_800_000_000_000);
+    runtime.propose(bytes.as_bytes(), actor, clock).unwrap();
+    assert!(matches!(
+        runtime.validate(transaction.id, revision, clock).unwrap(),
+        ekr_kernel::ValidationCommandResult::Validated(_)
+    ));
+    assert!(matches!(
+        runtime.commit(transaction.id, actor, clock).unwrap(),
+        ekr_kernel::CommitCommandResult::Committed(_)
+    ));
+    revision.get() + 1
+}
+
+#[test]
+fn adversary_evidence_http_tracks_new_head_and_membership_after_cache_eviction() {
+    for backend in BACKENDS {
+        let world = World::seeded_with_two_revisions(backend);
+        let server = world.serve();
+        assert_eq!(server.get("/overview?revision=1").status, 200);
+        let mut additions = Vec::new();
+        for revision in 2..=5 {
+            let id = ekr_core::EvidenceId::mint();
+            let bytes = format!("retained synthetic statement {revision}").into_bytes();
+            assert_eq!(adversary_add_evidence(&world, id, &bytes), revision);
+            // The first request after this commit is evidence, not an intervening head/overview.
+            let current = server.get(&format!("/evidence/{id}"));
+            assert_eq!(current.status, 200, "{backend}: head {revision}");
+            assert_eq!(current.body, bytes);
+            let absent = server.get(&format!("/evidence/{id}?revision={}", revision - 1));
+            assert_eq!(
+                absent.status, 404,
+                "{backend}: future evidence leaked backward"
+            );
+            additions.push((id, bytes, revision));
+        }
+        let before_reads = world.observed();
+        // More than the documented three indexed revisions, then revisit an evicted one.
+        for revision in [0, 1, 3, 4, 2, 5, 0] {
+            assert_eq!(
+                server.get(&format!("/overview?revision={revision}")).status,
+                200,
+                "{backend}: index {revision}"
+            );
+        }
+        for (id, bytes, revision) in additions {
+            for at in [revision, 5] {
+                let answer = server.get(&format!("/evidence/{id}?revision={at}"));
+                assert_eq!(answer.status, 200, "{backend}: {id} at {at}");
+                assert_eq!(answer.body, bytes);
+            }
+            assert_eq!(
+                server.get(&format!("/evidence/{id}?revision=1")).status,
+                404
+            );
+        }
+        assert_eq!(
+            server.get("/head").body,
+            br#"{"format":"ekr.view-head/1","head":5}"#
+        );
+        server.stop();
+        assert_eq!(
+            world.observed(),
+            before_reads,
+            "{backend}: HTTP reads wrote events"
+        );
+    }
+}
+
+#[test]
+fn adversary_evidence_http_recovers_same_revision_replacement_without_old_payload() {
+    for backend in BACKENDS {
+        let world = World::seeded_with_two_revisions(backend);
+        let replacement = World::seeded_with_two_revisions(backend);
+        let id = ekr_core::EvidenceId::mint();
+        assert_eq!(
+            adversary_add_evidence(&world, id, b"old retained statement"),
+            2
+        );
+        assert_eq!(
+            adversary_add_evidence(&replacement, id, b"replacement statement"),
+            2
+        );
+        let server = world.serve();
+        let path = format!("/evidence/{id}?revision=2");
+        assert_eq!(server.get("/overview?revision=2").status, 200);
+        let old = server.get(&path);
+        assert_eq!(old.status, 200);
+        assert_eq!(old.body, b"old retained statement");
+        let aside = world.directory.path().join("old-store");
+        // A missing path between replacements must refuse rather than use the cached membership.
+        for suffix in ["", "-wal", "-shm"] {
+            let at = suffixed(&world.store(), suffix);
+            if at.exists() {
+                std::fs::rename(at, suffixed(&aside, suffix)).unwrap();
+            }
+        }
+        let missing = server.get(&path);
+        assert_eq!(missing.status, 503, "{backend}");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&missing.body).unwrap()["refusal"],
+            "store-replaced"
+        );
+        assert_eq!(server.get("/healthz").status, 200);
+        assert_eq!(server.get("/readyz").status, 503);
+        replace(
+            &world.store(),
+            &world.directory.path().join("unused"),
+            &replacement.store(),
+        );
+        for target in [path, format!("/evidence/{id}")] {
+            let new = server.get(&target);
+            assert_eq!(new.status, 200, "{backend}: {target}");
+            assert_eq!(
+                new.body, b"replacement statement",
+                "{backend}: stale evidence cache"
+            );
+        }
+        assert_eq!(
+            server.get(&format!("/evidence/{id}?revision=1")).status,
+            404
+        );
+        assert_eq!(server.get("/readyz").status, 200);
+        server.stop();
+    }
+}
+
+#[test]
+fn adversary_evidence_http_preserves_bytes_and_refusals_without_poisoning_cache() {
+    for backend in BACKENDS {
+        let world = World::seeded_with_two_revisions(backend);
+        let binary_id = ekr_core::EvidenceId::mint();
+        let text_id = ekr_core::EvidenceId::mint();
+        let binary = [0, 255, 128, b'\r', b'\n', 0, b'<', b'>'];
+        let text = b"<script>synthetic()</script>\r\nContent-Type: text/html\r\n";
+        assert_eq!(adversary_add_evidence(&world, binary_id, &binary), 2);
+        assert_eq!(adversary_add_evidence(&world, text_id, text), 3);
+        let before = world.observed();
+        let server = world.serve();
+        assert_eq!(server.get("/overview?revision=3").status, 200);
+        for _ in 0..2 {
+            for (id, expected, mime) in [
+                (binary_id, binary.as_slice(), "application/octet-stream"),
+                (text_id, text.as_slice(), "text/plain; charset=utf-8"),
+            ] {
+                let target = format!("/evidence/{id}?revision=3");
+                let reply = server.get(&target);
+                assert_eq!(reply.status, 200);
+                assert_eq!(reply.body, expected, "{backend}: exact retained bytes");
+                assert_eq!(reply.header("content-type"), Some(mime));
+                assert_eq!(reply.header("cache-control"), Some("no-store"));
+                assert_eq!(
+                    reply
+                        .header("content-length")
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap(),
+                    expected.len()
+                );
+                reply.assert_plain(&target);
+                for (query, status) in [
+                    ("revision=3&revision=0", 400),
+                    ("revision=18446744073709551616", 400),
+                    ("revision=18446744073709551615", 404),
+                    ("revision=3&unknown=x", 400),
+                    ("revision=%FF", 400),
+                ] {
+                    let refused = server.get(&format!("/evidence/{id}?{query}"));
+                    assert_eq!(refused.status, status, "{backend}: {query}");
+                    assert_ne!(refused.body, expected);
+                }
+                assert_eq!(server.request("POST", &target).status, 405);
+                let wrong_host = server.raw(&format!(
+                    "GET {target} HTTP/1.1\r\nHost: unrelated.example.invalid\r\nConnection: close\r\n\r\n"
+                ));
+                assert_eq!(wrong_host.status, 421);
+                assert_eq!(server.get(&target).body, expected);
+            }
+        }
+        server.stop();
+        assert_eq!(
+            world.observed(),
+            before,
+            "{backend}: read/refusal changed history"
+        );
+    }
+}
