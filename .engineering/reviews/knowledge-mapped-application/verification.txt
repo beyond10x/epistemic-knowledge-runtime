@@ -1,0 +1,87 @@
+Retained mapping application verification
+Commands use the pinned Rust toolchain, locked dependencies and the single assigned build lane.
+The summaries below count native test executions, not ESS conformance scenarios.
+
+Executed commands:
+- cargo test --locked -p ekr-kernel --lib --test schema_applications
+- cargo test --locked -p ekr-kernel --test schema_applications blocked_mappings_remain_parked_until_changed_bindings_are_reviewed
+- cargo test --locked -p ekr-kernel --test add_evidence --test attention_explanations --test authority_upgrade --test durable_commands --test explain --test adversary_x6_x --test adversary_p1_13_explain_r2_bound --test recovery --test schema_evidence --test schema_proposal_reviews --test validate_once_per_command
+- cargo test --locked -p ekr --test story_contract --test public_surface --test docs_cli --test agent_cli --test schema_application_surface
+- cargo clippy --locked -p ekr-kernel -p ekr-sdk -p ekr --all-targets -- -D warnings
+- cargo run --locked -p xtask -- contracts-check --ess <pinned-ess>
+- cargo run --locked -p xtask -- fmt --check
+
+Raw logs retained outside disposable compiler outputs; hashes identify those exact logs.
+
+application-mapping-regression-1.log
+09ade1ed6d3c2f6110a523a3a9acde3447a907973b039150d82155c9769f9b82
+test result: ok. 62 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.56s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 156.56s
+Runners: 2 passed: 74 failed: 0 ignored: 0
+
+application-mapping-parked-1.log
+c16c045df6939a59afc106fd03007dc4a8e0e8152d28440fa401bbe93ddd5972
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 50.55s
+Runners: 1 passed: 1 failed: 0 ignored: 0
+
+application-mapping-kernel-regression-2.log
+e98164c39535a6095c2e3af9e4538ac5ff8086281d986009165d0a9d9684edf8
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.99s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.01s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+Runners: 11 passed: 76 failed: 0 ignored: 0
+
+application-mapping-crosscrate.log
+47cc99f75ff6596e64f3d8a35ee5257301520da7b7308a7fd95a4c3f143d2e83
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.86s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.89s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+Runners: 5 passed: 75 failed: 0 ignored: 0
+
+application-mapping-clippy-3.log
+e3f00d613fb9aff7dbeffff7d1cd49c24670933d8a5dee165ce221a2c6559fcf
+
+application-mapping-contracts.log
+58bff8e6817a438059206730241f96d7dcc9c20ffc475f93bac2257a72939464
+
+application-mapping-fmt-2.log
+f2732d1db6aeab2294dadbd9ed733dbfd1c017d329d0ccb41615c962d084c0ee
+
+application-mapping-residual-red.log
+92cc5710bf85ada8bf16e1061ff734a6fc27023fd816e116ba252374abf47439
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 11 filtered out; finished in 17.79s
+Runners: 1 passed: 0 failed: 1 ignored: 0
+
+application-report-prefix-red.log
+748f937e68f0750312ee28f0b764f34887042e32cc6562362457be5a6d08fe6b
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 61 filtered out; finished in 10.49s
+Runners: 1 passed: 0 failed: 1 ignored: 0
+
+Generated suite identity:
+    "contract_digest": "080455dbbeca5725f70ef1015fb02efb2db14c0623719d7773754d1965b5cfc7",
+    "spec_digest": "ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46",
+
+Specification validation:
+ekr v1 — 9 file(s), valid
+
+The residual mutation restored completed additions as live dependencies; the otherwise unrelated
+completed-type change then incorrectly changed effects_digest. The report mutation restored latest
+head item projection; the older receipt then incorrectly returned Integrated for its remaining item.
+Both mutations were removed before the green runs. The green report test uses an older valid
+snapshot derived from genuine cold history; it does not claim a scheduled concurrent interleaving.
+
+Initial Clippy passes found redundant Box replacements and a test-only needless borrow; corrected
+without suppressions. Command discovery mistakes named a nonexistent validate_once target and
+fmt-check subcommand; those commands executed no tests and are not counted as behavior failures.
+Generated source trees match fresh pinned ESS output and the synthesized workspace compiles.
+Full task check, authored ESS conformance, selected corrections and final delivery are outstanding.

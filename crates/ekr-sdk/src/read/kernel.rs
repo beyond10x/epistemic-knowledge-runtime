@@ -337,6 +337,10 @@ pub enum ExplanationLink {
     Attachment(ExplainedAttachment),
     /// A signed correction, its immutable record and exact record address.
     HumanAnswer(Box<crate::contracts::EkrKernelExplainedAnswer>),
+    /// Exact retained mapping bytes from a committed schema application.
+    Mapping(Box<crate::contracts::EkrIntegrateRetainedMappingRecord>),
+    /// An assertion's committed evidence-to-mapping correspondence.
+    Derivation(Box<crate::contracts::EkrIntegrateCanonicalDerivationRecord>),
     /// Evidence cited, by its content hash, and with `documents` its retained bytes.
     Evidence(ExplainedEvidence),
     /// A kind this SDK does not know, added by a newer `ekr`.

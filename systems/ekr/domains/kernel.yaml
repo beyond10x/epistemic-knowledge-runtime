@@ -1489,6 +1489,14 @@ types:
       Evidence: ekr.graph.EvidenceRecord
       Attachment: ekr.kernel.ExplainedAttachment
       HumanAnswer: ekr.kernel.ExplainedAnswer
+      Mapping: ekr.integrate.RetainedMappingRecord
+      Derivation: ekr.integrate.CanonicalDerivationRecord
+
+  # Mapping/Derivation links come only from verified committed application steps through the
+  # captured revision. Planned, rejected and stale steps are not canonical derivations. Each
+  # mapping's compact generated JSON must equal its pinned digest-addressed bytes; derivations
+  # cite the actual assertion and retained Evidence, with an Observation only when that Evidence
+  # names it. Captures retain these records independently of live incubation providers.
 
   # A capture binds its root to the actual seed, ordinary commit, authority transition or
   # human-answer record. Answers through that boundary join an assertion's explanation when

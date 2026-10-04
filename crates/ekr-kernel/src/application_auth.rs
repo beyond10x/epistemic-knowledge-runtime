@@ -56,6 +56,11 @@ pub(crate) fn evidence_admission(
         .ok_or_else(|| error("application evidence election is unavailable"))?;
     election(authority, history, state, elected)?;
     verify_attempt(authority, history, state, attempt)?;
+    if !matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V2) {
+        // Mapping steps reuse canonical support; their exact operations are checked by the
+        // ordinary guarded publication authority, never a source-kind allowance.
+        return Ok(None);
+    }
     let native: GraphTransaction<CanonicalValue> =
         document.transaction().clone().try_into().map_err(error)?;
     if *attempt.transaction != crate::application_transaction::encode(&native)?
@@ -90,70 +95,21 @@ pub(crate) fn committed_receipt(
     state: &ReplayState,
     election: &w::EkrIntegrateRetainedApplicationElection,
 ) -> Result<Option<w::EkrIntegrateApplicationReceiptSnapshot>, StoreError> {
-    let schema_steps: Vec<_> = history
-        .applications
-        .steps()
-        .iter()
-        .filter(|s| {
-            s.application_id == election.application_id
-                && matches!(*s.step.kind, w::EkrIntegrateApplicationStepKind::V2)
-        })
-        .collect();
-    let mut result = None;
-    for attempt in history.applications.attempts().iter().filter(|a| {
-        schema_steps
-            .iter()
-            .any(|s| s.step_election_id == a.step_election_id)
-    }) {
-        let id = attempt.transaction_id.0.parse().map_err(error)?;
-        let Some(committed) = state
-            .transactions
-            .get(&id)
-            .and_then(|t| t.committed.as_ref())
-        else {
-            continue;
-        };
-        if result.is_some() {
-            return Err(error("application has more than one schema commit"));
-        }
-        let guard = history
-            .occurrences
-            .iter()
-            .find(|o| o.event.event_id == committed.event_id)
-            .and_then(|o| o.event.application.as_ref())
-            .ok_or_else(|| error("application schema commit has no guard"))?
-            .as_data();
-        use ekr_core::generated_identity::{ApplicationReceiptId, Identity};
-        result = Some(w::EkrIntegrateApplicationReceiptSnapshot {
-            receipt_id: Box::new(ApplicationReceiptId::mint()),
-            application_id: election.application_id.clone(),
-            proposal_id: election.proposal_id.clone(),
-            review_id: guard.review_id.clone(),
-            schema_transaction: attempt.transaction_id.clone(),
-            schema_revision: Box::new(w::EkrKernelRevisionNumber(
-                committed.result.revision.get().into(),
-            )),
-            progress: Box::new(w::EkrIntegrateApplicationProgress::V0),
-            processing_receipts: vec![],
-            remaining_items: vec![],
-            corrections_pending: false,
-            stop_reason: w::EssPresence::Absent,
-        });
-    }
-    Ok(result)
+    crate::application_progress::snapshot(history, state, election, state.head().root.revision)
 }
 
 pub(crate) fn read(
     history: &RetainedHistory,
+    state: &ReplayState,
     proposal: &w::EkrIntegrateSchemaProposalId,
-) -> w::EssPresence<Box<w::EkrIntegrateApplicationRead>> {
+) -> Result<w::EssPresence<Box<w::EkrIntegrateApplicationRead>>, StoreError> {
     let Some(election) = history
         .applications
         .elections()
         .iter()
         .find(|e| e.proposal_id.as_ref() == proposal)
     else {
-        return w::EssPresence::Absent;
+        return Ok(w::EssPresence::Absent);
     };
     let steps: Vec<_> = history
         .applications
@@ -195,15 +151,28 @@ pub(crate) fn read(
         .filter(|r| r.application_id == election.application_id)
         .cloned()
         .collect();
-    w::EssPresence::Present(Box::new(w::EkrIntegrateApplicationRead {
-        election: election.clone(),
-        steps,
-        attempts,
-        publications,
-        receipts,
-        remaining_items: election.selected_items.clone(),
-        corrections_pending: false,
-    }))
+    let progress = committed_receipt(history, state, election)?;
+    let original = inputs::proposal(history, election)?;
+    let remaining_items = progress.as_ref().map_or_else(
+        || election.selected_items.clone(),
+        |p| p.remaining_items.clone(),
+    );
+    let corrections_pending = progress
+        .as_ref()
+        .map_or(!original.proposal.corrections.is_empty(), |p| {
+            p.corrections_pending
+        });
+    Ok(w::EssPresence::Present(Box::new(
+        w::EkrIntegrateApplicationRead {
+            election: election.clone(),
+            steps,
+            attempts,
+            publications,
+            receipts,
+            remaining_items,
+            corrections_pending,
+        },
+    )))
 }
 
 pub(crate) fn attach(
@@ -328,6 +297,66 @@ fn projected(
     let observations = inputs::observed(history.applications.observations())?;
     let projected = inputs::project(history, &observations, proposal, &read, &base.ontology)?;
     Ok((read, projected))
+}
+
+/// Advance permission only across this application's already verified commits. Each pre-commit
+/// material must still match the preceding baseline; intervening external drift is not excused.
+pub(crate) fn continuation_basis(
+    authority: &KernelAuthority,
+    history: &RetainedHistory,
+    state: &ReplayState,
+    proposal: &w::EkrIntegrateRetainedSchemaProposal,
+    review: &w::EkrIntegrateRetainedProposalReview,
+) -> Result<Box<w::EkrKernelReviewBasis>, StoreError> {
+    let observed = RevisionNumber::new(
+        review
+            .review
+            .basis
+            .observed_revision
+            .0
+            .as_u64()
+            .ok_or_else(|| error("invalid approved revision"))?,
+    );
+    let (_, shown) = projected(authority, history, state, proposal, observed)?;
+    if shown.basis != review.review.basis {
+        return Err(error("historical approval material differs"));
+    }
+    let mut basis = shown.basis;
+    let prefixes =
+        crate::application_material::prefixes(history, state, state.head().root.revision)?;
+    if let Some(prefix) = prefixes.get(&proposal.proposal.proposal_id.0) {
+        for (revision, _) in prefix
+            .commits
+            .iter()
+            .filter(|(revision, _)| *revision > observed)
+        {
+            let before = RevisionNumber::new(
+                revision
+                    .get()
+                    .checked_sub(1)
+                    .ok_or_else(|| error("application commit has no predecessor"))?,
+            );
+            let (_, preceding) = projected(authority, history, state, proposal, before)?;
+            if !same_material(&basis, &preceding.basis) {
+                return Err(error(
+                    "schema-review-required: intervening material changed",
+                ));
+            }
+            basis = projected(authority, history, state, proposal, *revision)?
+                .1
+                .basis;
+        }
+    }
+    Ok(basis)
+}
+
+pub(crate) fn same_material(
+    left: &w::EkrKernelReviewBasis,
+    right: &w::EkrKernelReviewBasis,
+) -> bool {
+    left.evidence_digest == right.evidence_digest
+        && left.options_digest == right.options_digest
+        && left.effects_digest == right.effects_digest
 }
 
 fn reviews(
@@ -461,7 +490,7 @@ pub(crate) fn template(
     >,
 ) -> Result<(), StoreError> {
     let p = &proposal.proposal;
-    if !p.mappings.is_empty() || !p.corrections.is_empty() {
+    if !p.corrections.is_empty() {
         return Err(error(
             "source mapping application authority is not implemented",
         ));
@@ -568,16 +597,24 @@ pub(crate) fn template(
     Ok(())
 }
 
-fn election(
+pub(crate) fn election(
     authority: &KernelAuthority,
     history: &RetainedHistory,
     state: &ReplayState,
     elected: &w::EkrIntegrateRetainedApplicationElection,
 ) -> Result<w::EkrIntegrateRetainedSchemaProposal, StoreError> {
-    if !elected.selected_items.is_empty() {
-        return Err(error("mapping application authority is not implemented"));
-    }
     let proposal = inputs::proposal(history, elected)?;
+    let selected = proposal
+        .proposal
+        .mappings
+        .iter()
+        .map(|mapping| crate::application_mapping::item(mapping).map(Box::new))
+        .collect::<Result<Vec<_>, _>>()?;
+    if elected.selected_items != selected {
+        return Err(error(
+            "application selected items differ from approved mappings",
+        ));
+    }
     let review = initial_review(authority, history, state, elected, &proposal)?;
     let revision = review
         .review
@@ -600,6 +637,66 @@ fn election(
     Ok(proposal)
 }
 
+/// Recover the original-source to admitted-wrapper correspondence from the frozen schema step.
+pub(crate) fn source_support(
+    authority: &KernelAuthority,
+    history: &RetainedHistory,
+    state: &ReplayState,
+    elected: &w::EkrIntegrateRetainedApplicationElection,
+) -> Result<
+    (
+        crate::schema_proposals::SourceSupport,
+        std::collections::BTreeMap<ekr_core::EvidenceId, ekr_core::EvidenceId>,
+    ),
+    StoreError,
+> {
+    let proposal = inputs::proposal(history, elected)?;
+    let approval = initial_review(authority, history, state, elected, &proposal)?;
+    let reviewed = at(
+        authority,
+        history,
+        state,
+        RevisionNumber::new(
+            approval
+                .review
+                .basis
+                .observed_revision
+                .0
+                .as_u64()
+                .ok_or_else(|| error("approved revision"))?,
+        ),
+    )?;
+    let observations = inputs::observed(history.applications.observations())?;
+    let support = inputs::support(history, &observations, &proposal.proposal, &reviewed)?;
+    let tx = crate::application_transaction::decode(&elected.schema_transaction)?;
+    let additions: Vec<_> = tx
+        .operations
+        .iter()
+        .filter_map(|op| match op {
+            GraphOperation::AddEvidence(addition) => Some(addition.evidence.id),
+            _ => None,
+        })
+        .collect();
+    let mut wrappers = additions.iter().take(additions.len().saturating_sub(1));
+    let plan = crate::application_support::plan(
+        &reviewed,
+        &proposal.proposal,
+        &support,
+        &observations,
+        tx.proposer,
+        || {
+            wrappers
+                .next()
+                .copied()
+                .ok_or_else(|| error("elected schema wrapper is missing"))
+        },
+    )?;
+    if wrappers.next().is_some() {
+        return Err(error("elected schema has an extra wrapper"));
+    }
+    Ok((support, plan.source_evidence))
+}
+
 pub(crate) fn verify_attempt(
     authority: &KernelAuthority,
     history: &RetainedHistory,
@@ -613,7 +710,7 @@ pub(crate) fn verify_attempt(
         .find(|s| s.step_election_id == attempt.step_election_id)
         .ok_or_else(|| error("application step is unavailable"))?;
     let native = crate::application_transaction::decode(&attempt.transaction)?;
-    if native.id.to_string() != attempt.transaction_id.0 {
+    if native.id.to_string() != attempt.transaction_id.0 || attempt.elected_at < step.elected_at {
         return Err(error("attempt transaction identity disagrees"));
     }
     let mut expected = crate::application_transaction::decode(&step.transaction)?;
@@ -660,6 +757,93 @@ pub(crate) fn verify_attempt(
         return Err(error("attempt changes the frozen transaction template"));
     }
     let _ = authority;
+    Ok(())
+}
+
+fn verify_step(
+    authority: &KernelAuthority,
+    history: &RetainedHistory,
+    state: &ReplayState,
+    election: &w::EkrIntegrateRetainedApplicationElection,
+    step: &w::EkrIntegrateRetainedApplicationStep,
+    semantic: bool,
+) -> Result<(), StoreError> {
+    if step.application_id != election.application_id || step.elected_at < election.elected_at {
+        return Err(error("application step coordinates disagree"));
+    }
+    match *step.step.kind {
+        w::EkrIntegrateApplicationStepKind::V2 => {
+            if step.transaction != election.schema_transaction
+                || !matches!(step.step.item, w::EssPresence::Absent)
+                || !step.derivations.is_empty()
+                || !step.mappings.is_empty()
+                || !step.replacements.is_empty()
+            {
+                return Err(error("unapproved schema application step"));
+            }
+        }
+        w::EkrIntegrateApplicationStepKind::V1 => {
+            let w::EssPresence::Present(key) = &step.step.item else {
+                return Err(error("mapping step has no qualified item"));
+            };
+            if !election.selected_items.contains(key) {
+                return Err(error("mapping step is outside the elected selection"));
+            }
+            let proposal = inputs::proposal(history, election)?;
+            let mapping = proposal
+                .proposal
+                .mappings
+                .iter()
+                .find(|mapping| {
+                    crate::application_mapping::item(mapping).is_ok_and(|item| item == **key)
+                })
+                .ok_or_else(|| error("selected mapping bytes are unavailable"))?;
+            let read = at(authority, history, state, state.head().root.revision)?;
+            let prefix = read
+                .application_prefixes
+                .get(&election.proposal_id.0)
+                .ok_or_else(|| error("mapping precedes schema commit"))?;
+            if !prefix.schema_done() {
+                return Err(error("mapping precedes schema commit"));
+            }
+            let (support, evidence_map) = source_support(authority, history, state, election)?;
+            let input = crate::application_fact::BuildInputs {
+                read: &read,
+                proposal: &proposal,
+                mapping,
+                sources: &support.sources,
+                evidence_map: &evidence_map,
+                application_id: &election.application_id,
+                proposer: election
+                    .schema_transaction
+                    .proposer
+                    .0
+                    .parse()
+                    .map_err(error)?,
+                elected_at: crate::incubation_document::timestamp_value(&step.elected_at)?,
+            };
+            crate::application_fact::verify_structure(&input, step)?;
+            for mapping in &step.mappings {
+                let bytes = ekr_core::bytes::decode(&mapping.payload).map_err(error)?;
+                if history
+                    .content(
+                        mapping.mapping_digest.0.parse().map_err(error)?,
+                        StorageClass::Provenance,
+                    )
+                    .map_err(|fault| error(format!("retained mapping object: {fault}")))?
+                    != bytes
+                {
+                    return Err(error("retained mapping object differs from elected bytes"));
+                }
+            }
+            if semantic {
+                crate::application_fact::verify_semantic(&input, step)?;
+            }
+        }
+        w::EkrIntegrateApplicationStepKind::V0 => {
+            return Err(error("correction step authority is not implemented"))
+        }
+    }
     Ok(())
 }
 
@@ -761,18 +945,36 @@ pub(crate) fn verify_occurrence(
         .find(|a| a.transaction_id == guard.attempt_transaction)
         .ok_or_else(|| error("application attempt is unavailable"))?;
     if step.application_id != elected.application_id
-        || step.transaction != elected.schema_transaction
         || step.step != guard.step
-        || !matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V2)
-        || !matches!(step.step.item, w::EssPresence::Absent)
-        || !step.derivations.is_empty()
-        || !step.mappings.is_empty()
-        || !step.replacements.is_empty()
         || attempt.step_election_id != step.step_election_id
         || guard.proposal_id != elected.proposal_id
         || guard.proposal_digest != elected.proposal_digest
     {
         return Err(error("schema application guard and elected step disagree"));
+    }
+    verify_step(
+        authority,
+        history,
+        state,
+        elected,
+        step,
+        matches!(
+            occurrence.event.payload,
+            ekr_graph::RevisionPayload::TransactionProposed { .. }
+        ),
+    )?;
+    let prefixes =
+        crate::application_material::prefixes(history, state, state.head().root.revision)?;
+    if prefixes.get(&elected.proposal_id.0).is_some_and(|prefix| {
+        prefix.corrections_done()
+            || prefix
+                .commits
+                .iter()
+                .any(|(_, p)| p.guard.step_election_id == step.step_election_id)
+    }) {
+        return Err(error(
+            "application step is already committed or corrections are final",
+        ));
     }
     verify_attempt(authority, history, state, attempt)?;
     let cursor = guard
@@ -800,11 +1002,8 @@ pub(crate) fn verify_occurrence(
     let observations = inputs::observed(history.applications.observations())?;
     let support = inputs::support(history, &observations, &proposal.proposal, &current_read)?;
     crate::application_support::check_current(&current_read, &proposal.proposal, &support)?;
-    let approved = &effective.review.basis;
-    if approved.evidence_digest != current.basis.evidence_digest
-        || approved.options_digest != current.basis.options_digest
-        || approved.effects_digest != current.basis.effects_digest
-    {
+    let approved = continuation_basis(authority, history, state, &proposal, effective)?;
+    if !same_material(&approved, &current.basis) {
         return Err(error(
             "schema-review-required: application material changed",
         ));
@@ -850,15 +1049,7 @@ pub(crate) fn verify_history(
             .iter()
             .find(|e| e.application_id == step.application_id)
             .ok_or_else(|| error("step has no application"))?;
-        if step.transaction != e.schema_transaction
-            || !matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V2)
-            || !matches!(step.step.item, w::EssPresence::Absent)
-            || !step.derivations.is_empty()
-            || !step.mappings.is_empty()
-            || !step.replacements.is_empty()
-        {
-            return Err(error("unapproved application step"));
-        }
+        verify_step(authority, history, state, e, step, false)?;
     }
     for attempt in history.applications.attempts() {
         verify_attempt(authority, history, state, attempt)?;
@@ -872,9 +1063,7 @@ pub(crate) fn verify_history(
             .ok_or_else(|| error("receipt has no application"))?;
         verify_receipt(history, state, elected, receipt)?;
     }
-    if !history.applications.processing_receipts().is_empty() {
-        return Err(error("mapping receipt authority is not implemented"));
-    }
+    crate::application_progress::verify_processing(history, state)?;
     Ok(())
 }
 
@@ -884,41 +1073,7 @@ fn verify_receipt(
     election: &w::EkrIntegrateRetainedApplicationElection,
     receipt: &w::EkrIntegrateApplicationReceiptSnapshot,
 ) -> Result<(), StoreError> {
-    let id = receipt.schema_transaction.0.parse().map_err(error)?;
-    let tx = state
-        .transactions
-        .get(&id)
-        .ok_or_else(|| error("receipt transaction is unavailable"))?;
-    let committed = tx
-        .committed
-        .as_ref()
-        .ok_or_else(|| error("receipt transaction is not committed"))?;
-    let guard = history
-        .occurrences
-        .iter()
-        .find(|o| o.event.event_id == committed.event_id)
-        .and_then(|o| o.event.application.as_ref())
-        .ok_or_else(|| error("receipt commit has no application guard"))?;
-    if guard.as_data().review_id != receipt.review_id {
-        return Err(error("receipt review differs from the committed approval"));
-    }
-    if !history.applications.attempts().iter().any(|a| {
-        a.transaction_id == receipt.schema_transaction
-            && history.applications.steps().iter().any(|s| {
-                s.step_election_id == a.step_election_id
-                    && s.application_id == election.application_id
-            })
-    }) || receipt.proposal_id != election.proposal_id
-        || receipt.schema_revision.0.as_u64() != Some(committed.result.revision.get())
-        || !matches!(*receipt.progress, w::EkrIntegrateApplicationProgress::V0)
-        || !receipt.remaining_items.is_empty()
-        || receipt.corrections_pending
-        || !receipt.processing_receipts.is_empty()
-        || !matches!(receipt.stop_reason, w::EssPresence::Absent)
-    {
-        return Err(error("application receipt differs from committed progress"));
-    }
-    Ok(())
+    crate::application_progress::verify_receipt(history, state, election, receipt)
 }
 
 pub(crate) fn complete_report(
@@ -926,6 +1081,12 @@ pub(crate) fn complete_report(
     state: &ReplayState,
     election: &w::EkrIntegrateRetainedApplicationElection,
 ) -> Result<Option<w::EkrIntegrateApplicationReport>, StoreError> {
+    let Some(current) = committed_receipt(history, state, election)? else {
+        return Ok(None);
+    };
+    if !matches!(*current.progress, w::EkrIntegrateApplicationProgress::V0) {
+        return Ok(None);
+    }
     let Some(receipt) = history
         .applications
         .receipts()
@@ -936,16 +1097,10 @@ pub(crate) fn complete_report(
         return Ok(None);
     };
     verify_receipt(history, state, election, receipt)?;
-    Ok(Some(w::EkrIntegrateApplicationReport {
-        application_id: election.application_id.clone(),
-        already_complete: true,
-        schema_transaction: receipt.schema_transaction.clone(),
-        schema_revision: w::EssPresence::Present(receipt.schema_revision.clone()),
-        receipt_id: w::EssPresence::Present(receipt.receipt_id.clone()),
-        progress: receipt.progress.clone(),
-        remaining_items: receipt.remaining_items.clone(),
-        corrections_pending: receipt.corrections_pending,
-        items: vec![],
-        stop_reason: receipt.stop_reason.clone(),
-    }))
+    if !matches!(*receipt.progress, w::EkrIntegrateApplicationProgress::V0) {
+        return Ok(None);
+    }
+    Ok(Some(crate::application_progress::report(
+        history, state, election, receipt, true,
+    )?))
 }

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T01:21:05Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 29,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Approved mapping real-provider red probe: required-object-missing, exit 101",
+    "reference": ".engineering/reviews/knowledge-mapped-application/diagnostic.txt"
+  }
+}

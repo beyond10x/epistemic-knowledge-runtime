@@ -953,6 +953,594 @@ fn application_interpretation(
     serde_json::from_value(serde_json::json!({"payload":ekr_core::bytes::encode(&serde_json::to_vec_pretty(&document).unwrap()),"document":document})).unwrap()
 }
 
+fn approved_mappings(
+    path: &std::path::Path,
+    sqlite: bool,
+    resolved: bool,
+) -> (
+    Runtime,
+    Human,
+    w::EkrIntegrateSchemaProposalRead,
+    w::EkrIntegrateProposalReviewSnapshot,
+) {
+    let store = runtime(path, sqlite);
+    let mut initial = seed();
+    if resolved {
+        initial
+            .graph
+            .nodes
+            .values_mut()
+            .next()
+            .unwrap()
+            .aliases
+            .push("Maple".into());
+    }
+    let seeded = store.seed(initial, || Timestamp::EPOCH).unwrap();
+    let human = schema_human(seeded.seed_hash);
+    let store = store.with_review_authority(human.binding.clone()).unwrap();
+    let preview = store.preview_upgrade(&human.policy).unwrap();
+    store
+        .apply_upgrade(
+            &preview,
+            &human.policy,
+            &human.proof(&preview),
+            b"reviewed contradictions and pending validations",
+            || Timestamp::from_millis(1),
+        )
+        .unwrap();
+    let observation = application_observation();
+    store
+        .import_observation(&observation, Timestamp::from_millis(2))
+        .unwrap();
+    let source = application_interpretation(&observation, true, context().validator);
+    let imported = store
+        .import_interpretation(&source, Timestamp::from_millis(2))
+        .unwrap();
+    let mut proposal = proposal_input(&store);
+    proposal.proposal.evidence.clear();
+    proposal.proposal.sources = vec![Box::new(
+        serde_json::from_value(
+            serde_json::json!({"version":imported.version,"items":["facts[0]","facts[1]"]}),
+        )
+        .unwrap(),
+    )];
+    proposal.proposal.additions.push(Box::new(serde_json::from_value(serde_json::json!({"kind":"AddOptionalProperty","value":{"owner_type":"Project","property":{"name":"reported_health","value":{"value_kind":"String"},"required":false,"cardinality":"Many"}}})).unwrap()));
+    proposal.proposal.mappings = (0..2).map(|i| Box::new(serde_json::from_value(serde_json::json!({"source":imported.version,"source_item":format!("facts[{i}]"),"source_type":"Project","target_type":"Project","target_member":"reported_health","value":{"kind":"CopyField","value":{"declaration":"Project","field":"health"}}})).unwrap())).collect();
+    proposal.payload = ekr_core::bytes::encode(&serde_json::to_vec(&proposal.proposal).unwrap());
+    let shown = store
+        .submit_schema_proposal(&proposal, Timestamp::from_millis(3))
+        .unwrap();
+    let approved = store
+        .approve_schema_proposal(
+            &signed_review(
+                &human,
+                &shown,
+                true,
+                ekr_core::EventId::mint(),
+                b"Approve the two retained health mappings.",
+            ),
+            Timestamp::from_millis(4),
+        )
+        .unwrap();
+    (store, human, shown, approved)
+}
+
+fn application_retention(
+    path: &std::path::Path,
+    sqlite: bool,
+    human: &Human,
+) -> Box<dyn ekr_store::ApplicationRetention> {
+    let (authority, _) = captured_application_history(path, sqlite, human);
+    if sqlite {
+        Box::new(
+            ekr_store::SqliteStore::sqlite(path, "upgrade-fixture", None)
+                .unwrap()
+                .under(authority),
+        )
+    } else {
+        Box::new(
+            ekr_store::FileStore::file(path, "upgrade-fixture", None)
+                .unwrap()
+                .under(authority),
+        )
+    }
+}
+
+fn commit_application_document(
+    store: &Runtime,
+    transaction: TransactionId,
+    document: &[u8],
+    at: i64,
+) {
+    store
+        .propose(document, context().operator, || Timestamp::from_millis(at))
+        .unwrap();
+    let revision = store.read(None).unwrap().root.revision;
+    assert!(matches!(
+        store
+            .validate(transaction, revision, || Timestamp::from_millis(at))
+            .unwrap(),
+        ValidationCommandResult::Validated(_)
+    ));
+    assert!(matches!(
+        store
+            .commit(transaction, context().operator, || Timestamp::from_millis(
+                at
+            ))
+            .unwrap(),
+        CommitCommandResult::Committed(_)
+    ));
+}
+
+#[test]
+fn interrupted_mapping_commits_resume_without_duplicate_facts_or_receipts() {
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source");
+        let (store, human, shown, approved) = approved_mappings(&source, sqlite, true);
+        drop(store);
+        let snapshots: Vec<_> = (0..3)
+            .map(|i| directory.path().join(format!("prefix-{i}")))
+            .collect();
+        for path in &snapshots {
+            copy_closed_provider(&source, path);
+        }
+        let store = runtime(&source, sqlite)
+            .with_review_authority(human.binding.clone())
+            .unwrap();
+        let completed = store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approved.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(5),
+            )
+            .unwrap();
+        assert_eq!(*completed.progress, w::EkrIntegrateApplicationProgress::V0);
+        assert_eq!(completed.items.len(), 2);
+        let (_, history) = captured_application_history(&source, sqlite, &human);
+        let election = history.applications.elections()[0].clone();
+        let transactions = store.transactions().unwrap();
+        let mut steps: Vec<_> = history.applications.steps().to_vec();
+        steps.sort_by_key(|step| {
+            transactions[&step.transaction.id.0.parse().unwrap()]
+                .committed
+                .as_ref()
+                .unwrap()
+                .result
+                .revision
+        });
+        for (boundary, path) in snapshots.iter().enumerate() {
+            let retained = application_retention(path, sqlite, &human);
+            retained
+                .elect_application(
+                    &w::EkrStoreApplicationElectionRetention {
+                        election: election.clone(),
+                        objects: w::EkrStoreApplicationElectionRetentionObjects {
+                            ess_extra: Default::default(),
+                        },
+                    },
+                    Timestamp::from_millis(5),
+                )
+                .unwrap();
+            drop(retained);
+            let store = runtime(path, sqlite)
+                .with_review_authority(human.binding.clone())
+                .unwrap();
+            // Rebuild real ordinary commit prefixes, deliberately omit all progress receipts.
+            for step in steps.iter().take(boundary + 1) {
+                let retained = application_retention(path, sqlite, &human);
+                retained
+                    .elect_application_step(
+                        &w::EkrStoreApplicationStepRetention {
+                            step: step.clone(),
+                            objects: w::EkrStoreApplicationStepRetentionObjects {
+                                ess_extra: Default::default(),
+                            },
+                        },
+                        Timestamp::from_millis(5),
+                    )
+                    .unwrap();
+                let attempt = history
+                    .applications
+                    .attempts()
+                    .iter()
+                    .find(|a| a.step_election_id == step.step_election_id)
+                    .unwrap();
+                retained
+                    .elect_application_attempt(
+                        &w::EkrStoreApplicationAttemptRetention {
+                            attempt: attempt.clone(),
+                        },
+                        Timestamp::from_millis(5),
+                    )
+                    .unwrap();
+                drop(retained);
+                let id = attempt.transaction_id.0.parse().unwrap();
+                commit_application_document(
+                    &store,
+                    id,
+                    &transactions[&id].proposal.document_bytes,
+                    5,
+                );
+            }
+            let mut resume_review = approved.review_id.clone();
+            if boundary < 2 {
+                let before_material = store.schema_proposal(&shown.proposal.proposal_id).unwrap();
+                let read = store.read(None).unwrap();
+                let owner_name = if boundary == 0 {
+                    "ReviewVocabulary"
+                } else {
+                    "Project"
+                };
+                let owner = read
+                    .graph
+                    .ontology
+                    .to_document()
+                    .node_types
+                    .iter()
+                    .find(|t| t.name == owner_name)
+                    .unwrap()
+                    .id;
+                let transaction = GraphTransaction {
+                    id: TransactionId::mint(),
+                    proposer: context().operator,
+                    operations: vec![GraphOperation::ModifyProperty(
+                        ekr_kernel::PropertyModification {
+                            owner: Some(owner),
+                            property: ekr_ontology::PropertyDefinition::new(
+                                ekr_core::PropertyId::mint(),
+                                "additional_context",
+                                ekr_ontology::ValueType::String,
+                            ),
+                        },
+                    )],
+                    evidence: read.graph.evidence.keys().copied().collect(),
+                    schema_version: Some(ekr_core::SchemaVersionId::mint()),
+                };
+                commit_application_document(&store, transaction.id, &encode(&transaction), 6);
+                let after_material = store.schema_proposal(&shown.proposal.proposal_id).unwrap();
+                if boundary == 0 {
+                    // Completed additions have no remaining mapping dependency on this type.
+                    assert_eq!(
+                        before_material.basis.evidence_digest,
+                        after_material.basis.evidence_digest
+                    );
+                    assert_eq!(
+                        before_material.basis.options_digest,
+                        after_material.basis.options_digest
+                    );
+                    assert_eq!(
+                        before_material.basis.effects_digest,
+                        after_material.basis.effects_digest
+                    );
+                } else {
+                    assert_ne!(
+                        before_material.basis.effects_digest,
+                        after_material.basis.effects_digest
+                    );
+                    let events = store.published_events().unwrap();
+                    assert!(store
+                        .apply_schema_proposal(
+                            &shown.proposal.proposal_id,
+                            &approved.review_id,
+                            &shown.proposal_digest,
+                            Timestamp::from_millis(7)
+                        )
+                        .unwrap_err()
+                        .to_string()
+                        .contains("schema-review-required"));
+                    assert_eq!(store.published_events().unwrap(), events);
+                    resume_review = store
+                        .approve_schema_proposal(
+                            &signed_review(
+                                &human,
+                                &after_material,
+                                true,
+                                ekr_core::EventId::mint(),
+                                b"Review the remaining mapping against the changed declaration.",
+                            ),
+                            Timestamp::from_millis(7),
+                        )
+                        .unwrap()
+                        .review_id;
+                }
+            }
+            let before = store.read(None).unwrap().root.revision;
+            drop(store);
+            let mut reopened = runtime(path, sqlite)
+                .with_review_authority(human.binding.clone())
+                .unwrap();
+            reopened.set_full_replay(true);
+            let report = reopened
+                .apply_schema_proposal(
+                    &shown.proposal.proposal_id,
+                    &resume_review,
+                    &shown.proposal_digest,
+                    Timestamp::from_millis(8),
+                )
+                .unwrap();
+            assert_eq!(*report.progress, w::EkrIntegrateApplicationProgress::V0);
+            assert_eq!(
+                reopened.read(None).unwrap().root.revision.get(),
+                before.get() + (2 - boundary) as u64
+            );
+            assert_eq!(report.items.len(), 2);
+            assert!(report.items.iter().all(|i| i.assertions.len() == 1));
+            let (_, after) = captured_application_history(path, sqlite, &human);
+            assert_eq!(after.applications.steps().len(), 3);
+            assert_eq!(after.applications.processing_receipts().len(), 2);
+            assert_eq!(after.applications.receipts().len(), 1);
+            let events = reopened.published_events().unwrap();
+            assert!(
+                reopened
+                    .apply_schema_proposal(
+                        &shown.proposal.proposal_id,
+                        &resume_review,
+                        &shown.proposal_digest,
+                        Timestamp::from_millis(9)
+                    )
+                    .unwrap()
+                    .already_complete
+            );
+            assert_eq!(events, reopened.published_events().unwrap());
+        }
+    }
+}
+
+#[test]
+fn approved_mapping_integrates_a_parked_fact_once_on_both_providers() {
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("store");
+        let store = runtime(&path, sqlite);
+        let mut initial = seed();
+        initial
+            .graph
+            .nodes
+            .values_mut()
+            .next()
+            .unwrap()
+            .aliases
+            .push("Maple".into());
+        let seeded = store.seed(initial, || Timestamp::EPOCH).unwrap();
+        let human = schema_human(seeded.seed_hash);
+        let store = store.with_review_authority(human.binding.clone()).unwrap();
+        let preview = store.preview_upgrade(&human.policy).unwrap();
+        store
+            .apply_upgrade(
+                &preview,
+                &human.policy,
+                &human.proof(&preview),
+                b"reviewed contradictions and pending validations",
+                || Timestamp::from_millis(1),
+            )
+            .unwrap();
+        let observation = application_observation();
+        store
+            .import_observation(&observation, Timestamp::from_millis(2))
+            .unwrap();
+        let source = application_interpretation(&observation, true, context().validator);
+        let imported = store
+            .import_interpretation(&source, Timestamp::from_millis(2))
+            .unwrap();
+        let mut proposal = proposal_input(&store);
+        proposal.proposal.evidence.clear();
+        proposal.proposal.sources = vec![Box::new(
+            serde_json::from_value(
+                serde_json::json!({"version":imported.version,"items":["facts[0]"]}),
+            )
+            .unwrap(),
+        )];
+        proposal.proposal.additions = vec![Box::new(serde_json::from_value(serde_json::json!({"kind":"AddOptionalProperty","value":{"owner_type":"Project","property":{"name":"reported_health","value":{"value_kind":"String"},"required":false,"cardinality":"One"}}})).unwrap())];
+        proposal.proposal.mappings = vec![Box::new(serde_json::from_value(serde_json::json!({"source":imported.version,"source_item":"facts[0]","source_type":"Project","target_type":"Project","target_member":"reported_health","value":{"kind":"CopyField","value":{"declaration":"Project","field":"health"}}})).unwrap())];
+        proposal.payload =
+            ekr_core::bytes::encode(&serde_json::to_vec(&proposal.proposal).unwrap());
+        let shown = store
+            .submit_schema_proposal(&proposal, Timestamp::from_millis(3))
+            .unwrap();
+        assert!(shown.preview.iter().all(|item| item.blockers.is_empty()));
+        let approved = store
+            .approve_schema_proposal(
+                &signed_review(
+                    &human,
+                    &shown,
+                    true,
+                    ekr_core::EventId::mint(),
+                    b"Approve the retained health mapping.",
+                ),
+                Timestamp::from_millis(4),
+            )
+            .unwrap();
+        let report = store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approved.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(5),
+            )
+            .unwrap();
+        assert!(matches!(
+            *report.progress,
+            w::EkrIntegrateApplicationProgress::V0
+        ));
+        let read = store.read(None).unwrap();
+        let claims: Vec<_> = read.graph.assertions.values().filter(|a| matches!(&a.object, ekr_graph::Object::Value(ekr_graph::CanonicalValue::String(value)) if value == "health-0")).collect();
+        assert_eq!(claims.len(), 1);
+        let id = claims[0].id;
+        assert!(matches!(claims[0].assessment, Assessment::Accepted { .. }));
+        let explanation = read.explain(id).unwrap();
+        assert!(explanation.links.iter().any(|link| matches!(link, ekr_kernel::ExplanationLink::Evidence(evidence) if matches!(evidence.source, EvidenceSource::Observation(_)))));
+        let (authority, history) = captured_application_history(&path, sqlite, &human);
+        let mapped = history
+            .applications
+            .steps()
+            .iter()
+            .find(|step| matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V1))
+            .unwrap();
+        assert_eq!(mapped.mappings.len(), 1);
+        assert_eq!(mapped.derivations.len(), 1);
+        assert!(explanation.links.iter().any(|link| matches!(link, ekr_kernel::ExplanationLink::Mapping(mapping) if mapping == &mapped.mappings[0])));
+        assert!(explanation.links.iter().any(|link| matches!(link, ekr_kernel::ExplanationLink::Derivation(derivation) if derivation == &mapped.derivations[0])));
+        let mapping_hash = mapped.mappings[0]
+            .mapping_digest
+            .0
+            .parse::<ContentHash>()
+            .unwrap();
+        let mut missing = history.clone();
+        missing.objects.remove(&mapping_hash);
+        use ekr_store::CommitAuthority;
+        assert!(authority.verify(&missing, None, None).is_err());
+        authority.verify(&history, None, None).unwrap();
+        let events = store.published_events().unwrap();
+        assert!(
+            store
+                .apply_schema_proposal(
+                    &shown.proposal.proposal_id,
+                    &approved.review_id,
+                    &shown.proposal_digest,
+                    Timestamp::from_millis(6)
+                )
+                .unwrap()
+                .already_complete
+        );
+        assert_eq!(store.published_events().unwrap(), events);
+        drop(store);
+        let mut reopened = runtime(&path, sqlite)
+            .with_review_authority(human.binding)
+            .unwrap();
+        reopened.set_full_replay(true);
+        assert_eq!(
+            reopened.read(None).unwrap().explain(id).unwrap(),
+            explanation
+        );
+        drop(reopened);
+        if sqlite {
+            std::fs::remove_file(&path).unwrap();
+        } else {
+            std::fs::remove_dir_all(&path).unwrap();
+        }
+        authority.verify(&history, None, None).unwrap();
+        assert_eq!(read.explain(id).unwrap(), explanation);
+    }
+}
+
+#[test]
+fn blocked_mappings_remain_parked_until_changed_bindings_are_reviewed() {
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("store");
+        let (store, human, shown, approval) = approved_mappings(&path, sqlite, false);
+        assert!(shown.preview.iter().all(|item| !item.blockers.is_empty()));
+        let partial = store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approval.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(5),
+            )
+            .unwrap();
+        assert_eq!(*partial.progress, w::EkrIntegrateApplicationProgress::V3);
+        assert_eq!(partial.remaining_items.len(), 2);
+        assert!(partial.items.iter().all(
+            |item| item.assertions.is_empty() && item.transaction_id == w::EssPresence::Absent
+        ));
+        let (_, history) = captured_application_history(&path, sqlite, &human);
+        assert_eq!(
+            history.applications.steps().len(),
+            1,
+            "blocked mapping must not elect a transaction"
+        );
+        assert!(history.applications.processing_receipts().is_empty());
+        let events = store.published_events().unwrap();
+        let retry = store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approval.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(6),
+            )
+            .unwrap();
+        assert_eq!(retry.receipt_id, partial.receipt_id);
+        assert_eq!(store.published_events().unwrap(), events);
+        drop(store);
+        let mut store = runtime(&path, sqlite)
+            .with_review_authority(human.binding.clone())
+            .unwrap();
+        store.set_full_replay(true);
+        let read = store.read(None).unwrap();
+        let transaction = GraphTransaction {
+            id: TransactionId::mint(),
+            proposer: context().operator,
+            operations: vec![GraphOperation::AddAlias(ekr_kernel::AliasAddition {
+                node: *read.graph.nodes.keys().next().unwrap(),
+                alias: "Maple".into(),
+            })],
+            evidence: BTreeSet::new(),
+            schema_version: None,
+        };
+        commit_application_document(&store, transaction.id, &encode(&transaction), 7);
+        let events = store.published_events().unwrap();
+        assert!(store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approval.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(8)
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("schema-review-required"));
+        assert_eq!(store.published_events().unwrap(), events);
+        let current = store.schema_proposal(&shown.proposal.proposal_id).unwrap();
+        assert!(current.preview.iter().all(|item| item.blockers.is_empty()));
+        let reviewed = store
+            .approve_schema_proposal(
+                &signed_review(
+                    &human,
+                    &current,
+                    true,
+                    ekr_core::EventId::mint(),
+                    b"Approve the newly resolved mapping subjects.",
+                ),
+                Timestamp::from_millis(8),
+            )
+            .unwrap();
+        let completed = store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &reviewed.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(9),
+            )
+            .unwrap();
+        assert_eq!(*completed.progress, w::EkrIntegrateApplicationProgress::V0);
+        assert_eq!(completed.schema_transaction, partial.schema_transaction);
+        assert!(completed.remaining_items.is_empty());
+        assert!(completed
+            .items
+            .iter()
+            .all(|item| item.assertions.len() == 1));
+        drop(store);
+        let mut reopened = runtime(&path, sqlite)
+            .with_review_authority(human.binding)
+            .unwrap();
+        reopened.set_full_replay(true);
+        let retained = reopened
+            .schema_proposal(&shown.proposal.proposal_id)
+            .unwrap();
+        assert_eq!(retained.receipts.len(), 2);
+        assert_eq!(
+            *retained.receipts[0].progress,
+            w::EkrIntegrateApplicationProgress::V3
+        );
+        assert_eq!(
+            *retained.receipts[1].progress,
+            w::EkrIntegrateApplicationProgress::V0
+        );
+    }
+}
+
 fn supported_assertion(store: &Runtime, evidence: &Evidence) -> AssertionId {
     let mut claim = store
         .read(None)

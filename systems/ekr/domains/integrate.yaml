@@ -261,6 +261,9 @@ types:
       type: ekr.kernel.ContentHash
   - name: ekr.integrate.ProcessingReceiptSnapshot
     kind: struct
+    # A committed application mapping uses the actual ordinary commit record hash as basis_digest;
+    # its item/document/mapping coordinates, assertion list and transaction must match that commit.
+    # A receipt is a projection of progress, never authority for a canonical write.
     fields:
     - name: receipt_id
       type: ekr.integrate.ProcessingReceiptId

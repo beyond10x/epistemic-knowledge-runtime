@@ -1,12 +1,12 @@
 {
   "format": "ess-types-report/3",
-  "source_digest": "51c851d103c5ef12fd06494a82d046e44ebb2307202c51eebdd2f558ef58c632",
+  "source_digest": "ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46",
   "input": {
     "kind": "model",
     "system": "ekr",
     "specification_version": "v1",
-    "contract_digest": "slice-sha256/2:a7c365ea40d8640ce4bdfbf311ab4fe463f0ae9574593db2e0efb64cfe56a533",
-    "projection_digest": "327ed9acc63574d6ad129a942581e420aa6ff71f438d05d5ca8e602090a735ca"
+    "contract_digest": "slice-sha256/2:a50c0e5c14f7f61d9d2990fe40de35349d142976534a4d06d862a62baaf0801d",
+    "projection_digest": "d8cc7172577f0a0d169e458a8fbf5115bdfc455462b235a0a426edb47350fe64"
   },
   "generator_version": "0.52.0",
   "target": "rust",
@@ -4634,6 +4634,11 @@
       "detail": "retained in source.schema.json; no decoder behavior inferred"
     },
     {
+      "pointer": "/$defs/ekr.kernel.ExplanationLink/oneOf/10/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
       "pointer": "/$defs/ekr.kernel.ExplanationLink/oneOf/2/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
@@ -4665,6 +4670,11 @@
     },
     {
       "pointer": "/$defs/ekr.kernel.ExplanationLink/oneOf/8/title",
+      "rule": "title",
+      "detail": "retained in source.schema.json; no decoder behavior inferred"
+    },
+    {
+      "pointer": "/$defs/ekr.kernel.ExplanationLink/oneOf/9/title",
       "rule": "title",
       "detail": "retained in source.schema.json; no decoder behavior inferred"
     },

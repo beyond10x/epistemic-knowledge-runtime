@@ -170,6 +170,10 @@ pub enum ExplanationLink {
     Attachment(ExplainedAttachment),
     /// An exact signed human correction and its immutable retained record address.
     HumanAnswer(Box<ekr_core::contract_data::EkrKernelExplainedAnswer>),
+    /// Exact independently retained mapping bytes of a committed derivation.
+    Mapping(Box<ekr_core::contract_data::EkrIntegrateRetainedMappingRecord>),
+    /// A committed assertion's actual retained evidence and mapping correspondence.
+    Derivation(Box<ekr_core::contract_data::EkrIntegrateCanonicalDerivationRecord>),
     /// Supporting evidence whose retained payload was verified at its content address.
     Evidence(Evidence),
 }
@@ -390,6 +394,7 @@ impl VerifiedRead {
         let mut support: BTreeSet<EvidenceId> = BTreeSet::new();
         let mut visited = BTreeSet::new();
         let mut linked_answers = BTreeSet::new();
+        let mut linked_mappings = BTreeSet::new();
         let mut pending = BTreeSet::from([requested]);
         while let Some(id) = pending.pop_first() {
             if !visited.insert(id) {
@@ -400,6 +405,83 @@ impl VerifiedRead {
             };
             links.push(ExplanationLink::Assertion(assertion.clone()));
             support.extend(assertion.evidence.iter().map(|cited| cited.id()));
+            for step in &self.application_steps {
+                for derivation in step
+                    .derivations
+                    .iter()
+                    .filter(|d| d.assertion_id.0 == id.to_string())
+                {
+                    let evidence_id: EvidenceId =
+                        derivation.evidence_id.0.parse().map_err(|_| {
+                            ProjectionError::Unverified {
+                                code: "derivation-evidence-identity".into(),
+                            }
+                        })?;
+                    let Some(evidence) = self.graph.evidence.get(&evidence_id) else {
+                        return unverified("derivation-evidence-missing");
+                    };
+                    if !assertion.evidence.contains(&CanonicalRef::new(evidence_id)) {
+                        return unverified("derivation-evidence-not-cited");
+                    }
+                    let observation = match &evidence.source {
+                        EvidenceSource::Observation(id) => {
+                            ekr_core::contract_data::EssPresence::Present(Box::new(
+                                ekr_core::contract_data::EkrGraphObservationId(id.to_string()),
+                            ))
+                        }
+                        _ => ekr_core::contract_data::EssPresence::Absent,
+                    };
+                    if derivation.observation_id != observation {
+                        return unverified("derivation-observation-disagrees");
+                    }
+                    let Some(mapping) = step
+                        .mappings
+                        .iter()
+                        .find(|m| m.mapping_id == derivation.mapping_id)
+                    else {
+                        return unverified("derivation-mapping-missing");
+                    };
+                    let mapping_hash: ContentHash =
+                        mapping.mapping_digest.0.parse().map_err(|_| {
+                            ProjectionError::Unverified {
+                                code: "mapping-digest".into(),
+                            }
+                        })?;
+                    let Some(bytes) = self.content(&mapping_hash) else {
+                        return unverified("mapping-bytes-missing");
+                    };
+                    let payload = ekr_core::bytes::decode(&mapping.payload).map_err(|_| {
+                        ProjectionError::Unverified {
+                            code: "mapping-payload".into(),
+                        }
+                    })?;
+                    let expected = serde_json::to_vec(&mapping.mapping).map_err(|_| {
+                        ProjectionError::Unverified {
+                            code: "mapping-value".into(),
+                        }
+                    })?;
+                    let source: ContentHash =
+                        mapping.source_document_digest.0.parse().map_err(|_| {
+                            ProjectionError::Unverified {
+                                code: "mapping-source-digest".into(),
+                            }
+                        })?;
+                    if bytes != payload
+                        || bytes != expected
+                        || ContentHash::of_bytes(bytes) != mapping_hash
+                        || self
+                            .content(&source)
+                            .is_none_or(|bytes| ContentHash::of_bytes(bytes) != source)
+                        || !mapping.evidence.contains(&derivation.evidence_id)
+                    {
+                        return unverified("mapping-content-disagrees");
+                    }
+                    if linked_mappings.insert(mapping.mapping_id.0.clone()) {
+                        links.push(ExplanationLink::Mapping(mapping.clone()));
+                    }
+                    links.push(ExplanationLink::Derivation(derivation.clone()));
+                }
+            }
 
             // The origin is matched by revision: each revision whose verified coordinate, or whose
             // record's receipt, was committed at the instant the graph records the assertion was

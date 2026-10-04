@@ -60,6 +60,9 @@ pub struct VerifiedRead {
         ekr_core::ObservationId,
         ekr_core::contract_data::EkrObserveRetainedObservationRead,
     >,
+    /// Only guarded commits admitted by replay through this capture's canonical revision.
+    pub(crate) application_prefixes: BTreeMap<String, crate::application_material::Prefix>,
+    pub(crate) application_steps: Vec<ekr_core::contract_data::EkrIntegrateRetainedApplicationStep>,
     objects: BTreeMap<ContentHash, Arc<Vec<u8>>>,
     /// The verified graph as the kernel admitted it, and the cell its [`AliasIndex`] is kept in.
     /// Holding the graph here keeps [`Arc::make_mut`] on [`Self::graph`] from changing it in place.
@@ -275,6 +278,20 @@ impl crate::KernelAuthority {
                 .as_ref()
                 .ok_or_else(|| crate::replay::refuse(crate::replay::GRAPH_NOT_HELD))?,
         );
+        let application_prefixes =
+            crate::application_material::prefixes(history, state, head.root.revision)?;
+        let application_steps = application_prefixes
+            .values()
+            .flat_map(|prefix| prefix.commits.iter())
+            .filter_map(|(_, publication)| {
+                history
+                    .applications
+                    .steps()
+                    .iter()
+                    .find(|step| step.step_election_id == publication.guard.step_election_id)
+                    .map(|step| (**step).clone())
+            })
+            .collect();
         Ok(VerifiedRead {
             graph: Arc::clone(&graph),
             root: head.root,
@@ -286,6 +303,8 @@ impl crate::KernelAuthority {
             transactions: state.transaction_records(),
             answers: state.answers.clone(),
             observations: crate::application_inputs::observed(history.applications.observations())?,
+            application_prefixes,
+            application_steps,
             revisions: state
                 .revisions
                 .iter()

@@ -73,6 +73,8 @@ pub(super) fn run(
             ExplanationLink::Assertion(_)
             | ExplanationLink::Seed(_)
             | ExplanationLink::HumanAnswer(_)
+            | ExplanationLink::Mapping(_)
+            | ExplanationLink::Derivation(_)
             | ExplanationLink::Validation(_) => {}
         }
     }

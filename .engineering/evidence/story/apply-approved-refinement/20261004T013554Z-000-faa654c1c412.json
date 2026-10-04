@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T01:35:54Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 30,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Approved mapping integration passes file and SQLite, replay, detached provenance and no-write retry",
+    "reference": ".engineering/reviews/knowledge-mapped-application/diagnostic.txt"
+  }
+}

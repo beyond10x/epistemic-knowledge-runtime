@@ -32,7 +32,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 28
+revision: 31
 ---
 ## Outcome
 
@@ -210,3 +210,29 @@ test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
 
 Strict kernel all-target clippy and repository formatting exit zero. Generated-contract regeneration compares both entire trees and compiles the synthesized workspace successfully. Specification and contract digests are retained in the curated report. These are native regression checks, not generated conformance acceptance. Mapped facts, derivations, selected corrections, residual review/progress, full task check and PR64 completion remain outstanding.
+
+## Mapping-step implementation coordination
+
+The shared mapping resolver patch is integrated from the reviewed unit inventory; its new public application helpers still need real callers. Root reproduced the expected mapping-application refusal with approved_mapping_integrates_a_parked_fact_once_on_both_providers. Within the existing F scope, author_contracts now owns only a new crates/ekr-kernel/src/application_fact.rs and its focused tests, plus a separate module registration for root. It constructs and checks exact mapping-step templates from authenticated sources, canonical resolutions and the schema step's frozen evidence correspondence. It adds no admission, storage or new wire model. Root owns support correspondence, replay authorization, residual material, orchestration and receipts. An unproposed step has structural checks; the first guarded Propose establishes semantic resolution against its authenticated read. No revision is inferred from timestamps. One Cargo lane is explicitly assigned to the worker until handoff; all substantive executable work is Rust. The existing source-only independent residual design review is retained as advice, not implementation acceptance.
+
+## Mapping progress regression coordination
+
+Root integrates the mapping orchestration, replay, material projection and report changes. The existing independent reviewer audits those paths without source changes or compilation. The existing author_contracts worker writes only a new application_progress/tests.rs regression against real committed runtime history in its isolated mapping tree; root owns module registration and test execution. The regression covers an older receipt reported after another mapping commits. This is a bounded extension of the existing mapping implementation unit; no additional agent or build lane is scheduled. Root retains the only Cargo lane. Corrections remain a separate unfinished part of the accepted F scope.
+
+## Retained mapping execution checkpoint
+
+The mapping execution checkpoint adds shared typed mapping resolution, immutable ordinary fact steps, authenticated per-item provenance, committed-prefix review continuation, durable processing/application receipts and generated Mapping/Derivation Explain links. The pre-election review path uses its independently verified retained review basis until an application history exists. Both providers pass interrupted progress, missing receipt recovery, exact retry, detached history and newly unblocked mapping review controls.
+
+Measured native execution summaries:
+application-mapping-regression-1: 74 passed, 0 failed, 0 ignored.
+application-mapping-parked-1: 1 passed, 0 failed, 0 ignored.
+application-mapping-kernel-regression-2: 76 passed, 0 failed, 0 ignored.
+application-mapping-crosscrate: 75 passed, 0 failed, 0 ignored.
+
+Strict Clippy for kernel, SDK and CLI all targets, repository formatting, specification validation and generated-contract drift/compile checks passed. The two independent review findings were reproduced by one-variable mutations and closed by source/log rereview; no independent execution is claimed. Immutable reports are mapping-residual-material-r1, mapping-integration-r1 and mapping-integration-r2. The mapping builder and report-test delegated source reports are preserved with coordinator evidence in .engineering/reviews/knowledge-mapped-application/.
+
+Current generated specification identity:
+    "contract_digest": "080455dbbeca5725f70ef1015fb02efb2db14c0623719d7773754d1965b5cfc7",
+    "spec_digest": "ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46",
+
+Selected correction execution remains unfinished. Native test success is not ESS conformance or full task check; the ownership/project-health demonstrations, viewer verification and final PR64 delivery remain required. No source release or integration ownership boundary changes.

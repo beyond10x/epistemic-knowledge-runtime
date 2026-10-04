@@ -1,0 +1,20 @@
+Initial approved mapping probe
+Command: cargo test --locked -p ekr-kernel --test schema_applications approved_mapping_integrates_a_parked_fact_once_on_both_providers
+Original behavior: source mapping application is not implemented.
+Integrated behavior: required-object-missing.
+Both runs exited 101 with one executed failure, no ignores.
+
+Ranked hypotheses after reproduction:
+1. A historical/candidate capture excludes a newly required object; reading its immutable address refuses.
+2. The mapping-step atomic retention omits a payload; its object stream is absent on an independent read.
+3. A generated identity/digest is used for the wrong object; the refused hash differs from the retained payload address.
+
+The first contextual mapping-object probe leaves the original refusal unchanged, so the new mapping-object check is not its source.
+
+The caller-location probe identified application_inputs::interpretation. Before the first election,
+ordinary replay history has no application-source retention closure yet. The live apply path was
+incorrectly requesting continuation reconstruction before there was any application to continue.
+It now uses the already authenticated review basis before election, and captured continuation
+material only after election. This confirms hypothesis 1; no payload retention change was needed.
+The original command then passed its single both-provider case with no failures or ignores.
+Temporary caller/backtrace probes were removed; the store log implementation is unchanged.

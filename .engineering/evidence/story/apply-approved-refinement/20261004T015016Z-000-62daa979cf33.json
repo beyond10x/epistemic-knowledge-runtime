@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T01:50:16Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 31,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Retained mapping native implementation checks, mutation controls, strict Clippy and generated drift check passed",
+    "reference": ".engineering/reviews/knowledge-mapped-application/verification.txt"
+  }
+}

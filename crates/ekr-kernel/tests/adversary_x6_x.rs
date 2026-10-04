@@ -200,6 +200,8 @@ fn kinds(explained: &ExplanationResult) -> Vec<&'static str> {
             ExplanationLink::Evidence(_) => "Evidence",
             ExplanationLink::Attachment(_) => "Attachment",
             ExplanationLink::HumanAnswer(_) => "HumanAnswer",
+            ExplanationLink::Mapping(_) => "Mapping",
+            ExplanationLink::Derivation(_) => "Derivation",
         })
         .collect()
 }

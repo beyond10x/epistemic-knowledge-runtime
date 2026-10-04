@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) struct SupportPlan {
     pub manifest: BTreeSet<EvidenceId>,
     pub additions: Vec<EvidenceAddition>,
+    pub source_evidence: BTreeMap<EvidenceId, EvidenceId>,
 }
 
 pub(crate) fn check_current(
@@ -95,6 +96,7 @@ pub(crate) fn plan(
     let mut plan = SupportPlan {
         manifest: BTreeSet::new(),
         additions: Vec::new(),
+        source_evidence: BTreeMap::new(),
     };
     for id in selected {
         if let Some(canonical) = read.graph.evidence.get(&id) {
@@ -107,6 +109,7 @@ pub(crate) fn plan(
                 ));
             }
             plan.manifest.insert(id);
+            plan.source_evidence.insert(id, id);
         } else {
             let entry = source_records
                 .get(&id)
@@ -115,6 +118,7 @@ pub(crate) fn plan(
             wrapper.id = fresh()?;
             wrapper.extracted_by = actor;
             plan.manifest.insert(wrapper.id);
+            plan.source_evidence.insert(id, wrapper.id);
             plan.additions.push(EvidenceAddition {
                 evidence: wrapper,
                 payload: entry.payload.clone(),

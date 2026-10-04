@@ -29,6 +29,13 @@ pub(super) fn validate(
     read: &VerifiedRead,
     proposal: &w::EkrIntegrateSchemaProposalDocument,
 ) -> Result<(), StoreError> {
+    if read
+        .application_prefixes
+        .get(&proposal.proposal_id.0)
+        .is_some_and(crate::application_material::Prefix::corrections_done)
+    {
+        return Ok(());
+    }
     if proposal.corrections.is_empty() {
         return Ok(());
     }

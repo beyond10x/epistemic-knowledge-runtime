@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 51c851d103c5ef12fd06494a82d046e44ebb2307202c51eebdd2f558ef58c632
-// contract digest 0c0710bc8413fd53df51a9500e2ac46421f238e2700bb3cc6b4a126680a88469
+// model digest ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46
+// contract digest 080455dbbeca5725f70ef1015fb02efb2db14c0623719d7773754d1965b5cfc7
 // do not edit: regenerate with `ess synthesize`
 
 //! Kernel — `ekr.kernel`.
@@ -656,12 +656,16 @@ pub enum ExplanationLink {
     Attachment(ExplainedAttachment),
     /// Tagged `Commit` — `ekr.kernel.ExplainedCommit`.
     Commit(ExplainedCommit),
+    /// Tagged `Derivation` — `ekr.integrate.CanonicalDerivationRecord`.
+    Derivation(crate::integrate::CanonicalDerivationRecord),
     /// Tagged `Evidence` — `ekr.graph.EvidenceRecord`.
     Evidence(crate::graph::EvidenceRecord),
     /// Tagged `HumanAnswer` — `ekr.kernel.ExplainedAnswer`.
     HumanAnswer(ExplainedAnswer),
     /// Tagged `Lifecycle` — `ekr.kernel.ExplainedLifecycle`.
     Lifecycle(ExplainedLifecycle),
+    /// Tagged `Mapping` — `ekr.integrate.RetainedMappingRecord`.
+    Mapping(crate::integrate::RetainedMappingRecord),
     /// Tagged `Proposal` — `ekr.kernel.ExplainedProposal`.
     Proposal(ExplainedProposal),
     /// Tagged `Seed` — `ekr.kernel.ExplainedSeed`.

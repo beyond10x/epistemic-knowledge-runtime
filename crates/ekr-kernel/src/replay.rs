@@ -1116,7 +1116,7 @@ impl KernelAuthority {
             (cache.keep, cache.retained.map(|(_, revision)| revision))
         };
         let bases = Self::bases(history, start);
-        let application_bases: BTreeSet<_> = history
+        let mut application_bases: BTreeSet<_> = history
             .applications
             .coordination()
             .iter()
@@ -1133,6 +1133,19 @@ impl KernelAuthority {
                 _ => None,
             })
             .collect();
+        // Residual approval advances across verified own commits, checking each pre/post graph.
+        // These coordinates retain graphs only; no unverified event can supply progress authority.
+        for occurrence in &history.occurrences {
+            if occurrence.event.application.is_some() {
+                if let RevisionPayload::RevisionCommitted { number, .. } = occurrence.event.payload
+                {
+                    application_bases.insert(number);
+                    if let Some(previous) = number.get().checked_sub(1) {
+                        application_bases.insert(RevisionNumber::new(previous));
+                    }
+                }
+            }
+        }
         let kept = |number: RevisionNumber, version: u64| {
             Some(number) == keep
                 || Some(number) == checkpointed

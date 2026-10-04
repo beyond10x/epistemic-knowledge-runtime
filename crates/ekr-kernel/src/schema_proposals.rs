@@ -152,9 +152,9 @@ impl<
                     w::EssPresence::Present(r.review.human_proof_digest.clone())
                 });
             result.reviews = reviews.into_iter().map(|r| r.review).collect();
-            let (history, _) = self.replayed_state().map_err(error)?;
+            let (history, state) = self.replayed_state().map_err(error)?;
             result.application =
-                crate::application_auth::read(&history, &record.proposal.proposal_id);
+                crate::application_auth::read(&history, &state, &record.proposal.proposal_id)?;
             if let w::EssPresence::Present(application) = &result.application {
                 result.receipts = application.receipts.clone();
             }
@@ -294,7 +294,15 @@ pub(super) fn project_captured(
     observed: &[w::EkrObserveRetainedObservationRead],
 ) -> Result<w::EkrIntegrateSchemaProposalRead, StoreError> {
     use ekr_core::generated_identity::Identity;
-    let proposal = &record.proposal;
+    let original_proposal = &record.proposal;
+    let prefix = read
+        .application_prefixes
+        .get(&record.proposal.proposal_id.0);
+    if prefix.is_some_and(|p| p.proposal_digest != record.proposal_digest) {
+        return Err(error("application prefix differs from proposal bytes"));
+    }
+    let remaining = prefix.map(|p| p.remaining(original_proposal)).transpose()?;
+    let proposal = remaining.as_ref().unwrap_or(original_proposal);
     if strict {
         super::schema_proposal_corrections::validate(read, proposal)?;
     }
@@ -304,9 +312,12 @@ pub(super) fn project_captured(
         enums: supported,
     } = support;
     // Original input must always remain interpretable, including after its schema has applied.
-    let original = super::schema_proposal_schema::candidate(base, proposal, &supported)?;
-    let current =
-        super::schema_proposal_schema::candidate(&read.graph.ontology, proposal, &supported);
+    let original = super::schema_proposal_schema::candidate(base, original_proposal, &supported)?;
+    let current = if prefix.is_some_and(crate::application_material::Prefix::schema_done) {
+        Ok(read.graph.ontology.clone())
+    } else {
+        super::schema_proposal_schema::candidate(&read.graph.ontology, proposal, &supported)
+    };
     let (candidate, stale) = match current {
         Ok(candidate) => (candidate, None),
         Err(err @ StoreError::Document(_)) if !strict => (original, Some(err.to_string())),
@@ -347,7 +358,7 @@ pub(super) fn project_captured(
         .iter()
         .map(|item| &item.basis.effects_digest)
         .collect();
-    let basis = w::EkrKernelReviewBasis {
+    let mut basis = w::EkrKernelReviewBasis {
         observed_revision: Box::new(w::EkrKernelRevisionNumber(read.root.revision.get().into())),
         evidence_digest: digest(
             "ekr.schema-proposal.evidence/1",
@@ -379,6 +390,20 @@ pub(super) fn project_captured(
             ),
         )?,
     };
+    if let Some(prefix) = prefix {
+        basis.evidence_digest = digest(
+            "ekr.schema-proposal.residual-evidence/1",
+            &(prefix, &basis.evidence_digest),
+        )?;
+        basis.options_digest = digest(
+            "ekr.schema-proposal.residual-options/1",
+            &(prefix, original_proposal, &basis.options_digest),
+        )?;
+        basis.effects_digest = digest(
+            "ekr.schema-proposal.residual-effects/1",
+            &(prefix, &basis.effects_digest),
+        )?;
+    }
     Ok(w::EkrIntegrateSchemaProposalRead {
         proposal: record.proposal.clone(),
         proposal_digest: record.proposal_digest.clone(),

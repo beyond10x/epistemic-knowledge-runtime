@@ -22,8 +22,8 @@ fn supported_initial_slice(
     proposal: &w::EkrIntegrateSchemaProposalDocument,
 ) -> Result<(), StoreError> {
     // These branches remain refused until their effect builders and replay authorities are installed.
-    if !proposal.mappings.is_empty() || !proposal.corrections.is_empty() {
-        return Err(error("source mapping application is not implemented"));
+    if !proposal.corrections.is_empty() {
+        return Err(error("selected correction application is not implemented"));
     }
     Ok(())
 }
@@ -133,10 +133,9 @@ impl<
             if let Some(receipt) =
                 crate::application_auth::committed_receipt(&history, &state, election)?
             {
-                self.store.retain_application_receipt(&receipt, at)?;
-                let (history, state) = self.replayed_state().map_err(error)?;
-                return crate::application_auth::complete_report(&history, &state, election)?
-                    .ok_or_else(|| error("recovered schema receipt is unavailable"));
+                if matches!(*receipt.progress, w::EkrIntegrateApplicationProgress::V0) {
+                    return self.record_application_progress(election, None, true, at);
+                }
             }
         }
         if reviews.last() != Some(approved) {
@@ -144,7 +143,22 @@ impl<
         }
         let read = self.read(None).map_err(error)?;
         let shown = self.project_schema_proposal_at(&proposal, false, &read)?;
-        let a = &approved.review.basis;
+        let (history, state) = self.replayed_state().map_err(error)?;
+        let expected = if prior.is_some() {
+            crate::application_auth::continuation_basis(
+                &self.authority,
+                &history,
+                &state,
+                &proposal,
+                approved,
+            )?
+        } else {
+            // The review was authenticated above using the retained proposal sources. Before
+            // election those sources are not application-history dependencies yet, and there
+            // are no application commits across which permission could advance.
+            approved.review.basis.clone()
+        };
+        let a = &expected;
         let b = &shown.basis;
         if a.evidence_digest != b.evidence_digest
             || a.options_digest != b.options_digest
@@ -218,7 +232,12 @@ impl<
                     &supporting,
                     &observations,
                 )?),
-                selected_items: Vec::new(),
+                selected_items: proposal
+                    .proposal
+                    .mappings
+                    .iter()
+                    .map(|mapping| crate::application_mapping::item(mapping).map(Box::new))
+                    .collect::<Result<Vec<_>, _>>()?,
             };
             let objects = BTreeMap::from([(
                 proposal.proposal_digest.0.clone(),
@@ -274,15 +293,134 @@ impl<
                 .0
         };
         self.execute_schema_step(&step, at)?;
+        // Later steps use the exact same ordinary command driver and immutable attempt protocol.
+        let stop = self
+            .execute_mapping_steps(&election, at)
+            .err()
+            .map(|error| error.to_string());
+        self.record_application_progress(&election, stop, false, at)
+    }
+
+    fn record_application_progress(
+        &self,
+        election: &w::EkrIntegrateRetainedApplicationElection,
+        stop: Option<String>,
+        already_complete: bool,
+        at: Timestamp,
+    ) -> Result<w::EkrIntegrateApplicationReport, StoreError> {
         let (history, state) = self.replayed_state().map_err(error)?;
-        let receipt = crate::application_auth::committed_receipt(&history, &state, &election)?
+        for receipt in crate::application_progress::processing(
+            &history,
+            &state,
+            election,
+            state.head().root.revision,
+        )? {
+            self.store.retain_processing_receipt(&receipt, at)?;
+        }
+        let (history, state) = self.replayed_state().map_err(error)?;
+        let mut receipt = crate::application_auth::committed_receipt(&history, &state, election)?
             .ok_or_else(|| error("schema transaction has not committed"))?;
-        self.store.retain_application_receipt(&receipt, at)?;
+        if !matches!(*receipt.progress, w::EkrIntegrateApplicationProgress::V0) {
+            if let Some(stop) = stop {
+                *receipt.progress = w::EkrIntegrateApplicationProgress::V3;
+                receipt.stop_reason = w::EssPresence::Present(stop);
+            }
+        }
+        let (receipt, _) = self.store.retain_application_receipt(&receipt, at)?;
         let (history, state) = self.replayed_state().map_err(error)?;
-        let mut report = crate::application_auth::complete_report(&history, &state, &election)?
-            .ok_or_else(|| error("committed schema application has no report"))?;
-        report.already_complete = false;
-        Ok(report)
+        crate::application_progress::report(
+            &history,
+            &state,
+            election,
+            &receipt,
+            already_complete && matches!(*receipt.progress, w::EkrIntegrateApplicationProgress::V0),
+        )
+    }
+
+    fn execute_mapping_steps(
+        &self,
+        election: &w::EkrIntegrateRetainedApplicationElection,
+        at: Timestamp,
+    ) -> Result<(), StoreError> {
+        let mut blocked = Vec::new();
+        for selected in &election.selected_items {
+            let (history, state) = self.replayed_state().map_err(error)?;
+            let proposal =
+                crate::application_auth::election(&self.authority, &history, &state, election)?;
+            let read = self.authority.capture_read(&history, &state, false)?;
+            if read
+                .application_prefixes
+                .get(&election.proposal_id.0)
+                .is_some_and(|prefix| {
+                    prefix.commits.iter().any(|(_, p)| {
+                        p.guard.step.item == w::EssPresence::Present(selected.clone())
+                    })
+                })
+            {
+                continue;
+            }
+            let step = if let Some(step) = history.applications.steps().iter().find(|step| {
+                step.application_id == election.application_id
+                    && step.step.item == w::EssPresence::Present(selected.clone())
+            }) {
+                (**step).clone()
+            } else {
+                let mapping = proposal
+                    .proposal
+                    .mappings
+                    .iter()
+                    .find(|mapping| {
+                        crate::application_mapping::item(mapping)
+                            .is_ok_and(|item| item == **selected)
+                    })
+                    .ok_or_else(|| error("elected mapping is unavailable"))?;
+                let (support, evidence_map) = crate::application_auth::source_support(
+                    &self.authority,
+                    &history,
+                    &state,
+                    election,
+                )?;
+                let inputs = crate::application_fact::BuildInputs {
+                    read: &read,
+                    proposal: &proposal,
+                    mapping,
+                    sources: &support.sources,
+                    evidence_map: &evidence_map,
+                    application_id: &election.application_id,
+                    proposer: election
+                        .schema_transaction
+                        .proposer
+                        .0
+                        .parse()
+                        .map_err(error)?,
+                    elected_at: at,
+                };
+                let step = match crate::application_fact::build(&inputs)? {
+                    crate::application_fact::FactStepOutcome::Ready(step) => step,
+                    crate::application_fact::FactStepOutcome::Blocked(reasons) => {
+                        blocked.extend(reasons);
+                        continue;
+                    }
+                };
+                self.store
+                    .elect_application_step(
+                        &w::EkrStoreApplicationStepRetention {
+                            step,
+                            objects: w::EkrStoreApplicationStepRetentionObjects {
+                                ess_extra: BTreeMap::new(),
+                            },
+                        },
+                        at,
+                    )?
+                    .0
+            };
+            self.execute_schema_step(&step, at)?;
+        }
+        if blocked.is_empty() {
+            Ok(())
+        } else {
+            Err(error(blocked.join("; ")))
+        }
     }
 
     fn execute_schema_step(
@@ -375,9 +513,13 @@ impl<
                 TransactionState::Committed => return Ok(()),
                 TransactionState::Stale => continue,
                 TransactionState::Rejected => {
-                    return Err(error("elected schema transaction was rejected"))
+                    return Err(error("elected application transaction was rejected"))
                 }
-                _ => return Err(error("elected schema transaction has no terminal outcome")),
+                _ => {
+                    return Err(error(
+                        "elected application transaction has no terminal outcome",
+                    ))
+                }
             }
         }
         Err(StoreError::Conflict)

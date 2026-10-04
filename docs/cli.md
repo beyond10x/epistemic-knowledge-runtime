@@ -570,12 +570,18 @@ backed by canonical evidence or retained observations and selected interpretatio
 Observation-backed application requires knowledge/3. Fresh evidence wrappers retain the original
 source, bytes, observed time and confidence while recording the application's authenticated
 proposer; original interpretation evidence remains unchanged. Direct observation wrappers carry
-zero confidence. Selected mappings and corrections still refuse. Schema changes use ordinary
-validated transactions and cite their exact support and the approved human statement. A completed retry returns its
+zero confidence. Selected mappings copy declared typed values or explicit constants into ordinary
+fact transactions after the schema commits. Their explanations retain the exact mapping, immutable
+interpretation version and admitted evidence. Unresolved entity bindings remain parked, and reports
+distinguish committed facts from remaining work. Selected corrections still refuse. Schema changes
+use ordinary validated transactions and cite their exact support and the approved human statement. A completed retry returns its
 original application and schema transaction without another canonical revision. Interrupted
 validation resumes its original basis; unrelated advancement may require a new transaction attempt,
 which preserves the approved additions and their allocated identities. A committed schema recovers
-a missing final receipt without another commit. Read-only sessions refuse application. The typed
+a missing final receipt without another commit. Interrupted mapping application resumes its frozen
+steps and reconstructs missing receipts from verified commits. A change to remaining evidence or
+effects requires another human review; the application's own committed progress does not.
+Read-only sessions refuse application. The typed
 SDK equivalent is `Knowledge::apply_schema_proposal`.
 
 Retained proposals whose latest decision is not a rejection appear in `attention list`.

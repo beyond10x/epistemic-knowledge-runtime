@@ -5058,6 +5058,24 @@
           "additionalProperties": false,
           "properties": {
             "kind": {
+              "const": "Derivation",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.integrate.CanonicalDerivationRecord"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "Derivation",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
               "const": "Evidence",
               "type": "string"
             },
@@ -5106,6 +5124,24 @@
             "value"
           ],
           "title": "Lifecycle",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "Mapping",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.integrate.RetainedMappingRecord"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "Mapping",
           "type": "object"
         },
         {
@@ -12013,8 +12049,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:a7c365ea40d8640ce4bdfbf311ab4fe463f0ae9574593db2e0efb64cfe56a533",
-    "source_digest": "51c851d103c5ef12fd06494a82d046e44ebb2307202c51eebdd2f558ef58c632",
+    "contract_digest": "slice-sha256/2:a50c0e5c14f7f61d9d2990fe40de35349d142976534a4d06d862a62baaf0801d",
+    "source_digest": "ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46",
     "specification_version": "v1",
     "system": "ekr"
   }
