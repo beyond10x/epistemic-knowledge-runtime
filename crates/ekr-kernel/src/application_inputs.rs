@@ -112,3 +112,77 @@ pub(crate) fn project(
         .collect::<Result<Vec<_>, StoreError>>()?;
     proposals::project_captured(record, false, read, base, support, &observed)
 }
+
+/// Capture only correction commits already verified by replay at the requested revision.
+pub(crate) fn correction_explanations(
+    history: &RetainedHistory,
+    prefixes: &BTreeMap<String, crate::application_material::Prefix>,
+) -> Result<Vec<w::EkrKernelExplainedSchemaCorrection>, StoreError> {
+    let mut result = Vec::new();
+    for prefix in prefixes.values() {
+        for (_, publication) in &prefix.commits {
+            if !matches!(
+                *publication.guard.step.kind,
+                w::EkrIntegrateApplicationStepKind::V0
+            ) {
+                continue;
+            }
+            let guard = &publication.guard;
+            let election = history
+                .applications
+                .elections()
+                .iter()
+                .find(|e| e.application_id == guard.application_id)
+                .ok_or_else(|| proposals::error("correction explanation election missing"))?;
+            let step = history
+                .applications
+                .steps()
+                .iter()
+                .find(|s| s.step_election_id == guard.step_election_id)
+                .ok_or_else(|| proposals::error("correction explanation step missing"))?;
+            let review = history
+                .applications
+                .coordination()
+                .iter()
+                .find(|c| c.proposal_id == guard.proposal_id)
+                .and_then(|c| {
+                    c.entries.iter().find_map(|entry| match &*entry.record {
+                        w::EkrIntegrateProposalCoordinationRecord::V1(row)
+                            if row.value.review.review_id == guard.review_id =>
+                        {
+                            Some(row.value.clone())
+                        }
+                        _ => None,
+                    })
+                })
+                .ok_or_else(|| proposals::error("correction explanation review missing"))?;
+            let original_review = history
+                .applications
+                .coordination()
+                .iter()
+                .find(|c| c.proposal_id == guard.proposal_id)
+                .and_then(|c| {
+                    c.entries.iter().find_map(|entry| match &*entry.record {
+                        w::EkrIntegrateProposalCoordinationRecord::V1(row)
+                            if step.correction_review_id
+                                == w::EssPresence::Present(row.value.review.review_id.clone()) =>
+                        {
+                            Some(row.value.clone())
+                        }
+                        _ => None,
+                    })
+                })
+                .ok_or_else(|| {
+                    proposals::error("correction explanation originating review missing")
+                })?;
+            result.push(w::EkrKernelExplainedSchemaCorrection {
+                proposal: Box::new(proposal(history, election)?),
+                review,
+                original_review,
+                step: step.clone(),
+                publication: Box::new(publication.clone()),
+            });
+        }
+    }
+    Ok(result)
+}

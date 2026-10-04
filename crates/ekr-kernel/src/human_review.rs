@@ -11,6 +11,8 @@ mod attention;
 mod corrections;
 mod decode;
 mod schema;
+#[cfg(test)]
+mod schema_corrections_tests;
 mod wire;
 pub use attention::corrections_bytes;
 pub(crate) use corrections::validate_corrections;

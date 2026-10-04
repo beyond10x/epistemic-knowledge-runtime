@@ -573,7 +573,12 @@ proposer; original interpretation evidence remains unchanged. Direct observation
 zero confidence. Selected mappings copy declared typed values or explicit constants into ordinary
 fact transactions after the schema commits. Their explanations retain the exact mapping, immutable
 interpretation version and admitted evidence. Unresolved entity bindings remain parked, and reports
-distinguish committed facts from remaining work. Selected corrections still refuse. Schema changes
+distinguish committed facts from remaining work. Selected claim choices, retractions and temporal
+corrections commit together in one final ordinary transaction after all selected mappings commit.
+Their explanations retain both the original signed approval and the effective publication approval;
+a renewed approval preserves the frozen correction and replacement identities. An explicit
+`Unresolved` choice keeps corrections pending and reports `Partial`, without a correction transaction.
+Schema changes
 use ordinary validated transactions and cite their exact support and the approved human statement. A completed retry returns its
 original application and schema transaction without another canonical revision. Interrupted
 validation resumes its original basis; unrelated advancement may require a new transaction attempt,

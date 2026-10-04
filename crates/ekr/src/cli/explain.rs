@@ -75,6 +75,7 @@ pub(super) fn run(
             | ExplanationLink::HumanAnswer(_)
             | ExplanationLink::Mapping(_)
             | ExplanationLink::Derivation(_)
+            | ExplanationLink::SchemaCorrection(_)
             | ExplanationLink::Validation(_) => {}
         }
     }

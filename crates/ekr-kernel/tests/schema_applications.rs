@@ -1,43 +1,7 @@
 //! Reviewed schema application must use ordinary canonical transactions and survive replay.
 #![allow(unused_imports, dead_code)]
 include!("support/schema_proposal_fixture.rs");
-
-fn captured_application_history(
-    path: &std::path::Path,
-    sqlite: bool,
-    human: &Human,
-) -> (ekr_kernel::KernelAuthority, ekr_store::RetainedHistory) {
-    use ekr_store::RevisionLog;
-    let mut captured = None;
-    if sqlite {
-        let _kernel = ekr_kernel::Commit::over_with_review_authority(
-            context(),
-            anchor(),
-            human.binding.clone(),
-            |authority| {
-                let store = ekr_store::SqliteStore::sqlite(path, "upgrade-fixture", None)?
-                    .under(authority.clone());
-                captured = Some((authority, store.history()?));
-                Ok(store)
-            },
-        )
-        .unwrap();
-    } else {
-        let _kernel = ekr_kernel::Commit::over_with_review_authority(
-            context(),
-            anchor(),
-            human.binding.clone(),
-            |authority| {
-                let store = ekr_store::FileStore::file(path, "upgrade-fixture", None)?
-                    .under(authority.clone());
-                captured = Some((authority, store.history()?));
-                Ok(store)
-            },
-        )
-        .unwrap();
-    }
-    captured.unwrap()
-}
+include!("support/schema_application_history.rs");
 
 #[test]
 fn kernel_replay_refuses_removed_or_rebound_application_guards_after_a_warm_read() {
@@ -187,17 +151,6 @@ fn application_time_before_approval_refuses_without_retaining_an_invalid_electio
 }
 
 // Copies a closed test provider, retaining the exact original approval and seed identities.
-fn copy_closed_provider(from: &std::path::Path, to: &std::path::Path) {
-    if from.is_dir() {
-        std::fs::create_dir_all(to).unwrap();
-        for entry in std::fs::read_dir(from).unwrap() {
-            let entry = entry.unwrap();
-            copy_closed_provider(&entry.path(), &to.join(entry.file_name()));
-        }
-    } else {
-        std::fs::copy(from, to).unwrap();
-    }
-}
 
 #[test]
 fn a_reserved_election_or_step_transaction_cannot_be_proposed_without_an_attempt() {
@@ -1025,51 +978,107 @@ fn approved_mappings(
     (store, human, shown, approved)
 }
 
-fn application_retention(
-    path: &std::path::Path,
-    sqlite: bool,
-    human: &Human,
-) -> Box<dyn ekr_store::ApplicationRetention> {
-    let (authority, _) = captured_application_history(path, sqlite, human);
-    if sqlite {
-        Box::new(
-            ekr_store::SqliteStore::sqlite(path, "upgrade-fixture", None)
+#[test]
+fn application_corrections_are_last_and_atomic() {
+    for sqlite in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("store");
+        let (store, human, mapping, _) = approved_mappings(&path, sqlite, true);
+        let before = store.read(None).unwrap();
+        let question = before.dispute_attention().unwrap().remove(0);
+        let mut document = *mapping.proposal.clone();
+        document.proposal_id =
+            Box::new(w::EkrIntegrateSchemaProposalId(NodeId::mint().to_string()));
+        document.corrections = vec![Box::new(serde_json::from_value(serde_json::json!({"kind":"Choose","assertion_id":question.claims[0],"reason":"Approve this ownership clarification after the health mappings."})).unwrap())];
+        let imported = w::EkrIntegrateSchemaProposalImport {
+            payload: ekr_core::bytes::encode(&serde_json::to_vec(&document).unwrap()),
+            proposal: Box::new(document),
+        };
+        let shown = store
+            .submit_schema_proposal(&imported, Timestamp::from_millis(5))
+            .unwrap();
+        let approval = store
+            .approve_schema_proposal(
+                &signed_review(
+                    &human,
+                    &shown,
+                    true,
+                    ekr_core::EventId::mint(),
+                    b"Approve the two mappings and final ownership clarification.",
+                ),
+                Timestamp::from_millis(6),
+            )
+            .unwrap();
+        let result = store
+            .apply_schema_proposal(
+                &shown.proposal.proposal_id,
+                &approval.review_id,
+                &shown.proposal_digest,
+                Timestamp::from_millis(7),
+            )
+            .unwrap();
+        assert_eq!(
+            *result.progress,
+            w::EkrIntegrateApplicationProgress::V0,
+            "{result:?}"
+        );
+        assert_eq!(result.items.len(), 2);
+        assert!(!result.corrections_pending);
+        let read = store.read(None).unwrap();
+        assert_eq!(read.root.revision.get(), before.root.revision.get() + 4);
+        assert!(read.dispute_attention().unwrap().is_empty());
+        let (_, history) = captured_application_history(&path, sqlite, &human);
+        let transactions = store.transactions().unwrap();
+        let mut steps = history.applications.steps().to_vec();
+        steps.sort_by_key(|step| {
+            transactions[&step.transaction.id.0.parse().unwrap()]
+                .committed
+                .as_ref()
                 .unwrap()
-                .under(authority),
-        )
-    } else {
-        Box::new(
-            ekr_store::FileStore::file(path, "upgrade-fixture", None)
+                .result
+                .revision
+        });
+        assert_eq!(
+            steps
+                .iter()
+                .map(|s| *s.step.kind.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                w::EkrIntegrateApplicationStepKind::V2,
+                w::EkrIntegrateApplicationStepKind::V1,
+                w::EkrIntegrateApplicationStepKind::V1,
+                w::EkrIntegrateApplicationStepKind::V0
+            ]
+        );
+        let chosen: AssertionId = question.claims[0].0.parse().unwrap();
+        let explanation = read.explain(chosen).unwrap();
+        assert!(explanation
+            .links
+            .iter()
+            .any(|l| matches!(l, ekr_kernel::ExplanationLink::SchemaCorrection(_))));
+        let events = store.published_events().unwrap();
+        assert!(
+            store
+                .apply_schema_proposal(
+                    &shown.proposal.proposal_id,
+                    &approval.review_id,
+                    &shown.proposal_digest,
+                    Timestamp::from_millis(8)
+                )
                 .unwrap()
-                .under(authority),
-        )
+                .already_complete
+        );
+        assert_eq!(store.published_events().unwrap(), events);
+        drop(store);
+        let mut reopened = runtime(&path, sqlite)
+            .with_review_authority(human.binding)
+            .unwrap();
+        reopened.set_full_replay(true);
+        assert_eq!(
+            reopened.read(None).unwrap().explain(chosen).unwrap(),
+            explanation
+        );
     }
-}
-
-fn commit_application_document(
-    store: &Runtime,
-    transaction: TransactionId,
-    document: &[u8],
-    at: i64,
-) {
-    store
-        .propose(document, context().operator, || Timestamp::from_millis(at))
-        .unwrap();
-    let revision = store.read(None).unwrap().root.revision;
-    assert!(matches!(
-        store
-            .validate(transaction, revision, || Timestamp::from_millis(at))
-            .unwrap(),
-        ValidationCommandResult::Validated(_)
-    ));
-    assert!(matches!(
-        store
-            .commit(transaction, context().operator, || Timestamp::from_millis(
-                at
-            ))
-            .unwrap(),
-        CommitCommandResult::Committed(_)
-    ));
 }
 
 #[test]

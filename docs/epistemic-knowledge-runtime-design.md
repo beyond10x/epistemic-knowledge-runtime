@@ -6134,3 +6134,35 @@ These are unexecuted additional F obligations until the named provider cases pas
 Both file and SQLite providers, ordinary validation, immutable pending preparation recovery,
 review revocation and replay are required. Contract validation or regeneration alone proves
 none of these outcomes.
+
+### 105.19 Schema correction provenance and explicit uncertainty
+
+Selected corrections retain their original authenticated schema-review target. The final
+ordinary transaction derives every selected correction from the immutable proposal, including
+all affected competitors and exact temporal replacement identities. An attention-answer proof
+cannot substitute for schema approval. The private validation context grants only the exact
+reviewed withdrawals; it never relaxes unsigned lifecycle validation.
+
+An explicit `Unresolved` instruction leaves the correction step pending. After confirmed schema
+and mapping progress, application reports Partial with `corrections_pending`, preserving the
+unresolved question. It neither invents an empty transaction nor executes a subset of the
+correction list. A human can submit a new immutable proposal when the desired correction changes.
+
+The correction step freezes its originating approval in `correction_review_id`; other steps
+omit that field. A later effective approval can authorize unchanged remaining effects without
+rewriting the original statement or replacement identities. The generated
+`ExplainedSchemaCorrection` projection links the retained proposal, originating and effective
+signed reviews, exact frozen step and actual committed publication. `SchemaCorrection` is an
+additive explanation link; old readers may skip it like other unknown links. Only verified
+committed corrections through the captured revision qualify. The explanation follows temporal
+replacement links in both directions and includes the real schema-review statement, unchanged
+source evidence and ordinary lifecycle/commit history. It never synthesizes a HumanAnswer record.
+The retained projection and its cited bytes outlive live incubation roots.
+
+Unexecuted acceptance until implementation tests pass on both providers:
+`application_corrections_explain_the_real_schema_review`,
+`application_corrections_are_last_and_atomic`, and
+`unresolved_application_corrections_remain_pending`.
+The renewal and retained-proof negative controls are
+`renewed_approval_resumes_the_same_frozen_correction` and
+`temporal_and_multi_dispute_corrections_preserve_both_versions_and_replay`.

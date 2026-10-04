@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46
-// contract digest 080455dbbeca5725f70ef1015fb02efb2db14c0623719d7773754d1965b5cfc7
+// model digest 95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609
+// contract digest db51800daf271146ca5948dce9aaf371fac263e98eae1f4dd09a51739c94022c
 // do not edit: regenerate with `ess synthesize`
 
 //! Integrate — `ekr.integrate`.
@@ -1077,6 +1077,8 @@ pub struct RetainedApplicationStep {
     pub application_id: SchemaApplicationId,
     /// `step` — `ekr.integrate.ApplicationStep`.
     pub step: ApplicationStep,
+    /// `correction_review_id` — `Optional<ekr.integrate.ProposalReviewId>`.
+    pub correction_review_id: Option<ProposalReviewId>,
     /// `transaction` — `ekr.kernel.CanonicalTransactionProjection`.
     pub transaction: crate::kernel::CanonicalTransactionProjection,
     /// `replacements` — `List<ekr.kernel.ClaimReplacement>`.
@@ -4190,7 +4192,7 @@ pub struct ApplySchemaProposalResponse {
 pub enum ApplySchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Revalidate the exact approved additions/mappings/corrections and latest effective review. Atomically elect one immutable application per proposal digest and freeze each applicable step and attempt before ordinary Propose/Validate/Commit. Repeated application recovers schema, assertion, evidence and replacement identities and the current attempt. Only a verified terminal Stale attempt permits a successor transaction id with identical frozen operation bytes; proposed, validated or uncertain attempts are recovered first. Commit schema with supporting evidence first, then every selected mapping item, and finally all selected claim corrections in one atomic ordinary validated transaction. Source evidence admission follows the versioned knowledge/3 rule in design 105.18. Schema support includes explicit proposal evidence, evidence cited by selected source facts, direct supporting observations and the approved statement. Fresh wrapper identities are frozen in the schema transaction; mappings reuse those exact admitted wrappers. Blocked mappings cannot be dropped to reach corrections. After the correction commit only exact recovery/reporting remains; no further canonical application writes are allowed. Every application occurrence carries a verified review guard and atomically appends a nonempty marker on the proposal review stream with the ordinary occurrence and objects. Review decisions and markers compare the same physical stream position; markers never count as human decisions. A later rejection defeats an uncommitted prepared group. Recover an already committed exact request after rejection as historical progress only. Qualify remaining work by source version, item and mapping digest. Return Elected before schema commit, Partial after a confirmed prefix stops, and Complete only after all selected work commits. Reconcile uncertain provider results before another attempt; never infer success from preparation.
+    /// Revalidate the exact approved additions/mappings/corrections and latest effective review. Atomically elect one immutable application per proposal digest and freeze each applicable step and attempt before ordinary Propose/Validate/Commit. Repeated application recovers schema, assertion, evidence and replacement identities and the current attempt. Only a verified terminal Stale attempt permits a successor transaction id with identical frozen operation bytes; proposed, validated or uncertain attempts are recovered first. Commit schema with supporting evidence first, then every selected mapping item, and finally all selected claim corrections in one atomic ordinary validated transaction. Source evidence admission follows the versioned knowledge/3 rule in design 105.18. Schema support includes explicit proposal evidence, evidence cited by selected source facts, direct supporting observations and the approved statement. Fresh wrapper identities are frozen in the schema transaction; mappings reuse those exact admitted wrappers. Blocked mappings cannot be dropped to reach corrections. After the correction commit only exact recovery/reporting remains; no further canonical application writes are allowed. Explicit Unresolved corrections remain pending and return Partial after confirmed schema/mapping progress, without a fabricated empty transaction or subset correction. Every application occurrence carries a verified review guard and atomically appends a nonempty marker on the proposal review stream with the ordinary occurrence and objects. Review decisions and markers compare the same physical stream position; markers never count as human decisions. A later rejection defeats an uncommitted prepared group. Recover an already committed exact request after rejection as historical progress only. Qualify remaining work by source version, item and mapping digest. Return Elected before schema commit, Partial after a confirmed prefix stops, and Complete only after all selected work commits. Reconcile uncertain provider results before another attempt; never infer success from preparation.
     Answered {
         /// The `ekr.integrate.ApplySchemaProposalResult` this outcome publishes.
         apply_schema_proposal_result: ApplySchemaProposalResult,

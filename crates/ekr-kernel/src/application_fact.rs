@@ -257,6 +257,7 @@ fn render(
     Ok(w::EkrIntegrateRetainedApplicationStep {
         step_election_id: Box::new(identities.step.clone()),
         application_id: Box::new(input.application_id.clone()),
+        correction_review_id: w::EssPresence::Absent,
         step: Box::new(w::EkrIntegrateApplicationStep {
             kind: Box::new(w::EkrIntegrateApplicationStepKind::V1),
             item: w::EssPresence::Present(Box::new(mapping::item(input.mapping)?)),

@@ -200,6 +200,7 @@ impl Pipeline {
         held: HeldIdentities,
         admission: Option<crate::application_auth::EvidenceAdmission>,
     ) -> Self {
+        let withdrawals = admission.as_ref().and_then(|a| a.withdrawals());
         let provenance: Box<dyn Check> = match admission {
             Some(admission) => Box::new(provenance::ApplicationProvenance(admission)),
             None => Box::new(Provenance),
@@ -208,7 +209,7 @@ impl Pipeline {
             validators: vec![
                 Box::new(structural::IdentityStructural {
                     held,
-                    reviewed_withdrawals: None,
+                    reviewed_withdrawals: withdrawals,
                     schema_evidence: true,
                 }),
                 Box::new(reference::SchemaEvidenceReference),

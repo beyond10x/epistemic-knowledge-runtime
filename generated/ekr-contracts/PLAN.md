@@ -1,14 +1,14 @@
 <!--
   generated from ekr v1
-  model digest ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46
-  contract digest 080455dbbeca5725f70ef1015fb02efb2db14c0623719d7773754d1965b5cfc7
+  model digest 95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609
+  contract digest db51800daf271146ca5948dce9aaf371fac263e98eae1f4dd09a51739c94022c
   do not edit: regenerate with `ess synthesize`
 -->
 # Synthesis plan — ekr v1
 
 Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synthesize`.
 
-746 capabilities: **696 generated**, **39 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
+747 capabilities: **697 generated**, **39 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
 
 ## Generated
 
@@ -219,6 +219,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.ExplainedCommit` |
 | domain type | `ekr.kernel.ExplainedLifecycle` |
 | domain type | `ekr.kernel.ExplainedProposal` |
+| domain type | `ekr.kernel.ExplainedSchemaCorrection` |
 | domain type | `ekr.kernel.ExplainedSeed` |
 | domain type | `ekr.kernel.ExplainedValidation` |
 | domain type | `ekr.kernel.ExplanationFormatV2` |

@@ -32,7 +32,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 31
+revision: 34
 ---
 ## Outcome
 
@@ -236,3 +236,39 @@ Current generated specification identity:
     "spec_digest": "ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46",
 
 Selected correction execution remains unfinished. Native test success is not ESS conformance or full task check; the ownership/project-health demonstrations, viewer verification and final PR64 delivery remain required. No source release or integration ownership boundary changes.
+
+## Schema correction operation unit
+
+The next bounded correction unit reuses the existing ClaimCorrection, ClaimReplacement, RetainedSchemaProposal and VerifiedDecision contracts. author_contracts owns only human_review/corrections.rs, a new human_review/schema_corrections_tests.rs and its module-registration line in human_review.rs in a fresh managed tree at the committed mapping checkpoint. It adds a separate crate-private schema-correction operation entry requiring a genuine VerifiedDecision for the exact retained ApproveSchemaProposal target and immutable proposal bytes. Attention-answer target checks remain unchanged. Derive operations over all selected current disputes with exact replacement coverage and no self-issued approval. Explicit unresolved instructions produce a pending/refused correction outcome without a fabricated empty transaction or partial correction effects.
+
+Root owns the application correction step builder/election, private validation context, replay/guard integration, ESS-generated explanation projection and all shared files outside that unit. The independent reviewer remains source-only. Root hands the sole Cargo lane to the correction operation worker while authoring contracts; no other compilation may begin until explicit handback. Existing Rust-only, managed-worktree, bot identity, exact reviewed evidence and no-extra-PR rules remain in force. This is implementation of the original approved F scope, not new completion or conformance evidence.
+
+## Correction integration and independent review
+
+Root owns correction orchestration, exact originating and effective review separation, private withdrawal validation and replay, generated explanation contracts and both-provider recovery tests. The already assigned independent reviewer inspects the changed source and coordinator logs without writes, builds or additional agents. The correction operation worker has returned its scoped patch and exclusive Cargo lane; root alone now runs compilation. Review R1 identified unchanged-effects renewal being incorrectly refused, and confirmed the coordinator reproduction of missing retained proof acceptance. Both findings remain open until their regression tests and independent rereview pass. No AEP status or PR readiness claim changes.
+
+## Reviewed correction execution checkpoint
+
+The final correction path is implemented through ordinary validated transactions after every selected mapping commits. Real Approved schema decisions derive atomic Choose, Retract and CorrectTime effects across affected disputes. Explicit Unresolved remains Partial without a correction transaction. A generated optional originating-review reference freezes the statement and allocations while the latest effective approval continues to authorize remaining effects. Explain carries both exact reviews and the actual guarded commit without fabricating an AttentionAnswer.
+
+Independent source/log review R1 identified renewal recovery and retained proof-object integrity defects. Both were reproduced and fixed; correction-integration-r2 closes them within its bounded scope, without independent execution or full F acceptance. The root's final run also executes the later expanded warm/cold proof-policy-statement removal/alteration controls, detached-provider Explain equality and explicit original-review identity assertion.
+
+Measured final native summaries:
+correction-crosscrate.log:test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.85s
+correction-crosscrate.log:test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+correction-crosscrate.log:test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.99s
+correction-crosscrate.log:test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+correction-crosscrate.log:test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+correction-regression-1.log:test result: ok. 69 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.99s
+correction-regression-1.log:test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s
+correction-regression-1.log:test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+correction-regression-1.log:test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+correction-regression-1.log:test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 104.30s
+correction-regression-1.log:test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 163.56s
+correction-regression-1.log:test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+Strict kernel/SDK/CLI all-target Clippy, repository formatting, ESS validation and complete generated-contract drift/compilation checks pass. Raw logs remain outside disposable build outputs; portable summaries, hashes, delegated evidence and review links are in .engineering/reviews/knowledge-correction-application/. These are native checks and reconstructed recovery prefixes, not generated conformance or a full gate. Generated identities:
+    "contract_digest": "db51800daf271146ca5948dce9aaf371fac263e98eae1f4dd09a51739c94022c",
+    "spec_digest": "95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609",
+
+Remaining delivery includes actual conformance adapters and scenario evidence, the ownership/project-health end-to-end demonstrations, viewer inspection and final carrier integration/full task check. ESS issue 416 remains open and blocks generated finite-recursive input fixture obligations. PR64 remains the only carrier; no additional PR, release ownership change or full-story completion is claimed.

@@ -190,6 +190,7 @@ fn kinds(result: &ExplanationResult) -> Vec<&'static str> {
             ExplanationLink::HumanAnswer(_) => "HumanAnswer",
             ExplanationLink::Mapping(_) => "Mapping",
             ExplanationLink::Derivation(_) => "Derivation",
+            ExplanationLink::SchemaCorrection(_) => "SchemaCorrection",
         })
         .collect()
 }

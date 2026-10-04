@@ -18,16 +18,6 @@ pub(crate) fn wire_time(at: Timestamp) -> Result<w::EssTimestamp, StoreError> {
         .map_err(error)
 }
 
-fn supported_initial_slice(
-    proposal: &w::EkrIntegrateSchemaProposalDocument,
-) -> Result<(), StoreError> {
-    // These branches remain refused until their effect builders and replay authorities are installed.
-    if !proposal.corrections.is_empty() {
-        return Err(error("selected correction application is not implemented"));
-    }
-    Ok(())
-}
-
 pub(crate) fn schema_template(
     read: &crate::VerifiedRead,
     proposal: &w::EkrIntegrateRetainedSchemaProposal,
@@ -35,7 +25,6 @@ pub(crate) fn schema_template(
     support: &crate::schema_proposals::SourceSupport,
     observations: &BTreeMap<ekr_core::ObservationId, w::EkrObserveRetainedObservationRead>,
 ) -> Result<w::EkrKernelCanonicalTransactionProjection, StoreError> {
-    supported_initial_slice(&proposal.proposal)?;
     let actor = approval.review.operator.actor.0.parse().map_err(error)?;
     let candidate = crate::schema_proposal_schema::candidate(
         &read.graph.ontology,
@@ -167,8 +156,9 @@ impl<
         {
             return Err(error("schema-review-required: current material changed"));
         }
-        supported_initial_slice(&proposal.proposal)?;
-        if (!proposal.proposal.sources.is_empty() || !proposal.proposal.observations.is_empty())
+        if (!proposal.proposal.sources.is_empty()
+            || !proposal.proposal.observations.is_empty()
+            || !proposal.proposal.corrections.is_empty())
             && !read
                 .authority_at(read.root.revision)
                 .validation_profile
@@ -273,6 +263,7 @@ impl<
                     &w::EkrStoreApplicationStepRetention {
                         step: Box::new(w::EkrIntegrateRetainedApplicationStep {
                             application_id: election.application_id.clone(),
+                            correction_review_id: w::EssPresence::Absent,
                             step_election_id: Box::new(ApplicationStepId::mint()),
                             step: Box::new(w::EkrIntegrateApplicationStep {
                                 kind: Box::new(w::EkrIntegrateApplicationStepKind::V2),
@@ -296,6 +287,7 @@ impl<
         // Later steps use the exact same ordinary command driver and immutable attempt protocol.
         let stop = self
             .execute_mapping_steps(&election, at)
+            .and_then(|()| self.execute_correction_step(&election, at))
             .err()
             .map(|error| error.to_string());
         self.record_application_progress(&election, stop, false, at)
@@ -421,6 +413,78 @@ impl<
         } else {
             Err(error(blocked.join("; ")))
         }
+    }
+
+    fn execute_correction_step(
+        &self,
+        election: &w::EkrIntegrateRetainedApplicationElection,
+        at: Timestamp,
+    ) -> Result<(), StoreError> {
+        let (history, state) = self.replayed_state().map_err(error)?;
+        let proposal =
+            crate::application_auth::election(&self.authority, &history, &state, election)?;
+        let read = self.authority.capture_read(&history, &state, false)?;
+        let prefix = read
+            .application_prefixes
+            .get(&election.proposal_id.0)
+            .ok_or_else(|| error("corrections precede schema"))?;
+        if prefix.corrections_done() || proposal.proposal.corrections.is_empty() {
+            return Ok(());
+        }
+        if crate::application_correction::unresolved(&proposal.proposal) {
+            return Err(error(
+                "schema-correction-unresolved: selected uncertainty remains pending",
+            ));
+        }
+        if !prefix.remaining(&proposal.proposal)?.mappings.is_empty() {
+            return Err(error("corrections await selected mappings"));
+        }
+        let step = if let Some(step) = history.applications.steps().iter().find(|s| {
+            s.application_id == election.application_id
+                && matches!(*s.step.kind, w::EkrIntegrateApplicationStepKind::V0)
+        }) {
+            (**step).clone()
+        } else {
+            let cursor = history
+                .applications
+                .coordination()
+                .iter()
+                .find(|c| c.proposal_id == election.proposal_id)
+                .and_then(|c| c.stream_version.as_u64())
+                .ok_or_else(|| error("correction review cursor unavailable"))?;
+            let chain = crate::application_auth::review_decisions(
+                &self.authority,
+                &history,
+                &state,
+                &proposal,
+                cursor,
+            )?;
+            let (review, decision) = chain
+                .last()
+                .ok_or_else(|| error("correction approval unavailable"))?;
+            let step = crate::application_correction::build(
+                &crate::application_correction::Inputs {
+                    read: &read,
+                    proposal: &proposal,
+                    review,
+                    decision,
+                    election,
+                },
+                at,
+            )?;
+            self.store
+                .elect_application_step(
+                    &w::EkrStoreApplicationStepRetention {
+                        step: Box::new(step),
+                        objects: w::EkrStoreApplicationStepRetentionObjects {
+                            ess_extra: BTreeMap::new(),
+                        },
+                    },
+                    at,
+                )?
+                .0
+        };
+        self.execute_schema_step(&step, at)
     }
 
     fn execute_schema_step(

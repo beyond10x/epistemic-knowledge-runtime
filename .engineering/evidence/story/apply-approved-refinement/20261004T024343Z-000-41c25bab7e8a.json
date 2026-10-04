@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T02:43:43Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 34,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correction execution native regression, cross-crate, Clippy and generated-contract checks; not full conformance or task check",
+    "reference": ".engineering/reviews/knowledge-correction-application/verification.md"
+  }
+}

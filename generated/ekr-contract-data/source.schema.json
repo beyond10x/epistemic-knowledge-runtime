@@ -3000,6 +3000,9 @@
         "application_id": {
           "$ref": "#/$defs/ekr.integrate.SchemaApplicationId"
         },
+        "correction_review_id": {
+          "$ref": "#/$defs/ekr.integrate.ProposalReviewId"
+        },
         "derivations": {
           "items": {
             "$ref": "#/$defs/ekr.integrate.CanonicalDerivationRecord"
@@ -4939,6 +4942,37 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.kernel.ExplainedProposal"
     },
+    "ekr.kernel.ExplainedSchemaCorrection": {
+      "additionalProperties": false,
+      "properties": {
+        "original_review": {
+          "$ref": "#/$defs/ekr.integrate.RetainedProposalReview"
+        },
+        "proposal": {
+          "$ref": "#/$defs/ekr.integrate.RetainedSchemaProposal"
+        },
+        "publication": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationPublicationRecord"
+        },
+        "review": {
+          "$ref": "#/$defs/ekr.integrate.RetainedProposalReview"
+        },
+        "step": {
+          "$ref": "#/$defs/ekr.integrate.RetainedApplicationStep"
+        }
+      },
+      "required": [
+        "proposal",
+        "review",
+        "original_review",
+        "step",
+        "publication"
+      ],
+      "title": "ExplainedSchemaCorrection",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.kernel.ExplainedSchemaCorrection"
+    },
     "ekr.kernel.ExplainedSeed": {
       "additionalProperties": false,
       "properties": {
@@ -5160,6 +5194,24 @@
             "value"
           ],
           "title": "Proposal",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "SchemaCorrection",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.kernel.ExplainedSchemaCorrection"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "SchemaCorrection",
           "type": "object"
         },
         {
@@ -12049,8 +12101,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:a50c0e5c14f7f61d9d2990fe40de35349d142976534a4d06d862a62baaf0801d",
-    "source_digest": "ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46",
+    "contract_digest": "slice-sha256/2:4d81f67a201162955782759cc3867a572fca93e525bb7b1374edc74082d62a1b",
+    "source_digest": "95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609",
     "specification_version": "v1",
     "system": "ekr"
   }

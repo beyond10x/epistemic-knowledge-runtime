@@ -341,6 +341,8 @@ pub enum ExplanationLink {
     Mapping(Box<crate::contracts::EkrIntegrateRetainedMappingRecord>),
     /// An assertion's committed evidence-to-mapping correspondence.
     Derivation(Box<crate::contracts::EkrIntegrateCanonicalDerivationRecord>),
+    /// A final ordinary correction backed by its actual retained schema approval.
+    SchemaCorrection(Box<crate::contracts::EkrKernelExplainedSchemaCorrection>),
     /// Evidence cited, by its content hash, and with `documents` its retained bytes.
     Evidence(ExplainedEvidence),
     /// A kind this SDK does not know, added by a newer `ekr`.

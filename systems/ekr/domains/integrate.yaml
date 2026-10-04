@@ -57,6 +57,8 @@ types:
     # Corrections is one final atomic step only after ALL selected mappings have committed.
     # No unresolved item may be silently dropped to reach it. After it commits, no further
     # application canonical writes are allowed: only exact recovery and receipt reporting.
+    # Explicit Unresolved corrections remain pending: no empty/fabricated transaction and no
+    # subset correction commit. Report Partial with corrections_pending after schema/mappings.
   - name: ekr.integrate.RetainedApplicationElection
     kind: struct
     fields:
@@ -102,6 +104,7 @@ types:
       - {name: step_election_id, type: ekr.integrate.ApplicationStepId}
       - {name: application_id, type: ekr.integrate.SchemaApplicationId}
       - {name: step, type: ekr.integrate.ApplicationStep}
+      - {name: correction_review_id, type: Optional<ekr.integrate.ProposalReviewId>}
       - {name: transaction, type: ekr.kernel.CanonicalTransactionProjection}
       - {name: replacements, type: List<ekr.kernel.ClaimReplacement>}
       - {name: mappings, type: List<ekr.integrate.RetainedMappingRecord>}
@@ -111,6 +114,10 @@ types:
     # proposal/source/mapping/evidence bytes before Propose; retain initial transaction,
     # assertion and replacement identities. Successor attempts may change transaction id only. Schema transaction must equal
     # the application election. Blocked items have no invented transaction or result.
+    # Corrections alone require correction_review_id: the authenticated originating
+    # approval whose operator, statement and operations were frozen at election.
+    # A later effective approval can authorize unchanged remaining effects without
+    # replacing this originating evidence or changing any frozen identity/operation.
   - name: ekr.integrate.ApplicationPublicationGuard
     kind: struct
     fields:
@@ -1838,6 +1845,8 @@ commands:
         Blocked
         mappings cannot be dropped to reach corrections. After the correction commit only
         exact recovery/reporting remains; no further canonical application writes are allowed.
+        Explicit Unresolved corrections remain pending and return Partial after confirmed
+        schema/mapping progress, without a fabricated empty transaction or subset correction.
         Every application occurrence carries
         a verified review guard and atomically appends a nonempty marker on the proposal review
         stream with the ordinary occurrence and objects. Review decisions and markers compare

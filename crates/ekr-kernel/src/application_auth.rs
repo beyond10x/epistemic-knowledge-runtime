@@ -12,10 +12,14 @@ use ekr_store::{RecordedOccurrence, RetainedHistory, StorageClass, StoreError};
 #[derive(Clone)]
 pub(crate) struct EvidenceAdmission {
     additions: Vec<crate::EvidenceAddition>,
+    withdrawals: Option<std::collections::BTreeSet<ekr_core::AssertionId>>,
 }
 impl EvidenceAdmission {
     pub(crate) fn permits(&self, addition: &crate::EvidenceAddition) -> bool {
         self.additions.contains(addition)
+    }
+    pub(crate) fn withdrawals(&self) -> Option<std::collections::BTreeSet<ekr_core::AssertionId>> {
+        self.withdrawals.clone()
     }
 }
 
@@ -54,8 +58,61 @@ pub(crate) fn evidence_admission(
         .iter()
         .find(|elected| elected.application_id == step.application_id)
         .ok_or_else(|| error("application evidence election is unavailable"))?;
-    election(authority, history, state, elected)?;
+    let proposal = election(authority, history, state, elected)?;
     verify_attempt(authority, history, state, attempt)?;
+    if matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V0) {
+        let native: GraphTransaction<CanonicalValue> =
+            document.transaction().clone().try_into().map_err(error)?;
+        if *attempt.transaction != crate::application_transaction::encode(&native)? {
+            return Err(error("correction admission differs from frozen attempt"));
+        }
+        let proposed = state
+            .transactions
+            .get(&native.id)
+            .ok_or_else(|| error("correction has no verified guarded proposal"))?;
+        let guard = history
+            .occurrences
+            .iter()
+            .find(|o| o.event.event_id == proposed.proposal.event_id)
+            .and_then(|o| o.event.application.as_ref())
+            .ok_or_else(|| error("correction proposal has no guard"))?
+            .as_data();
+        let chain = review_decisions(
+            authority,
+            history,
+            state,
+            &proposal,
+            guard
+                .review_stream_version
+                .as_u64()
+                .ok_or_else(|| error("correction review cursor"))?,
+        )?;
+        let (review, decision) = correction_origin(&chain, step)?;
+        let read = at(authority, history, state, state.head().root.revision)?;
+        crate::application_correction::verify_semantic(
+            &crate::application_correction::Inputs {
+                read: &read,
+                proposal: &proposal,
+                review,
+                decision,
+                election: elected,
+            },
+            step,
+        )?;
+        return Ok(Some(EvidenceAdmission {
+            additions: vec![],
+            withdrawals: Some(
+                native
+                    .operations
+                    .iter()
+                    .filter_map(|op| match op {
+                        GraphOperation::RetractAssertion(r) => Some(r.assertion),
+                        _ => None,
+                    })
+                    .collect(),
+            ),
+        }));
+    }
     if !matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V2) {
         // Mapping steps reuse canonical support; their exact operations are checked by the
         // ordinary guarded publication authority, never a source-kind allowance.
@@ -72,6 +129,7 @@ pub(crate) fn evidence_admission(
         ));
     }
     Ok(Some(EvidenceAdmission {
+        withdrawals: None,
         additions: native
             .operations
             .into_iter()
@@ -366,6 +424,29 @@ fn reviews(
     proposal: &w::EkrIntegrateRetainedSchemaProposal,
     cursor: u64,
 ) -> Result<Vec<w::EkrIntegrateRetainedProposalReview>, StoreError> {
+    Ok(
+        review_decisions(authority, history, state, proposal, cursor)?
+            .into_iter()
+            .map(|(record, _)| record)
+            .collect(),
+    )
+}
+
+/// Preserve the nonconstructible signature capability for deterministic schema corrections.
+/// Every decision is still checked against its exact historical material and predecessor.
+pub(crate) fn review_decisions(
+    authority: &KernelAuthority,
+    history: &RetainedHistory,
+    state: &ReplayState,
+    proposal: &w::EkrIntegrateRetainedSchemaProposal,
+    cursor: u64,
+) -> Result<
+    Vec<(
+        w::EkrIntegrateRetainedProposalReview,
+        crate::human_review::VerifiedDecision,
+    )>,
+    StoreError,
+> {
     let coordination = history
         .applications
         .coordination()
@@ -410,6 +491,24 @@ fn reviews(
         }
         if let w::EkrIntegrateProposalCoordinationRecord::V1(row) = &*entry.record {
             let record = &row.value;
+            for (address, encoded) in [
+                (&record.decision.proof_object_hash.0, &record.proof),
+                (&record.decision.policy_object_hash.0, &record.policy),
+                (
+                    &record.decision.statement_object_hash.0,
+                    &record.statement.payload,
+                ),
+            ] {
+                let hash: ContentHash = address.parse().map_err(error)?;
+                let bytes = ekr_core::bytes::decode(encoded).map_err(error)?;
+                if ContentHash::of_bytes(&bytes) != hash
+                    || history.content(hash, StorageClass::Provenance)? != bytes
+                {
+                    return Err(error(
+                        "retained application review object differs from captured bytes",
+                    ));
+                }
+            }
             let number = record
                 .review
                 .basis
@@ -433,10 +532,35 @@ fn reviews(
                 previous,
             )?;
             previous = Some(verified.proof_digest());
-            result.push((**record).clone());
+            result.push(((**record).clone(), verified));
         }
     }
     Ok(result)
+}
+
+fn correction_origin<'a>(
+    chain: &'a [(
+        w::EkrIntegrateRetainedProposalReview,
+        crate::human_review::VerifiedDecision,
+    )],
+    step: &w::EkrIntegrateRetainedApplicationStep,
+) -> Result<
+    &'a (
+        w::EkrIntegrateRetainedProposalReview,
+        crate::human_review::VerifiedDecision,
+    ),
+    StoreError,
+> {
+    let w::EssPresence::Present(id) = &step.correction_review_id else {
+        return Err(error("correction origin review missing"));
+    };
+    chain
+        .iter()
+        .find(|(review, _)| {
+            review.review.review_id == *id
+                && matches!(*review.review.decision, w::EkrIntegrateReviewDecision::V0)
+        })
+        .ok_or_else(|| error("correction origin is outside verified review history"))
 }
 
 fn initial_review(
@@ -490,11 +614,6 @@ pub(crate) fn template(
     >,
 ) -> Result<(), StoreError> {
     let p = &proposal.proposal;
-    if !p.corrections.is_empty() {
-        return Err(error(
-            "source mapping application authority is not implemented",
-        ));
-    }
     let tx = crate::application_transaction::decode(encoded)?;
     if tx.proposer.to_string() != approval.review.operator.actor.0 || tx.schema_version.is_none() {
         return Err(error("schema template attribution or version disagrees"));
@@ -774,6 +893,7 @@ fn verify_step(
     match *step.step.kind {
         w::EkrIntegrateApplicationStepKind::V2 => {
             if step.transaction != election.schema_transaction
+                || !matches!(step.correction_review_id, w::EssPresence::Absent)
                 || !matches!(step.step.item, w::EssPresence::Absent)
                 || !step.derivations.is_empty()
                 || !step.mappings.is_empty()
@@ -841,7 +961,38 @@ fn verify_step(
             }
         }
         w::EkrIntegrateApplicationStepKind::V0 => {
-            return Err(error("correction step authority is not implemented"))
+            let proposal = inputs::proposal(history, election)?;
+            crate::application_correction::verify_structure(&proposal, step)?;
+            let cursor = history
+                .applications
+                .coordination()
+                .iter()
+                .find(|c| c.proposal_id == election.proposal_id)
+                .and_then(|c| {
+                    c.entries.iter().find_map(|entry| match &*entry.record {
+                        w::EkrIntegrateProposalCoordinationRecord::V1(row)
+                            if step.correction_review_id
+                                == w::EssPresence::Present(row.value.review.review_id.clone()) =>
+                        {
+                            entry.stream_version.as_u64()
+                        }
+                        _ => None,
+                    })
+                })
+                .ok_or_else(|| error("correction origin review is unavailable"))?;
+            let chain = review_decisions(authority, history, state, &proposal, cursor)?;
+            let (origin, _) = correction_origin(&chain, step)?;
+            if origin.review.recorded_at > step.elected_at {
+                return Err(error("correction origin postdates frozen step"));
+            }
+            let prefixes =
+                crate::application_material::prefixes(history, state, state.head().root.revision)?;
+            let prefix = prefixes
+                .get(&election.proposal_id.0)
+                .ok_or_else(|| error("correction precedes schema"))?;
+            if !prefix.schema_done() || !prefix.remaining(&proposal.proposal)?.mappings.is_empty() {
+                return Err(error("corrections must follow every selected mapping"));
+            }
         }
     }
     Ok(())
@@ -981,8 +1132,8 @@ pub(crate) fn verify_occurrence(
         .review_stream_version
         .as_u64()
         .ok_or_else(|| error("invalid review cursor"))?;
-    let chain = reviews(authority, history, state, &proposal, cursor)?;
-    let effective = chain.last().ok_or_else(|| error("no effective approval"))?;
+    let chain = review_decisions(authority, history, state, &proposal, cursor)?;
+    let (effective, _) = chain.last().ok_or_else(|| error("no effective approval"))?;
     if effective.review.review_id != guard.review_id
         || effective.review.human_proof_digest != guard.human_proof_digest
         || !matches!(
@@ -1007,6 +1158,19 @@ pub(crate) fn verify_occurrence(
         return Err(error(
             "schema-review-required: application material changed",
         ));
+    }
+    if matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V0) {
+        let (origin, decision) = correction_origin(&chain, step)?;
+        crate::application_correction::verify_semantic(
+            &crate::application_correction::Inputs {
+                read: &current_read,
+                proposal: &proposal,
+                review: origin,
+                decision,
+                election: elected,
+            },
+            step,
+        )?;
     }
     let id: TransactionId = guard.attempt_transaction.0.parse().map_err(error)?;
     let doc = if let ekr_graph::RevisionPayload::TransactionProposed { transaction_id, .. } =

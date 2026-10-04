@@ -31,6 +31,7 @@ use ekr_store::{evidence_root, knowledge_root, GraphDocument};
 use serde::Serialize;
 
 mod reviewed;
+mod schema_corrections;
 
 /// `ekr.kernel.SnapshotResult`: the complete graph and root at one captured revision.
 ///
@@ -174,6 +175,8 @@ pub enum ExplanationLink {
     Mapping(Box<ekr_core::contract_data::EkrIntegrateRetainedMappingRecord>),
     /// A committed assertion's actual retained evidence and mapping correspondence.
     Derivation(Box<ekr_core::contract_data::EkrIntegrateCanonicalDerivationRecord>),
+    /// Exact schema approval, selected corrections and actual final ordinary commit.
+    SchemaCorrection(Box<ekr_core::contract_data::EkrKernelExplainedSchemaCorrection>),
     /// Supporting evidence whose retained payload was verified at its content address.
     Evidence(Evidence),
 }
@@ -395,6 +398,7 @@ impl VerifiedRead {
         let mut visited = BTreeSet::new();
         let mut linked_answers = BTreeSet::new();
         let mut linked_mappings = BTreeSet::new();
+        let mut linked_schema_corrections = BTreeSet::new();
         let mut pending = BTreeSet::from([requested]);
         while let Some(id) = pending.pop_first() {
             if !visited.insert(id) {
@@ -636,6 +640,50 @@ impl VerifiedRead {
                 })?);
                 if linked_answers.insert(*revision) {
                     links.push(ExplanationLink::HumanAnswer(Box::new(explained)));
+                }
+            }
+
+            for correction in &self.schema_corrections {
+                let identity = id.to_string();
+                let frozen = crate::application_transaction::decode(&correction.step.transaction)
+                    .map_err(|_| ProjectionError::Unverified {
+                    code: "schema-correction-provenance".into(),
+                })?;
+                let relevant = correction
+                    .proposal
+                    .proposal
+                    .corrections
+                    .iter()
+                    .any(|c| c.assertion_id.0 == identity)
+                    || correction
+                        .step
+                        .replacements
+                        .iter()
+                        .any(|r| r.previous.0 == identity || r.replacement.0 == identity)
+                    || frozen.operations.iter().any(
+                        |op| matches!(op, GraphOperation::RetractAssertion(r) if r.assertion == id),
+                    );
+                if !relevant {
+                    continue;
+                }
+                let (committed, statement) = self.explained_schema_correction(correction)?;
+                for replacement in &correction.step.replacements {
+                    if replacement.previous.0 == identity || replacement.replacement.0 == identity {
+                        for member in [&replacement.previous.0, &replacement.replacement.0] {
+                            pending.insert(member.parse().map_err(|_| {
+                                ProjectionError::Unverified {
+                                    code: "schema-correction-replacement".into(),
+                                }
+                            })?);
+                        }
+                    }
+                }
+                support.extend(committed.evidence.iter().copied());
+                support.insert(statement);
+                if linked_schema_corrections.insert(correction.publication.event_id.0.clone()) {
+                    links.push(ExplanationLink::SchemaCorrection(Box::new(
+                        correction.clone(),
+                    )));
                 }
             }
 

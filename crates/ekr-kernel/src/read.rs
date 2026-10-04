@@ -63,6 +63,7 @@ pub struct VerifiedRead {
     /// Only guarded commits admitted by replay through this capture's canonical revision.
     pub(crate) application_prefixes: BTreeMap<String, crate::application_material::Prefix>,
     pub(crate) application_steps: Vec<ekr_core::contract_data::EkrIntegrateRetainedApplicationStep>,
+    pub(crate) schema_corrections: Vec<ekr_core::contract_data::EkrKernelExplainedSchemaCorrection>,
     objects: BTreeMap<ContentHash, Arc<Vec<u8>>>,
     /// The verified graph as the kernel admitted it, and the cell its [`AliasIndex`] is kept in.
     /// Holding the graph here keeps [`Arc::make_mut`] on [`Self::graph`] from changing it in place.
@@ -280,6 +281,8 @@ impl crate::KernelAuthority {
         );
         let application_prefixes =
             crate::application_material::prefixes(history, state, head.root.revision)?;
+        let schema_corrections =
+            crate::application_inputs::correction_explanations(history, &application_prefixes)?;
         let application_steps = application_prefixes
             .values()
             .flat_map(|prefix| prefix.commits.iter())
@@ -305,6 +308,7 @@ impl crate::KernelAuthority {
             observations: crate::application_inputs::observed(history.applications.observations())?,
             application_prefixes,
             application_steps,
+            schema_corrections,
             revisions: state
                 .revisions
                 .iter()

@@ -162,7 +162,7 @@ wrapper!(EkrOntologyPropertyId => o::PropertyId);
 
 record!(EkrIntegrateApplicationRead => m::ApplicationRead { election, steps, attempts, publications, receipts, remaining_items, corrections_pending });
 record!(EkrIntegrateRetainedApplicationElection => m::RetainedApplicationElection { application_id, proposal_id, proposal_digest, initial_review_id, initial_proof_digest, base_schema, elected_at, schema_transaction, selected_items });
-record!(EkrIntegrateRetainedApplicationStep => m::RetainedApplicationStep { step_election_id, application_id, step, transaction, replacements, mappings, derivations, elected_at });
+record!(EkrIntegrateRetainedApplicationStep => m::RetainedApplicationStep { step_election_id, application_id, step, correction_review_id, transaction, replacements, mappings, derivations, elected_at });
 record!(EkrIntegrateRetainedApplicationAttempt => m::RetainedApplicationAttempt { transaction_id, step_election_id, predecessor_transaction, predecessor_record_hash, transaction, elected_at });
 record!(EkrIntegrateApplicationPublicationRecord => m::ApplicationPublicationRecord { guard, transaction_id, event_id, record_hash, command });
 record!(EkrIntegrateApplicationPublicationGuard => m::ApplicationPublicationGuard { application_id, step_election_id, attempt_transaction, proposal_id, proposal_digest, review_id, human_proof_digest, review_stream_version, step });

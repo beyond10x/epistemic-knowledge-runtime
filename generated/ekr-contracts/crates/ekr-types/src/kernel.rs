@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest ec4199535b14ebf6616330cfd8db6941a1d3c73db52f88162c43c5733c15bf46
-// contract digest 080455dbbeca5725f70ef1015fb02efb2db14c0623719d7773754d1965b5cfc7
+// model digest 95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609
+// contract digest db51800daf271146ca5948dce9aaf371fac263e98eae1f4dd09a51739c94022c
 // do not edit: regenerate with `ess synthesize`
 
 //! Kernel — `ekr.kernel`.
@@ -616,6 +616,21 @@ pub struct ExplainedProposal {
     pub operations: Vec<CanonicalOperationProjection>,
 }
 
+/// ExplainedSchemaCorrection — `ekr.kernel.ExplainedSchemaCorrection`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplainedSchemaCorrection {
+    /// `proposal` — `ekr.integrate.RetainedSchemaProposal`.
+    pub proposal: crate::integrate::RetainedSchemaProposal,
+    /// `review` — `ekr.integrate.RetainedProposalReview`.
+    pub review: crate::integrate::RetainedProposalReview,
+    /// `original_review` — `ekr.integrate.RetainedProposalReview`.
+    pub original_review: crate::integrate::RetainedProposalReview,
+    /// `step` — `ekr.integrate.RetainedApplicationStep`.
+    pub step: crate::integrate::RetainedApplicationStep,
+    /// `publication` — `ekr.integrate.ApplicationPublicationRecord`.
+    pub publication: crate::integrate::ApplicationPublicationRecord,
+}
+
 /// ExplainedSeed — `ekr.kernel.ExplainedSeed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplainedSeed {
@@ -668,6 +683,8 @@ pub enum ExplanationLink {
     Mapping(crate::integrate::RetainedMappingRecord),
     /// Tagged `Proposal` — `ekr.kernel.ExplainedProposal`.
     Proposal(ExplainedProposal),
+    /// Tagged `SchemaCorrection` — `ekr.kernel.ExplainedSchemaCorrection`.
+    SchemaCorrection(ExplainedSchemaCorrection),
     /// Tagged `Seed` — `ekr.kernel.ExplainedSeed`.
     Seed(ExplainedSeed),
     /// Tagged `Validation` — `ekr.kernel.ExplainedValidation`.
