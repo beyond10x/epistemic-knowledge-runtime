@@ -87,6 +87,22 @@ const EVIDENCE_UNSUPPORTED_SOURCE: &str = "evidence-unsupported-source";
 /// Validator 6: provenance.
 pub struct Provenance;
 
+/// Only application authorization can supply this exact retained support capability.
+pub(crate) struct ApplicationProvenance(pub(crate) crate::application_auth::EvidenceAdmission);
+impl super::Check for ApplicationProvenance {}
+impl Validator for ApplicationProvenance {
+    fn name(&self) -> ValidatorName {
+        ValidatorName::Provenance
+    }
+    fn validate(
+        &self,
+        _graph: &GraphSnapshot<'_>,
+        tx: &GraphTransaction,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        check(tx, Some(&self.0))
+    }
+}
+
 /// Reads no candidate view: provenance is a question about the operations and retained evidence.
 impl super::Check for Provenance {}
 
@@ -100,71 +116,80 @@ impl Validator for Provenance {
         _graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        let mut issues = Vec::new();
-        for operation in &tx.operations {
-            if let GraphOperation::AddEvidence(addition) = operation {
-                let evidence = &addition.evidence;
-                let found = ContentHash::of_bytes(&addition.payload);
-                if found != evidence.content_hash {
-                    issues.push(issue(
-                        tx,
-                        ValidatorName::Provenance,
-                        EVIDENCE_PAYLOAD_MISMATCH,
-                        format!(
-                            "evidence {} names content_hash {}, and its payload's bytes hash to \
+        check(tx, None)
+    }
+}
+
+fn check(
+    tx: &GraphTransaction,
+    admission: Option<&crate::application_auth::EvidenceAdmission>,
+) -> Result<(), Vec<ValidationIssue>> {
+    let mut issues = Vec::new();
+    for operation in &tx.operations {
+        if let GraphOperation::AddEvidence(addition) = operation {
+            let evidence = &addition.evidence;
+            let found = ContentHash::of_bytes(&addition.payload);
+            if found != evidence.content_hash {
+                issues.push(issue(
+                    tx,
+                    ValidatorName::Provenance,
+                    EVIDENCE_PAYLOAD_MISMATCH,
+                    format!(
+                        "evidence {} names content_hash {}, and its payload's bytes hash to \
                              {found} (sha256(\"ekr.payload.v1\" || the payload's bytes), as \
                              `ekr hash` prints it); the entry's content_hash is the address of \
                              exactly its payload",
-                            evidence.id, evidence.content_hash
-                        ),
-                    ));
-                }
-                if !matches!(evidence.source, EvidenceSource::HumanStatement { .. }) {
-                    issues.push(issue(
-                        tx,
-                        ValidatorName::Provenance,
-                        EVIDENCE_UNSUPPORTED_SOURCE,
-                        format!(
-                            "evidence {} has a {:?} source; evidence is added from a \
-                             HumanStatement source only",
-                            evidence.id,
-                            evidence.source.kind()
-                        ),
-                    ));
-                }
-                continue;
+                        evidence.id, evidence.content_hash
+                    ),
+                ));
             }
-            let GraphOperation::AddAssertion(assertion) = operation else {
-                continue;
-            };
-            if !matches!(assertion.assessment, Assessment::Proposed)
-                || !matches!(assertion.lifecycle, ekr_graph::AssertionLifecycle::Active)
+            if !matches!(evidence.source, EvidenceSource::HumanStatement { .. })
+                && !admission.is_some_and(|admission| admission.permits(addition))
             {
                 issues.push(issue(
                     tx,
                     ValidatorName::Provenance,
-                    ASSERTION_STATES_ITS_OWN_VERDICT,
+                    EVIDENCE_UNSUPPORTED_SOURCE,
                     format!(
-                        "assertion {} is proposed as {}, and a proposal states a claim rather than \
-                         the verdict on it; only this pipeline moves an assertion out of Proposed",
-                        assertion.id,
-                        assertion.assessment.name()
+                        "evidence {} has a {:?} source; evidence is added from a \
+                             HumanStatement source only",
+                        evidence.id,
+                        evidence.source.kind()
                     ),
                 ));
             }
-            if assertion.evidence.is_empty() {
-                issues.push(issue(
-                    tx,
-                    ValidatorName::Provenance,
-                    ASSERTION_WITHOUT_EVIDENCE,
-                    format!(
-                        "assertion {} cites no evidence; agent {} having proposed it is not \
-                         provenance (design § 6.5)",
-                        assertion.id, assertion.proposed_by
-                    ),
-                ));
-            }
+            continue;
         }
-        finish(issues)
+        let GraphOperation::AddAssertion(assertion) = operation else {
+            continue;
+        };
+        if !matches!(assertion.assessment, Assessment::Proposed)
+            || !matches!(assertion.lifecycle, ekr_graph::AssertionLifecycle::Active)
+        {
+            issues.push(issue(
+                tx,
+                ValidatorName::Provenance,
+                ASSERTION_STATES_ITS_OWN_VERDICT,
+                format!(
+                    "assertion {} is proposed as {}, and a proposal states a claim rather than \
+                         the verdict on it; only this pipeline moves an assertion out of Proposed",
+                    assertion.id,
+                    assertion.assessment.name()
+                ),
+            ));
+        }
+        if assertion.evidence.is_empty() {
+            issues.push(issue(
+                tx,
+                ValidatorName::Provenance,
+                ASSERTION_WITHOUT_EVIDENCE,
+                format!(
+                    "assertion {} cites no evidence; agent {} having proposed it is not \
+                         provenance (design § 6.5)",
+                    assertion.id, assertion.proposed_by
+                ),
+            ));
+        }
     }
+    finish(issues)
 }

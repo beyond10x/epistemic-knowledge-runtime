@@ -50,8 +50,8 @@ pub(super) struct Source {
 }
 
 pub(super) struct SourceSupport {
-    sources: BTreeMap<String, Source>,
-    enums: Vec<BTreeSet<String>>,
+    pub sources: BTreeMap<String, Source>,
+    pub enums: Vec<BTreeSet<String>>,
 }
 
 impl<

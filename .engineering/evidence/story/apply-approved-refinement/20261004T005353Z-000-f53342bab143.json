@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T00:53:53Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 28,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Observation application native regressions, strict kernel lint, format and generated-contract drift check",
+    "reference": ".engineering/reviews/knowledge-observation-application/verification.txt"
+  }
+}

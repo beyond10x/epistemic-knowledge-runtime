@@ -436,6 +436,12 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 prior,
                 state.active_authority(&self.authority.anchor),
                 self.authority.context.validator,
+                crate::application_auth::evidence_admission(
+                    &self.authority,
+                    history,
+                    &state,
+                    state.document(&tx.proposal)?.as_ref(),
+                )?,
             )?;
             let at = now();
             replay::require(

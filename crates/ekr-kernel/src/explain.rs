@@ -587,10 +587,27 @@ impl VerifiedRead {
             let Some(evidence) = self.graph.evidence.get(&id) else {
                 return unverified("evidence-missing");
             };
-            require(
-                matches!(evidence.source, EvidenceSource::HumanStatement { .. }),
-                "evidence-source-unexplained",
-            )?;
+            match evidence.source {
+                EvidenceSource::HumanStatement { .. } => {}
+                EvidenceSource::Observation(id) => {
+                    let Some(observation) = self.observations.get(&id) else {
+                        return unverified("evidence-observation-unavailable");
+                    };
+                    let payload = ekr_core::bytes::decode(&observation.payload).map_err(|_| {
+                        ProjectionError::Unverified {
+                            code: "evidence-observation-payload".into(),
+                        }
+                    })?;
+                    require(
+                        observation.observation.observation_id.0 == id.to_string()
+                            && observation.observation.content_hash.0
+                                == evidence.content_hash.to_string()
+                            && self.content(&evidence.content_hash) == Some(payload.as_slice()),
+                        "evidence-observation-disagrees",
+                    )?;
+                }
+                _ => return unverified("evidence-source-unexplained"),
+            }
             let Some(bytes) = self.content(&evidence.content_hash) else {
                 return unverified("evidence-payload-missing");
             };

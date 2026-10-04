@@ -33,6 +33,15 @@ fn schema_evidence_projection_requires_both_immutable_schema_and_transaction() {
         let human = fixture::Human::new(seeded.seed_hash);
         let store = store.with_review_authority(human.binding.clone()).unwrap();
         let preview = store.preview_upgrade(&human.policy).unwrap();
+        let profile =
+            ekr_kernel::ValidationProfileV1::knowledge_application(fixture::context().validator);
+        assert!(profile.supports_application_evidence());
+        assert!(profile.supports_schema_evidence());
+        assert_eq!(preview.to.ruleset.0, profile.ruleset);
+        assert_eq!(preview.to.application.0, profile.application);
+        let mut forged = profile.clone();
+        forged.provenance = "retained-admissible-evidence/1".into();
+        assert!(!forged.supports_application_evidence());
         let proof = human_review::proof_from_document(&human.proof(&preview)).unwrap();
         store
             .apply_upgrade(&preview, &human.policy, &proof, fixture::STATEMENT, || {

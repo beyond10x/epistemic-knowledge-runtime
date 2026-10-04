@@ -673,6 +673,23 @@ pub(crate) fn validate(
     anchor: &AuthorityStateV1,
     validator: AgentId,
 ) -> Result<Result<ValidatedTransaction, Vec<crate::ValidationIssue>>, StoreError> {
+    validate_with_support(document, revisions, held, prior, anchor, validator, None)
+}
+
+#[allow(clippy::type_complexity)]
+fn validate_with_support(
+    document: &TransactionDocument,
+    revisions: &BTreeMap<RevisionNumber, Revision>,
+    held: &HeldIdentities,
+    prior: &Revision,
+    anchor: &AuthorityStateV1,
+    validator: AgentId,
+    admission: Option<crate::application_auth::EvidenceAdmission>,
+) -> Result<Result<ValidatedTransaction, Vec<crate::ValidationIssue>>, StoreError> {
+    require(
+        admission.is_none() || anchor.validation_profile.supports_application_evidence(),
+        "application-provenance-profile",
+    )?;
     let graph = prior.graph()?;
     let lineage = || {
         crate::validate::schema::lineage(
@@ -682,7 +699,12 @@ pub(crate) fn validate(
         )
     };
     let pipeline = if anchor.validation_profile.supports_schema_evidence() {
-        Pipeline::knowledge_evidence(validator, lineage(), held.at(prior.root.revision))
+        Pipeline::knowledge_evidence(
+            validator,
+            lineage(),
+            held.at(prior.root.revision),
+            admission,
+        )
     } else if anchor.validation_profile.keeps_identities() {
         Pipeline::identity_keeping(validator, lineage(), held.at(prior.root.revision))
     } else if anchor.validation_profile.admits_schema_changes() {
@@ -760,7 +782,15 @@ pub(crate) fn decide_validation(
     prior: &Revision,
     anchor: &AuthorityStateV1,
     validator: AgentId,
+    admission: Option<crate::application_auth::EvidenceAdmission>,
 ) -> Result<Verdict, StoreError> {
+    // A capability is another validation input. Do not reuse a context-free cached verdict.
+    if admission.is_some() {
+        return Ok(validate_with_support(
+            document, revisions, held, prior, anchor, validator, admission,
+        )?
+        .map(Arc::new));
+    }
     let verdict = validate(document, revisions, held, prior, anchor, validator)?.map(Arc::new);
     let graph = prior.graph.as_ref().ok_or_else(|| refuse(GRAPH_NOT_HELD))?;
     DECIDED.with(|decided| {
@@ -789,7 +819,14 @@ fn verdict(
     prior: &Revision,
     anchor: &AuthorityStateV1,
     validator: AgentId,
+    admission: Option<crate::application_auth::EvidenceAdmission>,
 ) -> Result<Verdict, StoreError> {
+    if admission.is_some() {
+        return Ok(validate_with_support(
+            document, revisions, held, prior, anchor, validator, admission,
+        )?
+        .map(Arc::new));
+    }
     let decided = DECIDED.with(|decided| {
         decided
             .borrow()
@@ -1193,6 +1230,12 @@ impl KernelAuthority {
                         prior,
                         &active,
                         self.context.validator,
+                        crate::application_auth::evidence_admission(
+                            self,
+                            history,
+                            &state,
+                            state.document(&tx.proposal)?.as_ref(),
+                        )?,
                     )?
                     .map_err(|_| refuse("retained-validation-refused"))?;
                     let expected = validation_record(
@@ -1243,6 +1286,12 @@ impl KernelAuthority {
                         prior,
                         &active,
                         self.context.validator,
+                        crate::application_auth::evidence_admission(
+                            self,
+                            history,
+                            &state,
+                            state.document(&tx.proposal)?.as_ref(),
+                        )?,
                     )?
                     .err()
                     .ok_or_else(|| refuse("rejection-of-valid-transaction"))?;

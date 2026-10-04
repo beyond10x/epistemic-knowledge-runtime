@@ -26,7 +26,13 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 24
+- confidence: cited
+  path: docs
+- confidence: cited
+  path: generated
+- confidence: cited
+  path: systems/ekr
+revision: 28
 ---
 ## Outcome
 
@@ -168,3 +174,39 @@ test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
 
 This closes the listed schema-only stale and final-receipt recovery slice. Source/observation-backed schema application, mappings, selected corrections, partial-progress/residual-review material, full conformance and full task check remain unfinished. PR64 remains the sole carrier and no completion is claimed.
+
+## Mapping and retained-observation implementation scope
+
+Continue the original F scope after checkpoint e2b3c499228cbb7cf09a7ba9f69b321e95552eb4. A bounded mapping unit owns only crates/ekr-kernel/src/schema_proposal_mapping.rs and a new crates/ekr-kernel/src/application_mapping.rs with focused tests, plus its own lib.rs module registration for root to integrate. Extract shared deterministic mapping resolution from the existing preview, so preview and application use the same declared selectors, typed values, canonical alias resolution, target endpoints and blocker rules. This unit returns existing native fact material and mapping-qualified keys; it adds no persistence, approval authority, generated model, entity creation, arbitrary transform or independent publication. Root owns schema_application, application_auth, commands, captured-source evidence, residual review and receipt orchestration. No shared kernel edits overlap the unit.
+
+A separate bounded read-only provenance scope audit determines the current AddEvidence Observation restriction and the smallest spec-consistent application authority path. It may not relax general provenance checks, alter historical replay rules, edit source, start builds or publish. Root retains any required specification/authority transition changes. All substantive executable changes remain Rust, generated runtime contracts stay authoritative, one Cargo lane is handed off explicitly, and all source ultimately enters the existing sole PR64 carrier.
+
+## Observation admission implementation scope
+
+Within the existing F delivery, design 105.18 and ESS kernel/integrate define the knowledge/3 boundary before runtime work. Original profiles retain HumanStatement-only admission and exact historical replay; only authenticated elected application support can admit exact retained Observation evidence. Fresh frozen wrappers preserve source bytes, observation coordinates and confidence while attributing the new extraction to the actual application proposer. Selected evidence and direct observations are retained in the schema step, with mappings reusing the verified wrappers. No general source-kind relaxation, new queue or additional source-evidence step is permitted.
+
+Root owns the amended specification, generated artifacts, profile transition, application support planner, guarded validation/replay/cache and explanation wiring. The bounded pure mapping resolver worker remains separate. A read-only provenance audit identified the original contract restriction, source attribution mismatch, cache-input binding and Explain refusal; independent review of the amendment is pending. Named provider probes are recorded in design 105.18 and are unexecuted. This scope is under the original execution authorization and does not claim F or PR64 complete.
+
+## Reviewed Observation application checkpoint
+
+The explicit knowledge/3 transition, exact application-only Observation support, stable wrappers and retained-source explanation path are implemented. Independent runtime review found a current-head allocation defect; the approved-basis correction is reproduced by a one-variable failing mutation and passes the restored regression. The explanation rereview approves detached-history/tamper and signed knowledge/2-to-/3 tests within their stated current-binary limits. Review outcomes and qualifications are retained in .engineering/reviews/knowledge-observation-application/README.md.
+
+Actual final native regression and cross-crate summaries:
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.82s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.94s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.84s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.17s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 29.88s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+Strict kernel all-target clippy and repository formatting exit zero. Generated-contract regeneration compares both entire trees and compiles the synthesized workspace successfully. Specification and contract digests are retained in the curated report. These are native regression checks, not generated conformance acceptance. Mapped facts, derivations, selected corrections, residual review/progress, full task check and PR64 completion remain outstanding.

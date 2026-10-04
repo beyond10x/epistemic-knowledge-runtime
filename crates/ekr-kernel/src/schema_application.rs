@@ -22,11 +22,7 @@ fn supported_initial_slice(
     proposal: &w::EkrIntegrateSchemaProposalDocument,
 ) -> Result<(), StoreError> {
     // These branches remain refused until their effect builders and replay authorities are installed.
-    if !proposal.sources.is_empty()
-        || !proposal.observations.is_empty()
-        || !proposal.mappings.is_empty()
-        || !proposal.corrections.is_empty()
-    {
+    if !proposal.mappings.is_empty() || !proposal.corrections.is_empty() {
         return Err(error("source mapping application is not implemented"));
     }
     Ok(())
@@ -36,22 +32,37 @@ pub(crate) fn schema_template(
     read: &crate::VerifiedRead,
     proposal: &w::EkrIntegrateRetainedSchemaProposal,
     approval: &w::EkrIntegrateRetainedProposalReview,
+    support: &crate::schema_proposals::SourceSupport,
+    observations: &BTreeMap<ekr_core::ObservationId, w::EkrObserveRetainedObservationRead>,
 ) -> Result<w::EkrKernelCanonicalTransactionProjection, StoreError> {
     supported_initial_slice(&proposal.proposal)?;
-    let candidate =
-        crate::schema_proposal_schema::candidate(&read.graph.ontology, &proposal.proposal, &[])?;
+    let actor = approval.review.operator.actor.0.parse().map_err(error)?;
+    let candidate = crate::schema_proposal_schema::candidate(
+        &read.graph.ontology,
+        &proposal.proposal,
+        &support.enums,
+    )?;
+    let supporting = crate::application_support::plan(
+        read,
+        &proposal.proposal,
+        support,
+        observations,
+        actor,
+        || Ok(ekr_core::EvidenceId::mint()),
+    )?;
     let mut native = GraphTransaction {
         id: TransactionId::mint(),
-        proposer: approval.review.operator.actor.0.parse().map_err(error)?,
+        proposer: actor,
         operations: crate::application_plan::schema_operations(&read.graph.ontology, &candidate)?,
-        evidence: proposal
-            .proposal
-            .evidence
-            .iter()
-            .map(|id| id.0.parse().map_err(error))
-            .collect::<Result<_, _>>()?,
+        evidence: supporting.manifest,
         schema_version: Some(SchemaVersionId::mint()),
     };
+    native.operations.extend(
+        supporting
+            .additions
+            .into_iter()
+            .map(|addition| crate::GraphOperation::AddEvidence(Box::new(addition))),
+    );
     native
         .evidence
         .insert(approval.review.evidence_id.0.parse().map_err(error)?);
@@ -66,6 +77,8 @@ pub(crate) fn schema_template(
         )));
     // Decode the actual elected template now: unreadable transport never reaches retention.
     crate::application_transaction::decode(&encoded)?;
+    // The same exact historical template admission runs before physical election and on replay.
+    crate::application_auth::template(read, proposal, approval, &encoded, support, observations)?;
     Ok(encoded)
 }
 
@@ -141,6 +154,14 @@ impl<
             return Err(error("schema-review-required: current material changed"));
         }
         supported_initial_slice(&proposal.proposal)?;
+        if (!proposal.proposal.sources.is_empty() || !proposal.proposal.observations.is_empty())
+            && !read
+                .authority_at(read.root.revision)
+                .validation_profile
+                .supports_application_evidence()
+        {
+            return Err(error("knowledge-three-upgrade-required"));
+        }
         let at_wire = wire_time(at)?;
         if at_wire < approved.review.recorded_at
             || prior
@@ -154,6 +175,34 @@ impl<
         let election = if let Some(prior) = prior {
             prior
         } else {
+            let reviewed = self
+                .read(Some(ekr_core::RevisionNumber::new(
+                    approved
+                        .review
+                        .basis
+                        .observed_revision
+                        .0
+                        .as_u64()
+                        .ok_or_else(|| error("invalid approved revision"))?,
+                )))
+                .map_err(error)?;
+            let supporting = crate::schema_proposals::source_support(
+                &proposal.proposal,
+                &read,
+                |version| {
+                    self.retained_interpretation(version)
+                        .map(|held| *held.document)
+                },
+                |id| self.observation(id.0.parse().map_err(error)?).map(|_| ()),
+            )?;
+            // Validate present-day collisions before any election, while replay and allocation
+            // share the exact reviewed basis. An identical later source addition is unrelated.
+            crate::application_support::check_current(&read, &proposal.proposal, &supporting)?;
+            let mut observations = BTreeMap::new();
+            for id in &proposal.proposal.observations {
+                let id = id.0.parse().map_err(error)?;
+                observations.insert(id, self.observation(id)?);
+            }
             let elected = w::EkrIntegrateRetainedApplicationElection {
                 application_id: Box::new(SchemaApplicationId::mint()),
                 proposal_id: proposal.proposal.proposal_id.clone(),
@@ -162,7 +211,13 @@ impl<
                 initial_review_id: approved.review.review_id.clone(),
                 initial_proof_digest: approved.review.human_proof_digest.clone(),
                 elected_at: at_wire,
-                schema_transaction: Box::new(schema_template(&read, &proposal, approved)?),
+                schema_transaction: Box::new(schema_template(
+                    &reviewed,
+                    &proposal,
+                    approved,
+                    &supporting,
+                    &observations,
+                )?),
                 selected_items: Vec::new(),
             };
             let objects = BTreeMap::from([(

@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-04T00:45:27Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 27,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:observation-explanation-r1",
+    "reference": ".engineering/reviews/knowledge-observation-application/README.md",
+    "review": "review-result:observation-explanation-r1",
+    "outcome": "fixed"
+  }
+}

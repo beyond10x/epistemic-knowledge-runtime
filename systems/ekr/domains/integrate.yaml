@@ -1827,7 +1827,12 @@ commands:
         Only a verified terminal Stale attempt permits a successor transaction id with identical
         frozen operation bytes; proposed, validated or uncertain attempts are recovered first. Commit
         schema with supporting evidence first, then every selected mapping item, and finally
-        all selected claim corrections in one atomic ordinary validated transaction. Blocked
+        all selected claim corrections in one atomic ordinary validated transaction. Source
+        evidence admission follows the versioned knowledge/3 rule in design 105.18. Schema
+        support includes explicit proposal evidence, evidence cited by selected source facts,
+        direct supporting observations and the approved statement. Fresh wrapper identities
+        are frozen in the schema transaction; mappings reuse those exact admitted wrappers.
+        Blocked
         mappings cannot be dropped to reach corrections. After the correction commit only
         exact recovery/reporting remains; no further canonical application writes are allowed.
         Every application occurrence carries

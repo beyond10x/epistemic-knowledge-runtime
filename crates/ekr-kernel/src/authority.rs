@@ -120,10 +120,29 @@ impl ValidationProfileV1 {
         )
     }
 
+    /// Reviewed knowledge authority with exact application-bound retained observation support.
+    /// Ordinary and seed evidence admission remains unchanged; this profile alone is no grant.
+    #[must_use]
+    pub fn knowledge_application(validator: AgentId) -> Self {
+        let mut profile = Self::with(
+            validator,
+            "ekr.knowledge-deterministic/3",
+            "ekr.knowledge-apply/3",
+        );
+        profile.provenance = "retained-admissible-evidence/2".into();
+        profile
+    }
+
+    /// Whether a private verified application context can admit its exact Observation support.
+    #[must_use]
+    pub fn supports_application_evidence(&self) -> bool {
+        *self == Self::knowledge_application(self.validator)
+    }
+
     /// Whether schema manifests may cite retained or inline supporting evidence.
     #[must_use]
     pub fn supports_schema_evidence(&self) -> bool {
-        *self == Self::knowledge_evidence(self.validator)
+        *self == Self::knowledge_evidence(self.validator) || self.supports_application_evidence()
     }
 
     /// Whether deterministic assessment recomputation is active.

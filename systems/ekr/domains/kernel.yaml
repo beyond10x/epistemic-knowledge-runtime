@@ -468,7 +468,11 @@ types:
   # application. Runtime version dispatch enforces it; a store keeps the profile its authority
   # anchor named at seed. Reviewed transitions can activate ekr.knowledge-deterministic/1
   # (disputes) or ekr.knowledge-deterministic/2 (disputes and schema supporting evidence).
-  # Knowledge/1 can transition to knowledge/2; neither transition rewrites the seed or
+  # Knowledge/3 pairs ekr.knowledge-deterministic/3 with ekr.knowledge-apply/3 and
+  # retained-admissible-evidence/2. Only an authenticated elected application may add
+  # its exact retained Observation support (design 105.18). Ordinary/seed admission
+  # retains the HumanStatement-only rule. Knowledge/1 and /2 can transition to /3;
+  # knowledge/1 can still replay a transition to /2. No transition rewrites the seed or
   # historical decisions. The transition preview's from value names the active profile.
   - name: ekr.kernel.RulesetV1
     kind: newtype
@@ -479,7 +483,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "retained-admissible-evidence/1". Runtime version dispatch enforces it.
+  # Required literal: "retained-admissible-evidence/1" for original/knowledge /1-/2
+  # profiles, or "retained-admissible-evidence/2" only for knowledge/3. Runtime dispatch
+  # verifies the entire profile, never this field in isolation (design 105.18).
   - name: ekr.kernel.ProvenanceProfileV1
     kind: newtype
     of: String
@@ -487,7 +493,7 @@ types:
   # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profiles v2 and v3, under
   # which a committed schema change replaces the ontology with the version it names). Runtime
   # version dispatch enforces it. Reviewed knowledge profiles pair their matching
-  # ekr.knowledge-apply/1 or ekr.knowledge-apply/2 application; older decisions replay
+  # ekr.knowledge-apply/1, /2 or /3 application; older decisions replay
   # under their original validation and application rules.
   - name: ekr.kernel.ApplicationProfileV1
     kind: newtype
@@ -1068,6 +1074,12 @@ types:
   # brings is refused as unresolved-evidence (Reference). Commit applies the entry to retained
   # evidence and stores the payload as its own ekr.store object in the Provenance class, beside
   # the Canonical commit receipt; no event carries the bytes. Replay requires that object.
+  # Design 105.18 adds one versioned exception: knowledge/3 application validation may
+  # admit exact Observation support reconstructed from verified immutable application
+  # records. No public flag or ordinary transaction enables it. All other checks stay.
+  # New wrappers get fresh elected IDs and the authenticated application proposer;
+  # original source evidence is never reattributed under its old ID. These additional
+  # obligations are unexecuted until the named 105.18 provider probes pass.
   - name: ekr.kernel.EvidenceAdditionProjection
     kind: struct
     fields:
@@ -2477,6 +2489,9 @@ commands:
             assertion_id: input.assertion_id
             links: {generated: true}
         summary: The chain from the assertion to its external sources, one link per line.
+          Observation evidence admitted by knowledge/3 must match independently retained
+          observation identity, record and payload from the verified capture. Explain never
+          queries a live incubation root or treats an unverified source enum as authority.
       - name: not-found
         external: the canonical core holds no such assertion
         error: ekr.kernel.AssertionNotFound

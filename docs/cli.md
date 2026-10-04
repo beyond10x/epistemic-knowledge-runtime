@@ -432,9 +432,10 @@ ekr upgrade preview policy.json > preview.json
 The generated `ekr.kernel.UpgradePreview` names the exact head and stream prefix, original and
 target rule versions, overlapping single-value claims, and pending transactions requiring
 revalidation. Preview does not publish a revision. The current target is
-`ekr.knowledge-deterministic/2`, which supports evidence-backed schema transactions.
-A store already running knowledge/1 can explicitly upgrade to knowledge/2; the preview names
-its active predecessor. Changing the legacy host profile does not activate either version.
+`ekr.knowledge-deterministic/3`, which supports exact retained Observation evidence in an
+approved schema application. A store running knowledge/1 or /2 can explicitly upgrade to
+knowledge/3; the preview names its active predecessor. Ordinary AddEvidence still requires
+HumanStatement sources. Changing the legacy host profile does not activate knowledge authority.
 
 Have the human reviewer inspect the preview and sign the exact `UpgradeAuthority` intent using
 their external Ed25519 signer. The intent binds the decision UUID, tenant, original seed hash,
@@ -565,9 +566,12 @@ generated input and output types. Approval does not itself apply schema addition
 `ekr schema-proposal apply <proposal-id> <review-id> <proposal-digest>` applies or resumes the
 exact retained approval and returns `ekr.integrate.ApplicationReport`. Take all three values from
 the retained proposal and approval responses. The current implementation supports schema additions
-backed by existing canonical evidence; proposals containing source observations, interpretation
-selections, mappings or corrections still refuse. Schema changes use ordinary validated transactions
-and cite the proposal's evidence and the approved human statement. A completed retry returns its
+backed by canonical evidence or retained observations and selected interpretation evidence.
+Observation-backed application requires knowledge/3. Fresh evidence wrappers retain the original
+source, bytes, observed time and confidence while recording the application's authenticated
+proposer; original interpretation evidence remains unchanged. Direct observation wrappers carry
+zero confidence. Selected mappings and corrections still refuse. Schema changes use ordinary
+validated transactions and cite their exact support and the approved human statement. A completed retry returns its
 original application and schema transaction without another canonical revision. Interrupted
 validation resumes its original basis; unrelated advancement may require a new transaction attempt,
 which preserves the approved additions and their allocated identities. A committed schema recovers

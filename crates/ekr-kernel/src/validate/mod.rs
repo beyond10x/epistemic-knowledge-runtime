@@ -198,7 +198,12 @@ impl Pipeline {
         actor: AgentId,
         lineage: BTreeSet<SchemaVersionId>,
         held: HeldIdentities,
+        admission: Option<crate::application_auth::EvidenceAdmission>,
     ) -> Self {
+        let provenance: Box<dyn Check> = match admission {
+            Some(admission) => Box::new(provenance::ApplicationProvenance(admission)),
+            None => Box::new(Provenance),
+        };
         Self {
             validators: vec![
                 Box::new(structural::IdentityStructural {
@@ -213,7 +218,7 @@ impl Pipeline {
                     lineage,
                     schema_evidence: true,
                 }),
-                Box::new(Provenance),
+                provenance,
                 Box::new(Authorization { actor }),
             ],
         }

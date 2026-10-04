@@ -106,6 +106,7 @@ mod application_auth;
 mod application_inputs;
 mod application_plan;
 mod application_projection;
+mod application_support;
 mod application_transaction;
 mod apply;
 mod attention;

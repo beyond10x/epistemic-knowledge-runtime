@@ -107,7 +107,7 @@ impl KernelAuthority {
             history,
             state,
             policy,
-            &ValidationProfileV1::knowledge_evidence(self.context.validator),
+            &ValidationProfileV1::knowledge_application(self.context.validator),
         )
     }
     fn preview_for(
@@ -120,10 +120,13 @@ impl KernelAuthority {
         self.reviewer(state, policy)?;
         let from = &state.active_authority(&self.anchor).validation_profile;
         let legacy = ValidationProfileV1::knowledge(self.context.validator);
-        let latest = ValidationProfileV1::knowledge_evidence(self.context.validator);
+        let evidence = ValidationProfileV1::knowledge_evidence(self.context.validator);
+        let latest = ValidationProfileV1::knowledge_application(self.context.validator);
         replay::require(
-            (state.transition.is_none() && (*destination == legacy || *destination == latest))
-                || (*from == legacy && *destination == latest),
+            (state.transition.is_none()
+                && (*destination == legacy || *destination == evidence || *destination == latest))
+                || (*from == legacy && (*destination == evidence || *destination == latest))
+                || (*from == evidence && *destination == latest),
             "authority-already-upgraded",
         )?;
         let mut preview = EkrKernelUpgradePreview {
@@ -194,6 +197,27 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         statement: &[u8],
         now: impl FnOnce() -> Timestamp,
     ) -> Result<EkrKernelAuthorityTransitionRecord, CommitError> {
+        self.apply_upgrade_to(
+            preview,
+            policy,
+            proof,
+            statement,
+            now,
+            &ValidationProfileV1::knowledge_application(self.authority.context.validator),
+        )
+    }
+
+    // The public command always selects the current version. Tests exercise genuine older
+    // reviewed transitions through this same publication path, never a fabricated replay state.
+    fn apply_upgrade_to(
+        &self,
+        preview: &EkrKernelUpgradePreview,
+        policy: &m::ReviewerTrustPolicy,
+        proof: &m::SignedHumanDecision,
+        statement: &[u8],
+        now: impl FnOnce() -> Timestamp,
+        destination: &ValidationProfileV1,
+    ) -> Result<EkrKernelAuthorityTransitionRecord, CommitError> {
         let (history, state) = self.replayed_state()?;
         let reviewed_version = preview
             .stream_version
@@ -234,11 +258,13 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let prepared = if let Some(pending) = self.pending(&key, input)? {
             pending
         } else {
-            let current = self.authority.preview(&history, &state, policy)?;
+            let current = self
+                .authority
+                .preview_for(&history, &state, policy, destination)?;
             replay::require(bytes(&current)? == bytes(preview)?, "upgrade-preview-stale")?;
             let at = now();
             replay::require(at >= state.head().committed_at, "upgrade-time-order")?;
-            let profile = ValidationProfileV1::knowledge_evidence(self.authority.context.validator);
+            let profile = destination.clone();
             let binding = reviewed(review::host_binding_bytes(
                 self.authority
                     .review_host
@@ -387,7 +413,8 @@ pub(crate) fn replay_transition(
     let profile: ValidationProfileV1 = decode(content(&record.target_profile_object_hash)?)?;
     replay::require(
         profile == ValidationProfileV1::knowledge(authority.context.validator)
-            || profile == ValidationProfileV1::knowledge_evidence(authority.context.validator),
+            || profile == ValidationProfileV1::knowledge_evidence(authority.context.validator)
+            || profile == ValidationProfileV1::knowledge_application(authority.context.validator),
         "upgrade-target-profile",
     )?;
     let preview = authority.preview_for(history, state, &policy, &profile)?;
@@ -468,3 +495,8 @@ pub(crate) fn replay_transition(
     state.transition = Some(record);
     Ok(())
 }
+
+#[cfg(test)]
+#[allow(unused_imports, dead_code)] // Shared authority fixture also serves integration tests.
+#[path = "../tests/support/knowledge_authority_versions.rs"]
+mod version_tests;

@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
-// contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
+// model digest 51c851d103c5ef12fd06494a82d046e44ebb2307202c51eebdd2f558ef58c632
+// contract digest 0c0710bc8413fd53df51a9500e2ac46421f238e2700bb3cc6b4a126680a88469
 // do not edit: regenerate with `ess synthesize`
 
 //! Observe — `ekr.observe`.

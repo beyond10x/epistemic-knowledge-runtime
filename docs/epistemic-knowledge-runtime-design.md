@@ -6057,3 +6057,80 @@ still reads bytes proportional to tenant history even when the number of provide
 call counts alone must not be reported as constant read cost. Object memo tests continue to require
 that unchanged payloads are not fetched again. Both providers must retain positive historical-read
 controls and negative unreadable-feed and unknown-proposal-orphan controls.
+
+## 105.18 Reviewed application support under knowledge/3 (2026-10-04)
+
+Knowledge/3 pairs `ekr.knowledge-deterministic/3`, `ekr.knowledge-apply/3` and
+`retained-admissible-evidence/2`. A reviewed transition can activate this exact profile
+from an original seed profile or knowledge/1 or /2. Latest upgrade previews select /3;
+historical transitions and decisions continue under their original profiles. The seed
+anchor stays unchanged and pending validated transactions require revalidation at the
+transition. A profile field alone is never an authorization capability.
+
+Ordinary transactions, seed admission and the older extraction API retain their existing
+HumanStatement-only AddEvidence admission. The only additional source is Observation in
+an authenticated application transaction whose complete frozen effects and support the
+kernel reconstructs from the exact approved proposal, pinned interpretation versions,
+independently retained observations, elected transaction and historical effective review.
+URL, Document, DatabaseRecord and GraphAssertion admission are not broadened. The private
+validated support context must be checked before validation and independently reconstructed
+on replay. Validation reuse binds that context or bypasses the cached verdict; an unsigned
+transaction or forged client guard cannot acquire it. Every ordinary validator still runs.
+
+The schema step retains all explicit proposal evidence, all evidence cited by selected
+source facts, every direct proposal observation, and the human approval statement. Source
+facts mean the exact items selected by the immutable proposal, not every fact in a document.
+Only independently checked interpretation evidence can supply a missing canonical evidence
+record. Duplicate source IDs with different records refuse. If a canonical evidence ID
+already exists it is reused only when it equals the complete selected source record; an ID
+collision with changed source or attribution refuses before election.
+
+Reuse versus wrapper allocation is determined at the initial approval's exact observed
+revision, which replay can reconstruct. A later ordinary addition of the original identical
+source evidence does not change that frozen choice or require another answer. Preflight still
+checks current canonical/source identity collisions before retaining an election. The current
+head cannot silently choose a template that its historical approval basis cannot reconstruct.
+
+For a selected source record not already canonical, allocate a fresh Evidence wrapper ID
+once, before election. Copy source kind, source identity, content hash, payload, observed_at
+and confidence exactly; set extracted_by to the authenticated application proposer. Preserve
+the original evidence record and extractor in the immutable interpretation. This creates
+a new attributed extraction rather than rewriting the old ID. The schema template freezes
+wrappers in source-evidence-ID order, followed by direct-observation-ID order, and the
+approval statement last. Schema operations precede those additions. For each direct
+observation allocate a separate wrapper with its original Observation ID, exact payload/hash
+and observed_at, the authenticated proposer and confidence zero (no inference about truth).
+All wrapper IDs are fresh and pairwise distinct. Reusing canonical source evidence emits no
+addition. Repetition and stale successors reuse the elected IDs and every other field.
+
+The schema transaction manifest contains exactly those existing or newly allocated support
+IDs and the human statement. The mapping step resolves each original source Evidence ID
+through this verified schema support plan and cites the corresponding canonical Evidence
+ID. This correspondence is reconstructed from the immutable proposal/source selection and
+ordered elected additions; a separate mutable registry is not authority. Mappings and
+derivations retain those actual admissible IDs, their real observation links where present,
+and the immutable mapping/document digests. No source-evidence step or new queue is created.
+
+Explain terminates Observation evidence only after verifying its independently captured
+observation identity, original record and exact payload. The existing Evidence explanation
+link exposes its actual Observation source and content address; documents expose the bytes.
+Changing a caller-owned graph/capture cannot manufacture verified observation support.
+Reopen, historical reads and full replay use pinned source/mapping/observation records and
+do not require a live incubation root. Missing or altered required bytes refuse even after
+a warm read. Original source records remain inspectable with their original attribution.
+
+These are unexecuted additional F obligations until the named provider cases pass:
+
+- `approved_observation_support_requires_knowledge_three`: a real reviewed transition and
+  source-backed application admit exact support; old profiles and unsigned transactions
+  keep their previous refusal and historical hashes.
+- `application_wrappers_preserve_source_and_attribution`: differing source/application
+  actors create fresh stable wrappers, direct observations retain their real coordinates,
+  selected facts alone supply support, and conflicting IDs refuse.
+- `application_observation_explanation_survives_source_root_removal`: committed assertions
+  explain and replay from independent retained bytes after live incubation metadata is
+  unavailable; missing, altered and forged support fail cold and warm verification.
+
+Both file and SQLite providers, ordinary validation, immutable pending preparation recovery,
+review revocation and replay are required. Contract validation or regeneration alone proves
+none of these outcomes.

@@ -378,7 +378,7 @@ fn native_knowledge_one_upgrades_without_rewriting_its_rejection_or_roots() {
         assert_eq!(review::policy_bytes(&human.policy).unwrap(), policy_bytes);
         let preview = runtime.preview_upgrade(&policy).unwrap();
         assert_eq!(preview.from.ruleset.0, "ekr.knowledge-deterministic/1");
-        assert_eq!(preview.to.ruleset.0, "ekr.knowledge-deterministic/2");
+        assert_eq!(preview.to.ruleset.0, "ekr.knowledge-deterministic/3");
         assert_eq!(preview.pending_revalidation.len(), 1);
         let proof = human.proof(&preview);
         let receipt = runtime

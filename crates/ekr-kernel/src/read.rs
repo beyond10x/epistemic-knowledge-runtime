@@ -55,6 +55,11 @@ pub struct VerifiedRead {
     /// Reviewed publications captured by replay, kept private so callers cannot invent answers.
     pub(crate) answers:
         BTreeMap<RevisionNumber, ekr_core::contract_data::EkrKernelHumanAnswerRecord>,
+    /// Independently retained and authenticated application observations; never caller supplied.
+    pub(crate) observations: BTreeMap<
+        ekr_core::ObservationId,
+        ekr_core::contract_data::EkrObserveRetainedObservationRead,
+    >,
     objects: BTreeMap<ContentHash, Arc<Vec<u8>>>,
     /// The verified graph as the kernel admitted it, and the cell its [`AliasIndex`] is kept in.
     /// Holding the graph here keeps [`Arc::make_mut`] on [`Self::graph`] from changing it in place.
@@ -280,6 +285,7 @@ impl crate::KernelAuthority {
             authority_changes: state.authority_changes.clone(),
             transactions: state.transaction_records(),
             answers: state.answers.clone(),
+            observations: crate::application_inputs::observed(history.applications.observations())?,
             revisions: state
                 .revisions
                 .iter()

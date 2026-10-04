@@ -6,7 +6,84 @@ use crate::{
 use ekr_core::{contract_data as w, ContentHash, RevisionNumber, TransactionId};
 use ekr_graph::CanonicalValue;
 use ekr_store::{RecordedOccurrence, RetainedHistory, StorageClass, StoreError};
-use std::collections::BTreeSet;
+
+/// A private capability derived from authenticated immutable application inputs. No public
+/// constructor, caller flag, source enum or evidence identity can create one.
+#[derive(Clone)]
+pub(crate) struct EvidenceAdmission {
+    additions: Vec<crate::EvidenceAddition>,
+}
+impl EvidenceAdmission {
+    pub(crate) fn permits(&self, addition: &crate::EvidenceAddition) -> bool {
+        self.additions.contains(addition)
+    }
+}
+
+/// Compute only the evidence capability. Ordinary publication still verifies the effective
+/// historical/current review and the exact atomic guard; this cannot authorize publication.
+pub(crate) fn evidence_admission(
+    authority: &KernelAuthority,
+    history: &RetainedHistory,
+    state: &ReplayState,
+    document: &crate::TransactionDocument,
+) -> Result<Option<EvidenceAdmission>, StoreError> {
+    if !state
+        .active_authority(&authority.anchor)
+        .validation_profile
+        .supports_application_evidence()
+    {
+        return Ok(None);
+    }
+    let Some(attempt) = history
+        .applications
+        .attempts()
+        .iter()
+        .find(|attempt| attempt.transaction_id.0 == document.transaction().id.to_string())
+    else {
+        return Ok(None);
+    };
+    let step = history
+        .applications
+        .steps()
+        .iter()
+        .find(|step| step.step_election_id == attempt.step_election_id)
+        .ok_or_else(|| error("application evidence step is unavailable"))?;
+    let elected = history
+        .applications
+        .elections()
+        .iter()
+        .find(|elected| elected.application_id == step.application_id)
+        .ok_or_else(|| error("application evidence election is unavailable"))?;
+    election(authority, history, state, elected)?;
+    verify_attempt(authority, history, state, attempt)?;
+    let native: GraphTransaction<CanonicalValue> =
+        document.transaction().clone().try_into().map_err(error)?;
+    if *attempt.transaction != crate::application_transaction::encode(&native)?
+        || step.transaction != elected.schema_transaction
+        || !matches!(*step.step.kind, w::EkrIntegrateApplicationStepKind::V2)
+    {
+        return Err(error(
+            "application evidence differs from elected operations",
+        ));
+    }
+    Ok(Some(EvidenceAdmission {
+        additions: native
+            .operations
+            .into_iter()
+            .filter_map(|op| match op {
+                GraphOperation::AddEvidence(addition)
+                    if matches!(
+                        addition.evidence.source,
+                        ekr_graph::EvidenceSource::Observation(_)
+                    ) =>
+                {
+                    Some(*addition)
+                }
+                _ => None,
+            })
+            .collect(),
+    }))
+}
 
 pub(crate) fn committed_receipt(
     history: &RetainedHistory,
@@ -372,18 +449,19 @@ fn initial_review(
     Ok(record.clone())
 }
 
-fn template(
+pub(crate) fn template(
     read: &VerifiedRead,
     proposal: &w::EkrIntegrateRetainedSchemaProposal,
     approval: &w::EkrIntegrateRetainedProposalReview,
     encoded: &w::EkrKernelCanonicalTransactionProjection,
+    support: &crate::schema_proposals::SourceSupport,
+    observations: &std::collections::BTreeMap<
+        ekr_core::ObservationId,
+        w::EkrObserveRetainedObservationRead,
+    >,
 ) -> Result<(), StoreError> {
     let p = &proposal.proposal;
-    if !p.sources.is_empty()
-        || !p.observations.is_empty()
-        || !p.mappings.is_empty()
-        || !p.corrections.is_empty()
-    {
+    if !p.mappings.is_empty() || !p.corrections.is_empty() {
         return Err(error(
             "source mapping application authority is not implemented",
         ));
@@ -391,17 +469,6 @@ fn template(
     let tx = crate::application_transaction::decode(encoded)?;
     if tx.proposer.to_string() != approval.review.operator.actor.0 || tx.schema_version.is_none() {
         return Err(error("schema template attribution or version disagrees"));
-    }
-    let expected = p
-        .evidence
-        .iter()
-        .map(|id| id.0.parse().map_err(error))
-        .chain(std::iter::once(
-            approval.review.evidence_id.0.parse().map_err(error),
-        ))
-        .collect::<Result<BTreeSet<_>, StoreError>>()?;
-    if tx.evidence != expected {
-        return Err(error("schema template support differs from approval"));
     }
     let base = &read.graph.ontology;
     let mut document = base.to_document();
@@ -441,10 +508,13 @@ fn template(
             }
             _ => return Err(error("schema template contains an unapproved operation")),
         }
+        if !evidence.is_empty() {
+            return Err(error("schema operation follows supporting evidence"));
+        }
         schema.push(op.clone());
     }
     let candidate = ekr_ontology::Ontology::load(document).map_err(error)?;
-    let expected = crate::schema_proposal_schema::candidate(base, p, &[])?;
+    let expected = crate::schema_proposal_schema::candidate(base, p, &support.enums)?;
     if schema != crate::application_plan::schema_operations(base, &candidate)?
         || schema.len() != p.additions.len()
         || crate::schema_proposal_material::relevant(base, &candidate, p)?
@@ -452,8 +522,37 @@ fn template(
     {
         return Err(error("schema template differs from reviewed additions"));
     }
+    let mut wrapper_ids = evidence
+        .iter()
+        .take(evidence.len().saturating_sub(1))
+        .map(|op| {
+            if let GraphOperation::AddEvidence(addition) = op {
+                Ok(addition.evidence.id)
+            } else {
+                Err(error("unexpected evidence operation"))
+            }
+        });
+    let supporting =
+        crate::application_support::plan(read, p, support, observations, tx.proposer, || {
+            wrapper_ids
+                .next()
+                .ok_or_else(|| error("schema support wrapper is missing"))?
+        })?;
+    if wrapper_ids.next().is_some() {
+        return Err(error("unapproved schema support wrapper"));
+    }
+    let mut expected_manifest = supporting.manifest;
+    expected_manifest.insert(approval.review.evidence_id.0.parse().map_err(error)?);
+    if tx.evidence != expected_manifest || evidence.len() != supporting.additions.len() + 1 {
+        return Err(error("schema template support differs from approval"));
+    }
+    for (actual, expected) in evidence.iter().zip(supporting.additions) {
+        if !matches!(actual, GraphOperation::AddEvidence(addition) if **addition == expected) {
+            return Err(error("schema support wrapper differs from selected source"));
+        }
+    }
     let only_evidence = GraphTransaction {
-        operations: evidence,
+        operations: evidence.into_iter().rev().take(1).collect(),
         ..tx
     };
     let encoded = crate::application_transaction::encode(&only_evidence)?;
@@ -488,7 +587,16 @@ fn election(
         .as_u64()
         .ok_or_else(|| error("review revision"))?;
     let read = at(authority, history, state, RevisionNumber::new(revision))?;
-    template(&read, &proposal, &review, &elected.schema_transaction)?;
+    let observations = inputs::observed(history.applications.observations())?;
+    let support = inputs::support(history, &observations, &proposal.proposal, &read)?;
+    template(
+        &read,
+        &proposal,
+        &review,
+        &elected.schema_transaction,
+        &support,
+        &observations,
+    )?;
     Ok(proposal)
 }
 
@@ -682,13 +790,16 @@ pub(crate) fn verify_occurrence(
     {
         return Err(error("effective approval differs from publication guard"));
     }
-    let (_, current) = projected(
+    let (current_read, current) = projected(
         authority,
         history,
         state,
         &proposal,
         state.head().root.revision,
     )?;
+    let observations = inputs::observed(history.applications.observations())?;
+    let support = inputs::support(history, &observations, &proposal.proposal, &current_read)?;
+    crate::application_support::check_current(&current_read, &proposal.proposal, &support)?;
     let approved = &effective.review.basis;
     if approved.evidence_digest != current.basis.evidence_digest
         || approved.options_digest != current.basis.options_digest
