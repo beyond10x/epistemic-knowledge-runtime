@@ -2,7 +2,7 @@
 //!
 //! Knowledge commands reopen native Runtime stores, with explicit typed fixture inputs and an
 //! independently supplied synthetic reviewer. Their events project actual command results.
-//! Schema application remains explicitly unsupported until its runtime implementation lands.
+//! Schema application uses independently approved inputs and verifies its receipt after replay.
 //!
 //! [`IntegrateTarget`] answers the `ekr-integrate` component's suite by running `ekr
 //! apply-extraction` itself, through [`crate::cli::run`], against an isolated store the
@@ -231,9 +231,6 @@ impl ConformanceTarget for IntegrateTarget {
         request: SemanticCommandRequest,
     ) -> Result<SemanticCommandResult, TargetError> {
         let command = request.command.to_string();
-        if command == "ekr.integrate.ApplySchemaProposal" {
-            return Err(TargetError::unsupported(command, "Story F schema application is not implemented; this target cannot publish schema or mapped facts"));
-        }
         if KnowledgeAdapter::supports(&command) {
             let result = self.knowledge.execute(&request)?;
             self.observed
@@ -274,9 +271,6 @@ impl ConformanceTarget for IntegrateTarget {
         &self,
         request: ExternalOutcomeControl,
     ) -> Result<(), TargetError> {
-        if request.force.command.to_string() == "ekr.integrate.ApplySchemaProposal" {
-            return Err(TargetError::unsupported(request.force.to_string(), "Story F schema application is not implemented; no application refusal can be exercised"));
-        }
         if KnowledgeAdapter::supports(&request.force.command.to_string())
             && request.force.outcome.to_string() == "refused"
         {

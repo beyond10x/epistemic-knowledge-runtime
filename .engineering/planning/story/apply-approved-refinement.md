@@ -32,7 +32,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 34
+revision: 35
 ---
 ## Outcome
 
@@ -272,3 +272,15 @@ Strict kernel/SDK/CLI all-target Clippy, repository formatting, ESS validation a
     "spec_digest": "95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609",
 
 Remaining delivery includes actual conformance adapters and scenario evidence, the ownership/project-health end-to-end demonstrations, viewer inspection and final carrier integration/full task check. ESS issue 416 remains open and blocks generated finite-recursive input fixture obligations. PR64 remains the only carrier; no additional PR, release ownership change or full-story completion is claimed.
+
+## Generated application conformance observation
+
+The existing F story now wires ApplySchemaProposal to real native execution with independently retained approval and scalar ESS fixture inputs. Full replay verifies the ordinary schema commit, retained election and complete generated report; the selected fact remains pending when its canonical subject cannot be resolved. Inert-call, changed-digest and event-suppression controls observe the generated scenario. Independent application-conformance-r1 found unchecked report fields; a real-helper behavioral red and typed-equality green closed it, as source/log rereview application-conformance-r2 records. Root retains the sole Cargo lane.
+
+Measured final full-suite counts from retained reports:
+File: {"error":0,"failed":1,"passed":18,"skipped":0,"total":19,"unsupported":0}
+Sqlite: {"error":0,"failed":1,"passed":18,"skipped":0,"total":19,"unsupported":0}
+
+The same counts recur in three consecutive local runs. The sole failure remains SubmitSchemaProposal/outcome/answered and the recursive typed-fixture blocker remains open. No ceiling, floor or quarantine relaxation; both full-suite tests still fail. The focused application checks do not discharge full conformance, original named E/F demonstrations, full task check or PR64 completion. Report timestamps are deterministic fixture time, not current attainment. Curated reports and raw-log digests are in .engineering/reviews/knowledge-application-conformance/.
+
+{"system":"ekr","specification_version":"v1","source_digest":"2289ab6b66263f553d91e328b960af9f6934eef272c699c1b9ad967900abb2f4","contract_digest":"a468fb767edcd11ae49e6758907a635f9a371e456b8690b65bee6007ab27151d"}

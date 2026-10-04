@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-04T03:06:07Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 34,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:application-conformance-r1",
+    "reference": ".engineering/planning/review-result/application-conformance-r2.md",
+    "review": "review-result:application-conformance-r1",
+    "outcome": "fixed"
+  }
+}

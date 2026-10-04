@@ -356,8 +356,10 @@ impl KnowledgeAdapter {
             *self.state.borrow_mut() = Some(state);
             return Ok(());
         }
-        let review_command =
-            command.ends_with("ApproveSchemaProposal") || command.ends_with("RejectSchemaProposal");
+        let application_command = command.ends_with("ApplySchemaProposal");
+        let review_command = command.ends_with("ApproveSchemaProposal")
+            || command.ends_with("RejectSchemaProposal")
+            || application_command;
         drop(runtime);
         let enrollment = if review_command {
             Some(self.enroll(&mut state, seeded.seed_hash)?)
@@ -420,7 +422,7 @@ impl KnowledgeAdapter {
             .map_err(|e| unavailable("retaining fixture proposal", e))?;
         if let Some((policy, binding)) = enrollment {
             let statement = b"Synthetic human reviewed the exact additions, mappings and evidence.";
-            let kind = if command.ends_with("ApproveSchemaProposal") {
+            let kind = if command.ends_with("ApproveSchemaProposal") || application_command {
                 "ApproveSchemaProposal"
             } else {
                 "RejectSchemaProposal"
@@ -445,8 +447,26 @@ impl KnowledgeAdapter {
                 .as_ref()
                 .ok_or_else(|| unavailable("signing fixture", "reviewer disappeared"))?;
             proof.signature = bytes::encode(&(signer.sign)(&message));
-            if refused {
+            if refused && !application_command {
                 proof.signature = bytes::encode(&[0; 64]);
+            }
+            if application_command {
+                // The independently signed approval is retained through the public runtime.
+                // The refusing fixture changes only the requested digest after approval.
+                let approved = runtime
+                    .approve_schema_proposal(
+                        &decode(
+                            json!({"human_proof":proof,"proposal_id":shown.proposal.proposal_id,
+                            "proposal_digest":shown.proposal_digest,"basis":shown.basis,
+                            "statement":bytes::encode(statement)}),
+                        )?,
+                        Timestamp::from_millis(3),
+                    )
+                    .map_err(|e| unavailable("approving application fixture", e))?;
+                state.values.insert(
+                    "schema-application-review-id".into(),
+                    node(value(approved.review_id)?)?,
+                );
             }
             // Conformance uses nominal enum variants; JSON uses their declared wire labels.
             let mut proof = value(proof)?;
@@ -461,6 +481,14 @@ impl KnowledgeAdapter {
                 ("schema-review-statement", json!(bytes::encode(statement))),
             ] {
                 state.values.insert(key.into(), node(v)?);
+            }
+            if application_command && refused {
+                state.values.insert(
+                    "schema-review-proposal-digest".into(),
+                    node(json!(
+                        ContentHash::of_bytes(b"a different proposal").to_string()
+                    ))?,
+                );
             }
         }
         *self.state.borrow_mut() = Some(state);
@@ -477,6 +505,7 @@ impl KnowledgeAdapter {
                 | "ekr.integrate.ShowSchemaProposal"
                 | "ekr.integrate.ApproveSchemaProposal"
                 | "ekr.integrate.RejectSchemaProposal"
+                | "ekr.integrate.ApplySchemaProposal"
         )
     }
     pub(super) fn fixtures(
@@ -503,6 +532,107 @@ impl KnowledgeAdapter {
     }
     pub(super) fn clear(&self) {
         self.state.borrow_mut().take();
+    }
+    fn verify_application(
+        &self,
+        reopened: &Runtime,
+        proposal: &Value,
+        answer: &Result<Value, PersistenceError>,
+        before: &CanonicalObservation,
+    ) -> Result<(), TargetError> {
+        let returned = answer
+            .as_ref()
+            .map_err(|e| unavailable("reading application result", e))?;
+        let shown = reopened
+            .schema_proposal(&decode(proposal.clone())?)
+            .map_err(|e| unavailable("replaying application receipt", e))?;
+        let read = reopened
+            .read(None)
+            .map_err(|e| unavailable("reading applied schema", e))?;
+        let report: w::EkrIntegrateApplicationReport = decode(returned["receipt"].clone())?;
+        let transaction: ekr_core::TransactionId = decode(value(&report.schema_transaction)?)?;
+        let held = shown
+            .receipts
+            .iter()
+            .find(|held| report.receipt_id == w::EssPresence::Present(held.receipt_id.clone()))
+            .ok_or_else(|| {
+                unavailable(
+                    "verifying application result",
+                    "no matching retained receipt",
+                )
+            })?;
+        let w::EssPresence::Present(application) = &shown.application else {
+            return Err(unavailable(
+                "verifying application result",
+                "no retained election",
+            ));
+        };
+        // This fixture has exactly one unresolved subject and no correction instructions.
+        // Compare the complete generated report type with verified retained state, so even a
+        // well-shaped invented item outcome or application identity cannot pass the adapter.
+        let expected = w::EkrIntegrateApplicationReport {
+            application_id: application.election.application_id.clone(),
+            receipt_id: w::EssPresence::Present(held.receipt_id.clone()),
+            progress: held.progress.clone(),
+            schema_transaction: held.schema_transaction.clone(),
+            schema_revision: w::EssPresence::Present(held.schema_revision.clone()),
+            items: held
+                .remaining_items
+                .iter()
+                .map(|key| {
+                    Box::new(w::EkrIntegrateIntegrationItemReceipt {
+                        source: key.source.clone(),
+                        item: key.item.clone(),
+                        mapping_digest: key.mapping_digest.clone(),
+                        disposition: Box::new(w::EkrIntegrateProcessingDisposition::V2),
+                        transaction_id: w::EssPresence::Absent,
+                        assertions: vec![],
+                        blockers: vec![],
+                        reason: held.stop_reason.clone(),
+                    })
+                })
+                .collect(),
+            remaining_items: held.remaining_items.clone(),
+            corrections_pending: held.corrections_pending,
+            stop_reason: held.stop_reason.clone(),
+            already_complete: false,
+        };
+        // The fixture deliberately lacks the named canonical subject. Its schema addition must
+        // commit, while the unmapped fact remains pending rather than creating a guessed entity.
+        let committed = read
+            .transactions
+            .get(&transaction)
+            .is_some_and(|transaction| {
+                transaction.state() == ekr_kernel::TransactionState::Committed
+            });
+        let advanced = before
+            .head
+            .as_ref()
+            .is_some_and(|head| read.root.revision.get() == head.revision.get() + 1);
+        let added = read
+            .graph
+            .ontology
+            .to_document()
+            .node_types
+            .iter()
+            .any(|node| node.name == "ProjectHealthFixture");
+        if report != expected
+            || held.remaining_items != application.election.selected_items
+            || !held.processing_receipts.is_empty()
+            || held.corrections_pending
+            || !committed
+            || !advanced
+            || !added
+            || *report.progress != w::EkrIntegrateApplicationProgress::V3
+            || report.remaining_items.len() != 1
+            || !read.graph.assertions.is_empty()
+        {
+            return Err(unavailable(
+                "verifying application result against replayed state",
+                "schema commit, receipt or qualified pending fact does not match the native store",
+            ));
+        }
+        Ok(())
     }
     pub(super) fn execute(
         &self,
@@ -559,13 +689,31 @@ impl KnowledgeAdapter {
             "ShowSchemaProposal"=>runtime.schema_proposal(&decode(input["proposal_id"].clone())?).map(|shown|json!(shown)),
             "ApproveSchemaProposal"=>runtime.approve_schema_proposal(&decode(input.clone())?,Timestamp::from_millis(3)).map(|review|json!({"review_id":review.review_id})),
             "RejectSchemaProposal"=>runtime.reject_schema_proposal(&decode(input.clone())?,Timestamp::from_millis(3)).map(|review|json!({"review_id":review.review_id})),
+            "ApplySchemaProposal"=>runtime.apply_schema_proposal(&decode(input["proposal_id"].clone())?,&decode(input["review_id"].clone())?,&decode(input["proposal_digest"].clone())?,Timestamp::from_millis(4)).map(|receipt|json!({"receipt":receipt})),
             _=>return Err(TargetError::unsupported(command,"knowledge adapter does not implement this operation")),
         };
         drop(runtime);
         // Reopen with full replay even for refusals, and observe only the canonical stream:
         // observation/incubation/proposal/review retention is allowed to append metadata.
         let reopened = self.open(state)?;
-        before.require_unchanged(&CanonicalObservation::capture(&reopened)?)?;
+        if operation == "ApplySchemaProposal" && answer.is_ok() {
+            self.verify_application(&reopened, &review_proposal, &answer, &before)?;
+        } else {
+            before.require_unchanged(&CanonicalObservation::capture(&reopened)?)?;
+            if operation == "ApplySchemaProposal" {
+                let shown = reopened
+                    .schema_proposal(&decode(review_proposal.clone())?)
+                    .map_err(|e| unavailable("checking refused application", e))?;
+                if !matches!(shown.application, w::EssPresence::Absent)
+                    || !shown.receipts.is_empty()
+                {
+                    return Err(unavailable(
+                        "checking refused application",
+                        "an invalid request elected or recorded application progress",
+                    ));
+                }
+            }
+        }
         if matches!(operation, "ApproveSchemaProposal" | "RejectSchemaProposal") {
             // The generated event only checks an id shape. Verify that this id is a durable,
             // authenticated decision after reopening and full replay, before reporting it.
@@ -634,6 +782,87 @@ impl KnowledgeAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn application_report_guard_rejects_claims_not_present_in_replayed_receipt() {
+        use ring::signature::{Ed25519KeyPair, KeyPair};
+        let fixtures = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("tests/fixtures/conformance");
+        let mut missed = vec![];
+        for provider in [Provider::File, Provider::Sqlite] {
+            let work = tempfile::tempdir().unwrap();
+            let key = Ed25519KeyPair::from_seed_unchecked(&[71; 32]).unwrap();
+            let target = super::super::IntegrateTarget::new(provider, &fixtures, work.path())
+                .unwrap()
+                .with_fixture_reviewer(key.public_key().as_ref().to_vec(), move |message| {
+                    key.sign(message).as_ref().to_vec()
+                });
+            let adapter = &target.knowledge;
+            let correlation =
+                ess_primitives::ids::CorrelationId::new("application-report-control").unwrap();
+            let scenario = ScenarioContext::new(
+                "ekr.integrate.ApplySchemaProposal/outcome/answered"
+                    .parse()
+                    .unwrap(),
+                correlation.clone(),
+            );
+            adapter.prepare(&scenario).unwrap();
+            let state = adapter.state.borrow();
+            let state = state.as_ref().unwrap();
+            let runtime = adapter.open(state).unwrap();
+            let before = CanonicalObservation::capture(&runtime).unwrap();
+            let request = SemanticCommandRequest {
+                command: "ekr.integrate.ApplySchemaProposal".parse().unwrap(),
+                actor: Some("ekr.integrate.KnowledgeProposer".parse().unwrap()),
+                caller: None,
+                correlation,
+                input: [
+                    ("proposal_id", "schema-proposal-id"),
+                    ("review_id", "schema-application-review-id"),
+                    ("proposal_digest", "schema-review-proposal-digest"),
+                ]
+                .map(|(field, fixture)| (field.into(), state.values[fixture].clone()))
+                .into(),
+            };
+            let proposal = json_input(&request.input["proposal_id"]).unwrap();
+            let result = adapter.execute(&request).unwrap();
+            let returned = json_input(&Node::Map(result.response.unwrap())).unwrap();
+            drop(runtime);
+            let reopened = adapter.open(state).unwrap();
+            adapter
+                .verify_application(&reopened, &proposal, &Ok(returned.clone()), &before)
+                .unwrap();
+            for (field, replacement) in [
+                ("application_id", json!(ekr_core::EventId::mint())),
+                ("corrections_pending", json!(true)),
+                ("already_complete", json!(true)),
+                ("stop_reason", json!("an invented reason")),
+                ("items", json!([])),
+            ] {
+                let mut changed = returned.clone();
+                changed["receipt"][field] = replacement;
+                if adapter
+                    .verify_application(&reopened, &proposal, &Ok(changed), &before)
+                    .is_ok()
+                {
+                    missed.push(format!("{provider:?}/{field}"));
+                }
+            }
+            let mut changed = returned.clone();
+            assert_eq!(changed["receipt"]["items"].as_array().unwrap().len(), 1);
+            changed["receipt"]["items"][0]["disposition"] = json!("Integrated");
+            if adapter
+                .verify_application(&reopened, &proposal, &Ok(changed), &before)
+                .is_ok()
+            {
+                missed.push(format!("{provider:?}/disposition"));
+            }
+        }
+        assert!(
+            missed.is_empty(),
+            "unverified report fields accepted: {missed:?}"
+        );
+    }
 
     #[test]
     fn canonical_guard_rejects_real_proposal_with_unchanged_head_on_both_providers() {

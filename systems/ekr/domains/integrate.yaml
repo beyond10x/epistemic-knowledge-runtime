@@ -1819,6 +1819,10 @@ commands:
       type: ekr.integrate.ProposalReviewId
     - name: proposal_digest
       type: ekr.kernel.ContentHash
+    fixture_inputs:
+      proposal_id: schema-proposal-id
+      review_id: schema-application-review-id
+      proposal_digest: schema-review-proposal-digest
     response:
     - name: receipt
       type: ekr.integrate.ApplicationReport

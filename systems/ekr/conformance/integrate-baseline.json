@@ -51,14 +51,16 @@
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 44,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ApplySchemaProposal/outcome/refused": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 45,
-      "expect_outcome": 1
+      "expect_outcome": 1,
+      "resolve_fixtures": 1
     },
     "ekr.integrate.ApproveSchemaProposal/outcome/answered": {
       "execute_command": 1,

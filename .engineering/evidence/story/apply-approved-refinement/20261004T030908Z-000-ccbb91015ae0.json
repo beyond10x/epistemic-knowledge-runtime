@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T03:09:08Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 35,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Application subset passes both providers; full generated suite remains failed on SubmitSchemaProposal; native report-tamper control red then green; strict Clippy and contract regeneration pass",
+    "reference": ".engineering/reviews/knowledge-application-conformance/verification.md"
+  }
+}

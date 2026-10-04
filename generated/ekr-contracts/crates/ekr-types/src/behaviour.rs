@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609
-// contract digest db51800daf271146ca5948dce9aaf371fac263e98eae1f4dd09a51739c94022c
+// model digest 2289ab6b66263f553d91e328b960af9f6934eef272c699c1b9ad967900abb2f4
+// contract digest a468fb767edcd11ae49e6758907a635f9a371e456b8690b65bee6007ab27151d
 // do not edit: regenerate with `ess synthesize`
 
 //! What the specification fully determines, generated: the behaviour of every command the plan

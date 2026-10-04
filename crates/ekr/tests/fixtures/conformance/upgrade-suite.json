@@ -161,8 +161,8 @@
     }
   },
   "provenance": {
-    "contract_digest": "db51800daf271146ca5948dce9aaf371fac263e98eae1f4dd09a51739c94022c",
-    "spec_digest": "95e0cc738a4105082ac236fd226f432bb61b31bd4c0c3f8bafd2688d0a257609",
+    "contract_digest": "a468fb767edcd11ae49e6758907a635f9a371e456b8690b65bee6007ab27151d",
+    "spec_digest": "2289ab6b66263f553d91e328b960af9f6934eef272c699c1b9ad967900abb2f4",
     "specification_version": "v1",
     "suite_version": "ess-conformance/19",
     "system": "ekr"
@@ -1278,20 +1278,53 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.ProposalReviewId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-application-review-id",
+                "type": "ekr.integrate.ProposalReviewId"
+              },
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              },
+              {
+                "name": "schema-review-proposal-digest",
+                "type": "ekr.kernel.ContentHash"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "actor": "ekr.integrate.KnowledgeProposer",
           "command": "ekr.integrate.ApplySchemaProposal",
           "input": {
             "proposal_digest": {
-              "kind": "literal",
-              "value": "proposal_digest"
+              "fixture": "schema-review-proposal-digest",
+              "kind": "fixture"
             },
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             },
             "review_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-8cd01dd4fb97"
+              "fixture": "schema-application-review-id",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"
@@ -1751,6 +1784,39 @@
       ],
       "steps": [
         {
+          "fixtures": {
+            "declarations": {
+              "ekr.integrate.ProposalReviewId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              }
+            },
+            "fields": [
+              {
+                "name": "schema-application-review-id",
+                "type": "ekr.integrate.ProposalReviewId"
+              },
+              {
+                "name": "schema-proposal-id",
+                "type": "ekr.integrate.SchemaProposalId"
+              },
+              {
+                "name": "schema-review-proposal-digest",
+                "type": "ekr.kernel.ContentHash"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
           "force": {
             "command": "ekr.integrate.ApplySchemaProposal",
             "outcome": "refused"
@@ -1762,16 +1828,16 @@
           "command": "ekr.integrate.ApplySchemaProposal",
           "input": {
             "proposal_digest": {
-              "kind": "literal",
-              "value": "proposal_digest"
+              "fixture": "schema-review-proposal-digest",
+              "kind": "fixture"
             },
             "proposal_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-04bc1e1fb07d"
+              "fixture": "schema-proposal-id",
+              "kind": "fixture"
             },
             "review_id": {
-              "kind": "literal",
-              "value": "00000000-0000-4000-8000-8cd01dd4fb97"
+              "fixture": "schema-application-review-id",
+              "kind": "fixture"
             }
           },
           "step": "execute_command"

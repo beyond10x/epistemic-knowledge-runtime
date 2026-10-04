@@ -428,35 +428,43 @@ fn the_integrate_target_answers_both_branches_of_apply_extraction() {
     }
 }
 
-/// Partial delivery stays visibly nonconformant until F supplies its two apply scenarios.
+/// Application's generated scenarios run independently of the upstream recursive-fixture defect.
+/// The two full-suite tests above still require every obligation; this subset does not replace them.
 #[test]
-fn implemented_knowledge_commands_answer_seventeen_scenarios_on_both_providers() {
-    let mut failures = Vec::new();
+fn application_scenarios_observe_native_schema_commit_and_exact_digest_refusal() {
+    let full = ess_conformance::coverage::AdmittedInput::from_suite(admitted()).unwrap();
+    let input = full
+        .select(&[
+            "ekr.integrate.ApplySchemaProposal/outcome/answered"
+                .parse()
+                .unwrap(),
+            "ekr.integrate.ApplySchemaProposal/outcome/refused"
+                .parse()
+                .unwrap(),
+        ])
+        .unwrap();
+    let selected = input.selected();
     for provider in [Provider::File, Provider::Sqlite] {
-        let admitted = admitted();
         let work = tempfile::tempdir().unwrap();
         let target = signed_target(provider, work.path());
-        let run = Runner::for_suite(admitted.suite()).run_admitted(&admitted, &target);
-        let report = CountReport::from_run(&run, &admitted).unwrap();
-        record_report(provider, "partial", &report);
+        let run = Runner::for_suite(selected.suite()).run_admitted(selected, &target);
+        let report = CountReport::from_run(&run, selected).unwrap();
+        record_report(provider, "application", &report);
         let counts = report.counts();
-        let actual = (
-            counts.passed,
-            counts.failed,
-            counts.error,
-            counts.unsupported,
-            counts.skipped,
+        assert_eq!(
+            (
+                counts.passed,
+                counts.failed,
+                counts.error,
+                counts.unsupported,
+                counts.skipped
+            ),
+            (2, 0, 0, 0, 0),
+            "{provider:?}: {}",
+            findings(&run)
         );
-        println!("{provider:?}: partial counts {actual:?}");
-        if actual != (17, 0, 0, 2, 0) {
-            failures.push(format!("{provider:?}: {actual:?}: {}", findings(&run)));
-        }
-        assert!(
-            !run.is_conformant(),
-            "F application is not implemented in this slice"
-        );
+        assert!(run.is_conformant(), "{}", findings(&run));
     }
-    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 /// Mutation controls run the same admitted suite and actual adapter. They alter only the boundary
@@ -464,6 +472,12 @@ fn implemented_knowledge_commands_answer_seventeen_scenarios_on_both_providers()
 struct BrokenKnowledge<'a> {
     inner: &'a IntegrateTarget,
     drop_events: bool,
+    application_fault: Option<ApplicationFault>,
+}
+#[derive(Clone, Copy)]
+enum ApplicationFault {
+    Inert,
+    ChangedDigest,
 }
 impl ConformanceTarget for BrokenKnowledge<'_> {
     fn identity(
@@ -489,6 +503,27 @@ impl ConformanceTarget for BrokenKnowledge<'_> {
         &self,
         mut request: SemanticCommandRequest,
     ) -> Result<SemanticCommandResult, ess_conformance::target::TargetError> {
+        if request.command.to_string() == "ekr.integrate.ApplySchemaProposal" {
+            match self.application_fault {
+                Some(ApplicationFault::Inert) => {
+                    let mut result = SemanticCommandResult::undeclared();
+                    result.outcome = Some(
+                        serde_json::from_value(serde_json::json!({
+                            "command":"ekr.integrate.ApplySchemaProposal", "outcome":"answered"
+                        }))
+                        .unwrap(),
+                    );
+                    return Ok(result);
+                }
+                Some(ApplicationFault::ChangedDigest) => {
+                    request.input.insert(
+                        "proposal_digest".into(),
+                        Node::Text(ekr_core::ContentHash::of_bytes(b"not reviewed").to_string()),
+                    );
+                }
+                None => {}
+            }
+        }
         if !self.drop_events
             && matches!(
                 request.command.to_string().as_str(),
@@ -560,6 +595,52 @@ fn existing_failures(provider: Provider, suite: &AdmittedSuite) -> BTreeSet<Stri
         .collect()
 }
 #[test]
+fn application_scenarios_detect_inert_target_and_changed_digest() {
+    let name = "ekr.integrate.ApplySchemaProposal/outcome/answered";
+    let full = ess_conformance::coverage::AdmittedInput::from_suite(admitted()).unwrap();
+    let input = full.select(&[name.parse().unwrap()]).unwrap();
+    let selected = input.selected();
+    for provider in [Provider::File, Provider::Sqlite] {
+        for (label, fault) in [
+            ("application-inert", ApplicationFault::Inert),
+            (
+                "application-changed-digest",
+                ApplicationFault::ChangedDigest,
+            ),
+        ] {
+            let work = tempfile::tempdir().unwrap();
+            let target = signed_target(provider, work.path());
+            let broken = BrokenKnowledge {
+                inner: &target,
+                drop_events: false,
+                application_fault: Some(fault),
+            };
+            let run = Runner::for_suite(selected.suite()).run_admitted(selected, &broken);
+            let report = CountReport::from_run(&run, selected).unwrap();
+            record_report(provider, label, &report);
+            let counts = report.counts();
+            assert_eq!(
+                (
+                    counts.passed,
+                    counts.failed,
+                    counts.error,
+                    counts.unsupported,
+                    counts.skipped
+                ),
+                (0, 1, 0, 0, 0),
+                "{provider:?}/{label}: {}",
+                findings(&run)
+            );
+            assert_eq!(
+                run.failures()
+                    .map(|s| s.scenario.to_string())
+                    .collect::<Vec<_>>(),
+                vec![name]
+            );
+        }
+    }
+}
+#[test]
 fn knowledge_scenarios_detect_missing_observable_results() {
     for provider in [Provider::File, Provider::Sqlite] {
         let suite = admitted();
@@ -569,6 +650,7 @@ fn knowledge_scenarios_detect_missing_observable_results() {
         let broken = BrokenKnowledge {
             inner: &target,
             drop_events: true,
+            application_fault: None,
         };
         let run = Runner::for_suite(suite.suite()).run_admitted(&suite, &broken);
         let report = CountReport::from_run(&run, &suite).unwrap();
@@ -584,11 +666,7 @@ fn knowledge_scenarios_detect_missing_observable_results() {
         let expected: BTreeSet<_> = baseline()
             .scenarios
             .into_iter()
-            .filter(|s| {
-                !s.contains("ApplySchemaProposal")
-                    && !prior.contains(s)
-                    && (s.ends_with("/answered") || s.ends_with("/applied"))
-            })
+            .filter(|s| !prior.contains(s) && (s.ends_with("/answered") || s.ends_with("/applied")))
             .collect();
         assert_eq!(names, expected, "{provider:?}: {}", findings(&run));
     }
@@ -603,6 +681,7 @@ fn exact_review_scenarios_fail_when_the_signed_proof_is_corrupted() {
         let broken = BrokenKnowledge {
             inner: &target,
             drop_events: false,
+            application_fault: None,
         };
         let run = Runner::for_suite(suite.suite()).run_admitted(&suite, &broken);
         let report = CountReport::from_run(&run, &suite).unwrap();

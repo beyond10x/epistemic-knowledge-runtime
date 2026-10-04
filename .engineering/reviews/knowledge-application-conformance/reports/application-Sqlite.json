@@ -1,0 +1,63 @@
+{
+  "completed_at": 1700000000500,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 2,
+    "skipped": 0,
+    "total": 2,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 0,
+      "generated": 2,
+      "outside": 115,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.integrate.ApplySchemaProposal/outcome/answered",
+          "ekr.integrate.ApplySchemaProposal/outcome/refused"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:cb0a2b2c594b045de6b14fe3ced38a82d9e72f64ecc5df569930c0a535f54880",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated",
+      "scope": {
+        "component": "ekr-integrate",
+        "kind": "component"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr-integrate (sqlite provider) 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.integrate.ApplySchemaProposal/outcome/answered",
+      "ekr.integrate.ApplySchemaProposal/outcome/refused"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "2289ab6b66263f553d91e328b960af9f6934eef272c699c1b9ad967900abb2f4",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:5b6c724e5733bdf0c8c6f40a4fe767abd1f9ee01b3d3aec273d0bea433eb3a2d",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}

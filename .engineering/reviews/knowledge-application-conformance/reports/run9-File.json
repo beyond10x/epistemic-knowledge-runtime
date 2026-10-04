@@ -1,0 +1,72 @@
+{
+  "completed_at": 1700000003900,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 18,
+    "skipped": 0,
+    "total": 19,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 0,
+      "generated": 19,
+      "outside": 98,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "kind": "all"
+      },
+      "origins": "generated",
+      "scope": {
+        "component": "ekr-integrate",
+        "kind": "component"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr-integrate (file provider) 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.integrate.SubmitSchemaProposal/outcome/answered"
+    ],
+    "passed": [
+      "ekr.integrate.ApplyExtraction/outcome/applied",
+      "ekr.integrate.ApplyExtraction/outcome/refused",
+      "ekr.integrate.ApplySchemaProposal/outcome/answered",
+      "ekr.integrate.ApplySchemaProposal/outcome/refused",
+      "ekr.integrate.ApproveSchemaProposal/outcome/answered",
+      "ekr.integrate.ApproveSchemaProposal/outcome/refused",
+      "ekr.integrate.DiscoverSchemaGaps/outcome/answered",
+      "ekr.integrate.DiscoverSchemaGaps/outcome/refused",
+      "ekr.integrate.ImportInterpretation/outcome/answered",
+      "ekr.integrate.ImportInterpretation/outcome/refused",
+      "ekr.integrate.ListInterpretations/outcome/answered",
+      "ekr.integrate.RejectSchemaProposal/outcome/answered",
+      "ekr.integrate.RejectSchemaProposal/outcome/refused",
+      "ekr.integrate.ShowInterpretation/outcome/answered",
+      "ekr.integrate.ShowInterpretation/outcome/refused",
+      "ekr.integrate.ShowSchemaProposal/outcome/answered",
+      "ekr.integrate.ShowSchemaProposal/outcome/refused",
+      "ekr.integrate.SubmitSchemaProposal/outcome/refused"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "2289ab6b66263f553d91e328b960af9f6934eef272c699c1b9ad967900abb2f4",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:cb0a2b2c594b045de6b14fe3ced38a82d9e72f64ecc5df569930c0a535f54880",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
