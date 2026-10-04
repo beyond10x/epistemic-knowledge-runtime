@@ -905,7 +905,15 @@ impl<S: EventStore> EventlogStore<S> {
             let page = self
                 .runtime()
                 .block_on(self.store.read_feed(&self.tenant, after, MAX_READ_LIMIT))
-                .map_err(|_| StoreError::Document("application-audit-unavailable".into()))?;
+                .map_err(|error| {
+                    // Preserve the provider's recovery signal: a held reader must reopen a
+                    // replaced history. Other unavailable feeds still fail this mandatory audit.
+                    if crate::eventlog::diverged(&error) {
+                        StoreError::from(error)
+                    } else {
+                        StoreError::Document("application-audit-unavailable".into())
+                    }
+                })?;
             for event in &page.events {
                 if event.tenant != self.tenant || event.global_seq <= after {
                     return Err(invalid("application feed order"));

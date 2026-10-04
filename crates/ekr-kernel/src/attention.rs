@@ -112,17 +112,21 @@ impl<
                 );
             }
             for blocker in &interpretation.blockers {
-                // A completed item has no unresolved integration question. Retained receipts
-                // are immutable; their later application projection supplies the latest state.
-                if interpretation.receipts.iter().any(|receipt| {
-                    receipt.item == blocker.item
-                        && matches!(
-                            *receipt.disposition,
-                            EkrIntegrateProcessingDisposition::V0
-                                | EkrIntegrateProcessingDisposition::V1
-                                | EkrIntegrateProcessingDisposition::V3
-                        )
-                }) {
+                // Preserve the historical finding, but hide a question once the exact source
+                // item has a verified mapping commit in this capture's application history.
+                if read
+                    .as_ref()
+                    .is_some_and(|read| read.integrated_source_item(&version, &blocker.item))
+                    || interpretation.receipts.iter().any(|receipt| {
+                        receipt.item == blocker.item
+                            && matches!(
+                                *receipt.disposition,
+                                EkrIntegrateProcessingDisposition::V0
+                                    | EkrIntegrateProcessingDisposition::V1
+                                    | EkrIntegrateProcessingDisposition::V3
+                            )
+                    })
+                {
                     continue;
                 }
                 let mut subject = subject(EkrKernelAttentionKind::V0);

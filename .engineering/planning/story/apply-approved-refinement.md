@@ -32,7 +32,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 35
+revision: 40
 ---
 ## Outcome
 
@@ -284,3 +284,54 @@ Sqlite: {"error":0,"failed":1,"passed":18,"skipped":0,"total":19,"unsupported":0
 The same counts recur in three consecutive local runs. The sole failure remains SubmitSchemaProposal/outcome/answered and the recursive typed-fixture blocker remains open. No ceiling, floor or quarantine relaxation; both full-suite tests still fail. The focused application checks do not discharge full conformance, original named E/F demonstrations, full task check or PR64 completion. Report timestamps are deterministic fixture time, not current attainment. Curated reports and raw-log digests are in .engineering/reviews/knowledge-application-conformance/.
 
 {"system":"ekr","specification_version":"v1","source_digest":"2289ab6b66263f553d91e328b960af9f6934eef272c699c1b9ad967900abb2f4","contract_digest":"a468fb767edcd11ae49e6758907a635f9a371e456b8690b65bee6007ab27151d"}
+
+## Learning demonstration and presentation completion scope
+
+Within the original accepted F scope, author_contracts owns only a new crates/ekr-kernel/tests/knowledge_learning_demonstrations.rs and optional new support files with a knowledge_learning_ prefix. It uses the real Runtime and ordinary transactions on both native providers to demonstrate recurring parked project health, exact external approval, approved typed mapping, replay and zero-write repetition; and ownership ambiguity clarified by explicit operational/business relations, selected reviewed corrections and preserved history. It may read existing shared fixtures but does not change them, product code, specifications, generated contracts, planning records or shared build configuration. No additional agent is scheduled. Root owns all implementation fixes, authored conformance integration, CLI/SDK examples and read-only viewer presentation, and retains the sole Cargo lane until explicit handoff. The independent reviewer remains source/log-only. All committed executable code is Rust; the demonstrated behaviour must not be inferred from a test's bookkeeping. A missing product capability is reported and reproduced, not simulated away.
+
+## Completed source items still appear in gap discovery
+
+The real recurring project-health demonstration reaches a Complete application with two canonical mapped assertions, then fails because discover_schema_gaps still returns groups. Reproducer: cargo test --locked -p ekr-kernel --test knowledge_learning_demonstrations recurring_parked_project_health_becomes_reviewed_vocabulary_and_integrated_knowledge -- --nocapture. Retained evidence runtime-3.log under knowledge-learning-demonstrations records the behavioral failure after two earlier fixture-only failures (typed ObservationId conversion and exact upgrade statement binding) were corrected without changing the behavioral assertions.
+
+Ranked falsifiable hypotheses before the production probe:
+
+1. Discovery reads only import-time receipts and does not join verified mapping commits. Projecting completed source/version/item keys from the captured authenticated application prefix should remove only completed items; uncommitted and differently versioned items must remain visible.
+2. Discovery captures stale canonical state. A cold full replay should remove the group if this is the cause; if the group remains with the new property and mapped facts visible, stale capture is not sufficient to explain it.
+3. Qualified source identity fails to match the committed mapping. Comparing the exact interpretation identity, version, document digest and item path in the authenticated mapping guard should expose a mismatch; if they agree, missing projection remains the leading cause.
+
+Root owns the production fix and its minimal regression. The same import-time receipt predicate is present in the attention projection and must be checked at that seam too. Immutable interpretation documents and their original blockers must remain inspectable; canonical progress is established only by verified ordinary commits, never a prepared transaction or an unchecked receipt.
+
+## Application audit and replaced file-store recovery
+
+Broader CLI regression execution found three existing store-replacement cases refusing with application-audit-unavailable. The reduced command `cargo test --locked -p ekr --lib a_session_follows_a_file_store_replaced_inside_its_directory -- --nocapture` reproduces the exact fault without timing, threads or external services. It replaces the contents of a real File store while retaining the directory identity, then requires the held session to reopen once and answer the new head. Red execution is retained in schema-application-kernel/application-audit-replacement-red.log.
+
+Ranked hypotheses before probing:
+
+1. The new full application audit converts the provider's classified history-divergence error to a generic document fault. Preserving only the established divergence classification should restore the existing one-reopen path while arbitrary unavailable feeds still refuse.
+2. Replacement invalidates a new application cache independently of the provider. Preserving the provider error alone would leave the reopened read red if this is the cause.
+3. The replaced store lacks required application history. A freshly opened replacement would then also refuse, and error classification alone could not make its head readable.
+
+Root owns this bounded store correction under the existing application story. The audit must remain mandatory; no error may be treated as an empty feed, and the existing unreadable-feed tests must remain red-capable. Existing session and viewer replacement cases are the regression seam. This is separate from the viewer rendering race and completed-source projection correction.
+
+## Native learning journeys and verified application progress
+
+Both final native demonstrations pass on File and SQLite, including cold full replay, preserved original evidence/history and repeat-without-writes checks. The recurring-health journey found a completed-source projection defect; discovery and blocker attention now consult exact source/version/digest/item mapping commits while preserving immutable import history. completed-source-progress-r1 independently approves the bounded source/log correction.
+
+The read-only viewer shows committed schema/item revisions and pending corrections. viewer-progress-r1 exposed newer application completion flags paired with an older captured read; a real historical-read red and corrected both-provider green close it, as viewer-progress-r2 records. Headless Chrome rendered the retained schema-only page and the final screenshot was visually inspected. The test additionally checks escaped source text, no writes, exact event matching, schema-only and correction histories. It does not claim a real mapping-render or timed concurrent browser execution.
+
+Broader CLI tests found application_audit erased the File provider's history-divergence signal, preventing the existing held-session/viewer reopen path. The reduced existing session case fails and then passes when that classification is preserved; arbitrary unreadable feeds still refuse the mandatory audit. application-audit-replacement-r1 independently approves the bounded change.
+
+Measured final native summaries:
+
+```text
+schema-application-kernel/application-audit-controls.log:test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.04s
+knowledge-learning-demonstrations/projection-regressions.log:test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.15s
+knowledge-learning-demonstrations/projection-regressions.log:test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+knowledge-learning-demonstrations/cli-regressions-2.log:test result: ok. 70 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.06s
+knowledge-learning-demonstrations/cli-regressions-2.log:test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+knowledge-learning-demonstrations/runtime-final.log:test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 164.07s
+```
+
+Portable reports and exact raw log/capture digests are in .engineering/reviews/knowledge-learning-demonstrations/. Delegated source handoff remains explicitly unexecuted; root performed the later executions and fixture corrections. No new ESS declarations or generated bytes changed. The previously recorded specification digest remains current.
+
+Remaining delivery still includes original authored E/F conformance, the blocked generated SubmitSchemaProposal obligation (ESS issue 416 remains open), completed-proposal attention projection, final CLI/SDK worked examples and carrier integration/full task check. Public interpretation receipts remain immutable import history. No PR64 completion, full F or full gate is claimed; root retains the sole Cargo lane.

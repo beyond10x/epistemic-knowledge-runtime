@@ -70,6 +70,26 @@ pub struct VerifiedRead {
     indexed: (Arc<CanonicalGraph>, AliasCell),
 }
 impl VerifiedRead {
+    /// A source item is processed only after its exact mapping was admitted as an ordinary
+    /// commit in this captured history. Import-time receipts and prepared steps are not progress.
+    pub(crate) fn integrated_source_item(
+        &self,
+        source: &ekr_core::contract_data::EkrIntegrateInterpretationVersion,
+        item: &str,
+    ) -> bool {
+        use ekr_core::contract_data as w;
+        self.application_prefixes
+            .values()
+            .flat_map(|prefix| &prefix.commits)
+            .any(|(_, publication)| {
+                matches!(
+                    *publication.guard.step.kind,
+                    w::EkrIntegrateApplicationStepKind::V1
+                ) && matches!(&publication.guard.step.item, w::EssPresence::Present(key)
+                    if key.source.as_ref() == source && key.item == item)
+            })
+    }
+
     pub(crate) fn authority_at(&self, revision: RevisionNumber) -> &AuthorityStateV1 {
         self.authority_changes
             .range(..=revision)

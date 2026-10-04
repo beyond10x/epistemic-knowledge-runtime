@@ -532,6 +532,8 @@ required. It performs no canonical writes and invokes no model; a consumer suppl
 interpretation through its own agent. The typed SDK operation is `Knowledge::discover_schema_gaps`.
 Groups classify source items against the returned base schema. Their blocker IDs refer to the
 original retained findings; those records keep their import-time classification and basis.
+An item's verified mapping commit removes that exact source version and item from current gap
+discovery and blocker attention; its original interpretation and blocker history remain inspectable.
 
 `ekr schema-proposal submit proposal.json` accepts the generated
 `ekr.integrate.SchemaProposalImport`: `proposal` is the typed document and `payload` is the
@@ -594,6 +596,10 @@ Rejected proposals remain inspectable through `schema-proposal show` and their v
 The read-only viewer links each proposal from
 `/inbox` to `/schema-proposal/<proposal-id>`, showing additions, mappings, source observations,
 immutable interpretation documents, review material and authenticated human statement history.
+Application progress shows the committed schema revision, each selected item's integration status
+and any pending claim corrections. It reads verified commits, so a prepared or stale transaction
+is never shown as completed work. Earlier receipts and the retained application records remain
+available in expandable history sections.
 Both pages accept GET without query
 parameters; they expose no browser write controls.
 

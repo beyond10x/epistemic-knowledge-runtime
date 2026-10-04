@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T03:23:15Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 37,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "RED native health demonstration: completed mapped facts still appear in discovery, knowledge-learning-demonstrations/runtime-3.log",
+    "reference": ".engineering/planning/story/apply-approved-refinement.md"
+  }
+}

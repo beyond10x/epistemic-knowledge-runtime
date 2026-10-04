@@ -49,19 +49,21 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
             let document = super::incubation_document::project(&held.document)?;
             let current = super::incubation::classify_gaps(&document, &read.graph.ontology);
             for blocker in &held.blockers {
-                if held.receipts.iter().any(|receipt| {
-                    receipt.item == blocker.item
-                        && matches!(
-                            *receipt.disposition,
-                            w::EkrIntegrateProcessingDisposition::V0
-                                | w::EkrIntegrateProcessingDisposition::V1
-                                | w::EkrIntegrateProcessingDisposition::V3
-                        )
-                }) {
-                    continue;
-                }
                 if blocker.document_digest != version.document_digest {
                     return Err(error("blocker differs from its source document"));
+                }
+                if read.integrated_source_item(&version, &blocker.item)
+                    || held.receipts.iter().any(|receipt| {
+                        receipt.item == blocker.item
+                            && matches!(
+                                *receipt.disposition,
+                                w::EkrIntegrateProcessingDisposition::V0
+                                    | w::EkrIntegrateProcessingDisposition::V1
+                                    | w::EkrIntegrateProcessingDisposition::V3
+                            )
+                    })
+                {
+                    continue;
                 }
                 let Some((_, declaration, kind, _)) =
                     current.iter().find(|(item, ..)| item == &blocker.item)
