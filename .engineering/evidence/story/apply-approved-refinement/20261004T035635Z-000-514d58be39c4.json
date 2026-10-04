@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T03:56:35Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 42,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "RED completed proposal remains in attention after real schema commit and cold replay; completed-proposal-attention-red.log",
+    "reference": ".engineering/planning/story/apply-approved-refinement.md"
+  }
+}

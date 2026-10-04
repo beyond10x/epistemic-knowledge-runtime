@@ -178,6 +178,18 @@ impl<
             {
                 continue;
             }
+            if let Some(prefix) = read.as_ref().and_then(|read| {
+                read.application_prefixes
+                    .get(&proposal.proposal.proposal_id.0)
+            }) {
+                let remaining = prefix.remaining(&proposal.proposal)?;
+                if prefix.schema_done()
+                    && remaining.mappings.is_empty()
+                    && remaining.corrections.is_empty()
+                {
+                    continue;
+                }
+            }
             let mut subject = subject(EkrKernelAttentionKind::V2);
             subject.proposal_id = EssPresence::Present(proposal.proposal.proposal_id.clone());
             let mut observations: BTreeSet<_> = proposal
@@ -205,10 +217,19 @@ impl<
             }
             items.push(EkrKernelAttentionItem {
                 subject: Box::new(subject),
-                question: format!(
-                    "Should this vocabulary proposal be approved? {}",
-                    proposal.proposal.explanation
-                ),
+                question: if proposal.reviews.last().is_some_and(|review| {
+                    matches!(*review.decision, EkrIntegrateReviewDecision::V0)
+                }) {
+                    format!(
+                        "What still needs integration or renewed review for this approved proposal? {}",
+                        proposal.proposal.explanation
+                    )
+                } else {
+                    format!(
+                        "Should this vocabulary proposal be approved? {}",
+                        proposal.proposal.explanation
+                    )
+                },
                 basis: proposal.basis,
                 claims: Vec::new(),
                 evidence: evidence

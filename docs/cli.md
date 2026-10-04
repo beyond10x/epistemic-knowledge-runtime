@@ -591,8 +591,10 @@ effects requires another human review; the application's own committed progress 
 Read-only sessions refuse application. The typed
 SDK equivalent is `Knowledge::apply_schema_proposal`.
 
-Retained proposals whose latest decision is not a rejection appear in `attention list`.
-Rejected proposals remain inspectable through `schema-proposal show` and their viewer page.
+Unreviewed and incomplete approved proposals appear in `attention list`. Approved proposals ask
+about remaining integration or renewed review. A proposal leaves the inbox after its schema,
+selected mappings and selected corrections have verified commits, or after rejection.
+Completed and rejected proposals remain inspectable through `schema-proposal show` and their viewer page.
 The read-only viewer links each proposal from
 `/inbox` to `/schema-proposal/<proposal-id>`, showing additions, mappings, source observations,
 immutable interpretation documents, review material and authenticated human statement history.

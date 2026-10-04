@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T04:00:51Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:apply-approved-refinement",
+  "kind": "story",
+  "revision": 43,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Both-provider completed proposal attention and unresolved-correction control; eight existing review regressions green",
+    "reference": ".engineering/reviews/knowledge-learning-demonstrations/proposal-attention.md"
+  }
+}
