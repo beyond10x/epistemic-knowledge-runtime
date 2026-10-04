@@ -146,6 +146,8 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// verification of exact human decisions; it introduces no signing path or new package version.
 /// `story:apply-approved-refinement` moves graph's existing `serde_json` dependency to production
 /// for checked generated application guards; the workspace dependency version stays pinned.
+/// Its finite authored recovery suite uses the pinned ESS runner only in kernel integration
+/// tests, where genuine interrupted-store setup preserves the CLI's lack of a store dependency.
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -175,6 +177,8 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "time",
         ],
         &[
+            "ess-conformance",
+            "ess-primitives",
             "eventlog-core",
             "eventlog-file",
             "eventlog-sqlite",

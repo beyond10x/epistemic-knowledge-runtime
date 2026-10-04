@@ -1,0 +1,85 @@
+type: ess-scenario/3
+domain: ekr.integrate
+scenario: schema-proposal-requires-exact-human-approval
+summary: Invalid signature and changed digest refuse before one exact externally signed approval is retained without a canonical revision.
+# Setup submits a genuinely supported proposal under an independently enrolled reviewer policy.
+# Refused commands must leave the verified retained review stream unchanged.
+fixtures:
+  proposal-id: ekr.integrate.SchemaProposalId
+  proposal-digest: ekr.kernel.ContentHash
+  wrong-proposal-digest: ekr.kernel.ContentHash
+  review-basis: ekr.kernel.ReviewBasis
+  invalid-signature-proof: ekr.kernel.SignedHumanDecision
+  exact-review-proof: ekr.kernel.SignedHumanDecision
+  exact-review-proof-digest: ekr.kernel.ContentHash
+  review-statement: Bytes
+  reviewer: ekr.kernel.TrustedOperatorIdentity
+  original-revision: ekr.kernel.RevisionNumber
+  original-knowledge-root: ekr.kernel.ContentHash
+timeline:
+  - at: 2026-10-04T00:00:00Z
+    command: ekr.integrate.ApproveSchemaProposal
+    actor: ekr.integrate.HumanReviewer
+    input:
+      proposal_id: {$fixture: proposal-id}
+      proposal_digest: {$fixture: proposal-digest}
+      basis: {$fixture: review-basis}
+      human_proof: {$fixture: invalid-signature-proof}
+      statement: {$fixture: review-statement}
+    outcome: refused
+    events: []
+  - at: 2026-10-04T00:00:01Z
+    command: ekr.integrate.ApproveSchemaProposal
+    actor: ekr.integrate.HumanReviewer
+    input:
+      proposal_id: {$fixture: proposal-id}
+      proposal_digest: {$fixture: wrong-proposal-digest}
+      basis: {$fixture: review-basis}
+      human_proof: {$fixture: exact-review-proof}
+      statement: {$fixture: review-statement}
+    outcome: refused
+    events: []
+  - at: 2026-10-04T00:00:02Z
+    command: ekr.integrate.ApproveSchemaProposal
+    actor: ekr.integrate.HumanReviewer
+    input:
+      proposal_id: {$fixture: proposal-id}
+      proposal_digest: {$fixture: proposal-digest}
+      basis: {$fixture: review-basis}
+      human_proof: {$fixture: exact-review-proof}
+      statement: {$fixture: review-statement}
+    outcome: answered
+    events:
+      - event: ekr.integrate.ApproveSchemaProposalResult
+  - at: 2026-10-04T00:00:03Z
+    command: ekr.integrate.ShowSchemaProposal
+    actor: ekr.integrate.KnowledgeProposer
+    input: {proposal_id: {$fixture: proposal-id}}
+    outcome: answered
+    events:
+      - event: ekr.integrate.ShowSchemaProposalResult
+        payload: {proposal_digest: {$fixture: proposal-digest}}
+  - at: 2026-10-04T00:00:04Z
+    command: ekr.kernel.Snapshot
+    actor: ekr.kernel.Operator
+    input: {}
+    outcome: taken
+    events:
+      - event: ekr.kernel.SnapshotTaken
+        payload:
+          number: {$fixture: original-revision}
+          knowledge_root: {$fixture: original-knowledge-root}
+assert:
+  - view: ekr.integrate.ProposalReviewRecords
+    contains:
+      state: Recorded
+      proposal_id: {$fixture: proposal-id}
+      proposal_digest: {$fixture: proposal-digest}
+      basis: {$fixture: review-basis}
+      decision: Approved
+      operator: {$fixture: reviewer}
+      human_proof_digest: {$fixture: exact-review-proof-digest}
+  - view: ekr.integrate.ProposalReviewRecords
+    counts: {at_least: 1, at_most: 1}
+  - view: ekr.integrate.ApplicationReceiptRecords
+    counts: {at_least: 0, at_most: 0}

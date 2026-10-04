@@ -1,0 +1,54 @@
+type: ess-scenario/3
+domain: ekr.kernel
+scenario: canonical-derivation-has-no-transient-dependency
+summary: A cold full-replay capture explains an observation-backed mapped assertion after its temporary provider is detached, retaining exact source and mapping provenance.
+# Setup completes one actual application and captures a verified cold read before detaching
+# only this test's temporary provider. Explain and views use that capture, never a live root.
+fixtures:
+  assertion-id: ekr.graph.AssertionId
+  mapping-id: ekr.integrate.MappingRecordId
+  derivation-id: Uuid
+  observation-id: ekr.graph.ObservationId
+  evidence-id: ekr.graph.EvidenceId
+  mapping-evidence: List<ekr.graph.EvidenceId>
+  proposal-digest: ekr.kernel.ContentHash
+  mapping-digest: ekr.kernel.ContentHash
+  source-document-digest: ekr.kernel.ContentHash
+  observation-content-hash: ekr.kernel.ContentHash
+  explanation-link-count: Integer
+timeline:
+  - at: 2026-10-04T00:00:00Z
+    command: ekr.kernel.Explain
+    actor: ekr.kernel.Operator
+    input: {assertion_id: {$fixture: assertion-id}}
+    outcome: explained
+    events:
+      - event: ekr.kernel.Explained
+        payload:
+          assertion_id: {$fixture: assertion-id}
+          links: {$fixture: explanation-link-count}
+assert:
+  - view: ekr.integrate.MappingRecordRecords
+    contains:
+      state: Recorded
+      mapping_id: {$fixture: mapping-id}
+      proposal_digest: {$fixture: proposal-digest}
+      mapping_digest: {$fixture: mapping-digest}
+      source_document_digest: {$fixture: source-document-digest}
+      evidence: {$fixture: mapping-evidence}
+  - view: ekr.integrate.MappingRecordRecords
+    counts: {at_least: 1, at_most: 1}
+  - view: ekr.integrate.CanonicalDerivationRecords
+    contains:
+      state: Recorded
+      derivation_id: {$fixture: derivation-id}
+      assertion_id: {$fixture: assertion-id}
+      mapping_id: {$fixture: mapping-id}
+      observation_id: {$fixture: observation-id}
+      evidence_id: {$fixture: evidence-id}
+  - view: ekr.integrate.CanonicalDerivationRecords
+    counts: {at_least: 1, at_most: 1}
+  - view: ekr.kernel.RetainedEvidence
+    contains:
+      evidence_id: {$fixture: evidence-id}
+      content_hash: {$fixture: observation-content-hash}

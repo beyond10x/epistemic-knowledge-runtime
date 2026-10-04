@@ -22,6 +22,8 @@ thiserror.workspace = true
 time = { workspace = true, features = ["parsing", "formatting"] }
 
 [dev-dependencies]
+ess-conformance.workspace = true
+ess-primitives.workspace = true
 eventlog-core.workspace = true
 eventlog-file.workspace = true
 eventlog-sqlite.workspace = true

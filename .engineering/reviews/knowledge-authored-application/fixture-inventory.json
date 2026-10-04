@@ -1,0 +1,57 @@
+[
+  {
+    "source": "crates/ekr/tests/fixtures/conformance/application-scenarios/canonical_derivation_has_no_transient_dependency.yaml",
+    "scenario_id": "ekr.kernel/authored/canonical-derivation-has-no-transient-dependency",
+    "fixtures": {
+      "assertion-id": "ekr.graph.AssertionId",
+      "mapping-id": "ekr.integrate.MappingRecordId",
+      "derivation-id": "Uuid",
+      "observation-id": "ekr.graph.ObservationId",
+      "evidence-id": "ekr.graph.EvidenceId",
+      "mapping-evidence": "List<ekr.graph.EvidenceId>",
+      "proposal-digest": "ekr.kernel.ContentHash",
+      "mapping-digest": "ekr.kernel.ContentHash",
+      "source-document-digest": "ekr.kernel.ContentHash",
+      "observation-content-hash": "ekr.kernel.ContentHash",
+      "explanation-link-count": "Integer"
+    }
+  },
+  {
+    "source": "crates/ekr/tests/fixtures/conformance/application-scenarios/interrupted_integration_resumes_without_duplicates.yaml",
+    "scenario_id": "ekr.integrate/authored/interrupted-integration-resumes-without-duplicates",
+    "fixtures": {
+      "proposal-id": "ekr.integrate.SchemaProposalId",
+      "proposal-digest": "ekr.kernel.ContentHash",
+      "review-id": "ekr.integrate.ProposalReviewId",
+      "application-id": "ekr.integrate.SchemaApplicationId",
+      "schema-transaction-id": "ekr.kernel.TransactionId",
+      "schema-revision": "ekr.kernel.RevisionNumber",
+      "source-document-digest": "ekr.kernel.ContentHash",
+      "first-mapping-digest": "ekr.kernel.ContentHash",
+      "second-mapping-digest": "ekr.kernel.ContentHash",
+      "first-assertion-id": "ekr.graph.AssertionId",
+      "second-assertion-id": "ekr.graph.AssertionId",
+      "first-transaction-id": "ekr.kernel.TransactionId",
+      "second-transaction-id": "ekr.kernel.TransactionId",
+      "first-assertions": "List<ekr.graph.AssertionId>",
+      "second-assertions": "List<ekr.graph.AssertionId>"
+    }
+  },
+  {
+    "source": "crates/ekr/tests/fixtures/conformance/application-scenarios/schema_proposal_requires_exact_human_approval.yaml",
+    "scenario_id": "ekr.integrate/authored/schema-proposal-requires-exact-human-approval",
+    "fixtures": {
+      "proposal-id": "ekr.integrate.SchemaProposalId",
+      "proposal-digest": "ekr.kernel.ContentHash",
+      "wrong-proposal-digest": "ekr.kernel.ContentHash",
+      "review-basis": "ekr.kernel.ReviewBasis",
+      "invalid-signature-proof": "ekr.kernel.SignedHumanDecision",
+      "exact-review-proof": "ekr.kernel.SignedHumanDecision",
+      "exact-review-proof-digest": "ekr.kernel.ContentHash",
+      "review-statement": "Bytes",
+      "reviewer": "ekr.kernel.TrustedOperatorIdentity",
+      "original-revision": "ekr.kernel.RevisionNumber",
+      "original-knowledge-root": "ekr.kernel.ContentHash"
+    }
+  }
+]

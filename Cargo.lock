@@ -603,6 +603,8 @@ dependencies = [
  "ekr-integrate",
  "ekr-ontology",
  "ekr-store",
+ "ess-conformance",
+ "ess-primitives",
  "eventlog-core",
  "eventlog-file",
  "eventlog-sqlite",

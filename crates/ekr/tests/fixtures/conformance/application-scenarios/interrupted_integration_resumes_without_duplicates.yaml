@@ -1,0 +1,90 @@
+type: ess-scenario/3
+domain: ekr.integrate
+scenario: interrupted-integration-resumes-without-duplicates
+summary: A genuine schema-and-one-fact commit prefix with missing receipts resumes both selected mappings and repeats without additional writes.
+# Setup elects authentic frozen steps for both mappings, commits schema and the first mapping,
+# and omits receipts. Every command/read reopens with full replay. Repeat compares the entire
+# published feed and retained application state, not merely the canonical head.
+fixtures:
+  proposal-id: ekr.integrate.SchemaProposalId
+  proposal-digest: ekr.kernel.ContentHash
+  review-id: ekr.integrate.ProposalReviewId
+  application-id: ekr.integrate.SchemaApplicationId
+  schema-transaction-id: ekr.kernel.TransactionId
+  schema-revision: ekr.kernel.RevisionNumber
+  source-document-digest: ekr.kernel.ContentHash
+  first-mapping-digest: ekr.kernel.ContentHash
+  second-mapping-digest: ekr.kernel.ContentHash
+  first-assertion-id: ekr.graph.AssertionId
+  second-assertion-id: ekr.graph.AssertionId
+  first-transaction-id: ekr.kernel.TransactionId
+  second-transaction-id: ekr.kernel.TransactionId
+  first-assertions: List<ekr.graph.AssertionId>
+  second-assertions: List<ekr.graph.AssertionId>
+timeline:
+  - at: 2026-10-04T00:00:00Z
+    command: ekr.integrate.ApplySchemaProposal
+    actor: ekr.integrate.KnowledgeProposer
+    input:
+      proposal_id: {$fixture: proposal-id}
+      proposal_digest: {$fixture: proposal-digest}
+      review_id: {$fixture: review-id}
+    outcome: answered
+    events:
+      - event: ekr.integrate.ApplySchemaProposalResult
+  - at: 2026-10-04T00:00:01Z
+    command: ekr.integrate.ShowSchemaProposal
+    actor: ekr.integrate.KnowledgeProposer
+    input: {proposal_id: {$fixture: proposal-id}}
+    outcome: answered
+    events:
+      - event: ekr.integrate.ShowSchemaProposalResult
+        payload: {proposal_digest: {$fixture: proposal-digest}}
+  - at: 2026-10-04T00:00:02Z
+    command: ekr.integrate.ApplySchemaProposal
+    actor: ekr.integrate.KnowledgeProposer
+    input:
+      proposal_id: {$fixture: proposal-id}
+      proposal_digest: {$fixture: proposal-digest}
+      review_id: {$fixture: review-id}
+    outcome: answered
+    events:
+      - event: ekr.integrate.ApplySchemaProposalResult
+assert:
+  - view: ekr.integrate.ApplicationReceiptRecords
+    contains:
+      application_id: {$fixture: application-id}
+      proposal_id: {$fixture: proposal-id}
+      review_id: {$fixture: review-id}
+      progress: Complete
+      schema_transaction: {$fixture: schema-transaction-id}
+      schema_revision: {$fixture: schema-revision}
+      remaining_items: []
+      corrections_pending: false
+  - view: ekr.integrate.ProcessingReceiptRecords
+    contains:
+      document_digest: {$fixture: source-document-digest}
+      item: facts[0]
+      mapping_digest: {$fixture: first-mapping-digest}
+      disposition: Integrated
+      transaction_id: {$fixture: first-transaction-id}
+      assertions: {$fixture: first-assertions}
+  - view: ekr.integrate.ProcessingReceiptRecords
+    contains:
+      document_digest: {$fixture: source-document-digest}
+      item: facts[1]
+      mapping_digest: {$fixture: second-mapping-digest}
+      disposition: Integrated
+      transaction_id: {$fixture: second-transaction-id}
+      assertions: {$fixture: second-assertions}
+  # Two immutable import-time Parked receipts coexist with two Integrated receipts.
+  - view: ekr.integrate.ProcessingReceiptRecords
+    counts: {at_least: 4, at_most: 4}
+  - view: ekr.integrate.MappingRecordRecords
+    counts: {at_least: 2, at_most: 2}
+  - view: ekr.integrate.CanonicalDerivationRecords
+    counts: {at_least: 2, at_most: 2}
+  - view: ekr.graph.Assertions
+    contains: {assertion_id: {$fixture: first-assertion-id}}
+  - view: ekr.graph.Assertions
+    contains: {assertion_id: {$fixture: second-assertion-id}}
