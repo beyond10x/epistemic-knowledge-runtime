@@ -31,6 +31,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-lineage-lists-widened-ends-and-modified-properties.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-is-not-found-at-a-revision-before-it-existed.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-property-a-subtype-redeclares-is-projected-for-each-type.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-retracted-assertion-is-projected-with-its-lifecycle.yaml",

@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+- `ekr process-map` prints a revision's OCEL 2.0 log as a process, `ekr.process-map/1`: per object type its variants with their case counts and its directly-follows edges with their counts, derived from the `ekr.ocel/1` document `ekr ocel` prints for the same options, whose output is unchanged.
+
 ## [0.0.30] — 2026-10-03
 
 ### Added

@@ -45,6 +45,8 @@
 //!
 //! [`export_ocel`] (`ekr.ocel/1`) exports one revision as an OCEL 2.0 object-centric event log,
 //! its event types the overview's or the ones a request names; [`ocel`] is its pure half.
+//! [`export_process_map`] (`ekr.process-map/1`) reads that log as a process, per object type its
+//! variants and directly-follows graph; [`process_map`] is its pure half, over the log's bytes.
 //!
 //! [`draw_sample`] (`ekr.fact-sample/1`) draws a reproducible sample of one revision's facts, each
 //! with the bytes of its evidence, for a judge; [`sample`] is its pure half.
@@ -61,6 +63,7 @@ mod code_names;
 mod document;
 mod index;
 mod ocel;
+mod process_map;
 mod quality;
 mod query;
 mod roles;
@@ -79,6 +82,9 @@ pub use index::{Index, IndexCache};
 pub use ocel::{
     export_ocel, export_ocel_with_event_time, ocel, ocel_with_event_time, OcelError, OcelExported,
     OCEL_FORMAT,
+};
+pub use process_map::{
+    export_process_map, process_map, OcelMalformed, ProcessMapped, PROCESS_MAP_FORMAT,
 };
 pub use quality::{quality, report_quality, StoreQualityReported, QUALITY_FORMAT};
 pub use query::{

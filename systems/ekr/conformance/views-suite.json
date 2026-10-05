@@ -7,6 +7,7 @@
       "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
       "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
       "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
+      "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log",
       "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type",
       "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
       "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
@@ -63,6 +64,11 @@
         "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed"
+      },
+      "a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log.yaml": {
+        "digest": "sha256:8d875c563d70a570d6e9ef1cd5bc1143978aedef3d266bab2f834106e32ad765",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log"
       },
       "a-property-a-subtype-redeclares-is-projected-for-each-type.yaml": {
         "digest": "sha256:3aa0e798160e5b6d878899c35d0d1fb3955798df252145b889a3dd137a4f7411",
@@ -191,8 +197,8 @@
       }
     },
     "counts": {
-      "authored": 31,
-      "generated": 47,
+      "authored": 32,
+      "generated": 52,
       "outside": 38,
       "refused": 0
     },
@@ -230,6 +236,11 @@
       "ekr.views.ProjectOverview/outcome/not-found",
       "ekr.views.ProjectOverview/outcome/not-seeded",
       "ekr.views.ProjectOverview/outcome/overviewed",
+      "ekr.views.ProjectProcessMap/outcome/event-time-invalid",
+      "ekr.views.ProjectProcessMap/outcome/event-type-not-found",
+      "ekr.views.ProjectProcessMap/outcome/mapped",
+      "ekr.views.ProjectProcessMap/outcome/not-found",
+      "ekr.views.ProjectProcessMap/outcome/not-seeded",
       "ekr.views.ProjectTimeline/outcome/limit-exceeded",
       "ekr.views.ProjectTimeline/outcome/not-found",
       "ekr.views.ProjectTimeline/outcome/not-seeded",
@@ -1224,8 +1235,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "027875da702fedb13519361868b505f09a56eda1f5a87ae9cbe7cf25877f84c6",
-    "spec_digest": "84d423523534a173ee036937b2501923d5955aaf742d9fbe987e4288dbda679d",
+    "contract_digest": "ca22fa3039587a280cbbab3bc7ab85f1ef0b61c24cf331779798a551299da254",
+    "spec_digest": "cbc6fd0bca0fee811f0310c0dbd6919874e36face06bcf8304bd503dcc0a3566",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1352,6 +1363,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -1506,6 +1521,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -1640,6 +1659,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -1846,6 +1869,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -2017,6 +2044,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.StoreQualityReported"
         },
         {
@@ -2175,6 +2206,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -2305,6 +2340,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -2466,6 +2505,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -2596,6 +2639,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -2750,6 +2797,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -2880,6 +2931,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -3047,6 +3102,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -3173,6 +3232,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -3322,6 +3385,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -3448,6 +3515,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -3597,6 +3668,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -3723,6 +3798,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -3872,6 +3951,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -4006,6 +4089,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -4187,6 +4274,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -4313,6 +4404,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -4463,6 +4558,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -4589,6 +4688,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -4746,6 +4849,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -4872,6 +4979,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -5029,6 +5140,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -5163,6 +5278,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -5358,6 +5477,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -5488,6 +5611,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -5646,6 +5773,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -5776,6 +5907,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -5941,6 +6076,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -6071,6 +6210,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -6236,6 +6379,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -6366,6 +6513,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -6531,6 +6682,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -6653,6 +6808,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -6806,6 +6965,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -6928,6 +7091,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -7081,6 +7248,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -7207,6 +7378,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -7399,6 +7574,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -7521,6 +7700,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -7674,6 +7857,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -7796,6 +7983,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -7949,6 +8140,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -8083,6 +8278,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -8281,6 +8480,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -8411,6 +8614,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -8561,6 +8768,10 @@
         },
         {
           "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
           "step": "expect_no_event"
         },
         {
@@ -8697,6 +8908,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.StoreQualityReported"
         },
         {
@@ -8847,6 +9062,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -8969,6 +9188,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -9114,6 +9337,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -9236,6 +9463,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -9381,6 +9612,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -9507,6 +9742,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -9699,6 +9938,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -9821,6 +10064,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -9963,6 +10210,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -10085,6 +10336,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -10234,6 +10489,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -10356,6 +10615,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -10505,6 +10768,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -10635,6 +10902,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -10876,6 +11147,1444 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectProcessMap/outcome/event-time-invalid": {
+      "purpose": "`ekr.views.ProjectProcessMap` answers `event-time-invalid` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectProcessMap"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-time-invalid"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.EventTimeInvalid"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-time-invalid"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectProcessMap/outcome/event-type-not-found": {
+      "purpose": "`ekr.views.ProjectProcessMap` answers `event-type-not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectProcessMap"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-type-not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.EventTypeNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-type-not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-type-not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTypeNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectProcessMap/outcome/mapped": {
+      "purpose": "`ekr.views.ProjectProcessMap` answers `mapped` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectProcessMap"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "mapped"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "mapped"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "shape": {
+            "cases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "directly_follows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "ocel_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "process_map_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "variants": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectProcessMap/outcome/not-found": {
+      "purpose": "`ekr.views.ProjectProcessMap` answers `not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectProcessMap"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectProcessMap/outcome/not-seeded": {
+      "purpose": "`ekr.views.ProjectProcessMap` answers `not-seeded` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectProcessMap"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "not-seeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NotSeeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "not-seeded"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "not-seeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NotSeeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -11010,6 +12719,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -11168,6 +12881,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -11302,6 +13019,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -11467,6 +13188,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -11601,6 +13326,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -11766,6 +13495,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -11904,6 +13637,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -12125,6 +13862,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         }
@@ -12259,6 +14000,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -12413,6 +14158,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -12551,6 +14300,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -12698,6 +14451,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -12840,6 +14597,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -13014,6 +14775,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -13136,6 +14901,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -13281,6 +15050,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -13403,6 +15176,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -13548,6 +15325,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -13674,6 +15455,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -13854,6 +15639,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
@@ -13972,6 +15761,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -14118,6 +15911,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -14240,6 +16037,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -14393,6 +16194,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -14515,6 +16320,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -14668,6 +16477,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
@@ -14798,6 +16611,10 @@
         {
           "kind": "event",
           "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
         },
         {
           "kind": "event",
@@ -14967,6 +16784,10 @@
         },
         {
           "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
           "step": "expect_no_event"
         },
         {
@@ -18551,6 +20372,359 @@
             }
           },
           "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log": {
+      "purpose": "Three tickets follow two variants at the seed and one at the head; naming the event types maps the log they give; an unknown name and selector are refused.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectProcessMap"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-time-invalid"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-type-not-found"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "mapped"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.EventTimeInvalid"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.EventTypeNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "process-map"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "mapped"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "payload": {
+            "cases": 4.0,
+            "directly_follows": 4.0,
+            "object_types": 2.0,
+            "revision": 0.0,
+            "variants": 3.0
+          },
+          "shape": {
+            "cases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "directly_follows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "ocel_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "process_map_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "variants": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "process-map"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "mapped"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "payload": {
+            "cases": 4.0,
+            "directly_follows": 3.0,
+            "object_types": 2.0,
+            "revision": 1.0,
+            "variants": 2.0
+          },
+          "shape": {
+            "cases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "directly_follows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "ocel_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "process_map_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "variants": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "events": {
+              "kind": "literal",
+              "value": [
+                "opened",
+                "closed"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "process-map"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "mapped"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "payload": {
+            "cases": 3.0,
+            "directly_follows": 1.0,
+            "object_types": 3.0,
+            "revision": 0.0,
+            "variants": 1.0
+          },
+          "shape": {
+            "cases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "directly_follows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "ocel_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "process_map_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "variants": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "events": {
+              "kind": "literal",
+              "value": [
+                "opened",
+                "lorry"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "process-map"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-type-not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTypeNotFound",
+          "fields": {
+            "name": "lorry",
+            "revision": 1.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectProcessMap",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "nothing.at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "process-map"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectProcessMap",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 1.0,
+            "selector": "nothing.at"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
         }
       ]
     },

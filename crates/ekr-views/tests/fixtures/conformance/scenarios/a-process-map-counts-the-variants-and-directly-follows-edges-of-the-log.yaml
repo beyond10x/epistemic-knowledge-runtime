@@ -1,0 +1,109 @@
+# story:ocel-process-map: every count of ekr.process-map/1 equals the fixture's
+# (ekr.views.ProcessMapV1), by the overview's rule and with event types named.
+#
+# The store `process-map` (crates/ekr-views/tests/support/fixtures.rs, `Fixture::ProcessMap`):
+#   - node types ticket and reviewer, and opened, reviewed and closed, each of the last three with
+#     a Timestamp `at` on every node; edge types concerns (an event to a ticket) and by (reviewed
+#     to reviewer).
+#   - by the overview's rule opened, reviewed and closed are the event types and ticket and
+#     reviewer the object types: 2 object types.
+#   - at revision 0, t1 and t2 are opened, reviewed and closed and t3 opened and closed: 2 ticket
+#     variants, edges opened→reviewed 2, reviewed→closed 2 and opened→closed 1. r1 is related to
+#     v1 and v2: 1 variant, reviewed twice, and 1 edge, reviewed→reviewed. 4 cases, 3 variants,
+#     4 edges.
+#   - revision 1 adds v3, t3 reviewed between its opening and closing: 1 ticket variant and 2
+#     edges, with the reviewer's unchanged: 4 cases, 2 variants, 3 edges.
+#   - named, opened and closed are the event types, and ticket, reviewer and reviewed the object
+#     types: the 3 tickets follow 1 variant with 1 edge; no event relates to a reviewer or a
+#     reviewed node, so neither has a case.
+#   - a name no node type holds and a selector naming no type are refused, as ExportOcel refuses
+#     them.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log
+summary: Three tickets follow two variants at the seed and one at the head; naming the event types maps the log they give; an unknown name and selector are refused.
+
+timeline:
+  - at: 2027-01-18T10:00:00Z
+    command: ekr.views.ProjectProcessMap
+    actor: ekr.views.Reader
+    input:
+      store: process-map
+      at: 0
+      events: []
+    outcome: mapped
+    events:
+      - event: ekr.views.ProcessMapped
+        payload:
+          revision: 0
+          object_types: 2
+          cases: 4
+          variants: 3
+          directly_follows: 4
+
+  - at: 2027-01-18T10:01:00Z
+    command: ekr.views.ProjectProcessMap
+    actor: ekr.views.Reader
+    input:
+      store: process-map
+      at: null
+      events: []
+    outcome: mapped
+    events:
+      - event: ekr.views.ProcessMapped
+        payload:
+          revision: 1
+          object_types: 2
+          cases: 4
+          variants: 2
+          directly_follows: 3
+
+  - at: 2027-01-18T10:02:00Z
+    command: ekr.views.ProjectProcessMap
+    actor: ekr.views.Reader
+    input:
+      store: process-map
+      at: 0
+      events: [opened, closed]
+    outcome: mapped
+    events:
+      - event: ekr.views.ProcessMapped
+        payload:
+          revision: 0
+          object_types: 3
+          cases: 3
+          variants: 1
+          directly_follows: 1
+
+  - at: 2027-01-18T10:03:00Z
+    command: ekr.views.ProjectProcessMap
+    actor: ekr.views.Reader
+    input:
+      store: process-map
+      at: null
+      events: [opened, lorry]
+    outcome: event-type-not-found
+    error:
+      name: ekr.views.EventTypeNotFound
+      fields:
+        name: lorry
+        revision: 1
+    no_events:
+      - ekr.views.ProcessMapped
+
+  - at: 2027-01-18T10:04:00Z
+    command: ekr.views.ProjectProcessMap
+    actor: ekr.views.Reader
+    input:
+      store: process-map
+      at: 1
+      events: []
+      event_time: [nothing.at]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: nothing.at
+        revision: 1
+    no_events:
+      - ekr.views.ProcessMapped

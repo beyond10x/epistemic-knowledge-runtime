@@ -17,8 +17,9 @@ summary: >-
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
   constrained and its nodes of one type named apart. ekr.code-names/1 (FindCodeNames) reports
   which of a revision's names a consumer's source files carry as literals. ekr.ocel/1
-  (ExportOcel) exports one revision as an OCEL 2.0 object-centric event log. This domain writes
-  nothing; its ten commands read. Two more, DrawFactSample and ReportFactQuality, sample facts
+  (ExportOcel) exports one revision as an OCEL 2.0 object-centric event log, and
+  ekr.process-map/1 (ProjectProcessMap) reads that log as a process: per object type its variants
+  and its directly-follows graph. This domain writes nothing; its eleven commands read. Two more, DrawFactSample and ReportFactQuality, sample facts
   for a judge and report the judged sample's pass rate (see the fact-quality paragraph below).
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
@@ -1815,6 +1816,100 @@ types:
         type: ekr.views.Ocel20Log
 
   # ---------------------------------------------------------------------------------------------
+  # ekr.process-map/1 (ProjectProcessMap): one revision's OCEL 2.0 log read as a process. It is
+  # derived from the ekr.ocel/1 document ExportOcel answers for the same request — the same `at`,
+  # `events` and `event_time`, refused as that request is refused — and from nothing else; its
+  # `ocel` member is not repeated.
+  #
+  # Cases and traces. Each object of the log is a case of its object type. Its trace is the
+  # `type` of every event holding a relationship whose objectId is the object, in the log's event
+  # order (time, then id); an event holding two relationships to one object, under two
+  # qualifiers, is one step. An object no event relates to is no case and has no trace.
+  #
+  # Variants and directly-follows. Per object type, a variant is one distinct trace, its
+  # `activities` the trace's event type ids in order and `cases` the number of the type's cases
+  # whose trace it is. A directly-follows entry is an ordered pair of event type ids, `from` and
+  # `to`, that some case's trace holds as consecutive steps; `count` is the number of such
+  # consecutive pairs over every case of the type, a trace holding the pair twice counting two. A
+  # pair of one type with itself is an entry like any other. Object-to-object relationships do
+  # not enter the map.
+  #
+  # Object types. `object_types` holds one entry per object type of the log (ocel.objectTypes),
+  # one with no object or no case included: `objects` its objects in the log and `cases` those
+  # some event relates to. Types and activities are named by id as the log names them; `names`
+  # is the log's `names.node_types`, which names each id.
+  #
+  # Determinism, so that two answers to one request are byte-identical. Order: object_types by
+  # object_type; each type's variants by cases, descending, then by activities, compared element
+  # by element as text, a shorter list that is a prefix of a longer first; directly_follows by
+  # from, then to; names.node_types as the log orders it. `ocel_hash` is the hex SHA-256 of the
+  # ekr.ocel/1 document's exact bytes, ExportOcel's ocel_hash for the same request. Rules (2) key
+  # order, (3) encoding, (4) presence and (5) hold as for the five bounded formats, and no field
+  # of this format is Optional.
+  - name: ekr.views.ProcessMapFormatV1
+    kind: enum
+    variants: [ekr.process-map/1]
+
+  # `revision` is the log's meta.revision; `ocel_hash` names the log the map was derived from.
+  - name: ekr.views.ProcessMapMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.ProcessMapFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: ocel_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.views.ProcessMapNames
+    kind: struct
+    fields:
+      - name: node_types
+        type: List<ekr.views.OcelName>
+
+  - name: ekr.views.ProcessVariant
+    kind: struct
+    fields:
+      - name: activities
+        type: List<String>
+      - name: cases
+        type: Integer
+
+  - name: ekr.views.DirectlyFollows
+    kind: struct
+    fields:
+      - name: from
+        type: String
+      - name: to
+        type: String
+      - name: count
+        type: Integer
+
+  - name: ekr.views.ObjectTypeProcess
+    kind: struct
+    fields:
+      - name: object_type
+        type: String
+      - name: objects
+        type: Integer
+      - name: cases
+        type: Integer
+      - name: variants
+        type: List<ekr.views.ProcessVariant>
+      - name: directly_follows
+        type: List<ekr.views.DirectlyFollows>
+
+  - name: ekr.views.ProcessMapV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.ProcessMapMeta
+      - name: names
+        type: ekr.views.ProcessMapNames
+      - name: object_types
+        type: List<ekr.views.ObjectTypeProcess>
+
+  # ---------------------------------------------------------------------------------------------
   # Fact quality by a judged sample (story:fact-quality-by-judged-sample). DrawFactSample draws a
   # reproducible sample of one revision's facts, each with the bytes of the evidence it cites; an
   # agent judges each fact against that evidence; ReportFactQuality reports the pass rate of the
@@ -2008,6 +2103,7 @@ actors:
       - ekr.views.ReportStoreQuality
       - ekr.views.FindCodeNames
       - ekr.views.ExportOcel
+      - ekr.views.ProjectProcessMap
       - ekr.views.DrawFactSample
       - ekr.views.ReportFactQuality
     naming:
@@ -2668,6 +2764,57 @@ commands:
         error: ekr.views.EventTimeInvalid
         summary: Nothing was answered; the refusal names the selector, reason and revision.
 
+  # One revision's OCEL 2.0 log as a process (ekr.views.ProcessMapV1): the ekr.ocel/1 document
+  # ExportOcel answers for the same input, read as variants and directly-follows counts per object
+  # type. Its input is ExportOcel's and means what it means there; its refusals are ExportOcel's,
+  # external for the same reason.
+  - name: ekr.views.ProjectProcessMap
+    naming:
+      wire: project-process-map
+      display: Map an OCEL 2.0 event log as a process
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: events
+        type: List<String>
+      - name: event_time
+        type: Optional<List<String>>
+    response:
+      - name: process_map
+        type: ekr.views.ProcessMapV1
+    outcomes:
+      - name: mapped
+        emits:
+          - ekr.views.ProcessMapped
+        payload:
+          ekr.views.ProcessMapped:
+            revision: {generated: true}
+            object_types: {generated: true}
+            cases: {generated: true}
+            variants: {generated: true}
+            directly_follows: {generated: true}
+            ocel_hash: {generated: true}
+            process_map_hash: {generated: true}
+        summary: One ekr.process-map/1 document of the requested revision, byte-identical to every other answer to the same request with `at` resolved.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+      - name: event-type-not-found
+        external: the revision's ontology holds no node type with a name the request lists in events
+        error: ekr.views.EventTypeNotFound
+        summary: Nothing was answered; the refusal names the first such name.
+      - name: event-time-invalid
+        external: an event_time selector is malformed, absent, ambiguous or conflicting, or a selected node holds multiple distinct timestamps
+        error: ekr.views.EventTimeInvalid
+        summary: Nothing was answered; the refusal names the selector, reason and revision.
+
   # A reproducible sample of one revision's facts (ekr.views.FactSampleV1), for a judge. `at` is
   # the revision read, the head when absent; `seed` any integer; `size` how many facts to draw,
   # 1 to 1000; `type` a type id whose facts alone are drawn. A type the revision's ontology does
@@ -3118,6 +3265,28 @@ events:
       - name: attribute_values_out_of_range
         type: Integer
       - name: ocel_hash
+        type: ekr.kernel.ContentHash
+
+  # What one process map returned, every field a function of the document. `revision` and
+  # `ocel_hash` are meta's; `object_types` the entries of object_types; `cases`, `variants` and
+  # `directly_follows` the sums over those entries of each one's cases, the length of its
+  # variants and the length of its directly_follows; `process_map_hash` the hex SHA-256 of the
+  # document's exact bytes.
+  - name: ekr.views.ProcessMapped
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: object_types
+        type: Integer
+      - name: cases
+        type: Integer
+      - name: variants
+        type: Integer
+      - name: directly_follows
+        type: Integer
+      - name: ocel_hash
+        type: ekr.kernel.ContentHash
+      - name: process_map_hash
         type: ekr.kernel.ContentHash
 
   # What one fact sample returned, every field a function of the document. `revision`, `seed`,
