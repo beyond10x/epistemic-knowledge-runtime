@@ -6,7 +6,7 @@ status: approved
 title: 'Wave 20261005b: extraction parity'
 relations:
 - decides: story:extraction-partial-apply
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "in_review", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 2}
 - {from: "in_review", to: "approved", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 3}
@@ -34,3 +34,13 @@ Opened 2026-10-05 by the coordinating session, `aep:implementing` 0.19.2 wave mo
 ## Commits approval authorises
 
 One commit per story in unit A and one in unit B, each through `b10x-gates bot`; the merges of both units into `wave/20261005b`; the closing planning-store commit; the pull request into `main` and its merge; the EKR release that follows, through the repository's own release process.
+
+## Unit C (added 2026-10-05)
+
+## Unit C (added 2026-10-05)
+
+| unit | story | branch | worktree | build dir | scratch |
+|---|---|---|---|---|---|
+| C | `story:seed-if-absent` | `unit/seed-if-absent` | `ekr-wx-c` | `~/.cache/b10x-target/ekr-wx-c` | `~/.cache/ekr-wave-8c9138d1/c` |
+
+Added under the operator's standing approval of every wave. It touches the seed path, not `Run::go`, so it runs beside unit A; forked from `427a211` (unit B merged).
