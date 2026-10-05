@@ -2,10 +2,12 @@
 format: aep.planning-md/3
 id: story:extraction-partial-apply
 kind: story
-status: draft
+status: active
 title: One bad extracted fact is skipped and the rest applies
 tags:
 - consumer:cortex
+relations:
+- serves: vision:o5
 scope:
 - confidence: inferred
   path: CHANGELOG.md
@@ -29,7 +31,10 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/integrate.yaml
-revision: 4
+revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 5}
+- {from: "proposed", to: "active", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 6}
 ---
 ## Outcome
 

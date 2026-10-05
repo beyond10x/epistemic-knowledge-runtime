@@ -2,10 +2,12 @@
 format: aep.planning-md/3
 id: story:extracted-relations-visible-to-graph-reads
 kind: story
-status: draft
+status: active
 title: A relation applied through extraction is visible to graph reads
 tags:
 - consumer:cortex
+relations:
+- serves: vision:o5
 scope:
 - confidence: inferred
   path: CHANGELOG.md
@@ -21,7 +23,10 @@ scope:
   path: crates/ekr/tests/extraction_cli.rs
 - confidence: cited
   path: docs/cli.md
-revision: 5
+revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 6}
+- {from: "proposed", to: "active", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 7}
 ---
 ## Outcome
 

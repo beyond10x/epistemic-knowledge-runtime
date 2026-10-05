@@ -2,10 +2,12 @@
 format: aep.planning-md/3
 id: story:extraction-valid-time
 kind: story
-status: draft
+status: active
 title: An extracted fact is valid from the time its evidence was observed
 tags:
 - consumer:cortex
+relations:
+- serves: vision:o5
 scope:
 - confidence: inferred
   path: CHANGELOG.md
@@ -17,7 +19,10 @@ scope:
   path: crates/ekr/tests/extraction_cli.rs
 - confidence: inferred
   path: docs/cli.md
-revision: 4
+revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 5}
+- {from: "proposed", to: "active", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 6}
 ---
 ## Outcome
 
