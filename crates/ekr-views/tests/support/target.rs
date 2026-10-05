@@ -1,6 +1,7 @@
-//! The ESS conformance target over `ekr_views`' twelve commands, on one native provider:
+//! The ESS conformance target over `ekr_views`' thirteen commands, on one native provider:
 //! `ekr_views::project` for `ProjectGraph`, `ekr_views::report_quality` for `ReportStoreQuality`,
-//! `ekr_views::export_ocel` for `ExportOcel`, `ekr_views::find_code_names` for `FindCodeNames`, whose
+//! `ekr_views::export_ocel` for `ExportOcel`, `ekr_views::export_process_map` for
+//! `ProjectProcessMap`, `ekr_views::find_code_names` for `FindCodeNames`, whose
 //! `sources` input is the list of `{path, text}` it answers for, and an [`ekr_views::Index`] of the
 //! requested revision for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
 //! `ProjectTimeline` and `ChangesSince`; and the fact-quality pair, `ekr_views::draw_sample` for
@@ -20,9 +21,11 @@
 //!   `node-not-found` and `event-type-not-found` build it as `schema-evolution` — revision 1
 //!   exists, and [`fixtures::DESCRIBED`], the node the generated scenarios name, does not, nor
 //!   does a node type named [`fixtures::UNDECLARED_TYPE_NAME`]. An expansion that names no seed is
-//!   given that node as its one seed, and an export that names no event type that name as its
-//!   one, which is what makes a seed or a name unknown; the generated `ExpandNeighbourhood` and
-//!   `ExportOcel` scenarios send `seeds: []` and `events: []`. `judged-twice` judges the first
+//!   given that node as its one seed, and an export or a process map that names no event type
+//!   that name as its one, which is what makes a seed or a name unknown; the generated
+//!   `ExpandNeighbourhood`, `ExportOcel` and `ProjectProcessMap` scenarios send `seeds: []` and
+//!   `events: []`. `event-time-invalid` builds it as `schema-evolution` too and selects the event
+//!   time `undeclared.at`, a type no fixture declares. `judged-twice` judges the first
 //!   judgement's assertion a second time, or, where the request judges none (the generated
 //!   scenario sends `judgements: []`), judges one fixture assertion twice. The reads then answer
 //!   whatever they answer.
@@ -42,9 +45,9 @@ use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
     FactJudgements, FactQualityError, FactQualityReported, FactSampleDrawn, GraphOverviewed,
     GraphProjected, Index, Judgement, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OcelError, OcelExported, OverviewRequest, ProjectError, QueryError,
-    SampleRequest, SearchRequest, SinceKind, SourceText, StoreQualityReported, SubjectsTimelined,
-    TimelineRequest, Verdict,
+    NodesSearched, OcelError, OcelExported, OverviewRequest, ProcessMapped, ProjectError,
+    QueryError, SampleRequest, SearchRequest, SinceKind, SourceText, StoreQualityReported,
+    SubjectsTimelined, TimelineRequest, Verdict,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -67,9 +70,10 @@ const CHANGES_SINCE: &str = "ekr.views.ChangesSince";
 const FIND_CODE_NAMES: &str = "ekr.views.FindCodeNames";
 const REPORT_STORE_QUALITY: &str = "ekr.views.ReportStoreQuality";
 const EXPORT_OCEL: &str = "ekr.views.ExportOcel";
+const PROJECT_PROCESS_MAP: &str = "ekr.views.ProjectProcessMap";
 const DRAW_FACT_SAMPLE: &str = "ekr.views.DrawFactSample";
 const REPORT_FACT_QUALITY: &str = "ekr.views.ReportFactQuality";
-const COMMANDS: [&str; 12] = [
+const COMMANDS: [&str; 13] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
@@ -80,6 +84,7 @@ const COMMANDS: [&str; 12] = [
     FIND_CODE_NAMES,
     REPORT_STORE_QUALITY,
     EXPORT_OCEL,
+    PROJECT_PROCESS_MAP,
     DRAW_FACT_SAMPLE,
     REPORT_FACT_QUALITY,
 ];
@@ -127,9 +132,11 @@ enum Read {
     Changes(Result<ChangesRequest, ChangesError>),
     CodeNames(Vec<SourceText>, ekr_views::CodeNameMode),
     Quality,
+    /// `ExportOcel`, or `ProjectProcessMap` when `map` is set: the same input, the same log.
     Ocel {
         events: Vec<String>,
         times: Vec<String>,
+        map: bool,
     },
     Sample(Result<SampleRequest, LimitExceeded>),
 }
@@ -443,6 +450,22 @@ fn ocel_exported(summary: &OcelExported) -> Result<ObservedEvent, TargetError> {
     observed("ekr.views.OcelExported", fields)
 }
 
+fn process_mapped(summary: &ProcessMapped) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("object_types", summary.object_types),
+        ("cases", summary.cases),
+        ("variants", summary.variants),
+        ("directly_follows", summary.directly_follows),
+    ])?;
+    fields.push(("ocel_hash", Node::Text(summary.ocel_hash.clone())));
+    fields.push((
+        "process_map_hash",
+        Node::Text(summary.process_map_hash.clone()),
+    ));
+    observed("ekr.views.ProcessMapped", fields)
+}
+
 fn fact_sample_drawn(summary: &FactSampleDrawn) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
@@ -747,9 +770,10 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
             },
         ),
         REPORT_STORE_QUALITY => Read::Quality,
-        EXPORT_OCEL => Read::Ocel {
+        EXPORT_OCEL | PROJECT_PROCESS_MAP => Read::Ocel {
             events: event_names(request)?,
             times: event_times(request)?,
+            map: command == PROJECT_PROCESS_MAP,
         },
         DRAW_FACT_SAMPLE => Read::Sample(sample_request(request)?),
         _ => Read::Graph,
@@ -842,9 +866,16 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
-    if let Read::Ocel { events, times } = read {
-        return match ekr_views::export_ocel_with_event_time(runtime, at, &events, &times) {
-            Ok(answer) => Ok((took("exported", ocel_exported(&answer.summary)?)?, None)),
+    if let Read::Ocel { events, times, map } = read {
+        let answered = if map {
+            ekr_views::export_process_map(runtime, at, &events, &times)
+                .map(|answer| process_mapped(&answer.summary).and_then(|e| took("mapped", e)))
+        } else {
+            ekr_views::export_ocel_with_event_time(runtime, at, &events, &times)
+                .map(|answer| ocel_exported(&answer.summary).and_then(|e| took("exported", e)))
+        };
+        return match answered {
+            Ok(result) => Ok((result?, None)),
             Err(OcelError::EventTypeNotFound { name, revision }) => Ok((
                 SemanticCommandResult::took(outcome_ref(command, "event-type-not-found")?)
                     .with_error(
@@ -1033,11 +1064,12 @@ impl ConformanceTarget for ViewsTarget {
             ));
         }
         if control == Some(Control::EventTypeAbsent) {
-            if let Read::Ocel { events, .. } = &read {
+            if let Read::Ocel { events, map, .. } = &read {
                 if events.is_empty() {
                     read = Read::Ocel {
                         events: vec![fixtures::UNDECLARED_TYPE_NAME.to_owned()],
                         times: Vec::new(),
+                        map: *map,
                     };
                 }
             }
@@ -1046,6 +1078,7 @@ impl ConformanceTarget for ViewsTarget {
             read = Read::Ocel {
                 events: Vec::new(),
                 times: vec!["undeclared.at".to_owned()],
+                map: command == PROJECT_PROCESS_MAP,
             };
         }
         if control == Some(Control::NodeAbsent) {
@@ -1142,8 +1175,8 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-found") if COMMANDS.contains(&command) => Control::RevisionAbsent,
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
-            (EXPORT_OCEL, "event-type-not-found") => Control::EventTypeAbsent,
-            (EXPORT_OCEL, "event-time-invalid") => Control::EventTimeInvalid,
+            (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-type-not-found") => Control::EventTypeAbsent,
+            (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-time-invalid") => Control::EventTimeInvalid,
             (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,
             _ => {
                 return Err(TargetError::unsupported(

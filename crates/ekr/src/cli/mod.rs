@@ -22,7 +22,7 @@
 //! reads it only (`code_names.rs`).
 //! `quality` opens the store as those verbs do and reads one revision through
 //! `ekr_views::report_quality` (`quality.rs`); `ocel` likewise, through `ekr_views::export_ocel`
-//! (`ocel.rs`).
+//! (`ocel.rs`), and `process-map` through `ekr_views::export_process_map` (`process_map.rs`).
 //! `sample` opens the store as those verbs do and draws from one revision through
 //! `ekr_views::draw_sample`; `fact-quality` reads the judged sample it is given and opens no
 //! provider (`sample.rs`).
@@ -50,6 +50,7 @@ mod mcp;
 mod migrate;
 mod ocel;
 mod ontology;
+mod process_map;
 mod propose;
 mod quality;
 pub(crate) mod rejections;
@@ -375,6 +376,31 @@ pub enum Command {
         #[arg(long, value_name = "TYPE.PROPERTY", conflicts_with = "events")]
         event_time: Vec<String>,
     },
+    /// Print one revision's OCEL 2.0 event log as a process: the `ekr.process-map/1` document
+    /// (`ekr.views.ProjectProcessMap`), per object type its variants and its directly-follows
+    /// graph.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. The map
+    /// is derived from the `ekr.ocel/1` log `ekr ocel` prints for the same --revision, --events
+    /// and --event-time, and `meta.ocel_hash` is that log's hash. Each object is a case and its
+    /// trace the types of the events relating to it, by time; variants are the distinct traces
+    /// with their case counts, and the directly-follows edges count each pair of consecutive
+    /// event types. Types are named by id, and `names` gives each id its name. Two reads of one
+    /// request print the same bytes.
+    #[command(after_help = SEE)]
+    ProcessMap {
+        /// The committed revision to map; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        revision: Option<u64>,
+        /// The node types, by name, that are the event types, as `ekr ocel --events` takes them.
+        /// A name no node type holds is refused as `ekr.views.EventTypeNotFound` (exit 2).
+        #[arg(long, value_name = "TYPE_NAME", num_args = 1..)]
+        events: Vec<String>,
+        /// Event types and their Timestamp properties, as `ekr ocel --event-time` takes them:
+        /// TypeName.propertyName, repeated for each type.
+        #[arg(long, value_name = "TYPE.PROPERTY", conflicts_with = "events")]
+        event_time: Vec<String>,
+    },
     /// Print a reproducible sample of the store's facts at one revision, each with the bytes of the
     /// evidence it cites, for a judge: the `ekr.fact-sample/1` document
     /// (`ekr.views.DrawFactSample`).
@@ -583,6 +609,7 @@ impl Command {
             | Self::CodeNames { .. }
             | Self::Quality { .. }
             | Self::Ocel { .. }
+            | Self::ProcessMap { .. }
             | Self::Sample { .. }
             | Self::FactQuality { .. }
             | Self::View { .. }
@@ -919,6 +946,14 @@ fn dispatch(
             let runtime = source.resolve("ocel")?.open()?;
             let (document, stderr) = ocel::run(&runtime, revision, &events, &event_time)?;
             Ok(Printed::DocumentWithStderr { document, stderr })
+        }
+        Command::ProcessMap {
+            revision,
+            events,
+            event_time,
+        } => {
+            let runtime = source.resolve("process-map")?.open()?;
+            process_map::run(&runtime, revision, &events, &event_time).map(Printed::Document)
         }
         Command::Sample {
             seed,

@@ -72,7 +72,11 @@ WORKFLOW
                                                    viewer's unless --events names them;
                                                    --event-time Type.property selects timestamps,
                                                    counts are one JSON line on stderr
-     ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
+     ekr process-map [--revision N] [--events <type>...]
+                                                   that log as a process: per object type its
+                                                   variants with their case counts and its
+                                                   directly-follows edges with their counts
+     ekr view [--port N]                          a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,
                                                    expand, timeline, explain, resolve

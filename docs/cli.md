@@ -162,6 +162,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
+| `ekr process-map` | reads | `--revision <revision>`, `--events <type name>...`, `--event-time <type.property>...` | the `ekr.process-map/1` document: that log as a process, per object type its variants with their case counts and its directly-follows edges with their counts |
 | `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
 | `ekr fact-quality` | none | an `ekr.fact-judgements/1` file, or `-`; `--confidence <basis points>` | the `ekr.fact-quality/1` document: the judged sample's pass rate and its Wilson interval |
 | `ekr guide` | none | none | the workflow, as text |
@@ -710,6 +711,135 @@ property a type inherits is an attribute of that type and of every type inheriti
 property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
 accept such a log.
 
+### `ekr process-map`
+
+Prints the store's OCEL 2.0 event log at the head, or at `--revision N`, as a process: the
+`ekr.process-map/1` document (`ekr.views.ProjectProcessMap`). Per object type it lists the
+variants, each a distinct sequence of event types with the number of objects following it, and
+the directly-follows graph, each pair of event types that follow one another with how often they
+do. The map is derived from the `ekr.ocel/1` document `ekr ocel` prints for the same
+`--revision`, `--events` and `--event-time`, which select the log as they do there and are refused
+as they are refused there; `meta.ocel_hash` is that document's hash, the `ocel_hash` `ekr ocel`
+reports. Two reads of one request print the same bytes, before and after any later commit.
+
+```console
+ekr process-map
+ekr process-map --revision 0 --events Opened Closed
+ekr process-map --event-time Opened.at --event-time Closed.at
+```
+
+| `ekr.process-map/1` | what it holds |
+|---|---|
+| case | each object of the log, of its object type |
+| trace | the `type` of every event with a relationship to the case, in the log's order: by time, then id. An event related to one object under two qualifiers is one step, and an object no event relates to is no case |
+| `object_types[]` | one entry per object type of the log, by id, one with no case included: `objects` its objects, `cases` those with a trace |
+| `variants[]` | per object type, each distinct trace: `activities`, its event type ids in order, and `cases`, how many of the type's cases follow it; the most followed first, then by `activities` |
+| `directly_follows[]` | per object type, each pair of event type ids, `from` and `to`, that a trace holds as consecutive steps; `count` is how many times over all of the type's traces, a trace holding a pair twice counting two. Ordered by `from`, then `to`; a type may follow itself |
+| `names.node_types` | the log's `names.node_types`: each type id with its name |
+
+Types are named by id, as in `ekr.ocel/1`; `names` maps each back. Object-to-object relationships
+do not enter the map. A store whose log has three tickets — T-1 and T-2 opened, reviewed and
+closed, T-3 opened and closed, and both reviews by one reviewer — prints two ticket variants, with
+2 and 1 cases, and the reviewer's one, reviewed twice:
+
+```json
+{
+  "meta": {
+    "format": "ekr.process-map/1",
+    "ocel_hash": "fa4794bccf22016fac3d7e07628ede31818535c84261b0104321addf744cb4a4",
+    "revision": 0
+  },
+  "names": {
+    "node_types": [
+      {
+        "id": "00000000-0000-4000-8000-00000000c201",
+        "name": "Ticket"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c202",
+        "name": "Reviewer"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c203",
+        "name": "Opened"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c204",
+        "name": "Reviewed"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c205",
+        "name": "Closed"
+      }
+    ]
+  },
+  "object_types": [
+    {
+      "cases": 3,
+      "directly_follows": [
+        {
+          "count": 2,
+          "from": "00000000-0000-4000-8000-00000000c203",
+          "to": "00000000-0000-4000-8000-00000000c204"
+        },
+        {
+          "count": 1,
+          "from": "00000000-0000-4000-8000-00000000c203",
+          "to": "00000000-0000-4000-8000-00000000c205"
+        },
+        {
+          "count": 2,
+          "from": "00000000-0000-4000-8000-00000000c204",
+          "to": "00000000-0000-4000-8000-00000000c205"
+        }
+      ],
+      "object_type": "00000000-0000-4000-8000-00000000c201",
+      "objects": 3,
+      "variants": [
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c203",
+            "00000000-0000-4000-8000-00000000c204",
+            "00000000-0000-4000-8000-00000000c205"
+          ],
+          "cases": 2
+        },
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c203",
+            "00000000-0000-4000-8000-00000000c205"
+          ],
+          "cases": 1
+        }
+      ]
+    },
+    {
+      "cases": 1,
+      "directly_follows": [
+        {
+          "count": 1,
+          "from": "00000000-0000-4000-8000-00000000c204",
+          "to": "00000000-0000-4000-8000-00000000c204"
+        }
+      ],
+      "object_type": "00000000-0000-4000-8000-00000000c202",
+      "objects": 1,
+      "variants": [
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c204",
+            "00000000-0000-4000-8000-00000000c204"
+          ],
+          "cases": 1
+        }
+      ]
+    }
+  ]
+}
+```
+
+`ekr session` serves the verb too; its refusals are `ekr ocel`'s.
+
 ### `ekr sample`
 
 Prints a reproducible sample of the store's facts at the head, or at `--revision N`, each with the
@@ -1249,7 +1379,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `process-map`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 
