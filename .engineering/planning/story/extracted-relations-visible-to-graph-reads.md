@@ -6,7 +6,7 @@ status: draft
 title: A relation applied through extraction is visible to graph reads
 tags:
 - consumer:cortex
-revision: 1
+revision: 2
 ---
 ## Outcome
 
@@ -28,10 +28,12 @@ them.
 
 ## Not established
 
-Why. Two readings fit the observation and neither has been checked against the code: the extraction
-path writes a relation as an assertion without creating the `Edge` the graph projection reads
-(`crates/ekr-graph/src/canonical.rs:451` holds `edges`), or the read side builds `degree` and
-`expand` from `edges` only and ignores `Relation` assertions. Which one decides where the fix goes.
+The extraction path writes a relation fact as one `AddAssertion` with `Predicate::Relation` and
+`Object::Node` (`crates/ekr-sdk/src/extraction.rs:560-583`) and never a `CreateEdge`, so
+`graph.edges` stays empty. A consumer that writes its own transactions instead adds a
+`CreateEdge` per relation beside the assertion, and its relations are walked. Whether the fix is
+"extraction creates the edge" or "reads count relation assertions" is the owner's design choice;
+the first matches what such consumers already do.
 
 ## Acceptance
 
