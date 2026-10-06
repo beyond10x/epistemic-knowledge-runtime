@@ -163,6 +163,59 @@ fn a_fact_citing_no_evidence_is_refused_by_name() {
     );
 }
 
+/// `story:extraction-partial-apply`: checked a fact at a time, each bad fact is refused alone,
+/// under its index, and the rest of the document is checked on; [`ExtractionDocument::check`]
+/// still answers the first of them. A defect of the document as a whole — two evidence items
+/// under one id — refuses it whole either way.
+#[test]
+fn checked_a_fact_at_a_time_each_bad_fact_is_refused_alone() {
+    let document = edit(
+        &edit(
+            &example(),
+            "  property: legal_name\n",
+            "  property: ticker\n",
+        ),
+        "  relation: CEO_OF\n",
+        "  relation: FOUNDED\n",
+    );
+    let read = ExtractionDocument::from_yaml(&document).expect("the document decodes");
+    let undeclared_property = ExtractionRefusal {
+        code: ExtractionRefusalCode::ExtractionPropertyUndeclared,
+        name: "Organization.ticker".to_owned(),
+    };
+    assert_eq!(
+        read.check_facts(&store()),
+        Ok(std::collections::BTreeMap::from([
+            (0, undeclared_property.clone()),
+            (
+                1,
+                ExtractionRefusal {
+                    code: ExtractionRefusalCode::ExtractionTypeUndeclared,
+                    name: "FOUNDED".to_owned(),
+                }
+            ),
+        ]))
+    );
+    assert_eq!(read.check(&store()), Err(undeclared_property));
+    assert_eq!(
+        ExtractionDocument::from_yaml(&example())
+            .unwrap()
+            .check_facts(&store()),
+        Ok(std::collections::BTreeMap::new())
+    );
+
+    let (head, items) = document
+        .split_once("\nevidence:\n")
+        .expect("the example lists its evidence last");
+    let items = items.trim_end();
+    let twice = format!("{head}\nevidence:\n{items}\n{items}\n");
+    let read = ExtractionDocument::from_yaml(&twice).expect("the document decodes");
+    assert_eq!(
+        read.check_facts(&store()).map_err(|refusal| refusal.code),
+        Err(ExtractionRefusalCode::DuplicateIdentity)
+    );
+}
+
 #[test]
 fn a_document_that_is_not_the_format_is_refused_before_it_is_checked() {
     let example = example();
@@ -474,6 +527,7 @@ fn the_example_reads_into_the_exported_fact_and_evidence_types() {
         property,
         value,
         evidence: rests_on,
+        replaces,
     }) = &document.facts[0]
     else {
         panic!("the first fact is a property: {:?}", document.facts[0])
@@ -485,6 +539,7 @@ fn the_example_reads_into_the_exported_fact_and_evidence_types() {
         &ekr_ontology::Value::String("Globex Corporation".to_owned())
     );
     assert_eq!(rests_on, &cited);
+    assert!(!replaces, "the example replaces nothing");
     assert_eq!(
         document.facts[1],
         ExtractedFact::Relation(ekr_integrate::RelationFact {

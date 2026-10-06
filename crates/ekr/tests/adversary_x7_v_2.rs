@@ -301,9 +301,11 @@ fn adv2_mirror_refuses_a_record_type_with_a_field_written_twice() {
 }
 
 /// A fact citing an id the document's evidence does not list is `fact-evidence-unlisted` to the
-/// reader, a check of the document alone: the verb writes nothing. Over a child session the SDK
-/// routine applies it whenever the store already holds that id, so the two paths write different
-/// stores from one document.
+/// reader, a check of the document alone. Over a child session the SDK routine once applied it
+/// whenever the store already held that id, so the two paths wrote different stores from one
+/// document. Since `story:extraction-partial-apply` the verb skips that fact and reports it,
+/// `--strict` refuses the document, and the SDK routine — reading the document with the mirror's
+/// own check or without it — writes nothing either.
 #[test]
 fn adv2_a_fact_citing_unlisted_evidence_is_refused_on_both_paths() {
     let document = "format: ekr.extraction-document/1
@@ -319,22 +321,36 @@ evidence: []
     by_verb.verb(&known_types());
     by_sdk.verb(&known_types());
 
-    let refused = by_verb.verb_output(document);
-    assert_eq!(refused.status.code(), Some(2), "the verb refuses it");
+    let before = (by_verb.revision(), by_verb.active());
+    let path = by_verb.file("extraction.yaml");
+    std::fs::write(&path, document).unwrap();
+    let refused = by_verb.output(&["apply-extraction", "--strict", path.to_str().unwrap()]);
+    assert_eq!(refused.status.code(), Some(2), "the strict verb refuses it");
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("fact-evidence-unlisted"), "{stderr}");
+    let skipped = by_verb.verb(document);
+    assert_eq!(skipped["committed"], serde_json::json!([]), "{skipped}");
+    assert!(
+        skipped["rejected"][0]["refusal"]
+            .as_str()
+            .is_some_and(|refusal| refusal.starts_with("fact-evidence-unlisted: facts[0]: ")),
+        "the verb skips it: {skipped}"
+    );
+    assert_eq!((by_verb.revision(), by_verb.active()), before);
 
     let before = (by_sdk.revision(), by_sdk.active());
-    let mut session = by_sdk.session();
-    let outcome = ExtractionDocument::from_yaml(document)
-        .map_err(|refusal| refusal.code)
-        .map(|mirrored| apply(&mut session, &mirrored, operator()));
-    session.close().unwrap();
-    let after = (by_sdk.revision(), by_sdk.active());
-    assert_eq!(
-        after, before,
-        "the SDK over a child session wrote what the verb refused; it answered {outcome:?}"
-    );
+    for read in [ExtractionDocument::from_yaml, ExtractionDocument::decode] {
+        let mut session = by_sdk.session();
+        let outcome = read(document)
+            .map_err(|refusal| refusal.code)
+            .map(|mirrored| apply(&mut session, &mirrored, operator()));
+        session.close().unwrap();
+        let after = (by_sdk.revision(), by_sdk.active());
+        assert_eq!(
+            after, before,
+            "the SDK over a child session wrote what the verb refused; it answered {outcome:?}"
+        );
+    }
 }
 
 // --- 3. `stopped` ---------------------------------------------------------------------------------

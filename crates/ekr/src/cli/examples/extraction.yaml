@@ -47,6 +47,7 @@ facts:
     value: Globex Corporation
   evidence:
   - 00000000-0000-4000-8000-000000000403
+  replaces: false
 - !Relation
   subject:
     node_type: Person
@@ -82,6 +83,7 @@ facts:
     value: active
   evidence:
   - 00000000-0000-4000-8000-000000000403
+  replaces: false
 evidence:
 # "Carol, CEO of Globex Corporation, leads project Apollo."
 - evidence:
