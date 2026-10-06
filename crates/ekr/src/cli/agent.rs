@@ -202,11 +202,15 @@ EXTRACTION DOCUMENTS
   extraction-value-mismatch, extraction-relation-ends, reference-without-identity,
   reference-type-has-subtypes (a named thing whose type is abstract or has a subtype),
   fact-without-evidence (every fact cites at least one evidence item), fact-evidence-unlisted,
-  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code.
+  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code. A code met in
+  one fact skips that fact, listed under rejected with its code, and the rest applies;
+  --strict refuses the whole document instead.
   ekr apply-extraction doc.yaml applies it: the missing ontology as one schema change, each named
   thing resolved (named things sharing an alias are one; created where the store holds none;
   ambiguous ones listed, nothing chosen), each fact as an assertion with the evidence it cites,
-  unless the store already asserts it. It prints committed, rejected, ambiguous, held and stopped;
+  valid from that evidence's observed_at, and a !Relation fact also as a CreateEdge, unless the
+  store already asserts it. A !Property fact with `replaces: true` supersedes the active value of
+  its subject and property instead of adding a second one. It prints committed, rejected, ambiguous, held and stopped;
   applying a document twice adds nothing. Every write is a propose, validate and commit as the
   host operator, in this process.
 

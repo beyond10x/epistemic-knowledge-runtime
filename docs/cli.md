@@ -154,7 +154,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
 | `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
-| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
+| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-`; `--strict` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -342,8 +342,13 @@ its extractor and hands the engine the document it wrote.
 
 First the engine's reader checks the document against the ontology of the store's head. A document
 it refuses is refused by the reader's code (exit 2, `ekr: <code>: <reason>`, the codes in
-[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written.
-Then, in order:
+[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written. A
+fact it refuses — a code met in `facts[<index>]`, from `reference-without-identity` to
+`fact-evidence-unlisted` — is skipped instead: it is listed under `rejected` as `facts[<index>]`
+with the refusal `<code>: <name>`, nothing only it names (a named thing, an evidence item) is
+created or added, and the rest of the document applies. A refusal of the ontology, of an entity or
+of an evidence item still refuses the whole document. `--strict` refuses the whole document for a
+bad fact too, as the reader's first refusal in document order. Then, in order:
 
 1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
    (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
@@ -357,21 +362,51 @@ Then, in order:
    the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
    applied;
 3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
-   with the object node. Each evidence item a fact cites is added by `!AddEvidence` with the first
+   with the object node, valid from the earliest `observed_at` of the evidence items the fact
+   cites, with no end. Each evidence item a fact cites is added by `!AddEvidence` with the first
    assertion citing it, unless the store already holds its id. An item no fact cites is not added.
+   A `!Relation` fact also writes a `!CreateEdge` of its edge type from the subject to the object,
+   in the same transaction as its assertion, so `search` counts it in each end's `degree` and
+   `expand` walks it; none when the store, or an earlier fact that committed, already joins the
+   two nodes by an edge of that type. An edge validation refuses (its endpoint types, its type's
+   cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
+   those relations as assertions only; applying the document again holds them and adds no edge.
+   A `!Property` fact marked `replaces: true` also supersedes every active assertion of its
+   subject and property — the store's, or an earlier committed fact's — with a
+   `!SupersedeAssertion` from the new assertion's valid time on, in the same transaction, so
+   afterwards one assertion of that subject and property is active. When neither the store nor an
+   earlier fact of the document holds a value of that property for its subject, it is refused
+   before anything is resolved, so nothing only it names is created; when the earlier fact that
+   set one is rejected, it is refused then. Either way it is listed under `rejected` with the
+   refusal `replacement-without-active-assertion: facts[<index>]: …` — with or without `--strict`,
+   since it depends on the store — and the rest of the document applies. A superseded assertion
+   valid from later than the replacement is rejected by validation (`invalid-supersession`).
+   Facts are committed in rounds: a fact that depends on an earlier one — it repeats that fact's
+   claim citing no evidence the earlier one does not, it is a relation whose edge the earlier one
+   proposes, or it is on the same subject and property where either replaces — is tried once that
+   one has committed or been rejected, so a fact is never planned on a change that did not commit,
+   and one repeating a rejected fact is tried and reported on its own. Any other corroboration of
+   a claim commits in the same round.
    A rejected transaction is split and submitted again, down to the one fact validation refuses.
    A fact is held, not asserted, when an assertion making its claim — the same subject,
-   predicate, object and valid time — cites every evidence item the fact cites: one the store
-   holds active, one an earlier fact of the document made, or one the store holds retracted or
-   superseded, which asserting it again from the same evidence would undo (a superseded
-   assertion's valid time ends where its replacement starts; the fact's reaches that far). So
-   applying the same document a second time adds no node, evidence entry or assertion, and its
-   report lists every fact under `held`. A fact citing evidence no such assertion cited is
-   asserted.
+   predicate and object — cites every evidence item the fact cites and holds from no later than
+   the fact does: one the store holds active, one an earlier fact of the document committed, or
+   one the store holds retracted or superseded, which asserting it again from the same evidence
+   would undo (a superseded assertion's valid time ends where its replacement starts; the fact's
+   reaches that far). So applying the same document a second time adds no node, evidence entry or
+   assertion, and its report lists every fact under `held`; a fact citing part of an earlier
+   claim's evidence is held too. An assertion valid from an unbounded past, as this verb wrote one
+   in earlier releases, holds from before every fact, so a document applied then is held too. A
+   held fact marked `replaces: true` still supersedes every other active value of its subject and
+   property, by the assertion that holds it; it is listed under `held` once that supersession
+   commits, and only under `rejected` if validation rejects it. A fact citing evidence no such
+   assertion cited is asserted.
 
 Every write goes through `propose`, `validate` and `commit`, the same requests a consumer sends
 running the SDK's `ekr_sdk::extraction::apply` over an `ekr session`: the verb runs that routine,
-over the session's own dispatch in this process. A session does not serve the verb itself
+over the session's own dispatch in this process. The routine skips a bad fact the same way:
+`ExtractionDocument::decode` reads a document without refusing one, and
+`ApplyOptions::strict` asks for the whole-document refusal. A session does not serve the verb itself
 (`session-verb-refused`).
 
 It prints the `ekr.integrate.ExtractionReport`:
@@ -379,7 +414,7 @@ It prints the `ekr.integrate.ExtractionReport`:
 | key | holds |
 |---|---|
 | `committed` | each transaction committed, in order, as `transaction_id` and `revision`: the schema change, the new nodes, the facts |
-| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, or a named thing the fact rests on that was not created |
+| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, a named thing the fact rests on that was not created, the reader's refusal of a skipped fact, `<code>: <name>`, or `replacement-without-active-assertion` for a `replaces` fact with nothing active to replace |
 | `ambiguous` | each named thing the store answers with more than one node: `reference`, its node type and every alias of the named things that share one, the name first, and `candidates`, the nodes in id order |
 | `held` | each fact not asserted, as `item` (`facts[<index>]`) and `reason`: `asserted` (the store holds the claim active), `repeated` (an earlier fact of the document asserted it), `retracted` or `superseded` (an operator retracted or superseded the claim, and the fact brings no evidence it did not cite) |
 | `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on. `committed` then lists every transaction committed until then, those of the batch that stopped included |
@@ -2124,6 +2159,7 @@ named issues:
 A relation can be recorded two ways, and often both are wanted. The assertion is the claim, with
 evidence and valid time. `!CreateEdge` is the structural record: no evidence, no valid time, held to
 the edge type's endpoint types and cardinality, and visible to a reader of the graph's edges.
+[`ekr apply-extraction`](#ekr-apply-extraction) writes both for a `!Relation` fact.
 
 ## Extraction documents (`ekr.extraction-document/1`)
 
@@ -2190,7 +2226,7 @@ evidence:
 | `format` | exactly `ekr.extraction-document/1` |
 | `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types), written as one is (`parameters: {variants: [...]}` for an `Enum`), except that a `NodeRef` names its node types in `parameters: {allowed_types: [...]}` rather than listing their ids. An `Enum`'s variants and a `NodeRef`'s types are at least one, each once; a `Record` field is written once. A type the store lacks is added; one it holds by that name is kept |
 | `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
-| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
+| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one; optional `replaces: true`, the value replacing the active one of that subject and property) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
 | `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
 
 The reader refuses, by code, a document it cannot read:
@@ -2202,7 +2238,9 @@ The reader refuses, by code, a document it cannot read:
 | `extraction-yaml-alias` | a YAML alias (`*name`): write each value out |
 | `extraction-document-malformed` | anything else that is not one document of the format: another `format`, an unknown or missing key, a mapping key written twice, a fact written other than as a `!Property` or `!Relation` tag, an alias that is not a YAML string (`~`, `true`, `1.0` and `0x10` are not; quote them), a second document |
 
-Against the ontology of the store it is read for it refuses, naming the first in document order:
+Against the ontology of the store it is read for it refuses, naming the first in document order.
+A code met in a fact, `facts[<index>]`, refuses that fact alone when
+[`ekr apply-extraction`](#ekr-apply-extraction) is run without `--strict`:
 
 | code | when |
 |---|---|
@@ -2212,7 +2250,7 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
 | `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
 | `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
-| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document is refused before anything is written. Name the concrete type |
+| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document — or, for a fact, that fact — is refused before anything is written. Name the concrete type |
 | `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
 | `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
 | `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |

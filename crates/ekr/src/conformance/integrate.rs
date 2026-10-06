@@ -115,7 +115,18 @@ impl IntegrateTarget {
                 });
             self.kernel.fixtures.join(name)
         };
-        let argv = [
+        // `strict`, when the suite gives it, is `--strict`.
+        let strict = match request.input.get("strict") {
+            None | Some(ess_primitives::node::Node::Null) => false,
+            Some(ess_primitives::node::Node::Bool(strict)) => *strict,
+            Some(other) => {
+                return Err(unavailable(
+                    "reading `strict`",
+                    format!("expected a boolean, found {}", other.type_name()),
+                ))
+            }
+        };
+        let mut argv: Vec<std::ffi::OsString> = vec![
             "ekr".into(),
             "--host".into(),
             host.into_os_string(),
@@ -124,8 +135,11 @@ impl IntegrateTarget {
             "--backend".into(),
             backend.into(),
             "apply-extraction".into(),
-            document.into_os_string(),
         ];
+        if strict {
+            argv.push("--strict".into());
+        }
+        argv.push(document.into_os_string());
         let mut stdin = std::io::empty();
         let mut result = SemanticCommandResult::undeclared();
         match crate::cli::run(argv, &|| self.kernel.tick(), &mut stdin) {

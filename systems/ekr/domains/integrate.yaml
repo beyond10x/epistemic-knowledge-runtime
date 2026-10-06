@@ -174,7 +174,11 @@ types:
         type: List<String>
 
   # A property value read about a named thing. `evidence` holds the ids of evidence items of the
-  # same document; at least one.
+  # same document; at least one. `replaces` (false when absent) marks the value as replacing the
+  # active value of the same subject and property: applying it adds the new assertion and
+  # supersedes every active one of that subject and property from the new one's valid time on, in
+  # one transaction (story:extraction-supersession). A replacement the store holds no active
+  # assertion for is refused for that fact alone.
   - name: ekr.integrate.PropertyFact
     kind: struct
     fields:
@@ -186,6 +190,8 @@ types:
         type: ekr.graph.TypedValue
       - name: evidence
         type: List<ekr.graph.EvidenceId>
+      - name: replaces
+        type: Boolean
 
   # A relation read between two named things, by edge type name.
   - name: ekr.integrate.RelationFact
@@ -235,7 +241,10 @@ types:
   # relation between node types its edge type does not connect, subtypes conforming; a fact citing
   # no evidence; a fact citing an evidence id the document does not hold; two evidence items under
   # one id; a payload that does not hash to its entry's content_hash (the codes
-  # ekr.kernel AddEvidence validation uses for the same two).
+  # ekr.kernel AddEvidence validation uses for the same two). Checked a fact at a time
+  # (story:extraction-partial-apply), a code met in `facts[<i>]` — from a reference with no alias
+  # to a fact citing an id the document does not hold — refuses that fact alone, and one met in
+  # the ontology, in `entities` or in an evidence item refuses the document.
   - name: ekr.integrate.ExtractionRefusalCode
     kind: enum
     variants:
@@ -299,8 +308,9 @@ types:
   # bisects a rejected transaction down to the one part validation refuses, so `transaction_id`
   # is the transaction that held that part alone and `issues` what the validators raised against
   # it. Where no validator answered, both are absent and `refusal` says why: a refusal of Propose
-  # (`<code>: <reason>`), a document limit, or a named thing the fact rests on that was not
-  # created.
+  # (`<code>: <reason>`), a document limit, a named thing the fact rests on that was not
+  # created, or a fact skipped before anything was tried because the reader refuses it alone
+  # (`<code>: <name>`, an ekr.integrate.ExtractionRefusalCode).
   - name: ekr.integrate.RejectedExtraction
     kind: struct
     fields:
@@ -326,11 +336,15 @@ types:
         type: List<ekr.graph.NodeId>
 
   # The re-apply rule. A fact is held, not asserted, when an assertion making its claim — the same
-  # subject, predicate, object and valid time — cites every evidence item the fact cites. `reason`
-  # says which: `asserted`, the store holds it active; `repeated`, an earlier fact of the document
-  # asserted it; `retracted` or `superseded`, the store held it and an operator retracted or
-  # superseded it, which asserting it again from the same evidence would undo. A fact citing
-  # evidence no such assertion cited is asserted, whatever became of the claim.
+  # subject, predicate and object — cites every evidence item the fact cites and holds from no
+  # later than the fact does. `reason` says which: `asserted`, the store holds it active;
+  # `repeated`, an earlier fact of the document committed it; `retracted` or `superseded`, the
+  # store held it and an operator retracted or superseded it, which asserting it again from the
+  # same evidence would undo. A fact citing evidence no such assertion cited is asserted, whatever
+  # became of the claim. A fact is valid from the earliest observed time of its evidence
+  # (story:extraction-valid-time); an assertion valid from an unbounded past, as extraction wrote
+  # one before that, holds from before every fact. A held fact marked `replaces` still supersedes
+  # every other active value of its subject and property.
   - name: ekr.integrate.HeldReason
     kind: enum
     variants:
@@ -356,9 +370,10 @@ types:
   # on; absent when it went to its end. `committed` then names every transaction committed until
   # then, the ones the batch that stopped committed included: a stop after any commit is a report,
   # never a refusal or a fault. A document the reader refuses is refused before anything is
-  # written — among them a named thing whose type is abstract or has a subtype once the document's
+  # written — among them an entity whose type is abstract or has a subtype once the document's
   # ontology is applied, a subtype redeclaring a property an ancestor declares otherwise, and an
-  # evidence item whose source is not a HumanStatement.
+  # evidence item whose source is not a HumanStatement. A fact the reader refuses alone is listed
+  # under `rejected` and the rest applies; nothing only it names is created or added.
   - name: ekr.integrate.ExtractionReport
     kind: struct
     fields:
@@ -436,9 +451,14 @@ commands:
   # the SDK's apply routine (ekr_sdk::extraction::apply) in process, over the session's own
   # dispatch: the document's missing ontology as one schema change, every named thing resolved as
   # a typed reference and created where the store holds none, every fact about a thing that
-  # resolved as one AddAssertion with the evidence it cites. Its only writes are the kernel's
+  # resolved as one AddAssertion with the evidence it cites, valid from the earliest observed time
+  # of that evidence, and a relation also as a CreateEdge in the same transaction unless an edge
+  # of its type already joins the two nodes (story:extracted-relations-visible-to-graph-reads).
+  # Its only writes are the kernel's
   # Propose, Validate and Commit; a rejected part of the document is a row of the report, not a
-  # refusal of the command.
+  # refusal of the command. A fact the reader refuses alone is skipped and reported, and the rest
+  # applies (story:extraction-partial-apply); `strict` (`--strict`) refuses the document for it
+  # instead.
   - name: ekr.integrate.ApplyExtraction
     naming:
       wire: apply-extraction
@@ -446,6 +466,8 @@ commands:
     input:
       - name: extraction_document
         type: ekr.integrate.ExtractionDocumentPath
+      - name: strict
+        type: Optional<Boolean>
     response:
       - name: report
         type: ekr.integrate.ExtractionReport

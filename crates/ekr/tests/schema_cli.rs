@@ -686,7 +686,7 @@ fn accepted_documents(format: &str) -> Vec<(&'static str, String)> {
                             "  relation: LEADS\n  object:\n    node_type: Project\n    aliases:\n    - Apollo\n",
                             "  relation: CEO_OF\n  object:\n    node_type: Organization\n    aliases:\n    - Initech\n",
                         ),
-                        "- !Property\n  subject:\n    node_type: Project\n    aliases:\n    - Apollo\n  property: status\n  value:\n    value_kind: Enum\n    value: active\n  evidence:\n  - 00000000-0000-4000-8000-000000000403\n",
+                        "- !Property\n  subject:\n    node_type: Project\n    aliases:\n    - Apollo\n  property: status\n  value:\n    value_kind: Enum\n    value: active\n  evidence:\n  - 00000000-0000-4000-8000-000000000403\n  replaces: false\n",
                         "",
                     ),
                 ),

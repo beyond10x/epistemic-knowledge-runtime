@@ -221,7 +221,8 @@ pub enum Command {
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). The engine's reader
     /// checks the document against the head first: a document it refuses is refused by the
-    /// reader's code (exit 2) and nothing is written. Every write is an `ekr propose`,
+    /// reader's code (exit 2) and nothing is written; a fact it refuses is skipped, listed under
+    /// `rejected` with its code, and the rest applies. Every write is an `ekr propose`,
     /// `ekr validate` and `ekr commit` as the host operator, run in this process; it starts no
     /// agent and no process. A rejected part of the document is listed under `rejected`.
     #[command(after_help = SEE)]
@@ -229,6 +230,12 @@ pub enum Command {
         /// An `ekr.extraction-document/1` YAML document, or `-` for stdin
         /// (`ekr example ekr.extraction-document/1`).
         document: PathBuf,
+        /// Refuse the whole document (exit 2, nothing written) on its first fact the reader
+        /// refuses, rather than skip that fact and apply the rest. A replacement with nothing
+        /// active to replace depends on the store, not the document: it stays a row of
+        /// `rejected` even under --strict, and the rest applies.
+        #[arg(long)]
+        strict: bool,
     },
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
     #[command(after_help = SEE)]
@@ -908,9 +915,15 @@ fn dispatch(
             let runtime = store.open()?;
             render(&resolve::run(&runtime, &reference, at)?)
         }
-        Command::ApplyExtraction { document } => {
+        Command::ApplyExtraction { document, strict } => {
             let store = source.configured("apply-extraction")?;
-            render(&extraction::run(&document, stdin, store.into_owned(), now)?)
+            render(&extraction::run(
+                &document,
+                strict,
+                stdin,
+                store.into_owned(),
+                now,
+            )?)
         }
         Command::Head => {
             let runtime = source.resolve("head")?.open()?;

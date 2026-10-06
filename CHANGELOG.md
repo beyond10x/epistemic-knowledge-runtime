@@ -4,7 +4,42 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- `ekr apply-extraction` skips a fact the reader refuses alone — a dangling evidence id, an
+  undeclared property or type, a value its property does not hold, a relation between the wrong
+  types — and applies the rest of the document. The skipped fact is listed under `rejected` as
+  `facts[<index>]` with the refusal `<code>: <name>`, and nothing only it names is created or
+  added. A defect of the ontology, an entity or an evidence item still refuses the whole document.
+  `--strict` keeps the whole-document refusal. The SDK's `extraction::apply` skips alike;
+  `extraction::apply_with` with `ApplyOptions::strict` refuses, and
+  `ExtractionDocument::decode` reads a document without the per-fact checks `from_yaml` makes.
+  The engine reader's `ExtractionDocument::check_facts` reports each fact's refusal by index.
+  The SDK routine refuses a relation between the wrong types itself too
+  (`extraction-relation-ends`), before it creates either end.
+- A fact applied through extraction is valid from the earliest `observed_at` of the evidence it
+  cites, not from an unbounded past, so timeline reads can order facts by when they were said.
+  A fact is held when an assertion of its claim cites all its evidence and holds from no later
+  than the fact, so a claim stored from an unbounded past before this change, or a fact citing
+  part of an earlier claim's evidence, is held rather than asserted a second time.
+- A `!Relation` fact applied through extraction also writes a `CreateEdge`, in the same
+  transaction as its assertion, so `search` counts it in a node's `degree` and `expand` walks it.
+  No edge is written when one of that type already joins the two nodes. An edge validation
+  refuses — its endpoint types, or a second edge out of one node for a `One` edge type — now
+  rejects that fact with the validator's issue. Stores built by extraction before this release
+  are not backfilled.
+
+### Added
+
 - `ekr process-map` prints a revision's OCEL 2.0 log as a process, `ekr.process-map/1`: per object type its variants with their case counts and its directly-follows edges with their counts, derived from the `ekr.ocel/1` document `ekr ocel` prints for the same options, whose output is unchanged.
+- An extraction document's `!Property` fact can carry `replaces: true`: applying it adds the new
+  assertion and supersedes every active assertion of the same subject and property from the new
+  one's valid time on, in one transaction, so exactly one stays active. A replacement with nothing
+  active to replace is rejected for that fact alone, as `replacement-without-active-assertion`,
+  before anything it names is created. A replacement already asserted is held and still
+  supersedes the other active values. Facts that depend on an earlier fact of the document are
+  applied once that fact has committed or been rejected, so a rejected fact never leaves a later
+  one asserted without its edge or superseding an assertion that does not exist.
 
 ## [0.0.30] — 2026-10-03
 
