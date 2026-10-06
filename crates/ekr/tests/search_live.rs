@@ -172,16 +172,59 @@ fn discovery_waits_for_a_page_after_the_devtools_listener_is_ready() {
                 }
             }
             let body = targets.to_string();
-            write!(
-                connection,
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            )
-            .unwrap();
+            connection
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .unwrap();
         }
     });
     assert_eq!(page_target(port), expected);
     server.join().unwrap();
+}
+
+/// The DevTools port Chromium writes into `DevToolsActivePort` in its profile directory. Chromium
+/// creates the file before it writes the port, so a file without a whole first line is waited on
+/// like an absent one.
+fn announced_port(profile: &std::path::Path) -> u16 {
+    let start = Instant::now();
+    let mut last = None;
+    loop {
+        if let Ok(text) = std::fs::read_to_string(profile.join("DevToolsActivePort")) {
+            if let Some(port) = text
+                .split_once('\n')
+                .and_then(|(line, _)| line.trim().parse().ok())
+            {
+                return port;
+            }
+            last = Some(text);
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(60),
+            "Chromium did not announce CDP; DevToolsActivePort held {last:?}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Issue #81: Chromium creates `DevToolsActivePort` before it writes the port into it, and a read
+/// between the two found the file empty and panicked on its missing first line. The port is read
+/// once it is there.
+#[test]
+fn the_devtools_port_is_read_once_written_not_when_the_file_appears() {
+    let profile = tempfile::tempdir().unwrap();
+    let file = profile.path().join("DevToolsActivePort");
+    std::fs::write(&file, "").unwrap();
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(200));
+        std::fs::write(&file, "41234\n/devtools/browser/fixture\n").unwrap();
+    });
+    assert_eq!(announced_port(profile.path()), 41234);
+    writer.join().unwrap();
 }
 
 struct Browser {
@@ -210,12 +253,17 @@ fn discovery_refuses_http_errors_even_with_a_valid_target_list() {
         let body =
             json!([{"type":"page","webSocketDebuggerUrl":"ws://127.0.0.1/devtools/page/refused"}])
                 .to_string();
-        write!(
-            connection,
-            "HTTP/1.1 500 Refused\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        )
-        .unwrap();
+        // One write: the client reads the status line, refuses and hangs up, and a response
+        // written in pieces (as `write!` does) can meet that hang-up as a broken pipe (issue #81).
+        connection
+            .write_all(
+                format!(
+                    "HTTP/1.1 500 Refused\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+            .unwrap();
     });
     let refusal = std::panic::catch_unwind(|| page_target(port)).unwrap_err();
     let text = refusal
@@ -278,18 +326,8 @@ impl Browser {
                 .spawn()
                 .unwrap(),
         );
-        let start = Instant::now();
-        let port = loop {
-            if let Ok(text) = std::fs::read_to_string(dir.path().join("DevToolsActivePort")) {
-                break text.lines().next().unwrap().to_owned();
-            }
-            assert!(
-                start.elapsed() < Duration::from_secs(60),
-                "Chromium did not announce CDP"
-            );
-            std::thread::sleep(Duration::from_millis(20));
-        };
-        let url = page_target(port.parse().unwrap());
+        let port = announced_port(dir.path());
+        let url = page_target(port);
         let tcp = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
         let (socket, _) = tungstenite::client(url, tcp).unwrap();
@@ -551,8 +589,32 @@ impl Browser {
         }
     }
     fn fulfill(&mut self, request: &Value, status: u16, html: &str) {
+        let reply = self.fulfillment(request, status, html);
+        assert!(
+            reply.get("error").is_none(),
+            "Fetch.fulfillRequest: {reply}"
+        );
+    }
+    fn fulfillment(&mut self, request: &Value, status: u16, html: &str) -> Value {
         use base64::Engine as _;
-        self.call("Fetch.fulfillRequest",json!({"requestId":request["requestId"],"responseCode":status,"responseHeaders":[{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":base64::engine::general_purpose::STANDARD.encode(html)}));
+        self.raw_call("Fetch.fulfillRequest",json!({"requestId":request["requestId"],"responseCode":status,"responseHeaders":[{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":base64::engine::general_purpose::STANDARD.encode(html)}))
+    }
+    /// Answers the page's current read of `query`. A debounced read can leave before the
+    /// keystroke that supersedes it (a loaded machine fires the timer first), and the page cancels
+    /// it then: a read the browser no longer holds is passed over only once the page is seen to
+    /// have canceled it, and the next read of `query` is answered (issue #81).
+    fn fulfill_current(&mut self, query: &str, status: u16, html: &str) {
+        loop {
+            let request = self.paused(query);
+            let reply = self.fulfillment(&request, status, html);
+            match reply.get("error") {
+                None => return,
+                Some(error) if error["message"] == "Invalid InterceptionId." => {
+                    self.wait_for_canceled(&request);
+                }
+                Some(_) => panic!("Fetch.fulfillRequest: {reply}"),
+            }
+        }
     }
     fn replace_query(&mut self, value: &str) {
         self.focus();
@@ -665,9 +727,8 @@ fn superseded_query_clear_failure_and_enter_are_honest() {
     browser.type_text("Alice");
     let old = browser.paused("q=Alice");
     browser.replace_query("Nobody");
-    let new = browser.paused("q=Nobody");
     let (_, nobody) = world.get("/find?q=Nobody");
-    browser.fulfill(&new, 200, &nobody);
+    browser.fulfill_current("q=Nobody", 200, &nobody);
     browser.until("No matches");
     // Deliberately release the older server answer after the current one.
     let (_, alice) = world.get("/find?q=Alice");
@@ -683,8 +744,7 @@ fn superseded_query_clear_failure_and_enter_are_honest() {
     assert!(!browser.html().contains("class=\"result\""));
     assert_eq!(browser.query_value(), "Nobody");
     browser.replace_query("Alice");
-    let request = browser.paused("q=Alice");
-    browser.fulfill(&request, 200, &alice);
+    browser.fulfill_current("q=Alice", 200, &alice);
     browser.until("class=\"result\"");
     browser.key("a", 65, 2);
     browser.key("Backspace", 8, 0);
@@ -692,16 +752,14 @@ fn superseded_query_clear_failure_and_enter_are_honest() {
     assert!(!cleared.contains("class=\"result\""));
     assert_eq!(browser.query_value(), "");
     browser.type_text("Failure");
-    let request = browser.paused("q=Failure");
-    browser.fulfill(&request, 503, "unavailable");
+    browser.fulfill_current("q=Failure", 503, "unavailable");
     let failed = browser.until("Search is unavailable");
     assert!(!failed.contains("class=\"result\""));
     assert_eq!(browser.query_value(), "Failure");
     // Enter starts one immediate read, preserving the ordinary form semantics.
     browser.replace_query("Alice");
     browser.key("Enter", 13, 0);
-    let request = browser.paused("q=Alice");
-    browser.fulfill(&request, 200, &alice);
+    browser.fulfill_current("q=Alice", 200, &alice);
     browser.until("class=\"result\"");
 }
 
