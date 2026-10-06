@@ -231,6 +231,10 @@ Their updated hosted-provider coverage is pending the corrected focused gate. Th
 status of this historical skeleton remains unchanged; its dependency contract follows the
 current manifest, as prior amendments do.
 
+## Amendment, wave 20261006a
+
+`ekr-store` declares `tokio-postgres` directly (`story:postgres-password-file`). The pinned `eventlog-postgres` takes a PostgreSQL configuration only as a connection string, so a password from `password_file` is written into that string, and `ekr-store` reparses it with `tokio_postgres::Config` to prove the result yields exactly that password and no other parameter. The package was already in `Cargo.lock` through `eventlog-postgres`; the lock gains one dependency edge and no package.
+
 ## Amendment, fix for issue 74
 
 `ekr` declares `rusqlite` (with the `backup` feature) as a dev-dependency for the fix of https://github.com/beyond10x/epistemic-knowledge-runtime/issues/74: a test restores a SQLite store through the online backup API around a held view cache. The package was already in the lock; no package is added.

@@ -3276,6 +3276,29 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 ```
 
 The connection file contains a PostgreSQL connection string, including its password when used.
+An optional `password_file` takes the password from a separate file instead, so neither the
+connection file nor the configuration directory holds a secret:
+
+```json
+{
+  "format": "ekr.postgres/1",
+  "connection_file": "application.dsn",
+  "password_file": "/proc/self/fd/3",
+  "ca_file": "database-ca.pem",
+  "schema": "ekr_owner",
+  "database_connections": 32,
+  "replicas": 2,
+  "reserved_connections": 4
+}
+```
+
+The password file holds exactly the JSON document `{"password": "..."}`, the document a saved
+PostgreSQL connection hands a launched program on file descriptor 3. Its value is used as written,
+without trimming. A document with any other field, a password that is not a string, or more than
+64 KiB is refused, and so is a connection file that already carries a password, in any form. The
+password is added to the connection string in its own syntax, key/value or URL. An absolute
+`password_file` such as `/proc/self/fd/3` is used as written.
+
 Relative file references resolve beside the configuration file. Mount secret files with access
 limited to the service account. The CLI and SDK pass only configuration paths, never connection
 strings or passwords. Configuration and connection files are capped at 64 KiB, CA files at 1 MiB;

@@ -24,6 +24,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
+tokio-postgres.workspace = true
 
 [dev-dependencies]
 serde_yaml_ng.workspace = true

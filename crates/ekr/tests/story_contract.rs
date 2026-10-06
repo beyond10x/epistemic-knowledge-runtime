@@ -197,6 +197,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "thiserror",
             "time",
             "tokio",
+            "tokio-postgres",
         ],
         &["serde_yaml_ng"],
     ),
