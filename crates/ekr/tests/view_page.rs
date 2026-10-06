@@ -2233,8 +2233,76 @@ struct Driven {
     /// Every exception the page threw, every `console.error` it wrote and every error the browser logged
     /// for it (a failed load, a refused script), as the protocol reported them.
     errors: Vec<Value>,
+    /// The page's console and network log, one line per message, request, response or failure,
+    /// the newest [`LOG_LINES`] kept: what a case that times out prints (issue #81).
+    log: std::collections::VecDeque<String>,
     _profile: tempfile::TempDir,
     _one: std::sync::MutexGuard<'static, ()>,
+}
+
+/// How many lines of the page's console and network log [`Driven`] keeps.
+const LOG_LINES: usize = 400;
+
+/// One line of the page's console and network log for a protocol event, `None` for an event that
+/// is neither (a received data chunk among them, of which a stream sends many).
+fn log_line(event: &Value) -> Option<String> {
+    let params = &event["params"];
+    let text = |value: &Value| value.as_str().unwrap_or("").to_owned();
+    match event["method"].as_str()? {
+        "Runtime.consoleAPICalled" => {
+            let args: Vec<String> = params["args"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|arg| {
+                    arg.get("value")
+                        .map_or_else(|| text(&arg["description"]), ToString::to_string)
+                })
+                .collect();
+            Some(format!(
+                "console.{}: {}",
+                text(&params["type"]),
+                args.join(" ")
+            ))
+        }
+        "Runtime.exceptionThrown" => Some(format!(
+            "exception: {}",
+            params["exceptionDetails"]["exception"]["description"]
+                .as_str()
+                .unwrap_or_else(|| params["exceptionDetails"]["text"].as_str().unwrap_or(""))
+        )),
+        "Log.entryAdded" => Some(format!(
+            "log.{} {}: {} {}",
+            text(&params["entry"]["level"]),
+            text(&params["entry"]["source"]),
+            text(&params["entry"]["text"]),
+            text(&params["entry"]["url"])
+        )),
+        "Network.requestWillBeSent" => Some(format!(
+            "request {}: {} {}",
+            text(&params["requestId"]),
+            text(&params["request"]["method"]),
+            text(&params["request"]["url"])
+        )),
+        "Network.responseReceived" => Some(format!(
+            "response {}: {} {}",
+            text(&params["requestId"]),
+            params["response"]["status"],
+            text(&params["response"]["url"])
+        )),
+        "Network.loadingFinished" => Some(format!("finished {}", text(&params["requestId"]))),
+        "Network.loadingFailed" => Some(format!(
+            "failed {}: {}{}",
+            text(&params["requestId"]),
+            text(&params["errorText"]),
+            if params["canceled"] == true {
+                " (canceled)"
+            } else {
+                ""
+            }
+        )),
+        _ => None,
+    }
 }
 
 impl Driven {
@@ -2336,11 +2404,13 @@ impl Driven {
             reader,
             next: 0,
             errors: Vec::new(),
+            log: std::collections::VecDeque::new(),
             _profile: profile,
             _one: one,
         };
         driven.call("Runtime.enable", serde_json::json!({}));
         driven.call("Log.enable", serde_json::json!({}));
+        driven.call("Network.enable", serde_json::json!({}));
         driven.call("Page.navigate", serde_json::json!({ "url": url }));
         driven
     }
@@ -2409,6 +2479,12 @@ impl Driven {
             if reply["id"] == id {
                 return reply;
             }
+            if let Some(line) = log_line(&reply) {
+                if self.log.len() == LOG_LINES {
+                    self.log.pop_front();
+                }
+                self.log.push_back(line);
+            }
             if reply["method"] == "Runtime.exceptionThrown"
                 || (reply["method"] == "Runtime.consoleAPICalled"
                     && reply["params"]["type"] == "error")
@@ -2433,7 +2509,9 @@ impl Driven {
         reply["result"]["result"]["value"].clone()
     }
 
-    /// Waits up to `seconds` for `expression` to be `true`.
+    /// Waits up to `seconds` for `expression` to be `true`. When it never is, what the page shows
+    /// of its own state and its console and network log go to the case's output, so a red run
+    /// names what the page was doing (issue #81).
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
         for _ in 0..seconds * 5 {
             if self.eval(&format!(
@@ -2444,7 +2522,28 @@ impl Driven {
             }
             std::thread::sleep(Duration::from_millis(200));
         }
+        eprintln!("{}", self.report(expression));
         false
+    }
+
+    /// The page's state as the settle checks read it, the errors it reported and its console and
+    /// network log.
+    fn report(&mut self, expression: &str) -> String {
+        let state = self.eval(
+            "(() => { const v = window.__viewer; return {
+               readyState: document.readyState, viewer: !!v,
+               layoutRunning: v ? v.layoutRunning : null, fg: v ? !!v.fg : null,
+               streamStop: !!document.querySelector('[data-act=stream-stop]'),
+               hud: document.getElementById('hud')?.textContent ?? null,
+               status: document.getElementById('status')?.textContent ?? null }; })()",
+        );
+        let log: Vec<&str> = self.log.iter().map(String::as_str).collect();
+        format!(
+            "never true: {expression}\npage state: {state}\npage errors: {}\nconsole and network log ({} lines, newest last):\n{}",
+            serde_json::to_string_pretty(&self.errors).unwrap(),
+            log.len(),
+            log.join("\n")
+        )
     }
 
     fn mouse(&mut self, kind: &str, x: f64, y: f64, pressed: bool) {
@@ -2731,8 +2830,18 @@ fn a_node_dragged_in_3d_pulls_its_neighbours_along_as_before() {
         );
         std::thread::sleep(Duration::from_millis(40));
     }
-    std::thread::sleep(Duration::from_millis(600));
-    let (node_held, near_held) = (at(&mut driven, &node), at(&mut driven, &near));
+    // While the node is held the layout pulls its neighbour along over the frames it draws, and a
+    // loaded machine draws them slowly: the neighbour is watched for up to a minute of polls rather
+    // than read once after a fixed pause (issue #81).
+    let mut held = (at(&mut driven, &node), at(&mut driven, &near));
+    for _ in 0..300 {
+        if apart(&near_before, &held.1) > 1.0 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        held = (at(&mut driven, &node), at(&mut driven, &near));
+    }
+    let (node_held, near_held) = held;
     driven.mouse("mouseReleased", x + 160.0, y + 80.0, false);
     let dragged = apart(&node_before, &node_held);
     let pulled = apart(&near_before, &near_held);
