@@ -7,7 +7,8 @@ title: One read surface is specified for MCP and HTTP, and its OpenAPI is genera
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
-revision: 1
+- depends_on: story:explain-bounds-documents
+revision: 2
 ---
 ## Context
 
@@ -60,3 +61,7 @@ Probed with ESS 0.52.0 on a scratch copy of `systems/ekr` at 0.0.30 (2026-10-04)
   body, and each success response carries the operation's `ekr.*` document.
 - A test compares `tools/list` names and input schemas with the commands' inputs in
   `ess specify compile --format json`.
+
+## Added 2026-10-06 (plan-critic round 2)
+
+`explain`'s input carries `offset` and `limit` (bytes), which `story:explain-bounds-documents` adds before this story lands; this story models them with the rest of the input. `describe_type` (`story:describe-type-read`) joins the surface after this story as a twelfth operation.

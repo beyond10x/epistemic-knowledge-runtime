@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 78,
-  "answered_floor": 78,
+  "total": 84,
+  "answered_floor": 84,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -45,6 +45,11 @@
     "ekr.views.ProjectOverview/outcome/not-found",
     "ekr.views.ProjectOverview/outcome/not-seeded",
     "ekr.views.ProjectOverview/outcome/overviewed",
+    "ekr.views.ProjectProcessMap/outcome/event-time-invalid",
+    "ekr.views.ProjectProcessMap/outcome/event-type-not-found",
+    "ekr.views.ProjectProcessMap/outcome/mapped",
+    "ekr.views.ProjectProcessMap/outcome/not-found",
+    "ekr.views.ProjectProcessMap/outcome/not-seeded",
     "ekr.views.ProjectTimeline/outcome/limit-exceeded",
     "ekr.views.ProjectTimeline/outcome/not-found",
     "ekr.views.ProjectTimeline/outcome/not-seeded",
@@ -65,6 +70,7 @@
     "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log",
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type",
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
@@ -115,6 +121,10 @@
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
       "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227"
+    },
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log": {
+      "file": "a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log.yaml",
+      "digest": "sha256:8d875c563d70a570d6e9ef1cd5bc1143978aedef3d266bab2f834106e32ad765"
     },
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
       "file": "a-property-a-subtype-redeclares-is-projected-for-each-type.yaml",
@@ -436,6 +446,40 @@
       "expect_no_event": 24,
       "expect_outcome": 1
     },
+    "ekr.views.ProjectProcessMap/outcome/event-time-invalid": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/event-type-not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/mapped": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 25,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
     "ekr.views.ProjectTimeline/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
@@ -558,6 +602,13 @@
       "expect_event": 6,
       "expect_no_event": 2,
       "expect_outcome": 8
+    },
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log": {
+      "execute_command": 5,
+      "expect_error": 2,
+      "expect_event": 3,
+      "expect_no_event": 2,
+      "expect_outcome": 5
     },
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
       "execute_command": 3,

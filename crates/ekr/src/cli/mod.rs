@@ -22,7 +22,7 @@
 //! reads it only (`code_names.rs`).
 //! `quality` opens the store as those verbs do and reads one revision through
 //! `ekr_views::report_quality` (`quality.rs`); `ocel` likewise, through `ekr_views::export_ocel`
-//! (`ocel.rs`).
+//! (`ocel.rs`), and `process-map` through `ekr_views::export_process_map` (`process_map.rs`).
 //! `sample` opens the store as those verbs do and draws from one revision through
 //! `ekr_views::draw_sample`; `fact-quality` reads the judged sample it is given and opens no
 //! provider (`sample.rs`).
@@ -50,6 +50,7 @@ mod mcp;
 mod migrate;
 mod ocel;
 mod ontology;
+mod process_map;
 mod propose;
 mod quality;
 pub(crate) mod rejections;
@@ -144,6 +145,11 @@ pub enum Command {
         /// `evidence_payloads` under their content hash, so the document need not carry them.
         #[arg(long = "evidence", value_name = "FILE")]
         evidence: Vec<PathBuf>,
+        /// Seed only if the store has no seed: any seed already there, the identical document
+        /// included, or one another caller wins during this call, is refused as
+        /// `ekr.kernel.AlreadySeeded`. Exit 0 means this call wrote the seed.
+        #[arg(long = "if-absent")]
+        if_absent: bool,
     },
     /// Propose a transaction (`ekr.kernel.Propose`) as the host operator.
     ///
@@ -220,7 +226,8 @@ pub enum Command {
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). The engine's reader
     /// checks the document against the head first: a document it refuses is refused by the
-    /// reader's code (exit 2) and nothing is written. Every write is an `ekr propose`,
+    /// reader's code (exit 2) and nothing is written; a fact it refuses is skipped, listed under
+    /// `rejected` with its code, and the rest applies. Every write is an `ekr propose`,
     /// `ekr validate` and `ekr commit` as the host operator, run in this process; it starts no
     /// agent and no process. A rejected part of the document is listed under `rejected`.
     #[command(after_help = SEE)]
@@ -228,6 +235,12 @@ pub enum Command {
         /// An `ekr.extraction-document/1` YAML document, or `-` for stdin
         /// (`ekr example ekr.extraction-document/1`).
         document: PathBuf,
+        /// Refuse the whole document (exit 2, nothing written) on its first fact the reader
+        /// refuses, rather than skip that fact and apply the rest. A replacement with nothing
+        /// active to replace depends on the store, not the document: it stays a row of
+        /// `rejected` even under --strict, and the rest applies.
+        #[arg(long)]
+        strict: bool,
     },
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
     #[command(after_help = SEE)]
@@ -372,6 +385,31 @@ pub enum Command {
         events: Vec<String>,
         /// Event types and their Timestamp properties, as TypeName.propertyName (split at the
         /// last dot); repeat for each type. Inherited properties are accepted.
+        #[arg(long, value_name = "TYPE.PROPERTY", conflicts_with = "events")]
+        event_time: Vec<String>,
+    },
+    /// Print one revision's OCEL 2.0 event log as a process: the `ekr.process-map/1` document
+    /// (`ekr.views.ProjectProcessMap`), per object type its variants and its directly-follows
+    /// graph.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. The map
+    /// is derived from the `ekr.ocel/1` log `ekr ocel` prints for the same --revision, --events
+    /// and --event-time, and `meta.ocel_hash` is that log's hash. Each object is a case and its
+    /// trace the types of the events relating to it, by time; variants are the distinct traces
+    /// with their case counts, and the directly-follows edges count each pair of consecutive
+    /// event types. Types are named by id, and `names` gives each id its name. Two reads of one
+    /// request print the same bytes.
+    #[command(after_help = SEE)]
+    ProcessMap {
+        /// The committed revision to map; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        revision: Option<u64>,
+        /// The node types, by name, that are the event types, as `ekr ocel --events` takes them.
+        /// A name no node type holds is refused as `ekr.views.EventTypeNotFound` (exit 2).
+        #[arg(long, value_name = "TYPE_NAME", num_args = 1..)]
+        events: Vec<String>,
+        /// Event types and their Timestamp properties, as `ekr ocel --event-time` takes them:
+        /// TypeName.propertyName, repeated for each type.
         #[arg(long, value_name = "TYPE.PROPERTY", conflicts_with = "events")]
         event_time: Vec<String>,
     },
@@ -583,6 +621,7 @@ impl Command {
             | Self::CodeNames { .. }
             | Self::Quality { .. }
             | Self::Ocel { .. }
+            | Self::ProcessMap { .. }
             | Self::Sample { .. }
             | Self::FactQuality { .. }
             | Self::View { .. }
@@ -823,11 +862,16 @@ fn dispatch(
         Command::Schema { format } => schema::run(format).map(Printed::Document),
         Command::Mint { kind } => render(&agent::mint(kind)),
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
-        Command::Seed { document, evidence } => {
+        Command::Seed {
+            document,
+            evidence,
+            if_absent,
+        } => {
             let store = source.configured("seed")?;
             render(&seed::run(
                 &document,
                 &evidence,
+                if_absent,
                 stdin,
                 |seed| store.open_to_seed(seed),
                 now,
@@ -881,9 +925,15 @@ fn dispatch(
             let runtime = store.open()?;
             render(&resolve::run(&runtime, &reference, at)?)
         }
-        Command::ApplyExtraction { document } => {
+        Command::ApplyExtraction { document, strict } => {
             let store = source.configured("apply-extraction")?;
-            render(&extraction::run(&document, stdin, store.into_owned(), now)?)
+            render(&extraction::run(
+                &document,
+                strict,
+                stdin,
+                store.into_owned(),
+                now,
+            )?)
         }
         Command::Head => {
             let runtime = source.resolve("head")?.open()?;
@@ -919,6 +969,14 @@ fn dispatch(
             let runtime = source.resolve("ocel")?.open()?;
             let (document, stderr) = ocel::run(&runtime, revision, &events, &event_time)?;
             Ok(Printed::DocumentWithStderr { document, stderr })
+        }
+        Command::ProcessMap {
+            revision,
+            events,
+            event_time,
+        } => {
+            let runtime = source.resolve("process-map")?.open()?;
+            process_map::run(&runtime, revision, &events, &event_time).map(Printed::Document)
         }
         Command::Sample {
             seed,

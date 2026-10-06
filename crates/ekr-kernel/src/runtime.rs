@@ -383,6 +383,24 @@ impl Runtime {
             Backend::Postgres(kernel) => kernel.seed(document, now),
         }
     }
+    /// Executes the shared seed handler only if the lineage has no seed: a seed already there —
+    /// published, or elected and not yet published, the identical document included — refuses
+    /// as `AlreadySeeded`, and so does losing the store's election for the seed to another caller.
+    /// An elected seed not yet published is published first, so the lineage is seeded whenever
+    /// this refuses. `Ok` means this call wrote the seed.
+    /// # Errors
+    /// Invalid seed, any existing or concurrently elected seed, or failed native publication.
+    pub fn seed_if_absent(
+        &self,
+        document: SeedDocument,
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<SeedResultV1, SeedError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.seed_if_absent(document, now),
+            Backend::Sqlite(kernel) => kernel.seed_if_absent(document, now),
+            Backend::Postgres(kernel) => kernel.seed_if_absent(document, now),
+        }
+    }
     /// The complete verified current root.
     /// # Errors
     /// Invalid retained history.

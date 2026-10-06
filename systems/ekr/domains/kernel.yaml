@@ -1301,6 +1301,11 @@ errors:
 
 commands:
   # Design § 8. The seed is the minimal trusted starting state; loading it produces revision 0.
+  # story:seed-if-absent: a caller may ask for the seed only if the lineage has none (`ekr seed
+  # --if-absent`, `Runtime::seed_if_absent`). Then any retained or elected seed, the identical one
+  # included, answers already-seeded, and so does losing the store's conditional election for the
+  # Bootstrap slot to another caller; retained-seed is never its answer. The mode is a host flag,
+  # not a declared input: every generated scenario runs the command without it.
   - name: ekr.kernel.Seed
     naming:
       wire: seed
@@ -1341,11 +1346,11 @@ commands:
             seed_hash: {generated: true}
         summary: Revision0 and its complete retained seed result exist atomically; real ontology and authority roots have no placeholders.
       - name: already-seeded
-        external: a retained seed exists and its parsed full Seed2 input or actual BootstrapContext or trusted host AuthorityStateV1 anchor differs
+        external: a retained seed exists and its parsed full Seed2 input or actual BootstrapContext or trusted host AuthorityStateV1 anchor differs, or the caller asked for the seed only if absent and a seed is retained or elected, or another caller wins the Bootstrap slot election during this call
         error: ekr.kernel.AlreadySeeded
-        summary: Nothing was written; compare retained typed input and actual trusted context before allocating an occurrence or sampling time. YAML whitespace alone is not a different logical seed.
+        summary: No seed of this call was written; compare retained typed input and actual trusted context before allocating an occurrence or sampling time. YAML whitespace alone is not a different logical seed. In the if-absent mode an identical seed refuses too, and an elected seed another call left unpublished is published first, as its own retry would, so the lineage is seeded when the refusal is made.
       - name: retained-seed
-        external: a retained seed has the same full parsed Seed2 input, actual BootstrapContext and trusted host AuthorityStateV1 anchor
+        external: a retained seed has the same full parsed Seed2 input, actual BootstrapContext and trusted host AuthorityStateV1 anchor, and the caller did not ask for the seed only if absent
         replays: seeded
         summary: Return the original SeedResultV1 and preserve its original Revision, including after head advancement; allocate no new occurrence, sample no new time and write nothing.
       - name: invalid-seed

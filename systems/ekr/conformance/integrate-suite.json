@@ -5,7 +5,7 @@
     "counts": {
       "authored": 0,
       "generated": 2,
-      "outside": 83,
+      "outside": 88,
       "refused": 0
     },
     "generated": [
@@ -1349,6 +1349,65 @@
         "needs": [
           {
             "kind": "command",
+            "name": "ekr.views.ProjectProcessMap"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectProcessMap/outcome/event-time-invalid"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectProcessMap"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectProcessMap/outcome/event-type-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectProcessMap"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.ProcessMapped"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectProcessMap/outcome/mapped"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectProcessMap"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectProcessMap/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectProcessMap"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectProcessMap/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
             "name": "ekr.views.ProjectTimeline"
           }
         ],
@@ -1530,8 +1589,8 @@
   },
   "provenance": {
     "component": "ekr-integrate",
-    "contract_digest": "027875da702fedb13519361868b505f09a56eda1f5a87ae9cbe7cf25877f84c6",
-    "spec_digest": "84d423523534a173ee036937b2501923d5955aaf742d9fbe987e4288dbda679d",
+    "contract_digest": "d6c22bea501f76ab7e0ba4701c420bc213484fdf7600d74ff1fdd8935c0a7bd1",
+    "spec_digest": "2866937a3a542711f3e2a57d834b38851892a4398fd4fc06dcbd6f25f71ff129",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1649,6 +1708,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.StoreQualityReported"
         },
         {
@@ -1668,6 +1731,10 @@
             "extraction_document": {
               "kind": "literal",
               "value": "extraction_document"
+            },
+            "strict": {
+              "kind": "literal",
+              "value": true
             }
           },
           "step": "execute_command"
@@ -1787,6 +1854,10 @@
         },
         {
           "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
           "step": "expect_no_event"
         },
         {
@@ -1915,6 +1986,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.StoreQualityReported"
         },
         {
@@ -1945,6 +2020,10 @@
             "extraction_document": {
               "kind": "literal",
               "value": "extraction_document"
+            },
+            "strict": {
+              "kind": "literal",
+              "value": true
             }
           },
           "step": "execute_command"
@@ -2050,6 +2129,10 @@
         },
         {
           "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
           "step": "expect_no_event"
         },
         {

@@ -496,6 +496,22 @@ impl Ontology {
                 .any(|other| other.id != entry.id && self.descends(other, entry.id))
     }
 
+    /// Whether the edge type named `edge_type` connects a node of the type named `source` to one
+    /// of the type named `target`: each is one of that end's types or descends from one, as the
+    /// engine's extraction reader checks a relation (`extraction-relation-ends`). `false` when a
+    /// name is undeclared.
+    pub(crate) fn connects(&self, edge_type: &str, source: &str, target: &str) -> bool {
+        let Some(edge) = self.edge_types.get(edge_type) else {
+            return false;
+        };
+        let conforms = |node: &str, ends: &BTreeSet<TypeId>| {
+            self.node_types.get(node).is_some_and(|entry| {
+                ends.contains(&entry.id) || ends.iter().any(|end| self.descends(entry, *end))
+            })
+        };
+        conforms(source, &edge.source_types) && conforms(target, &edge.target_types)
+    }
+
     /// Whether `entry` has `ancestor` among its ancestors.
     fn descends(&self, entry: &NodeEntry, ancestor: TypeId) -> bool {
         let mut seen = BTreeSet::new();

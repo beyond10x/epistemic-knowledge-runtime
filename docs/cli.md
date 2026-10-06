@@ -147,14 +147,14 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 
 | verb | store | input | prints |
 |---|---|---|---|
-| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable | the seed result: `result.revision` is `0` |
+| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable; `--if-absent` | the seed result: `result.revision` is `0` |
 | `ekr propose` | writes | an `ekr.transaction-document/2` file, or `-` | the proposal record: `transaction_id` |
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
 | `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
-| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
+| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-`; `--strict` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -162,6 +162,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
+| `ekr process-map` | reads | `--revision <revision>`, `--events <type name>...`, `--event-time <type.property>...` | the `ekr.process-map/1` document: that log as a process, per object type its variants with their case counts and its directly-follows edges with their counts |
 | `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
 | `ekr fact-quality` | none | an `ekr.fact-judgements/1` file, or `-`; `--confidence <basis points>` | the `ekr.fact-quality/1` document: the judged sample's pass rate and its Wilson interval |
 | `ekr guide` | none | none | the workflow, as text |
@@ -192,6 +193,22 @@ Writes revision 0 from an `ekr-seed/2` document: the schema, the initial graph a
 payloads. The seed is validated like a transaction first; a seed that does not validate is refused as
 `ekr.kernel.InvalidSeed` with the reason. Seeding the same document again returns the original result
 (exit 0); a different document on a seeded store is refused as `ekr.kernel.AlreadySeeded`.
+
+`--if-absent` seeds only if the store has no seed, so exit 0 means this call wrote it. Any seed
+already there is refused as `ekr.kernel.AlreadySeeded`, exit 2, the identical document included.
+A seed another caller was elected for and stopped before publishing is published first, as that
+caller's own retry would, and then refused, so after the refusal the store always holds a seed.
+Two callers that seed one store at once, on any provider, cannot both exit 0: the store elects one
+seed in the write itself, and the other caller is refused. A host creating a store it must own
+uses it. A retry of an `--if-absent` call whose answer was lost is refused the same way, since it
+cannot be told apart from another caller; `ekr seed` without the flag returns the existing result
+instead. A host that needs to tell the two apart reads `ekr head` and the seed result (`ekr seed`
+without the flag) after the refusal.
+
+```console
+ekr seed --if-absent seed.yaml                    # exit 0: this call created the store
+ekr seed --if-absent seed.yaml                    # exit 2: ekr.kernel.AlreadySeeded
+```
 
 Evidence payloads can come from files instead of the document. `--evidence <file>`, repeatable, adds
 the file's exact bytes to `evidence_payloads` under their content hash — the `content_hash` that
@@ -341,8 +358,13 @@ its extractor and hands the engine the document it wrote.
 
 First the engine's reader checks the document against the ontology of the store's head. A document
 it refuses is refused by the reader's code (exit 2, `ekr: <code>: <reason>`, the codes in
-[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written.
-Then, in order:
+[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written. A
+fact it refuses — a code met in `facts[<index>]`, from `reference-without-identity` to
+`fact-evidence-unlisted` — is skipped instead: it is listed under `rejected` as `facts[<index>]`
+with the refusal `<code>: <name>`, nothing only it names (a named thing, an evidence item) is
+created or added, and the rest of the document applies. A refusal of the ontology, of an entity or
+of an evidence item still refuses the whole document. `--strict` refuses the whole document for a
+bad fact too, as the reader's first refusal in document order. Then, in order:
 
 1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
    (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
@@ -356,21 +378,51 @@ Then, in order:
    the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
    applied;
 3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
-   with the object node. Each evidence item a fact cites is added by `!AddEvidence` with the first
+   with the object node, valid from the earliest `observed_at` of the evidence items the fact
+   cites, with no end. Each evidence item a fact cites is added by `!AddEvidence` with the first
    assertion citing it, unless the store already holds its id. An item no fact cites is not added.
+   A `!Relation` fact also writes a `!CreateEdge` of its edge type from the subject to the object,
+   in the same transaction as its assertion, so `search` counts it in each end's `degree` and
+   `expand` walks it; none when the store, or an earlier fact that committed, already joins the
+   two nodes by an edge of that type. An edge validation refuses (its endpoint types, its type's
+   cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
+   those relations as assertions only; applying the document again holds them and adds no edge.
+   A `!Property` fact marked `replaces: true` also supersedes every active assertion of its
+   subject and property — the store's, or an earlier committed fact's — with a
+   `!SupersedeAssertion` from the new assertion's valid time on, in the same transaction, so
+   afterwards one assertion of that subject and property is active. When neither the store nor an
+   earlier fact of the document holds a value of that property for its subject, it is refused
+   before anything is resolved, so nothing only it names is created; when the earlier fact that
+   set one is rejected, it is refused then. Either way it is listed under `rejected` with the
+   refusal `replacement-without-active-assertion: facts[<index>]: …` — with or without `--strict`,
+   since it depends on the store — and the rest of the document applies. A superseded assertion
+   valid from later than the replacement is rejected by validation (`invalid-supersession`).
+   Facts are committed in rounds: a fact that depends on an earlier one — it repeats that fact's
+   claim citing no evidence the earlier one does not, it is a relation whose edge the earlier one
+   proposes, or it is on the same subject and property where either replaces — is tried once that
+   one has committed or been rejected, so a fact is never planned on a change that did not commit,
+   and one repeating a rejected fact is tried and reported on its own. Any other corroboration of
+   a claim commits in the same round.
    A rejected transaction is split and submitted again, down to the one fact validation refuses.
    A fact is held, not asserted, when an assertion making its claim — the same subject,
-   predicate, object and valid time — cites every evidence item the fact cites: one the store
-   holds active, one an earlier fact of the document made, or one the store holds retracted or
-   superseded, which asserting it again from the same evidence would undo (a superseded
-   assertion's valid time ends where its replacement starts; the fact's reaches that far). So
-   applying the same document a second time adds no node, evidence entry or assertion, and its
-   report lists every fact under `held`. A fact citing evidence no such assertion cited is
-   asserted.
+   predicate and object — cites every evidence item the fact cites and holds from no later than
+   the fact does: one the store holds active, one an earlier fact of the document committed, or
+   one the store holds retracted or superseded, which asserting it again from the same evidence
+   would undo (a superseded assertion's valid time ends where its replacement starts; the fact's
+   reaches that far). So applying the same document a second time adds no node, evidence entry or
+   assertion, and its report lists every fact under `held`; a fact citing part of an earlier
+   claim's evidence is held too. An assertion valid from an unbounded past, as this verb wrote one
+   in earlier releases, holds from before every fact, so a document applied then is held too. A
+   held fact marked `replaces: true` still supersedes every other active value of its subject and
+   property, by the assertion that holds it; it is listed under `held` once that supersession
+   commits, and only under `rejected` if validation rejects it. A fact citing evidence no such
+   assertion cited is asserted.
 
 Every write goes through `propose`, `validate` and `commit`, the same requests a consumer sends
 running the SDK's `ekr_sdk::extraction::apply` over an `ekr session`: the verb runs that routine,
-over the session's own dispatch in this process. A session does not serve the verb itself
+over the session's own dispatch in this process. The routine skips a bad fact the same way:
+`ExtractionDocument::decode` reads a document without refusing one, and
+`ApplyOptions::strict` asks for the whole-document refusal. A session does not serve the verb itself
 (`session-verb-refused`).
 
 It prints the `ekr.integrate.ExtractionReport`:
@@ -378,7 +430,7 @@ It prints the `ekr.integrate.ExtractionReport`:
 | key | holds |
 |---|---|
 | `committed` | each transaction committed, in order, as `transaction_id` and `revision`: the schema change, the new nodes, the facts |
-| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, or a named thing the fact rests on that was not created |
+| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, a named thing the fact rests on that was not created, the reader's refusal of a skipped fact, `<code>: <name>`, or `replacement-without-active-assertion` for a `replaces` fact with nothing active to replace |
 | `ambiguous` | each named thing the store answers with more than one node: `reference`, its node type and every alias of the named things that share one, the name first, and `candidates`, the nodes in id order |
 | `held` | each fact not asserted, as `item` (`facts[<index>]`) and `reason`: `asserted` (the store holds the claim active), `repeated` (an earlier fact of the document asserted it), `retracted` or `superseded` (an operator retracted or superseded the claim, and the fact brings no evidence it did not cite) |
 | `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on. `committed` then lists every transaction committed until then, those of the batch that stopped included |
@@ -709,6 +761,135 @@ A known departure from OCEL 2.0: its Definition 2 makes an attribute name one ty
 property a type inherits is an attribute of that type and of every type inheriting it, under one
 property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
 accept such a log.
+
+### `ekr process-map`
+
+Prints the store's OCEL 2.0 event log at the head, or at `--revision N`, as a process: the
+`ekr.process-map/1` document (`ekr.views.ProjectProcessMap`). Per object type it lists the
+variants, each a distinct sequence of event types with the number of objects following it, and
+the directly-follows graph, each pair of event types that follow one another with how often they
+do. The map is derived from the `ekr.ocel/1` document `ekr ocel` prints for the same
+`--revision`, `--events` and `--event-time`, which select the log as they do there and are refused
+as they are refused there; `meta.ocel_hash` is that document's hash, the `ocel_hash` `ekr ocel`
+reports. Two reads of one request print the same bytes, before and after any later commit.
+
+```console
+ekr process-map
+ekr process-map --revision 0 --events Opened Closed
+ekr process-map --event-time Opened.at --event-time Closed.at
+```
+
+| `ekr.process-map/1` | what it holds |
+|---|---|
+| case | each object of the log, of its object type |
+| trace | the `type` of every event with a relationship to the case, in the log's order: by time, then id. An event related to one object under two qualifiers is one step, and an object no event relates to is no case |
+| `object_types[]` | one entry per object type of the log, by id, one with no case included: `objects` its objects, `cases` those with a trace |
+| `variants[]` | per object type, each distinct trace: `activities`, its event type ids in order, and `cases`, how many of the type's cases follow it; the most followed first, then by `activities` |
+| `directly_follows[]` | per object type, each pair of event type ids, `from` and `to`, that a trace holds as consecutive steps; `count` is how many times over all of the type's traces, a trace holding a pair twice counting two. Ordered by `from`, then `to`; a type may follow itself |
+| `names.node_types` | the log's `names.node_types`: each type id with its name |
+
+Types are named by id, as in `ekr.ocel/1`; `names` maps each back. Object-to-object relationships
+do not enter the map. A store whose log has three tickets — T-1 and T-2 opened, reviewed and
+closed, T-3 opened and closed, and both reviews by one reviewer — prints two ticket variants, with
+2 and 1 cases, and the reviewer's one, reviewed twice:
+
+```json
+{
+  "meta": {
+    "format": "ekr.process-map/1",
+    "ocel_hash": "fa4794bccf22016fac3d7e07628ede31818535c84261b0104321addf744cb4a4",
+    "revision": 0
+  },
+  "names": {
+    "node_types": [
+      {
+        "id": "00000000-0000-4000-8000-00000000c201",
+        "name": "Ticket"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c202",
+        "name": "Reviewer"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c203",
+        "name": "Opened"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c204",
+        "name": "Reviewed"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c205",
+        "name": "Closed"
+      }
+    ]
+  },
+  "object_types": [
+    {
+      "cases": 3,
+      "directly_follows": [
+        {
+          "count": 2,
+          "from": "00000000-0000-4000-8000-00000000c203",
+          "to": "00000000-0000-4000-8000-00000000c204"
+        },
+        {
+          "count": 1,
+          "from": "00000000-0000-4000-8000-00000000c203",
+          "to": "00000000-0000-4000-8000-00000000c205"
+        },
+        {
+          "count": 2,
+          "from": "00000000-0000-4000-8000-00000000c204",
+          "to": "00000000-0000-4000-8000-00000000c205"
+        }
+      ],
+      "object_type": "00000000-0000-4000-8000-00000000c201",
+      "objects": 3,
+      "variants": [
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c203",
+            "00000000-0000-4000-8000-00000000c204",
+            "00000000-0000-4000-8000-00000000c205"
+          ],
+          "cases": 2
+        },
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c203",
+            "00000000-0000-4000-8000-00000000c205"
+          ],
+          "cases": 1
+        }
+      ]
+    },
+    {
+      "cases": 1,
+      "directly_follows": [
+        {
+          "count": 1,
+          "from": "00000000-0000-4000-8000-00000000c204",
+          "to": "00000000-0000-4000-8000-00000000c204"
+        }
+      ],
+      "object_type": "00000000-0000-4000-8000-00000000c202",
+      "objects": 1,
+      "variants": [
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c204",
+            "00000000-0000-4000-8000-00000000c204"
+          ],
+          "cases": 1
+        }
+      ]
+    }
+  ]
+}
+```
+
+`ekr session` serves the verb too; its refusals are `ekr ocel`'s.
 
 ### `ekr sample`
 
@@ -1233,7 +1414,7 @@ creates nothing there by starting. It serves `mint`, `hash` and `schema` exactly
 verbs do, and answers each store verb as the one-shot verb answers on that path —
 `store-not-found`, `"exit": 1` — then reads the next line. Started as `ekr session --create`, it
 also serves `seed`, with the arguments and document `ekr seed` takes: `--evidence <file>`,
-repeatable, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
+repeatable, `--if-absent`, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
 session holding it, opened once as a session opens an existing store when it starts, and every
 verb after it is served over that store. A seed on a store that exists — a second seed in the
 same session, or one in a `--create` session started on an existing store — answers what
@@ -1249,7 +1430,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `process-map`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 
@@ -1994,6 +2175,7 @@ named issues:
 A relation can be recorded two ways, and often both are wanted. The assertion is the claim, with
 evidence and valid time. `!CreateEdge` is the structural record: no evidence, no valid time, held to
 the edge type's endpoint types and cardinality, and visible to a reader of the graph's edges.
+[`ekr apply-extraction`](#ekr-apply-extraction) writes both for a `!Relation` fact.
 
 ## Extraction documents (`ekr.extraction-document/1`)
 
@@ -2060,7 +2242,7 @@ evidence:
 | `format` | exactly `ekr.extraction-document/1` |
 | `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types), written as one is (`parameters: {variants: [...]}` for an `Enum`), except that a `NodeRef` names its node types in `parameters: {allowed_types: [...]}` rather than listing their ids. An `Enum`'s variants and a `NodeRef`'s types are at least one, each once; a `Record` field is written once. A type the store lacks is added; one it holds by that name is kept |
 | `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
-| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
+| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one; optional `replaces: true`, the value replacing the active one of that subject and property) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
 | `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
 
 The reader refuses, by code, a document it cannot read:
@@ -2072,7 +2254,9 @@ The reader refuses, by code, a document it cannot read:
 | `extraction-yaml-alias` | a YAML alias (`*name`): write each value out |
 | `extraction-document-malformed` | anything else that is not one document of the format: another `format`, an unknown or missing key, a mapping key written twice, a fact written other than as a `!Property` or `!Relation` tag, an alias that is not a YAML string (`~`, `true`, `1.0` and `0x10` are not; quote them), a second document |
 
-Against the ontology of the store it is read for it refuses, naming the first in document order:
+Against the ontology of the store it is read for it refuses, naming the first in document order.
+A code met in a fact, `facts[<index>]`, refuses that fact alone when
+[`ekr apply-extraction`](#ekr-apply-extraction) is run without `--strict`:
 
 | code | when |
 |---|---|
@@ -2082,7 +2266,7 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
 | `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
 | `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
-| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document is refused before anything is written. Name the concrete type |
+| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document — or, for a fact, that fact — is refused before anything is written. Name the concrete type |
 | `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
 | `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
 | `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
