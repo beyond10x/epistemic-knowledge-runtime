@@ -1,7 +1,7 @@
 # Hand-over: session brain-and-cortex, 2026-10-06
 
-Written at the conductor's wrap-up dispatch DSP-20261006-13 (DEC-20261006-06). The session ends
-after this file; the next owner starts from here.
+Written at the session's wrap-up. The session ends after this file; the next owner starts from
+here.
 
 ## Release 0.0.32: blocked on red CI
 
@@ -39,12 +39,12 @@ Next step:
    section of `CHANGELOG.md`, comment the release on #74 and #81.
 4. cortex wave 20261006i waits for this release (see cortex's hand-over).
 
-## Dispatches
+## Queued work
 
-| id | state |
+| item | state |
 |---|---|
-| DSP-20261006-05 | not started: rewrite the build rule in `AGENTS.md` (line 127) to "build into this tree's `target/`; end each tree with `worktree finish --discard-cache --archive <tree>`", citing DEC-20261006-02. It was to follow 0.0.32 |
-| DSP-20261006-13 | this hand-over |
+| build rule | not started: rewrite the build rule in `AGENTS.md` (line 127) to "build into this tree's `target/`; end each tree with `worktree finish --discard-cache --archive <tree>`". It was to follow 0.0.32 |
+| hand-over | this file |
 
 ## Worktrees
 
