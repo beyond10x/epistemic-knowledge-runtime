@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.31] — 2026-10-06
+
 ### Changed
 
 - `ekr apply-extraction` skips a fact the reader refuses alone — a dangling evidence id, an
