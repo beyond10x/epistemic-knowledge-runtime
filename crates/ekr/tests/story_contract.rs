@@ -221,6 +221,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "assert_cmd",
             "base64",
             "jsonschema",
+            "rusqlite",
             "tempfile",
             "tungstenite",
         ],

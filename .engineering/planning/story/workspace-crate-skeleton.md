@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 24
+revision: 25
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
@@ -230,3 +230,7 @@ are `external_dependencies_match_the_story`, `ekr_names_no_eventlog_item` and
 Their updated hosted-provider coverage is pending the corrected focused gate. The implemented
 status of this historical skeleton remains unchanged; its dependency contract follows the
 current manifest, as prior amendments do.
+
+## Amendment, fix for issue 74
+
+`ekr` declares `rusqlite` (with the `backup` feature) as a dev-dependency for the fix of https://github.com/beyond10x/epistemic-knowledge-runtime/issues/74: a test restores a SQLite store through the online backup API around a held view cache. The package was already in the lock; no package is added.
