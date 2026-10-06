@@ -8,6 +8,8 @@ relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
 - depends_on: story:read-surface-specified
+- depends_on: story:read-answers-name-types
+- depends_on: story:explain-bounds-documents
 revision: 1
 ---
 ## Context

@@ -3,10 +3,9 @@ format: aep.planning-md/3
 id: story:read-answers-name-types
 kind: story
 status: draft
-title: Read answers name every type, edge type and property they cite
+title: Five read answers name every type, edge type and property they cite
 relations:
 - serves: vision:o5
-- depends_on: story:read-surface-specified
 - depends_on: story:explain-bounds-documents
 scope:
 - confidence: inferred
@@ -25,16 +24,16 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 4
+revision: 6
 ---
 ## Outcome
 
-Every read that answers a node type, edge type or property id carries its name beside it, and a new read, `describe_type`, answers a type id with its declaration (name, kind, and for an edge type its endpoint types).
+Five reads that answer node type, edge type or property ids (`search`, `describe_node`, `expand`, `timeline`, `explain`) carry each id's name beside it. Other reads are not changed by this story.
 
 ## Why
 
 Found 2026-10-06 by the gap inventory for running a company brain entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
-Every type, edge type and predicate was answered as a bare id; `describe_node` on a type id answers `NodeNotFound`, and names exist only inside `overview`'s schema history (`crates/ekr-views/src/query.rs:551-554` at 0.0.30), whose answer is very large on a big store. An agent cannot tell edge types apart. `story:resolve-by-type-name` covers names on input only.
+Every type, edge type and predicate was answered as a bare id, and names exist only inside `overview`'s schema history (`crates/ekr-views/src/query.rs:551-554` at 0.0.30), whose answer is very large on a big store. An agent cannot tell edge types apart. `story:resolve-by-type-name` covers names on input only. A read that answers one type id with its declaration is `story:describe-type-read`.
 
 ## Acceptance
 
@@ -44,11 +43,10 @@ On a synthetic store with two node types, two edge types and two properties:
 3. `expand`: every edge-type id has its name.
 4. `timeline`: every predicate id has its name.
 5. `explain`: every type, edge-type and predicate id it cites has its name.
-6. `describe_type` on an edge-type id answers its name, kind and endpoint types; on a node id it refuses with the same refusal `describe_node` gives today for an unknown id.
 
-## Depends on
+## Order
 
-`story:read-surface-specified`: `describe_type` is a twelfth operation in its read surface, and that story's list grows by it. `story:explain-bounds-documents` lands first (both edit `explain`).
+After `story:explain-bounds-documents` (both edit `explain`). Before `story:read-surface-served-over-http`, which rewrites `crates/ekr/src/cli/mcp.rs` and `view.rs` into one dispatcher and carries these fields over (its edge records it). It needs no new read surface, so it does not wait for `story:read-surface-specified`. It lands after the stories of wave 20261005b, which share `docs/cli.md` and `CHANGELOG.md`.
 
 ## Files (from the inventory, unverified)
 

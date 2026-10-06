@@ -6,6 +6,7 @@ status: draft
 title: explain bounds the evidence text it returns
 relations:
 - serves: vision:o5
+- depends_on: story:ocel-process-map
 scope:
 - confidence: inferred
   path: CHANGELOG.md
@@ -17,7 +18,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 4
+revision: 5
 ---
 ## Outcome
 
@@ -37,7 +38,7 @@ On a synthetic assertion citing a 5 MB evidence record whose cited text sits at 
 
 ## Note
 
-`story:read-surface-specified` models `explain`'s input; when it lands it carries `offset` and `limit`.
+`story:read-surface-specified` models `explain`'s input after this story lands and carries `offset` and `limit` (its body and its edge record it). `story:read-surface-served-over-http` also lands after it. Both edit `systems/ekr/domains/views.yaml` and `crates/ekr/src/cli/mcp.rs`. This story lands after the stories of wave 20261005b, which share `docs/cli.md`, `CHANGELOG.md` and, for `story:ocel-process-map`, `systems/ekr/domains/views.yaml` (its edge records that one).
 
 ## Files (from the inventory, unverified)
 

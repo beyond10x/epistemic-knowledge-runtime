@@ -6,7 +6,7 @@ status: approved
 title: 'Wave 20261005b: extraction parity'
 relations:
 - decides: story:extraction-partial-apply
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "in_review", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 2}
 - {from: "in_review", to: "approved", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 3}
@@ -44,3 +44,7 @@ One commit per story in unit A and one in unit B, each through `b10x-gates bot`;
 | C | `story:seed-if-absent` | `unit/seed-if-absent` | `ekr-wx-c` | `~/.cache/b10x-target/ekr-wx-c` | `~/.cache/ekr-wave-8c9138d1/c` |
 
 Added under the operator's standing approval of every wave. It touches the seed path, not `Run::go`, so it runs beside unit A; forked from `427a211` (unit B merged).
+
+## Shared with later stories
+
+`story:read-answers-name-types` and `story:explain-bounds-documents` (planned 2026-10-06, not in this wave) share `docs/cli.md` and `CHANGELOG.md` with every unit here, and `systems/ekr/domains/views.yaml` with `story:ocel-process-map`. Both land after this wave merges; `story:explain-bounds-documents` carries a `depends_on` edge to `story:ocel-process-map`.
