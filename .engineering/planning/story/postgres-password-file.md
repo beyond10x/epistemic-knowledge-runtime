@@ -2,14 +2,15 @@
 format: aep.planning-md/3
 id: story:postgres-password-file
 kind: story
-status: active
+status: implemented
 title: An ekr.postgres/1 configuration takes its password from a separate file
 relations:
 - serves: vision:o5
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-06T09:15:42Z", actor: "agent:claude", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-06T09:15:42Z", actor: "agent:claude", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-06T10:32:12Z", actor: "agent:claude", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Outcome
 
