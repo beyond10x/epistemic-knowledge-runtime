@@ -649,10 +649,13 @@ type PublicationInterceptor<S> = std::rc::Rc<
         >,
     >,
 >;
+/// Runs once, immediately before the probed handle asks the store to elect its preparation.
+type PrepareHook = std::rc::Rc<std::cell::RefCell<Option<Box<dyn FnOnce()>>>>;
 struct PublicationProbe<S> {
     inner: S,
     observed: std::rc::Rc<std::cell::RefCell<Vec<ekr_store::Publication>>>,
     intercept: PublicationInterceptor<S>,
+    before_prepare: PrepareHook,
 }
 impl<S: ekr_store::RevisionLog> ekr_store::RevisionLog for PublicationProbe<S> {
     fn preparation(
@@ -668,6 +671,10 @@ impl<S: ekr_store::RevisionLog> ekr_store::RevisionLog for PublicationProbe<S> {
         decision: &ekr_store::Publication,
         previous: Option<&ekr_store::PublicationPreparationV1>,
     ) -> Result<ekr_store::PublicationPreparationV1, ekr_store::StoreError> {
+        let hook = self.before_prepare.borrow_mut().take();
+        if let Some(hook) = hook {
+            hook();
+        }
         self.inner.prepare(key, input, decision, previous)
     }
     fn resume(
@@ -744,6 +751,7 @@ fn unresolved_publication_cannot_be_replaced_by_a_new_occurrence() {
                 .under(authority),
             observed: observed.clone(),
             intercept: intercept.clone(),
+            before_prepare: Default::default(),
         })
     })
     .unwrap();
@@ -1049,6 +1057,7 @@ fn contention<
             inner: open_store(authority)?,
             observed: observed.clone(),
             intercept: intercept.clone(),
+            before_prepare: Default::default(),
         })
     })
     .unwrap();
@@ -1400,6 +1409,7 @@ fn pending_seed_input_conflict<
             inner: open_store(authority)?,
             observed: observed.clone(),
             intercept: intercept.clone(),
+            before_prepare: Default::default(),
         })
     })
     .unwrap();
@@ -1490,5 +1500,268 @@ fn published_different_seed_refuses_already_seeded_without_publication_or_clock(
         );
         assert_eq!(physical(directory.path(), file), before);
         assert_eq!(reopened.head().unwrap(), Some(original.result));
+    }
+}
+
+/// The state a caller that elected a seed and never learned its publication leaves: one
+/// `PublicationPrepared` and no publication.
+fn pending_seed<S: ekr_store::RevisionLog + ekr_store::ObjectStore + ekr_store::Initialize>(
+    seed: &SeedDocument,
+    open_store: impl FnOnce(KernelAuthority) -> Result<S, ekr_store::StoreError>,
+) {
+    let intercept: PublicationInterceptor<S> =
+        std::rc::Rc::new(std::cell::RefCell::new(Some(Box::new(|_, _| {
+            Err(ekr_store::StoreError::UnknownCommit)
+        }))));
+    let kernel = Commit::over_with_authority(context(), anchor(), |authority| {
+        Ok(PublicationProbe {
+            inner: open_store(authority)?,
+            observed: Default::default(),
+            intercept,
+            before_prepare: Default::default(),
+        })
+    })
+    .unwrap();
+    assert_eq!(
+        kernel.seed(seed.clone(), || Timestamp::from_millis(10)),
+        Err(SeedError::Store(ekr_store::StoreError::UnknownCommit))
+    );
+}
+
+/// `story:seed-if-absent`: a seed another caller elected but has not yet published is a seed that
+/// exists. An if-absent seed — of the identical document or a different one — publishes that
+/// elected seed, as its own retry would, then is refused as `AlreadySeeded`, sampling no time.
+/// The refusal is then true: the lineage is the elected seed, which the plain seed of the elected
+/// document answers as retained.
+#[test]
+fn an_if_absent_seed_is_refused_by_a_pending_seed_after_publishing_it_without_clock() {
+    use ekr_store::StoreError;
+    for file in [false, true] {
+        for differs in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let elected = fixture();
+            if file {
+                pending_seed(&elected, |authority| {
+                    Ok(
+                        ekr_store::FileStore::file(directory.path(), "test", None)?
+                            .under(authority),
+                    )
+                });
+            } else {
+                pending_seed(&elected, |authority| {
+                    Ok(ekr_store::SqliteStore::sqlite(
+                        &directory.path().join("state.db"),
+                        "test",
+                        None,
+                    )?
+                    .under(authority))
+                });
+            }
+            let mut mine = elected.clone();
+            if differs {
+                mine.graph.nodes.values_mut().next().unwrap().canonical_name =
+                    "different admitted seed".into();
+            }
+            let what = format!("file={file} differs={differs}");
+            let reopened = open(directory.path(), file);
+            assert_eq!(reopened.head().unwrap(), None, "{what}");
+            assert_eq!(
+                reopened.seed_if_absent(mine, || panic!("pending refusal sampled time")),
+                Err(SeedError::Store(StoreError::AlreadySeeded)),
+                "{what}"
+            );
+            // Read before anything else seeds: the refusing call itself published the election.
+            let head = open(directory.path(), file).head().unwrap();
+            assert!(
+                head.is_some(),
+                "{what}: refused as AlreadySeeded while the lineage has no seed"
+            );
+            let published = open(directory.path(), file)
+                .seed(elected, || panic!("retained answer sampled time"))
+                .unwrap();
+            assert_eq!(published.committed_at, Timestamp::from_millis(10), "{what}");
+            assert_eq!(head, Some(published.result), "{what}");
+        }
+    }
+}
+
+/// An if-absent seed of `mine` through a handle that lets `rival` seed the same store from another
+/// handle after this caller's own checks found no seed, immediately before it asks to be elected:
+/// the interleaving in which only the election itself can see the other seed. Returns this
+/// caller's answer and the rival's result.
+fn if_absent_seed_losing_the_election<
+    S: ekr_store::RevisionLog + ekr_store::ObjectStore + ekr_store::Initialize,
+>(
+    directory: &std::path::Path,
+    file: bool,
+    mine: SeedDocument,
+    rival: SeedDocument,
+    open_store: impl FnOnce(KernelAuthority) -> Result<S, ekr_store::StoreError>,
+) -> (Result<SeedResultV1, SeedError>, SeedResultV1) {
+    let rival_result = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let before_prepare: PrepareHook = std::rc::Rc::new(std::cell::RefCell::new(None));
+    {
+        let rival_result = rival_result.clone();
+        let path = directory.to_path_buf();
+        *before_prepare.borrow_mut() = Some(Box::new(move || {
+            let other = open(&path, file);
+            *rival_result.borrow_mut() =
+                Some(other.seed(rival, || Timestamp::from_millis(5)).unwrap());
+        }));
+    }
+    let kernel = Commit::over_with_authority(context(), anchor(), |authority| {
+        Ok(PublicationProbe {
+            inner: open_store(authority)?,
+            observed: Default::default(),
+            intercept: Default::default(),
+            before_prepare: before_prepare.clone(),
+        })
+    })
+    .unwrap();
+    let answer = kernel.seed_if_absent(mine, || Timestamp::from_millis(10));
+    let rival = rival_result
+        .borrow_mut()
+        .take()
+        .expect("the rival seeded inside this caller's election");
+    (answer, rival)
+}
+
+/// `story:seed-if-absent`, decided inside the write: another caller's seed committed after this
+/// caller looked and before it was elected — the identical seed or a different one — refuses
+/// this caller as `AlreadySeeded`, and the lineage is the other caller's.
+#[test]
+fn an_if_absent_seed_is_refused_by_a_seed_committed_during_its_own_call() {
+    use ekr_store::StoreError;
+    for file in [false, true] {
+        for differs in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let mine = fixture();
+            let mut rival = mine.clone();
+            if differs {
+                rival
+                    .graph
+                    .nodes
+                    .values_mut()
+                    .next()
+                    .unwrap()
+                    .canonical_name = "different admitted seed".into();
+            }
+            let (answer, rival) = if file {
+                if_absent_seed_losing_the_election(
+                    directory.path(),
+                    file,
+                    mine,
+                    rival,
+                    |authority| {
+                        Ok(ekr_store::FileStore::file(directory.path(), "test", None)?
+                            .under(authority))
+                    },
+                )
+            } else {
+                if_absent_seed_losing_the_election(
+                    directory.path(),
+                    file,
+                    mine,
+                    rival,
+                    |authority| {
+                        Ok(ekr_store::SqliteStore::sqlite(
+                            &directory.path().join("state.db"),
+                            "test",
+                            None,
+                        )?
+                        .under(authority))
+                    },
+                )
+            };
+            assert_eq!(
+                answer,
+                Err(SeedError::Store(StoreError::AlreadySeeded)),
+                "file={file} differs={differs}"
+            );
+            assert_eq!(
+                open(directory.path(), file).head().unwrap(),
+                Some(rival.result),
+                "file={file} differs={differs}"
+            );
+        }
+    }
+}
+
+/// Adversary (story:seed-if-absent, pass 1): an if-absent seed whose process stops after the
+/// store elected its preparation and before the publication — `resume` never reaches the store.
+fn if_absent_seed_cut_before_publication<
+    S: ekr_store::RevisionLog + ekr_store::ObjectStore + ekr_store::Initialize,
+>(
+    seed: &SeedDocument,
+    open_store: impl FnOnce(KernelAuthority) -> Result<S, ekr_store::StoreError>,
+) -> Result<SeedResultV1, SeedError> {
+    let intercept: PublicationInterceptor<S> =
+        std::rc::Rc::new(std::cell::RefCell::new(Some(Box::new(|_, _| {
+            Err(ekr_store::StoreError::UnknownCommit)
+        }))));
+    let kernel = Commit::over_with_authority(context(), anchor(), |authority| {
+        Ok(PublicationProbe {
+            inner: open_store(authority)?,
+            observed: Default::default(),
+            intercept,
+            before_prepare: Default::default(),
+        })
+    })
+    .unwrap();
+    kernel.seed_if_absent(seed.clone(), || Timestamp::from_millis(10))
+}
+
+/// Adversary (story:seed-if-absent, pass 1): a host that creates its stores only with
+/// `--if-absent` (the mode `docs/cli.md` tells such a host to use) crashes between the election
+/// and the publication. Every later if-absent call — its own retry or any other host's — is
+/// refused as `AlreadySeeded`, "a seed already there", yet the lineage has no seed and no
+/// if-absent call ever publishes the elected one. The refusal's claim must hold: once refused as
+/// already seeded, the lineage is seeded.
+#[test]
+fn adversary_an_if_absent_refusal_by_an_unpublished_election_leaves_the_lineage_unseeded() {
+    use ekr_store::StoreError;
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = fixture();
+        let cut = if file {
+            if_absent_seed_cut_before_publication(&seed, |authority| {
+                Ok(ekr_store::FileStore::file(directory.path(), "test", None)?.under(authority))
+            })
+        } else {
+            if_absent_seed_cut_before_publication(&seed, |authority| {
+                Ok(ekr_store::SqliteStore::sqlite(
+                    &directory.path().join("state.db"),
+                    "test",
+                    None,
+                )?
+                .under(authority))
+            })
+        };
+        assert_eq!(
+            cut,
+            Err(SeedError::Store(StoreError::UnknownCommit)),
+            "file={file}"
+        );
+        // The first refused call publishes the elected seed; every later one finds that lineage.
+        let mut first = None;
+        for attempt in 0..3 {
+            let reopened = open(directory.path(), file);
+            assert_eq!(
+                reopened.seed_if_absent(seed.clone(), || Timestamp::from_millis(20)),
+                Err(SeedError::Store(StoreError::AlreadySeeded)),
+                "file={file} attempt={attempt}"
+            );
+            let head = reopened.head().unwrap();
+            assert!(
+                head.is_some(),
+                "file={file} attempt={attempt}: refused as AlreadySeeded while the lineage has \
+                 no seed; only a plain `seed` of the identical document can ever publish it"
+            );
+            assert_eq!(
+                *first.get_or_insert(head),
+                head,
+                "file={file} attempt={attempt}"
+            );
+        }
     }
 }

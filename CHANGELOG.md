@@ -40,6 +40,7 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   supersedes the other active values. Facts that depend on an earlier fact of the document are
   applied once that fact has committed or been rejected, so a rejected fact never leaves a later
   one asserted without its edge or superseding an assertion that does not exist.
+- `ekr seed --if-absent` (`Runtime::seed_if_absent`) seeds only if the store has no seed: any seed already there, the identical document included, is refused as `ekr.kernel.AlreadySeeded`, and of two callers seeding one store at once on any provider exactly one exits 0.
 
 ## [0.0.30] — 2026-10-03
 

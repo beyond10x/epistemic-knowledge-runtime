@@ -518,6 +518,29 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     }
 }
 impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
+    /// Validates and publishes a complete seed only if the lineage has none: `Ok` means this call
+    /// wrote the seed. A seed already published or elected — the identical document included —
+    /// refuses as `AlreadySeeded` without sampling the clock, and so does losing the store's
+    /// election for the Bootstrap slot to another caller. That election is the store's own
+    /// conditional append, so the decision is made inside the write, not by an earlier read. An
+    /// elected seed still unpublished is published before the refusal, as its own retry would.
+    /// # Errors
+    /// Invalid input/anchor, any existing or concurrently elected seed or failed atomic
+    /// publication.
+    pub fn seed_if_absent(
+        &self,
+        document: SeedDocument,
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<SeedResultV1, SeedError> {
+        // Every Bootstrap slot conflict is a seed another caller elected, so a seed exists.
+        self.seed_with(document, now, true)
+            .map_err(|error| match error {
+                SeedError::Store(StoreError::PublicationInputConflict) => {
+                    StoreError::AlreadySeeded.into()
+                }
+                other => other,
+            })
+    }
     /// Validates and publishes a complete seed, or returns its exact original retained result.
     /// The host clock is invoked only after own-result lookup, never during a retry or replay.
     /// # Errors
@@ -527,7 +550,18 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         document: SeedDocument,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<SeedResultV1, SeedError> {
+        self.seed_with(document, now, false)
+    }
+    fn seed_with(
+        &self,
+        document: SeedDocument,
+        now: impl FnOnce() -> Timestamp,
+        if_absent: bool,
+    ) -> Result<SeedResultV1, SeedError> {
         if let Some(result) = self.retained_seed(&document)? {
+            if if_absent {
+                return Err(StoreError::AlreadySeeded.into());
+            }
             return Ok(result);
         }
         let key = ekr_store::PublicationCommandKey {
@@ -545,6 +579,11 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             &self.authority,
         );
         if let Some(pending) = bootstrap_slot(self.store.preparation(&key))? {
+            // An elected seed nobody has published yet is a seed: another caller's election, or
+            // an earlier call of this one that did not learn its answer. Neither is this call's.
+            if if_absent {
+                return self.refuse_after_publishing(pending, &document);
+            }
             if pending.input_hash != input {
                 return Err(StoreError::PublicationInputConflict.into());
             }
@@ -616,8 +655,42 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             objects,
             expected_version: 0,
         };
-        let selected = bootstrap_slot(self.store.prepare(&key, input, &publication, None))?;
-        self.finish_seed(selected, &document)
+        let own = record.event_id;
+        // The store elects one preparation for the Bootstrap slot by a conditional append; a
+        // loser is handed the winner's, or refused when the winner's input differs.
+        let selected = match bootstrap_slot(self.store.prepare(&key, input, &publication, None)) {
+            Err(StoreError::PublicationInputConflict) if if_absent => {
+                return match bootstrap_slot(self.store.preparation(&key))? {
+                    Some(winner) => self.refuse_after_publishing(winner, &document),
+                    None => Err(StoreError::AlreadySeeded.into()),
+                };
+            }
+            selected => selected?,
+        };
+        // A winner with another occurrence is another call's seed, and that holds for a
+        // byte-identical document too, since every call mints its own event.
+        if if_absent && selected.decision.event.event_id != own {
+            return self.refuse_after_publishing(selected, &document);
+        }
+        let result = self.finish_seed(selected, &document)?;
+        // Publication can still find a seed that never went through this slot (the revision
+        // stream's own conditional append refuses it), which `finish_seed` answers as retained.
+        if if_absent && result.event_id != own {
+            return Err(StoreError::AlreadySeeded.into());
+        }
+        Ok(result)
+    }
+    /// The if-absent refusal by another call's election. The elected seed is published first,
+    /// exactly as its own retry would publish it, so the refusal's claim holds when it is made:
+    /// the lineage is seeded, and a caller that elected and stopped before publishing cannot leave
+    /// a lineage every if-absent call refuses and none seeds.
+    fn refuse_after_publishing(
+        &self,
+        elected: ekr_store::PublicationPreparationV1,
+        document: &SeedDocument,
+    ) -> Result<SeedResultV1, SeedError> {
+        self.finish_seed(elected, document)?;
+        Err(StoreError::AlreadySeeded.into())
     }
     fn finish_seed(
         &self,
