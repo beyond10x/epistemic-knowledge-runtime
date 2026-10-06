@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:explain-bounds-documents
 kind: story
-status: active
+status: implemented
 title: explain bounds the evidence text it returns
 relations:
 - serves: vision:o5
@@ -18,10 +18,11 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-06T10:18:11Z", actor: "agent:claude", revision: 6, decided_on: {"recorded":{"review_outcome":5}}}
 - {from: "proposed", to: "active", at: "2026-10-06T10:18:11Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":5}}}
+- {from: "active", to: "implemented", at: "2026-10-06T11:29:42Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":5}}}
 ---
 ## Outcome
 
