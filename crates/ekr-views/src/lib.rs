@@ -246,7 +246,7 @@ pub struct LoadedRevisionEntry {
 impl LoadedRevisionEntry {
     /// What tells this revision from any other the store has held under its number.
     #[must_use]
-    pub const fn identity(&self) -> RevisionIdentity {
+    pub(crate) const fn identity(&self) -> RevisionIdentity {
         RevisionIdentity {
             number: self.number,
             revision_id: self.revision_id,

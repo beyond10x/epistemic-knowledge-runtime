@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_views::{
-    ExpandRequest, Index, IndexCache, LimitExceeded, OverviewRequest, ProjectError, QueryError,
-    SearchRequest, SliceRecord,
+    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, ProjectError,
+    QueryError, RevisionIdentity, SearchRequest, SliceRecord,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -726,10 +726,13 @@ fn a_backup_restore_then_a_commit_is_answered_from_the_new_revision_of_the_reuse
     online_backup(&live, &snapshot);
 
     let mut cache = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+    let seed = Index::load(&runtime, at(0)).unwrap();
     let one = cache.index(&runtime, at(1)).unwrap();
     fixtures::commit_unrelated(&fixtures::reopen(work.path(), Provider::Sqlite), 1);
     let discarded = cache.index(&runtime, None).unwrap();
     assert_eq!(discarded.revision().get(), 6);
+    let discarded_identity: RevisionIdentity = discarded.identity();
+    assert_eq!(discarded_identity.number.get(), 6);
     let discarded_note = discarded.describe(beta).unwrap().bytes;
     assert!(String::from_utf8_lossy(&discarded_note).contains("note 1"));
 
@@ -739,6 +742,19 @@ fn a_backup_restore_then_a_commit_is_answered_from_the_new_revision_of_the_reuse
     assert_eq!(fresh.revision().get(), 6, "the new commit reuses number 6");
     let expected = fresh.describe(beta).unwrap().bytes;
     assert!(String::from_utf8_lossy(&expected).contains("note 2"));
+
+    // The store's lineage now: the new revision 6, not the discarded one; the seed and revision
+    // 1 are what they were before the restore.
+    let lineage = Lineage::read(&runtime, runtime.head().unwrap().unwrap()).unwrap();
+    assert_ne!(fresh.identity(), discarded_identity);
+    assert_eq!(fresh.identity().number, discarded_identity.number);
+    assert!(lineage.holds(&fresh.identity()), "the new revision 6");
+    assert!(
+        !lineage.holds(&discarded_identity),
+        "the discarded revision 6"
+    );
+    assert!(lineage.holds(&one.identity()), "revision 1");
+    assert!(lineage.holds(&seed.identity()), "the seed");
 
     for asked in [None, at(6)] {
         let answered = cache.index(&runtime, asked).unwrap();
