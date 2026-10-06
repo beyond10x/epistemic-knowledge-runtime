@@ -1294,7 +1294,12 @@ content verification. A cached evidence request does not replay the selected rev
 seed; its first request may load the index. A committed revision never changes and no
 answer names the head, so a commit loads nothing again; a request naming no revision reads the
 new head. `/projection` and `/roles` also keep their rendered answers, byte for byte what the first
-answer was, for at most 8 revisions, the one used longest ago going first.
+answer was, for at most 8 revisions, the one used longest ago going first. What is kept is kept
+under the revision's identity — its revision id and root — not its number alone: while anything is
+kept, each request also reads the store's retained transaction records, and drops what was kept of
+a revision the store no longer holds. A store restored to an older snapshot (through SQLite's
+online backup, say) and committed to after holds a new revision under a number already served;
+that revision is loaded and answered, never the discarded one.
 
 The page reads `/head`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
 `/evidence/<id>` and nothing else, never `/projection`: the overview once per revision and the

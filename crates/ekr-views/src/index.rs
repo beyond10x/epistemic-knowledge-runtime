@@ -10,7 +10,9 @@
 //!
 //! [`IndexCache`] keeps the most recently used indexes by revision, so only the first read of a
 //! revision pays for its load. A committed revision never changes and no answer names the head,
-//! so a later commit leaves every held index current.
+//! so a later commit leaves every held index current. A store restored to an older snapshot and
+//! committed to after holds another revision under a number already held, so each held index is
+//! checked by its [`RevisionIdentity`] against the store's [`Lineage`] before it is answered from.
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -27,11 +29,13 @@ use crate::query::{
     OverviewSchemaVersion, OverviewTimeline, SchemaMember, TimelineBucket, TypeCount, TypeTiming,
     WidenedEnd,
 };
-use crate::{LoadedRevision, ProjectError};
+use crate::{Lineage, LoadedRevision, ProjectError, RevisionIdentity};
 
 /// One committed revision, indexed for the bounded reads.
 pub struct Index {
     pub(crate) loaded: LoadedRevision,
+    /// The indexed revision's identity, its last loaded entry's.
+    identity: RevisionIdentity,
     /// Every node's id, ascending: a node's position here is its index everywhere else.
     pub(crate) node_ids: Vec<NodeId>,
     pub(crate) node_index: HashMap<NodeId, u32>,
@@ -113,6 +117,17 @@ impl Index {
     /// revision does not hold, which a revision the kernel admitted never has.
     pub fn build(loaded: LoadedRevision) -> Result<Self, ProjectError> {
         let graph = &loaded.graph;
+        let identity = loaded
+            .revisions
+            .last()
+            .filter(|entry| entry.number == graph.revision)
+            .map(crate::LoadedRevisionEntry::identity)
+            .ok_or_else(|| {
+                inconsistent(format!(
+                    "the loaded revisions do not end at revision {}",
+                    graph.revision
+                ))
+            })?;
         let node_ids: Vec<NodeId> = graph.nodes.keys().copied().collect();
         let mut node_index = HashMap::with_capacity(node_ids.len());
         for (at, id) in node_ids.iter().enumerate() {
@@ -224,6 +239,7 @@ impl Index {
         let edge_source = ends.iter().map(|(source, _)| *source).collect();
 
         let mut index = Self {
+            identity,
             node_ids,
             node_index,
             degree,
@@ -277,6 +293,12 @@ impl Index {
     #[must_use]
     pub fn revision(&self) -> RevisionNumber {
         self.loaded.graph.revision
+    }
+
+    /// What tells the indexed revision from any other the store has held under its number.
+    #[must_use]
+    pub const fn identity(&self) -> RevisionIdentity {
+        self.identity
     }
 
     /// The loaded revision the index was built from.
@@ -965,7 +987,10 @@ impl Natural {
 
 /// The indexes of the most recently used revisions, keyed by revision, evicting the least
 /// recently used beyond its capacity. A committed revision is immutable and its index names no
-/// head, so a held index stays current however far the head moves.
+/// head, so a held index stays current however far the head moves — while the store holds that
+/// revision. A store restored to an older snapshot and committed to after holds another revision
+/// under the same number, so [`Self::index`] drops every held index whose [`RevisionIdentity`]
+/// the store's [`Lineage`] does not hold before it answers.
 #[derive(Debug)]
 pub struct IndexCache {
     capacity: usize,
@@ -998,7 +1023,8 @@ impl IndexCache {
         self.entries.is_empty()
     }
 
-    /// The index of `revision`, if held; it becomes the most recently used.
+    /// The index of `revision`, if held; it becomes the most recently used. Not checked against
+    /// the store: [`Self::index`] checks.
     pub fn get(&mut self, revision: RevisionNumber) -> Option<Arc<Index>> {
         let at = self
             .entries
@@ -1021,27 +1047,34 @@ impl IndexCache {
 
     /// The index of revision `at` of `runtime`'s store (its head when `None`): the held one if
     /// any, else [`Index::load`]ed and held. The head is read on every call, so `None` names the
-    /// newest revision and a revision beyond it is refused, whatever the cache holds.
+    /// newest revision and a revision beyond it is refused, whatever the cache holds. While it
+    /// holds any index the store's [`Lineage`] is read too, and every held index the store no
+    /// longer holds under its number is dropped first, so a revision committed after a restore
+    /// is loaded rather than the discarded one of the same number answered.
     ///
     /// # Errors
     ///
     /// [`ProjectError::NotSeeded`], [`ProjectError::RevisionNotFound`], or whatever
-    /// [`Index::load`] refuses.
+    /// [`Lineage::read`] or [`Index::load`] refuses.
     pub fn index(
         &mut self,
         runtime: &Runtime,
         at: Option<RevisionNumber>,
     ) -> Result<Arc<Index>, ProjectError> {
-        let head = runtime
+        let root = runtime
             .head()?
-            .ok_or(ProjectError::NotSeeded { requested: at })?
-            .revision;
+            .ok_or(ProjectError::NotSeeded { requested: at })?;
+        let head = root.revision;
         let revision = at.unwrap_or(head);
         if revision > head {
             return Err(ProjectError::RevisionNotFound {
                 requested: revision,
                 head,
             });
+        }
+        if !self.entries.is_empty() {
+            let lineage = Lineage::read(runtime, root)?;
+            self.entries.retain(|held| lineage.holds(&held.identity()));
         }
         if let Some(index) = self.get(revision) {
             return Ok(index);
