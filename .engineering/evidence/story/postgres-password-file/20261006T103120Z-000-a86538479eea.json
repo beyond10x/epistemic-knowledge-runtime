@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-06T10:31:20Z",
+  "actor": "agent:claude",
+  "artifact": "story:postgres-password-file",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check in CI on wave/20261006a (Repository correctness, pass)",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37448508248"
+  }
+}
