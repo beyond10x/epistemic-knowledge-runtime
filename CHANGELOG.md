@@ -4,6 +4,23 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- `ekr explain --documents` and the MCP `explain` tool with `documents: true` answer at most
+  64 KiB of each evidence record, centred on the cited text (the first string value of an
+  assertion on the chain that the record holds), instead of the whole record. A link that answers
+  less than its whole record carries `offset`, `record_length` and `truncated: true`; a record
+  within the bound is answered whole and unchanged. Proposal records and commit receipts are
+  still answered whole.
+
+### Added
+
+- `ekr explain --documents --offset N --limit N`, and `offset` and `limit` on the MCP `explain`
+  tool, read any byte range of each evidence record. Offsets are raw byte offsets: a range that
+  cuts a character answers `payload` without `text`. Steps of `limit` from offset 0 to
+  `record_length` reassemble the record byte for byte. Both refuse without `documents`, and a
+  `limit` of 0 is refused.
+
 ## [0.0.31] — 2026-10-06
 
 ### Changed
