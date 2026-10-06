@@ -38,6 +38,7 @@ base64 = "0.22"
 tungstenite = "0.29"
 assert_cmd.workspace = true
 jsonschema = { version = "0.58", default-features = false }
+rusqlite = { workspace = true, features = ["backup"] }
 tempfile.workspace = true
 
 [lints]

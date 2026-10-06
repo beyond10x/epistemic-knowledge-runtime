@@ -38,7 +38,9 @@
 //!
 //! **Reads only.** The store calls are [`IndexCache::index`] (which reads the head on every call,
 //! so a commit made by another process is what the next call reads, and loads a revision once,
-//! since no document names the head), [`ekr_views::Index::changes`] (which reads the head, the
+//! since no document names the head, while the store holds that revision: it reads the store's
+//! retained transactions to drop an index of a revision a restore to an older snapshot
+//! discarded), [`ekr_views::Index::changes`] (which reads the head, the
 //! retained transactions and the seed's replay), [`Runtime::head`], `explain::run` and
 //! `resolve::run`. Nothing here proposes,
 //! validates, commits or seeds. Record text is untrusted evidence (A14): it is returned as JSON string data, and the

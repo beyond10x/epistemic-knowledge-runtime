@@ -105,8 +105,10 @@ pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FOR
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use ekr_core::{ContentHash, RevisionNumber, SchemaVersionId, Timestamp, TransactionId};
-use ekr_graph::CanonicalGraph;
+use ekr_core::{
+    ContentHash, RevisionId, RevisionNumber, SchemaVersionId, Timestamp, TransactionId,
+};
+use ekr_graph::{CanonicalGraph, Root};
 use ekr_kernel::{CommitError, PersistenceError, Runtime};
 use ekr_ontology::Ontology;
 
@@ -235,6 +237,97 @@ pub struct LoadedRevisionEntry {
     pub transaction_id: Option<TransactionId>,
     /// The schema version its canonical state is valid against.
     pub schema_version: SchemaVersionId,
+    /// The revision id the kernel minted when it committed it.
+    pub revision_id: RevisionId,
+    /// Its root.
+    pub root: Root,
+}
+
+impl LoadedRevisionEntry {
+    /// What tells this revision from any other the store has held under its number.
+    #[must_use]
+    pub(crate) const fn identity(&self) -> RevisionIdentity {
+        RevisionIdentity {
+            number: self.number,
+            revision_id: self.revision_id,
+            root: self.root,
+        }
+    }
+}
+
+/// What tells one committed revision of a store from any other: its number, the revision id the
+/// kernel minted when it committed it, and its root. The number alone does not: a store restored
+/// to an older snapshot — through SQLite's online backup, say — and committed to after holds a
+/// different revision under a number it held before.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RevisionIdentity {
+    /// Its number.
+    pub number: RevisionNumber,
+    /// The revision id the kernel minted when it committed it.
+    pub revision_id: RevisionId,
+    /// Its root.
+    pub root: Root,
+}
+
+/// The committed revisions a store holds at one read: its head's root, and the revision id and
+/// root of every revision a retained transaction committed. A host that keeps what it loaded of a
+/// revision checks it against this before answering from it, and drops what the store no longer
+/// holds under its number.
+#[derive(Clone, Debug)]
+pub struct Lineage {
+    head: Root,
+    committed: BTreeMap<RevisionNumber, (RevisionId, Root)>,
+}
+
+impl Lineage {
+    /// The lineage of `runtime`'s store under `head`, the root [`Runtime::head`] just answered:
+    /// the committing receipt of every retained transaction, from [`Runtime::transactions`].
+    ///
+    /// # Errors
+    ///
+    /// The kernel's refusal of the store's history, as [`ProjectError::Read`].
+    pub fn read(runtime: &Runtime, head: Root) -> Result<Self, ProjectError> {
+        let committed = runtime
+            .transactions()?
+            .values()
+            .filter_map(|record| record.committed.as_ref())
+            .map(|receipt| {
+                (
+                    receipt.result.revision,
+                    (receipt.revision_id, receipt.result),
+                )
+            })
+            .collect();
+        Ok(Self { head, committed })
+    }
+
+    /// Whether the store holds `revision` under its number: at or below the head, with the
+    /// revision id and root the receipt that committed it carries. No transaction commits the
+    /// seed, so the seed is told by its root alone: the head's at a store with no commit, else
+    /// the one the first commit names as its parent.
+    #[must_use]
+    pub fn holds(&self, revision: &RevisionIdentity) -> bool {
+        if revision.number > self.head.revision
+            || (revision.number == self.head.revision && revision.root != self.head)
+        {
+            return false;
+        }
+        match self.committed.get(&revision.number) {
+            Some((revision_id, root)) => {
+                *revision_id == revision.revision_id && *root == revision.root
+            }
+            None if revision.number == RevisionNumber::SEED => {
+                revision.number == self.head.revision
+                    || self
+                        .committed
+                        .get(&RevisionNumber::new(1))
+                        .is_some_and(|(_, first)| {
+                            first.parent == Some(ContentHash::of(&revision.root))
+                        })
+            }
+            None => false,
+        }
+    }
 }
 
 /// Everything [`render`] reads, already loaded: the pure function's whole input. It holds
@@ -328,6 +421,8 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
             committed_at: coordinates.committed_at,
             transaction_id: read.transactions.get(&number).copied(),
             schema_version: version,
+            revision_id: coordinates.revision_id,
+            root: coordinates.root,
         });
     }
 

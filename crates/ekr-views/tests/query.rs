@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_views::{
-    ExpandRequest, Index, IndexCache, LimitExceeded, OverviewRequest, ProjectError, QueryError,
-    SearchRequest, SliceRecord,
+    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, ProjectError,
+    QueryError, RevisionIdentity, SearchRequest, SliceRecord,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -695,6 +695,88 @@ fn a_commit_keeps_every_held_index_and_moves_only_what_none_names() {
     assert_eq!(six.revision().get(), 6, "None is the new head");
     assert!(Arc::ptr_eq(&six, &cache.index(&runtime, at(6)).unwrap()));
     assert_eq!(cache.len(), 3);
+}
+
+/// Copies the SQLite database at `from` into the one at `to` through SQLite's online backup, the
+/// way `sqlite3 .backup` and `.restore` do, and truncates the target's write-ahead log after it.
+fn online_backup(from: &std::path::Path, to: &std::path::Path) {
+    let source = rusqlite::Connection::open(from).expect("the source database opens");
+    let mut target = rusqlite::Connection::open(to).expect("the target database opens");
+    let step = rusqlite::backup::Backup::new(&source, &mut target)
+        .expect("the backup starts")
+        .step(-1)
+        .expect("the backup copies every page");
+    assert_eq!(step, rusqlite::backup::StepResult::Done);
+    target
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+        .expect("the target checkpoints");
+}
+
+/// Issue #74: a store restored to an older snapshot through SQLite's online backup, and committed
+/// to after, holds a different revision under a number the cache already holds. The cache answers
+/// the revision the store holds under that number — what a fresh handle loads — and drops the
+/// discarded one; a revision the restore left in place stays held.
+#[test]
+fn a_backup_restore_then_a_commit_is_answered_from_the_new_revision_of_the_reused_number() {
+    let (work, runtime) = built(Fixture::Evolved, Provider::Sqlite);
+    let live = work.path().join("state.db");
+    let snapshot = work.path().join("snapshot.db");
+    let at = |n| Some(RevisionNumber::new(n));
+    let beta = id::<NodeId>(fixtures::BETA_NODE);
+    online_backup(&live, &snapshot);
+
+    let mut cache = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+    let seed = Index::load(&runtime, at(0)).unwrap();
+    let one = cache.index(&runtime, at(1)).unwrap();
+    fixtures::commit_unrelated(&fixtures::reopen(work.path(), Provider::Sqlite), 1);
+    let discarded = cache.index(&runtime, None).unwrap();
+    assert_eq!(discarded.revision().get(), 6);
+    let discarded_identity: RevisionIdentity = discarded.identity();
+    assert_eq!(discarded_identity.number.get(), 6);
+    let discarded_note = discarded.describe(beta).unwrap().bytes;
+    assert!(String::from_utf8_lossy(&discarded_note).contains("note 1"));
+
+    online_backup(&snapshot, &live);
+    fixtures::commit_unrelated(&fixtures::reopen(work.path(), Provider::Sqlite), 2);
+    let fresh = Index::load(&fixtures::reopen(work.path(), Provider::Sqlite), None).unwrap();
+    assert_eq!(fresh.revision().get(), 6, "the new commit reuses number 6");
+    let expected = fresh.describe(beta).unwrap().bytes;
+    assert!(String::from_utf8_lossy(&expected).contains("note 2"));
+
+    // The store's lineage now: the new revision 6, not the discarded one; the seed and revision
+    // 1 are what they were before the restore.
+    let lineage = Lineage::read(&runtime, runtime.head().unwrap().unwrap()).unwrap();
+    assert_ne!(fresh.identity(), discarded_identity);
+    assert_eq!(fresh.identity().number, discarded_identity.number);
+    assert!(lineage.holds(&fresh.identity()), "the new revision 6");
+    assert!(
+        !lineage.holds(&discarded_identity),
+        "the discarded revision 6"
+    );
+    assert!(lineage.holds(&one.identity()), "revision 1");
+    assert!(lineage.holds(&seed.identity()), "the seed");
+
+    for asked in [None, at(6)] {
+        let answered = cache.index(&runtime, asked).unwrap();
+        assert!(
+            !Arc::ptr_eq(&discarded, &answered),
+            "{asked:?}: the discarded revision 6 is still answered"
+        );
+        assert_eq!(answered.revision().get(), 6, "{asked:?}");
+        assert!(
+            answered.loaded() == fresh.loaded(),
+            "{asked:?}: not what a fresh handle loads"
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&answered.describe(beta).unwrap().bytes),
+            String::from_utf8_lossy(&expected),
+            "{asked:?}"
+        );
+    }
+    assert!(
+        Arc::ptr_eq(&one, &cache.index(&runtime, at(1)).unwrap()),
+        "revision 1 is the same revision after the restore and stays held"
+    );
 }
 
 // ---- the public names a host builds on ----------------------------------------------------------

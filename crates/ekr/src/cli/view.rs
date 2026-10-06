@@ -33,7 +33,8 @@
 //! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
-//! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`]),
+//! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`] and checks
+//! what it holds against [`ekr_views::Lineage`], which reads [`Runtime::transactions`]),
 //! [`ekr_views::Index::changes`] (which reads [`Runtime::head`], [`Runtime::transactions`] and
 //! [`Runtime::replay`]), [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is
 //! not an outward write (design § 82, § 83).
@@ -50,7 +51,11 @@
 //! `/roles` render from the index's loaded revision and also keep their rendered answers
 //! ([`Cache`]). A committed revision never changes and no answer names the head
 //! (`task:historical-projection-carries-the-head`), so a commit empties neither; the head is read
-//! on every request, so a request naming no revision reads the newest. At most [`CACHE_LIMIT`]
+//! on every request, so a request naming no revision reads the newest. Both keep what they hold
+//! under the revision's identity ([`ekr_views::RevisionIdentity`]), not its number alone: a store
+//! restored to an older snapshot — through SQLite's online backup, say — and committed to after
+//! holds another revision under a number already held, and each request drops what the store no
+//! longer holds ([`ekr_views::Lineage`]) before it answers. At most [`CACHE_LIMIT`]
 //! revisions are kept in [`Cache`]; the one used longest ago goes first.
 //!
 //! | request | answer |
@@ -101,9 +106,9 @@ use std::time::{Duration, Instant};
 use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::{PersistenceError, Runtime};
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded,
-    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SliceEdge, SliceMeta,
-    SliceNode, SlicePage, SliceRecord, TimelineRequest,
+    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded, Lineage,
+    OverviewRequest, ProjectError, QueryError, RevisionIdentity, SearchRequest, SinceKind,
+    SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -1468,30 +1473,50 @@ struct Answers {
     roles: Vec<u8>,
 }
 
-/// The answers of the revisions loaded so far, the one used most recently last. A committed
-/// revision never changes and neither answer names the head, so a new head keeps them.
+/// The answers of the revisions loaded so far, the one used most recently last, each kept under
+/// the identity of the revision it was rendered from. A committed revision never changes and
+/// neither answer names the head, so a new head keeps them; a store restored to an older snapshot
+/// and committed to after holds another revision under a number already kept, and
+/// [`Cache::retain`] drops what the store no longer holds.
 #[derive(Debug, Default)]
 struct Cache {
-    entries: Vec<(RevisionNumber, Answers)>,
+    entries: Vec<(RevisionIdentity, Answers)>,
 }
 
 impl Cache {
-    /// The answers of `revision`: from memory, else from `load`, which is kept when it succeeds
-    /// and not when it fails. Beyond [`CACHE_LIMIT`] entries the one used longest ago goes.
+    /// Whether it keeps no answers.
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Keeps only the answers of the revisions `holds` says the store still holds.
+    fn retain(&mut self, holds: impl Fn(&RevisionIdentity) -> bool) {
+        self.entries.retain(|(identity, _)| holds(identity));
+    }
+
+    /// The answers of `revision`: from memory, else from `load`, which is kept under the
+    /// identity it names when it succeeds and not when it fails. Beyond [`CACHE_LIMIT`] entries
+    /// the one used longest ago goes.
     fn get_or_load<E>(
         &mut self,
         revision: RevisionNumber,
-        load: impl FnOnce() -> Result<Answers, E>,
+        load: impl FnOnce() -> Result<(RevisionIdentity, Answers), E>,
     ) -> Result<&Answers, E> {
-        if let Some(at) = self.entries.iter().position(|(held, _)| *held == revision) {
+        if let Some(at) = self
+            .entries
+            .iter()
+            .position(|(held, _)| held.number == revision)
+        {
             let entry = self.entries.remove(at);
             self.entries.push(entry);
         } else {
-            let answers = load()?;
+            let (identity, answers) = load()?;
+            self.entries
+                .retain(|(held, _)| held.number != identity.number);
             if self.entries.len() >= CACHE_LIMIT {
                 self.entries.remove(0);
             }
-            self.entries.push((revision, answers));
+            self.entries.push((identity, answers));
         }
         Ok(&self
             .entries
@@ -1530,9 +1555,10 @@ pub(super) fn head_document(runtime: &Runtime) -> Result<Option<Vec<u8>>, Persis
 }
 
 /// `/projection` or `/roles` (`what`) of the revision the query names, the head when it names
-/// none: `pick` chooses which of the revision's [`Answers`]. The head is read on every request;
-/// the answers are rendered only when the cache does not hold them, from the index every other
-/// endpoint of the revision reads. Refused as before: 400 for a query that is not `revision=N`,
+/// none: `pick` chooses which of the revision's [`Answers`]. The head is read on every request,
+/// and while answers are kept the store's [`Lineage`] too, which drops those of a revision the
+/// store no longer holds; the answers are rendered only when the cache does not hold them, from
+/// the index every other endpoint of the revision reads. Refused as before: 400 for a query that is not `revision=N`,
 /// 404 `ekr.views.NotSeeded` or `ekr.views.RevisionNotFound`.
 fn rendered(
     runtime: &Runtime,
@@ -1545,11 +1571,12 @@ fn rendered(
         Ok(at) => at,
         Err(message) => return Reply::refusal(400, "invalid-query", message),
     };
-    let head = match runtime.head() {
-        Ok(Some(root)) => root.revision,
+    let root = match runtime.head() {
+        Ok(Some(root)) => root,
         Ok(None) => return refused(what, ProjectError::NotSeeded { requested: at }),
         Err(error) => return Reply::text(500, format!("{what}: reading the head: {error}")),
     };
+    let head = root.revision;
     let wanted = at.unwrap_or(head);
     if wanted > head {
         return refused(
@@ -1563,6 +1590,12 @@ fn rendered(
     let Memory {
         indexes, rendered, ..
     } = memory;
+    if !rendered.is_empty() {
+        match Lineage::read(runtime, root) {
+            Ok(lineage) => rendered.retain(|identity| lineage.holds(identity)),
+            Err(error) => return refused(what, error),
+        }
+    }
     match rendered.get_or_load(wanted, || load_answers(runtime, indexes, wanted)) {
         Ok(answers) => Reply::ok(JSON, pick(answers).clone()),
         Err(error) => refused(what, error),
@@ -1570,17 +1603,17 @@ fn rendered(
 }
 
 /// Renders both answers of revision `at` from its one index, loading it only when `indexes` does
-/// not hold it.
+/// not hold it, with the identity of the revision they were rendered from.
 fn load_answers(
     runtime: &Runtime,
     indexes: &mut IndexCache,
     at: RevisionNumber,
-) -> Result<Answers, ProjectError> {
+) -> Result<(RevisionIdentity, Answers), ProjectError> {
     let index = indexes.index(runtime, Some(at))?;
     let loaded = index.loaded();
     let projection = ekr_views::render(loaded)?.bytes;
     let roles = index.view_roles_document();
-    Ok(Answers { projection, roles })
+    Ok((index.identity(), Answers { projection, roles }))
 }
 
 /// A revision that could not be loaded or rendered: the named 404s, or a 500 for `what`.
@@ -1649,7 +1682,7 @@ fn content_type(bytes: &[u8]) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::super::session::fixture::{
-        replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS,
+        add_alias, replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS,
     };
     use super::super::session::{reader_work, ReaderWork};
     use super::*;
@@ -1818,6 +1851,90 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Copies the SQLite database at `from` into the one at `to` through SQLite's online backup,
+    /// the way `sqlite3 .backup` and `.restore` do, and truncates the target's write-ahead log.
+    fn online_backup(from: &std::path::Path, to: &std::path::Path) {
+        let source = rusqlite::Connection::open(from).unwrap();
+        let mut target = rusqlite::Connection::open(to).unwrap();
+        let step = rusqlite::backup::Backup::new(&source, &mut target)
+            .unwrap()
+            .step(-1)
+            .unwrap();
+        assert_eq!(step, rusqlite::backup::StepResult::Done);
+        target
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+            .unwrap();
+    }
+
+    /// Issue #74: `/projection` and `/roles` keep their answers under the identity of the
+    /// revision they were rendered from. A store restored to an older snapshot through SQLite's
+    /// online backup and committed to after holds another revision under the number they were
+    /// kept for, and that revision is what both answer.
+    #[test]
+    fn rendered_answers_follow_a_backup_restore_and_a_new_commit_of_the_same_number() {
+        let backend = super::super::Backend::Sqlite;
+        let directory = tempfile::tempdir().unwrap();
+        let store = seeded_with_a_commit(directory.path(), backend, "store");
+        let path = store.store.clone();
+        let snapshot = directory.path().join("snapshot.db");
+        online_backup(&path, &snapshot);
+        let mut held = Held::open(store).unwrap();
+        let mut memory = Memory::default();
+        add_alias(
+            directory.path(),
+            &path,
+            backend,
+            "00000000-0000-4000-8000-00000000f903",
+            "InitechDiscarded",
+        );
+        for target in ["/projection", "/roles"] {
+            let reply = get(&mut held, &mut memory, target);
+            assert_eq!(reply.status, 200, "{target}");
+        }
+        let discarded = get(&mut held, &mut memory, "/projection");
+        assert!(String::from_utf8_lossy(&discarded.body).contains("InitechDiscarded"));
+
+        online_backup(&snapshot, &path);
+        add_alias(
+            directory.path(),
+            &path,
+            backend,
+            "00000000-0000-4000-8000-00000000f904",
+            "InitechKept",
+        );
+        let fresh = Held::open(
+            super::super::Configured {
+                host: Some(directory.path().join("host.json")),
+                store: Some(path.clone()),
+                backend: Some(backend),
+                full_replay: false,
+                access: super::super::Access::Read,
+            }
+            .resolve("test")
+            .unwrap(),
+        )
+        .unwrap();
+        let mut fresh = (fresh, Memory::default());
+        for target in [
+            "/projection",
+            "/projection?revision=2",
+            "/roles",
+            "/roles?revision=2",
+        ] {
+            let reply = get(&mut held, &mut memory, target);
+            let expected = get(&mut fresh.0, &mut fresh.1, target);
+            assert_eq!(reply.status, 200, "{target}");
+            assert_eq!(
+                String::from_utf8_lossy(&reply.body),
+                String::from_utf8_lossy(&expected.body),
+                "{target}: not what a fresh reader answers"
+            );
+        }
+        let kept = get(&mut held, &mut memory, "/projection");
+        let kept = String::from_utf8_lossy(&kept.body);
+        assert!(kept.contains("InitechKept") && !kept.contains("InitechDiscarded"));
     }
 
     #[test]
@@ -2499,6 +2616,24 @@ mod tests {
         }
     }
 
+    /// An identity for revision `n`, as a load names the revision it rendered.
+    fn identified(n: u64) -> RevisionIdentity {
+        let hash = ekr_core::ContentHash::of_bytes(&n.to_be_bytes());
+        RevisionIdentity {
+            number: RevisionNumber::new(n),
+            revision_id: ekr_core::RevisionId::mint(),
+            root: ekr_graph::Root {
+                revision: RevisionNumber::new(n),
+                parent: None,
+                ontology_root: hash,
+                knowledge_root: hash,
+                evidence_root: hash,
+                agent_root: hash,
+                transaction: hash,
+            },
+        }
+    }
+
     #[test]
     fn a_revision_is_loaded_once_and_served_from_memory_after() {
         let mut cache = Cache::default();
@@ -2507,7 +2642,7 @@ mod tests {
             let got = cache
                 .get_or_load(RevisionNumber::new(2), || {
                     loads += 1;
-                    Ok::<_, ()>(answers(2))
+                    Ok::<_, ()>((identified(2), answers(2)))
                 })
                 .unwrap();
             assert_eq!(got, &answers(2));
@@ -2523,13 +2658,15 @@ mod tests {
         let mut cache = Cache::default();
         let at = RevisionNumber::new(1);
         assert_eq!(
-            cache.get_or_load(at, || Err::<Answers, _>("refused")),
+            cache.get_or_load(at, || Err::<(RevisionIdentity, Answers), _>("refused")),
             Err("refused")
         );
         assert!(cache.entries.is_empty(), "a refusal is not cached");
-        cache.get_or_load(at, || Ok::<_, ()>(answers(1))).unwrap();
+        cache
+            .get_or_load(at, || Ok::<_, ()>((identified(1), answers(1))))
+            .unwrap();
         let got = cache
-            .get_or_load(at, || Err::<Answers, _>("loaded again"))
+            .get_or_load(at, || Err::<(RevisionIdentity, Answers), _>("loaded again"))
             .unwrap();
         assert_eq!(got, &answers(1));
         assert_eq!(cache.entries.len(), 1);
@@ -2542,18 +2679,26 @@ mod tests {
         for n in 0..CACHE_LIMIT {
             cache
                 .get_or_load(RevisionNumber::new(u64::try_from(n).unwrap()), || {
-                    Ok::<_, ()>(answers(tag(n)))
+                    Ok::<_, ()>((identified(u64::try_from(n).unwrap()), answers(tag(n))))
                 })
                 .unwrap();
         }
         // Revision 0 is used again, so revision 1 is now the one used longest ago.
         cache
-            .get_or_load(RevisionNumber::new(0), || Err::<Answers, _>(()))
+            .get_or_load(RevisionNumber::new(0), || {
+                Err::<(RevisionIdentity, Answers), _>(())
+            })
             .unwrap();
         cache
-            .get_or_load(RevisionNumber::new(99), || Ok::<_, ()>(answers(99)))
+            .get_or_load(RevisionNumber::new(99), || {
+                Ok::<_, ()>((identified(99), answers(99)))
+            })
             .unwrap();
-        let held: Vec<u64> = cache.entries.iter().map(|(n, _)| n.get()).collect();
+        let held: Vec<u64> = cache
+            .entries
+            .iter()
+            .map(|(identity, _)| identity.number.get())
+            .collect();
         assert_eq!(held.len(), CACHE_LIMIT);
         assert!(
             held.contains(&0) && !held.contains(&1) && held.contains(&99),

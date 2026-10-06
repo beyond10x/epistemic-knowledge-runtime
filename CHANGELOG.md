@@ -27,6 +27,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   document with another field or a non-string password, and a document over 64 KiB are refused
   as `postgres-configuration` without echoing the value.
 
+### Fixed
+
+- A running `ekr mcp`, `ekr view` or `ekr session` no longer answers a discarded revision after
+  its SQLite store is restored to an older snapshot through SQLite's online backup and a new
+  commit reuses the revision number. Their indexes and `/projection` and `/roles` answers are
+  kept under the revision's identity — its revision id and root — and each read drops one the
+  store no longer holds, so `search`, `overview`, `describe_node`, `expand`, `timeline` and
+  `changes_since` answer the new revision. While anything is kept, a read also reads the store's
+  retained transaction records. `ekr_views::LoadedRevisionEntry` carries each revision's
+  `revision_id` and `root`; `ekr_views::RevisionIdentity` and `ekr_views::Lineage` are new.
+
 ## [0.0.31] — 2026-10-06
 
 ### Changed
