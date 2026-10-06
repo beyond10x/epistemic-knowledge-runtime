@@ -338,3 +338,171 @@ fn previous_release_reads_ordinary_seeds_and_refuses_claimed_migrations() {
     drop(runtime);
     assert_old_refuses();
 }
+
+/// `story:seed-if-absent`, its acceptance: two concurrent `ekr seed --if-absent` processes with
+/// the identical seed on one PostgreSQL tenant. Exactly one exits 0; the other exits 2 refused as
+/// `ekr.kernel.AlreadySeeded`, and the tenant holds the first one's seed.
+#[test]
+fn two_concurrent_if_absent_seeds_on_one_tenant_create_exactly_one() {
+    let Some(config) = fixture() else { return };
+    let directory = tempfile::tempdir().unwrap();
+    let host = host(directory.path());
+    let seed = directory.path().join("seed.yaml");
+    let example = Command::new(env!("CARGO_BIN_EXE_ekr"))
+        .args(["example", "ekr-seed/2"])
+        .output()
+        .unwrap();
+    assert!(example.status.success());
+    std::fs::write(&seed, example.stdout).unwrap();
+    let remote = [
+        "--host",
+        host.to_str().unwrap(),
+        "--backend",
+        "postgres",
+        "--store",
+        config.to_str().unwrap(),
+    ];
+    let spawn = || {
+        Command::new(env!("CARGO_BIN_EXE_ekr"))
+            .args(remote)
+            .args(["seed", "--if-absent", seed.to_str().unwrap()])
+            .env_remove("EKR_HOST")
+            .env_remove("EKR_STORE")
+            .env_remove("EKR_BACKEND")
+            .env_remove("EKR_FULL_REPLAY")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let callers = [spawn(), spawn()];
+    let outputs: Vec<_> = callers
+        .into_iter()
+        .map(|caller| caller.wait_with_output().unwrap())
+        .collect();
+    let described: Vec<_> = outputs
+        .iter()
+        .map(|output| {
+            (
+                output.status.code(),
+                String::from_utf8_lossy(&output.stderr).into_owned(),
+            )
+        })
+        .collect();
+    let created: Vec<_> = outputs
+        .iter()
+        .filter(|output| output.status.success())
+        .collect();
+    assert_eq!(created.len(), 1, "{described:?}");
+    let refused = outputs
+        .iter()
+        .find(|output| !output.status.success())
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert_eq!(refused.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("ekr.kernel.AlreadySeeded"), "{stderr}");
+    let result: Value = serde_json::from_slice(&created[0].stdout).unwrap();
+    let head = ekr(&[remote.as_slice(), &["head"]].concat());
+    assert_eq!(head["root"], result["result"], "{head} {result}");
+    // A later --if-absent seed refuses the same way; the plain seed answers the first result.
+    let again = Command::new(env!("CARGO_BIN_EXE_ekr"))
+        .args(remote)
+        .args(["seed", "--if-absent", seed.to_str().unwrap()])
+        .env_remove("EKR_HOST")
+        .env_remove("EKR_STORE")
+        .env_remove("EKR_BACKEND")
+        .env_remove("EKR_FULL_REPLAY")
+        .output()
+        .unwrap();
+    assert_eq!(again.status.code(), Some(2));
+    assert_eq!(
+        ekr(&[remote.as_slice(), &["seed", seed.to_str().unwrap()]].concat()),
+        result
+    );
+}
+
+/// Adversary (story:seed-if-absent, pass 1): three `ekr seed --if-absent` processes and one plain
+/// `ekr seed`, identical document, one fresh PostgreSQL tenant. The plain seed exits 0 with the
+/// lineage's result; at most one if-absent caller exits 0, and only if the plain seed answered
+/// its seed; every other if-absent caller is refused as `ekr.kernel.AlreadySeeded` (exit 2).
+#[test]
+fn adversary_if_absent_processes_racing_a_plain_seed_on_one_tenant() {
+    let Some(config) = fixture() else { return };
+    for round in 0..4 {
+        let directory = tempfile::tempdir().unwrap();
+        let host = host(directory.path());
+        let seed = directory.path().join("seed.yaml");
+        let example = Command::new(env!("CARGO_BIN_EXE_ekr"))
+            .args(["example", "ekr-seed/2"])
+            .output()
+            .unwrap();
+        assert!(example.status.success());
+        std::fs::write(&seed, example.stdout).unwrap();
+        let remote = [
+            "--host",
+            host.to_str().unwrap(),
+            "--backend",
+            "postgres",
+            "--store",
+            config.to_str().unwrap(),
+        ];
+        let spawn = |if_absent: bool| {
+            let mut command = Command::new(env!("CARGO_BIN_EXE_ekr"));
+            command.args(remote).arg("seed");
+            if if_absent {
+                command.arg("--if-absent");
+            }
+            command
+                .arg(&seed)
+                .env_remove("EKR_HOST")
+                .env_remove("EKR_STORE")
+                .env_remove("EKR_BACKEND")
+                .env_remove("EKR_FULL_REPLAY")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap()
+        };
+        let callers = [spawn(true), spawn(false), spawn(true), spawn(true)];
+        let outputs: Vec<_> = callers
+            .into_iter()
+            .map(|caller| caller.wait_with_output().unwrap())
+            .collect();
+        let described: Vec<_> = outputs
+            .iter()
+            .map(|o| {
+                (
+                    o.status.code(),
+                    String::from_utf8_lossy(&o.stderr).into_owned(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            outputs[1].status.code(),
+            Some(0),
+            "round {round}: {described:#?}"
+        );
+        let lineage: Value = serde_json::from_slice(&outputs[1].stdout).unwrap();
+        let mut created = 0;
+        for output in [&outputs[0], &outputs[2], &outputs[3]] {
+            if output.status.success() {
+                created += 1;
+                let mine: Value = serde_json::from_slice(&output.stdout).unwrap();
+                assert_eq!(mine, lineage, "round {round}: {described:#?}");
+            } else {
+                assert_eq!(
+                    output.status.code(),
+                    Some(2),
+                    "round {round}: {described:#?}"
+                );
+                assert!(
+                    String::from_utf8_lossy(&output.stderr).contains("ekr.kernel.AlreadySeeded"),
+                    "round {round}: {described:#?}"
+                );
+            }
+        }
+        assert!(created <= 1, "round {round}: {described:#?}");
+        let head = ekr(&[remote.as_slice(), &["head"]].concat());
+        assert_eq!(head["root"], lineage["result"], "round {round}");
+    }
+}

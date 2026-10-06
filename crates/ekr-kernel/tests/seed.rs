@@ -268,6 +268,10 @@ fn a_seed_ontology_cannot_claim_a_predecessor() {
 
 trait Runtime {
     fn seed(&self, document: SeedDocument) -> Result<ekr_graph::Root, ekr_kernel::SeedError>;
+    fn seed_if_absent(
+        &self,
+        document: SeedDocument,
+    ) -> Result<ekr_graph::Root, ekr_kernel::SeedError>;
     fn head(&self) -> Result<Option<ekr_graph::Root>, ekr_store::StoreError>;
     fn snapshot(&self) -> Result<ekr_graph::CanonicalGraph, ekr_store::StoreError>;
     fn replay(&self) -> Result<ekr_graph::CanonicalGraph, ekr_store::StoreError>;
@@ -276,6 +280,13 @@ trait Runtime {
 impl<S: RevisionLog + ObjectStore + Initialize> Runtime for Commit<S> {
     fn seed(&self, document: SeedDocument) -> Result<ekr_graph::Root, ekr_kernel::SeedError> {
         self.seed(document, || Timestamp::EPOCH)
+            .map(|record| record.result)
+    }
+    fn seed_if_absent(
+        &self,
+        document: SeedDocument,
+    ) -> Result<ekr_graph::Root, ekr_kernel::SeedError> {
+        self.seed_if_absent(document, || Timestamp::EPOCH)
             .map(|record| record.result)
     }
     fn head(&self) -> Result<Option<ekr_graph::Root>, ekr_store::StoreError> {
@@ -938,6 +949,141 @@ fn concurrent_independent_handles_publish_exactly_one_seed_and_no_losing_object(
                 assert_eq!(raw.get(&hash).unwrap(), None);
             }
         }
+    }
+}
+
+/// `story:seed-if-absent`: a seed asked for only if the lineage has none is refused as
+/// `AlreadySeeded` by any seed already there — the identical one included, from this handle or
+/// another — and writes nothing. Without the mode, the identical re-seed still answers the first
+/// seed's result.
+#[test]
+fn an_if_absent_seed_is_refused_by_any_existing_seed_even_an_identical_one() {
+    let f = Fixture::new();
+    let refused = Err(ekr_kernel::SeedError::Store(
+        ekr_store::StoreError::AlreadySeeded,
+    ));
+    for backend in [Backend::Sqlite, Backend::File] {
+        let directory = TempDir::new().unwrap();
+        let ontology = Ontology::load(f.ontology.clone()).unwrap();
+        let runtime = backend.open(directory.path(), ontology.clone(), f.context());
+        let head = runtime.seed_if_absent(f.document()).unwrap();
+        assert_eq!(head.revision, RevisionNumber::SEED, "{backend:?}");
+        assert_eq!(
+            runtime.seed_if_absent(f.document()),
+            refused,
+            "{backend:?}: the identical seed, same handle"
+        );
+        let other = backend.open(directory.path(), ontology.clone(), f.context());
+        assert_eq!(
+            other.seed_if_absent(f.document()),
+            refused,
+            "{backend:?}: the identical seed, another handle"
+        );
+        let mut different = f.document();
+        different
+            .graph
+            .nodes
+            .values_mut()
+            .next()
+            .unwrap()
+            .canonical_name = "replacement".to_owned();
+        let hash = ContentHash::of_bytes(&envelope_bytes(&different, f.context()));
+        assert_eq!(
+            other.seed_if_absent(different),
+            refused,
+            "{backend:?}: a different seed"
+        );
+        assert_eq!(other.head().unwrap(), Some(head), "{backend:?}");
+        assert_eq!(
+            backend.raw(directory.path(), ontology).get(&hash).unwrap(),
+            None,
+            "{backend:?}: a refused seed retains nothing"
+        );
+        assert_eq!(
+            other.seed(f.document()),
+            Ok(head),
+            "{backend:?}: plain retry"
+        );
+    }
+}
+
+/// `story:seed-if-absent`: a lineage seeded without the mode refuses a later if-absent seed of
+/// the identical document.
+#[test]
+fn an_if_absent_seed_is_refused_by_a_seed_made_without_the_mode() {
+    let f = Fixture::new();
+    for backend in [Backend::Sqlite, Backend::File] {
+        let directory = TempDir::new().unwrap();
+        let ontology = Ontology::load(f.ontology.clone()).unwrap();
+        let runtime = backend.open(directory.path(), ontology, f.context());
+        let head = runtime.seed(f.document()).unwrap();
+        assert_eq!(
+            runtime.seed_if_absent(f.document()),
+            Err(ekr_kernel::SeedError::Store(
+                ekr_store::StoreError::AlreadySeeded
+            )),
+            "{backend:?}"
+        );
+        assert_eq!(runtime.head().unwrap(), Some(head), "{backend:?}");
+    }
+}
+
+/// `story:seed-if-absent`: independent handles racing the identical if-absent seed on one store.
+/// Exactly one creates the lineage; every other one is refused as `AlreadySeeded`, whichever
+/// point of the seed it lost at.
+#[test]
+fn concurrent_identical_if_absent_seeds_create_exactly_one_lineage() {
+    use std::sync::{Arc, Barrier};
+    const CALLERS: usize = 6;
+    let f = Fixture::new();
+    for backend in [Backend::Sqlite, Backend::File] {
+        let directory = TempDir::new().unwrap();
+        // Provision schema/directories before racing independently opened handles.
+        drop(backend.raw(
+            directory.path(),
+            Ontology::load(f.ontology.clone()).unwrap(),
+        ));
+        let barrier = Arc::new(Barrier::new(CALLERS));
+        let answers = std::thread::scope(|scope| {
+            let callers: Vec<_> = (0..CALLERS)
+                .map(|_| {
+                    let document = f.document();
+                    let barrier = Arc::clone(&barrier);
+                    let path = directory.path();
+                    let context = f.context();
+                    scope.spawn(move || {
+                        let runtime = backend.open(
+                            path,
+                            Ontology::load(document.ontology.clone()).unwrap(),
+                            context,
+                        );
+                        barrier.wait();
+                        runtime.seed_if_absent(document)
+                    })
+                })
+                .collect();
+            callers
+                .into_iter()
+                .map(|caller| caller.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        let created: Vec<_> = answers.iter().filter_map(|a| a.as_ref().ok()).collect();
+        assert_eq!(created.len(), 1, "{backend:?}: {answers:?}");
+        for answer in answers.iter().filter(|answer| answer.is_err()) {
+            assert_eq!(
+                answer,
+                &Err(ekr_kernel::SeedError::Store(
+                    ekr_store::StoreError::AlreadySeeded
+                )),
+                "{backend:?}: {answers:?}"
+            );
+        }
+        let reader = backend.open(
+            directory.path(),
+            Ontology::load(f.ontology.clone()).unwrap(),
+            f.context(),
+        );
+        assert_eq!(reader.head().unwrap(), Some(*created[0]), "{backend:?}");
     }
 }
 

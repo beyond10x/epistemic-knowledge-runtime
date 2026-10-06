@@ -145,6 +145,11 @@ pub enum Command {
         /// `evidence_payloads` under their content hash, so the document need not carry them.
         #[arg(long = "evidence", value_name = "FILE")]
         evidence: Vec<PathBuf>,
+        /// Seed only if the store has no seed: any seed already there, the identical document
+        /// included, or one another caller wins during this call, is refused as
+        /// `ekr.kernel.AlreadySeeded`. Exit 0 means this call wrote the seed.
+        #[arg(long = "if-absent")]
+        if_absent: bool,
     },
     /// Propose a transaction (`ekr.kernel.Propose`) as the host operator.
     ///
@@ -857,11 +862,16 @@ fn dispatch(
         Command::Schema { format } => schema::run(format).map(Printed::Document),
         Command::Mint { kind } => render(&agent::mint(kind)),
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
-        Command::Seed { document, evidence } => {
+        Command::Seed {
+            document,
+            evidence,
+            if_absent,
+        } => {
             let store = source.configured("seed")?;
             render(&seed::run(
                 &document,
                 &evidence,
+                if_absent,
                 stdin,
                 |seed| store.open_to_seed(seed),
                 now,

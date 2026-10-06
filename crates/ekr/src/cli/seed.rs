@@ -11,11 +11,14 @@ use crate::exit::Failure;
 /// Reads the document, no more of it than the seed byte cap and one byte, parses it with the
 /// kernel's own seed parser, which refuses a document over the cap, adds each `--evidence` file's
 /// bytes to `evidence_payloads` under their content hash, then seeds. A retained exact retry
-/// returns the original result; the kernel samples `now` only for a new seed. `open` sees the
-/// completed document, so a store is created only for a seed the kernel admits.
+/// returns the original result, unless `if_absent` asks for a seed only if the lineage has none,
+/// when any seed already there refuses as `AlreadySeeded`; the kernel samples `now` only for a new
+/// seed. `open` sees the completed document, so a store is created only for a seed the kernel
+/// admits.
 pub(super) fn run(
     document: &Path,
     evidence: &[PathBuf],
+    if_absent: bool,
     stdin: &mut dyn Read,
     open: impl FnOnce(&SeedDocument) -> Result<Runtime, Failure>,
     now: &dyn Fn() -> Timestamp,
@@ -35,5 +38,10 @@ pub(super) fn run(
         seed.evidence_payloads
             .insert(ContentHash::of_bytes(&payload), payload.into());
     }
-    Ok(open(&seed)?.seed(seed, now)?)
+    let runtime = open(&seed)?;
+    Ok(if if_absent {
+        runtime.seed_if_absent(seed, now)?
+    } else {
+        runtime.seed(seed, now)?
+    })
 }

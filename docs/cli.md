@@ -147,7 +147,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 
 | verb | store | input | prints |
 |---|---|---|---|
-| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable | the seed result: `result.revision` is `0` |
+| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable; `--if-absent` | the seed result: `result.revision` is `0` |
 | `ekr propose` | writes | an `ekr.transaction-document/2` file, or `-` | the proposal record: `transaction_id` |
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
@@ -193,6 +193,22 @@ Writes revision 0 from an `ekr-seed/2` document: the schema, the initial graph a
 payloads. The seed is validated like a transaction first; a seed that does not validate is refused as
 `ekr.kernel.InvalidSeed` with the reason. Seeding the same document again returns the original result
 (exit 0); a different document on a seeded store is refused as `ekr.kernel.AlreadySeeded`.
+
+`--if-absent` seeds only if the store has no seed, so exit 0 means this call wrote it. Any seed
+already there is refused as `ekr.kernel.AlreadySeeded`, exit 2, the identical document included.
+A seed another caller was elected for and stopped before publishing is published first, as that
+caller's own retry would, and then refused, so after the refusal the store always holds a seed.
+Two callers that seed one store at once, on any provider, cannot both exit 0: the store elects one
+seed in the write itself, and the other caller is refused. A host creating a store it must own
+uses it. A retry of an `--if-absent` call whose answer was lost is refused the same way, since it
+cannot be told apart from another caller; `ekr seed` without the flag returns the existing result
+instead. A host that needs to tell the two apart reads `ekr head` and the seed result (`ekr seed`
+without the flag) after the refusal.
+
+```console
+ekr seed --if-absent seed.yaml                    # exit 0: this call created the store
+ekr seed --if-absent seed.yaml                    # exit 2: ekr.kernel.AlreadySeeded
+```
 
 Evidence payloads can come from files instead of the document. `--evidence <file>`, repeatable, adds
 the file's exact bytes to `evidence_payloads` under their content hash — the `content_hash` that
@@ -1398,7 +1414,7 @@ creates nothing there by starting. It serves `mint`, `hash` and `schema` exactly
 verbs do, and answers each store verb as the one-shot verb answers on that path —
 `store-not-found`, `"exit": 1` — then reads the next line. Started as `ekr session --create`, it
 also serves `seed`, with the arguments and document `ekr seed` takes: `--evidence <file>`,
-repeatable, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
+repeatable, `--if-absent`, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
 session holding it, opened once as a session opens an existing store when it starts, and every
 verb after it is served over that store. A seed on a store that exists — a second seed in the
 same session, or one in a `--create` session started on an existing store — answers what
