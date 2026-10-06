@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 24
+revision: 25
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
@@ -230,3 +230,7 @@ are `external_dependencies_match_the_story`, `ekr_names_no_eventlog_item` and
 Their updated hosted-provider coverage is pending the corrected focused gate. The implemented
 status of this historical skeleton remains unchanged; its dependency contract follows the
 current manifest, as prior amendments do.
+
+## Amendment, wave 20261006a
+
+`ekr-store` declares `tokio-postgres` directly (`story:postgres-password-file`). The pinned `eventlog-postgres` takes a PostgreSQL configuration only as a connection string, so a password from `password_file` is written into that string, and `ekr-store` reparses it with `tokio_postgres::Config` to prove the result yields exactly that password and no other parameter. The package was already in `Cargo.lock` through `eventlog-postgres`; the lock gains one dependency edge and no package.

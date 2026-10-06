@@ -5313,6 +5313,10 @@ and operation deadlines. Schema setup uses a separate operator role. Normal appl
 uses the provider's DML-only admission and finite role/deployment connection budgets. Provider
 configuration is an operational input; it does not introduce a canonical knowledge entity.
 
+Amendment (2026-10-06): the configuration may name a `password_file` holding exactly
+`{"password": string}`, so the connection file carries no password. Both together are refused;
+the value never enters a diagnostic.
+
 Read serving must not gain proposal, validation, seed or commit authority merely because a
 provider role can write eventlog tables. The runtime's read-only mode remains the boundary;
 checkpoint/cache behavior is part of its implementation contract, not an outward write tool.
