@@ -202,9 +202,19 @@ pub enum Command {
         assertion_id: ekr_core::AssertionId,
         /// Also print the whole records the links reference: each proposal record as `record`,
         /// each commit receipt as `receipt`, and each evidence payload as `payload` (base64)
-        /// and, when it is UTF-8, `text`.
+        /// and, when it is UTF-8, `text`. An evidence payload is bounded: at most 64 KiB of it
+        /// unless --limit says otherwise, centred on the cited text unless --offset says where,
+        /// with `offset`, `record_length` and `truncated: true` when that is not the whole record.
         #[arg(long)]
         documents: bool,
+        /// With --documents, the first byte of each evidence payload to print: a raw byte
+        /// offset, which may fall inside a character (then `text` is absent).
+        #[arg(long, requires = "documents")]
+        offset: Option<u64>,
+        /// With --documents, the most bytes of each evidence payload to print; 65536 when
+        /// absent.
+        #[arg(long, requires = "documents", value_parser = clap::value_parser!(u64).range(1..))]
+        limit: Option<u64>,
     },
     /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
     /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
@@ -915,8 +925,11 @@ fn dispatch(
         Command::Explain {
             assertion_id,
             documents,
+            offset,
+            limit,
         } => {
             let runtime = source.resolve("explain")?.open()?;
+            let documents = documents.then_some(explain::Bounds { offset, limit });
             render(&explain::run(&runtime, assertion_id, documents)?)
         }
         Command::Resolve { reference, at } => {
