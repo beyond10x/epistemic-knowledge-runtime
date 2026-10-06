@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:ocel-process-map
 kind: story
-status: active
+status: implemented
 title: A store's OCEL log can be read as variants and a directly-follows graph
 tags:
 - consumer:cortex
@@ -43,10 +43,11 @@ scope:
   path: systems/ekr/conformance/views-suite.json
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 6
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 5}
 - {from: "proposed", to: "active", at: "2026-10-05T11:51:50Z", actor: "agent:claude", revision: 6}
+- {from: "active", to: "implemented", at: "2026-10-06T06:08:55Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Outcome
 

@@ -2,14 +2,15 @@
 format: aep.planning-md/3
 id: specification:wave-20261005b-extraction-parity
 kind: specification
-status: approved
+status: implemented
 title: 'Wave 20261005b: extraction parity'
 relations:
 - decides: story:extraction-partial-apply
-revision: 5
+revision: 7
 transitions:
 - {from: "draft", to: "in_review", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 2}
 - {from: "in_review", to: "approved", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 3}
+- {from: "approved", to: "implemented", at: "2026-10-06T06:08:55Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Wave 20261005b: extraction parity
 
@@ -48,3 +49,15 @@ Added under the operator's standing approval of every wave. It touches the seed 
 ## Shared with later stories
 
 `story:read-answers-name-types` and `story:explain-bounds-documents` (planned 2026-10-06, not in this wave) share `docs/cli.md` and `CHANGELOG.md` with every unit here, and `systems/ekr/domains/views.yaml` with `story:ocel-process-map`. Both land after this wave merges; `story:explain-bounds-documents` carries a `depends_on` edge to `story:ocel-process-map`.
+
+## Outcome
+
+Closed 2026-10-06. Three units merged into `wave/20261005b`; the repository gate (`task check`) passed in the pull request's CI, run 37419743657 ("Repository correctness").
+
+| unit | stories | commit | review |
+|---|---|---|---|
+| A | `extraction-partial-apply`, `extraction-valid-time`, `extraction-supersession`, `extracted-relations-visible-to-graph-reads` | `4dc3ddfa2` | two adversary passes (7 and 3 findings, all fixed) |
+| B | `ocel-process-map` | `a929e666` | coordinator review |
+| C | `seed-if-absent` | `9d1338583` | one adversary pass (2 findings: 1 fixed, 1 kept as documented) |
+
+The gate ran in CI because a local `task check` on this machine needs about 12 GB of build output with debug info off, and the shared disk had under 10 GB free: the local attempt failed with "No space left on device". A coordinator gating this repository locally checks `df -h /` for at least 15 GB first.

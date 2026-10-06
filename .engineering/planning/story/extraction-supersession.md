@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:extraction-supersession
 kind: story
-status: active
+status: implemented
 title: An extraction document can supersede an earlier assertion
 tags:
 - consumer:cortex
@@ -27,10 +27,11 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/integrate.yaml
-revision: 6
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 5}
 - {from: "proposed", to: "active", at: "2026-10-05T11:51:49Z", actor: "agent:claude", revision: 6}
+- {from: "active", to: "implemented", at: "2026-10-06T06:08:54Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Outcome
 
