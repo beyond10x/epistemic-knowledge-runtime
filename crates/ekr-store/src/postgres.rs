@@ -19,10 +19,17 @@ use crate::StoreError;
 pub struct PostgresConfiguration {
     /// Exactly `ekr.postgres/1`.
     pub format: String,
-    /// File containing the connection string, including any password.
+    /// File containing the connection string, including its password unless `password_file`
+    /// supplies it.
     pub connection_file: PathBuf,
     /// File containing PEM-encoded trusted CA certificates.
     pub ca_file: PathBuf,
+    /// Optional file holding exactly the JSON document `{"password": string}`, whose password
+    /// is used for the connection. The connection string must then carry no password. An
+    /// absolute path, such as `/proc/self/fd/3` for a document handed over on a descriptor, is
+    /// used as written.
+    #[serde(default)]
+    pub password_file: Option<PathBuf>,
     /// Existing owner schema. Schema creation and role grants remain operator responsibilities.
     pub schema: String,
     /// Total admitted database connection budget.
@@ -89,6 +96,56 @@ fn bounded_file(path: &Path, limit: u64) -> Result<Vec<u8>, StoreError> {
     Ok(bytes)
 }
 
+/// The whole of a password file: the document a saved PostgreSQL connection holds. It has no
+/// `Debug`, so no diagnostic can print it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PasswordDocument {
+    password: String,
+}
+
+/// `connection` with the password read from `file` added to it, in the connection string's own
+/// syntax. A connection that already carries a password is refused, and so is any result the
+/// connection-string parser does not read back to exactly that password.
+fn with_password(connection: &str, file: &Path) -> Result<String, StoreError> {
+    let parsed: tokio_postgres::Config = connection
+        .parse()
+        .map_err(|_| refusal("invalid connection file"))?;
+    if parsed.get_password().is_some() {
+        return Err(refusal(
+            "the connection file carries a password and password_file is set",
+        ));
+    }
+    let bytes = bounded_file(file, 65536)?;
+    let PasswordDocument { password } =
+        serde_json::from_slice(&bytes).map_err(|_| refusal("invalid password file"))?;
+    let combined =
+        if connection.starts_with("postgres://") || connection.starts_with("postgresql://") {
+            let separator = if connection.contains('?') { '&' } else { '?' };
+            let mut encoded = String::with_capacity(password.len() * 3);
+            for byte in password.bytes() {
+                if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+                    encoded.push(char::from(byte));
+                } else {
+                    encoded.push_str(&format!("%{byte:02X}"));
+                }
+            }
+            format!("{connection}{separator}password={encoded}")
+        } else {
+            let quoted = password.replace('\\', "\\\\").replace('\'', "\\'");
+            format!("{connection} password='{quoted}'")
+        };
+    let applied: tokio_postgres::Config = combined
+        .parse()
+        .map_err(|_| refusal("password_file cannot be applied to this connection file"))?;
+    if applied.get_password() != Some(password.as_bytes()) {
+        return Err(refusal(
+            "password_file cannot be applied to this connection file",
+        ));
+    }
+    Ok(combined)
+}
+
 impl PostgresConfiguration {
     /// Reads bounded configuration bytes without echoing any supplied value on failure.
     /// # Errors
@@ -103,13 +160,19 @@ impl PostgresConfiguration {
         let directory = path.parent().unwrap_or(Path::new("."));
         config.connection_file = directory.join(&config.connection_file);
         config.ca_file = directory.join(&config.ca_file);
+        config.password_file = config.password_file.map(|file| directory.join(file));
         Ok(config)
     }
 
     pub(crate) fn provider(&self) -> Result<PostgresConfig, StoreError> {
         let bytes = bounded_file(&self.connection_file, 65536)?;
-        let connection =
-            std::str::from_utf8(&bytes).map_err(|_| refusal("invalid connection file"))?;
+        let connection = std::str::from_utf8(&bytes)
+            .map_err(|_| refusal("invalid connection file"))?
+            .trim();
+        let connection = match &self.password_file {
+            None => connection.to_owned(),
+            Some(file) => with_password(connection, file)?,
+        };
         let certificates = bounded_file(&self.ca_file, 1024 * 1024)?;
         let mut roots = rustls::RootCertStore::empty();
         for certificate in CertificateDer::pem_slice_iter(&certificates) {
@@ -117,7 +180,7 @@ impl PostgresConfiguration {
                 .add(certificate.map_err(|_| refusal("invalid CA file"))?)
                 .map_err(|_| refusal("invalid CA file"))?;
         }
-        PostgresConfig::verified(connection.trim(), &self.schema, "ekr", roots)
+        PostgresConfig::verified(&connection, &self.schema, "ekr", roots)
             .map_err(|_| refusal("invalid connection, schema or trust roots"))
     }
 

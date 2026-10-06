@@ -299,6 +299,7 @@ fn constructors_refuse_before_creating_paths() {
             format: "ekr.postgres/1".to_owned(),
             connection_file: directory.path().join("absent-connection"),
             ca_file: directory.path().join("absent-ca"),
+            password_file: None,
             schema: "runtime_fixture".to_owned(),
             database_connections: 8,
             replicas: 1,

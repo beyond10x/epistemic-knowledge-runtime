@@ -4,6 +4,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- An `ekr.postgres/1` configuration takes an optional `password_file` holding exactly
+  `{"password": "..."}`, the document a saved PostgreSQL connection hands a launched program, so
+  the connection file and the configuration directory hold no secret. An absolute path such as
+  `/proc/self/fd/3` is used as written. A connection file that already carries a password, a
+  document with another field or a non-string password, and a document over 64 KiB are refused
+  as `postgres-configuration` without echoing the value.
+
 ## [0.0.31] — 2026-10-06
 
 ### Changed
