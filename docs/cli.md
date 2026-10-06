@@ -152,7 +152,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
+| `ekr explain` | reads | an assertion id; `--documents`, `--offset`, `--limit` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too, at most 64 KiB of each evidence record unless `--limit` says otherwise |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-`; `--strict` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
@@ -297,6 +297,24 @@ a `Proposal` link the proposal record as `record` (its `document_bytes` one base
 `Commit` link and a `Lifecycle` or `Attachment` link's `commit` the commit receipt as `receipt`, and an `Evidence`
 link `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are
 UTF-8). Without it the answer's size does not follow the size of the transactions on the chain.
+
+An evidence payload is bounded. `--documents` prints at most 64 KiB (65,536 bytes) of each
+evidence record, centred on the cited text — the first string value of an assertion on the chain,
+in chain order, that the record holds — and from its first byte when the record holds none.
+Evidence names no span of its record, so the cited text is found by its bytes. Two options read
+any other part, and need `--documents`:
+
+- `--offset N`: the first byte to print, counted from 0 in the record's raw bytes;
+- `--limit N`: the most bytes to print, at least 1; 65,536 when absent.
+
+Offsets are raw byte offsets, not character offsets: `--offset 0 --limit 1000` prints exactly the
+record's first 1,000 bytes. When such a range cuts a character, `payload` holds it and `text` is
+absent. The default window, which `ekr explain` places itself, moves its ends inward to character
+boundaries when the record is UTF-8, so its `text` is present. When the bytes printed are not the
+whole record, the `Evidence` link also carries `offset` (the first byte printed), `record_length`
+(the whole record's bytes) and `truncated: true`; a link without them printed the whole record, as
+before. To read a whole record, start at `--offset 0` and add each answer's byte count to the next
+offset until it reaches `record_length`: the pieces reassemble the record byte for byte.
 
 Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry:
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
@@ -1610,7 +1628,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
-| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents` prints | `ekr explain [--documents]` |
+| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N]` prints | `ekr explain [--documents [--offset N] [--limit N]]` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 

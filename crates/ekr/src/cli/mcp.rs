@@ -553,17 +553,29 @@ impl Server {
     }
 
     /// What `ekr explain <assertion>` prints, byte for byte, or with `documents`, what
-    /// `ekr explain <assertion> --documents` prints.
+    /// `ekr explain <assertion> --documents [--offset N] [--limit N]` prints. `offset` and
+    /// `limit` without `documents`, and a `limit` of 0, are refused as the verb refuses them.
     fn explain(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let ExplainArguments {
             assertion,
             documents,
+            offset,
+            limit,
         } = decode(arguments)?;
+        if !documents && (offset.is_some() || limit.is_some()) {
+            return Err(Unanswered::params(
+                "`offset` and `limit` bound `documents`: they need `documents: true`",
+            ));
+        }
+        if limit == Some(0) {
+            return Err(Unanswered::params("`limit` is at least 1"));
+        }
         let id = assertion.parse::<AssertionId>().map_err(|_| {
             Unanswered::params(format!(
                 "the assertion {assertion:?} is not an assertion id"
             ))
         })?;
+        let documents = documents.then_some(super::explain::Bounds { offset, limit });
         Ok(super::render(&super::explain::run(self.read()?.0, id, documents)?)?.text()?)
     }
 
@@ -747,6 +759,10 @@ struct ExplainArguments {
     assertion: String,
     #[serde(default)]
     documents: bool,
+    #[serde(default)]
+    offset: Option<u64>,
+    #[serde(default)]
+    limit: Option<u64>,
 }
 
 /// A typed reference's fields and `at`. A missing field is named by the verb's own reference
@@ -941,12 +957,17 @@ fn tools() -> Vec<Value> {
             "Explain assertion",
             "What `ekr explain` prints: the assertion at the newest revision, where it came \
              from, what later changed it, and its evidence, each record by hash; with \
-             `documents`, also the whole records and the evidence text.",
+             `documents`, also the whole records and the evidence text, at most 64 KiB of each \
+             evidence record unless `limit` says otherwise.",
             object(
                 json!({
                     "assertion": {"type": "string", "description": "The assertion's id, as describe_node answers it."},
                     "documents": {"type": "boolean",
-                        "description": "Also answer the whole proposal records, commit receipts and evidence payloads (base64, and text when UTF-8), as `ekr explain --documents`; false when absent."},
+                        "description": "Also answer the whole proposal records, commit receipts and evidence payloads (base64, and text when UTF-8), as `ekr explain --documents`; false when absent. An evidence payload is bounded by `offset` and `limit`; when the answer is not the whole record its link carries `offset`, `record_length` (the whole record's bytes) and `truncated: true`."},
+                    "offset": bounded(0, None,
+                        "With `documents`, the first byte of each evidence payload to answer, a raw byte offset (`text` is absent when it falls inside a character); when absent, the window is centred on the cited text, or starts at 0."),
+                    "limit": bounded(1, None,
+                        "With `documents`, the most bytes of each evidence payload to answer; 65536 when absent. Read a whole record in steps: offset 0, then each answer's offset plus its bytes, until `record_length`."),
                 }),
                 &["assertion"],
             ),

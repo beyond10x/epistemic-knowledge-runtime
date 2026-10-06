@@ -61,7 +61,9 @@ WORKFLOW
      ekr rejections [--from N] [--to M]            rejected transactions and their issues, by the
                                                    revision each was validated against
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
-     ekr explain <assertion_id> [--documents]      why an assertion is what it is
+     ekr explain <assertion_id> [--documents]      why an assertion is what it is; --documents
+                                                   adds the records and 64 KiB of each evidence
+                                                   record, --offset N --limit N for other bytes
      ekr quality [--revision N]                    the store's quality beyond its size:
                                                    evidenced assertions (seed and item),
                                                    constrained properties and declaring types,
@@ -263,7 +265,10 @@ OUTPUT
   with --documents: `ekr explain --documents` adds two fields to each Evidence link, `payload`,
   the evidence's retained bytes as one base64 string, and `text`, the same bytes as a string
   when they are valid UTF-8 (absent otherwise), a `record` to each Proposal link and a `receipt`
-  to each commit. No other verb prints a payload.
+  to each commit. A payload is bounded: at most 64 KiB of each record, centred on the cited
+  text; --offset N and --limit N (raw bytes) print any other range, and a link printing less
+  than its whole record carries offset, record_length and truncated: true. No other verb prints
+  a payload.
 ";
 
 /// One `ekr.kernel.OperationKind`: a `GraphOperation` variant, by its YAML tag.
