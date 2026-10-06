@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.32] — 2026-10-06
+
 ### Changed
 
 - `ekr explain --documents` and the MCP `explain` tool with `documents: true` answer at most
