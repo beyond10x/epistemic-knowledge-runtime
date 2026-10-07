@@ -192,6 +192,7 @@ types:
       - {name: EkrPublicationPreparation3, wire: ekr.publication-preparation/3}
       - {name: EkrPublicationPreparation4, wire: ekr.publication-preparation/4}
       - {name: EkrPublicationPreparation5, wire: ekr.publication-preparation/5}
+      - {name: EkrPublicationPreparation6, wire: ekr.publication-preparation/6}
   - name: ekr.store.PublicationPreparationV1
     kind: struct
     fields:

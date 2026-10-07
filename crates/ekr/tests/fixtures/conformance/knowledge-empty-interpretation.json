@@ -1,0 +1,12 @@
+{
+  "entities": [],
+  "evidence": [],
+  "facts": [],
+  "local_schema": {"edge_types": [], "node_types": []},
+  "observations": [],
+  "root_id": "00000000-0000-4000-8000-0d6f9ac27d72",
+  "version": {
+    "interpretation_id": "00000000-0000-4000-8000-e67f0473f58a",
+    "version": 1
+  }
+}

@@ -1,5 +1,8 @@
-//! The ESS conformance target over `ekr.integrate`'s one command, `ekr.integrate.ApplyExtraction`
-//! (`story:extraction-verb-shares-the-sdk-path`).
+//! ESS conformance over real extraction, incubation and schema proposal operations.
+//!
+//! Knowledge commands reopen native Runtime stores, with explicit typed fixture inputs and an
+//! independently supplied synthetic reviewer. Their events project actual command results.
+//! Schema application remains explicitly unsupported until its runtime implementation lands.
 //!
 //! [`IntegrateTarget`] answers the `ekr-integrate` component's suite by running `ekr
 //! apply-extraction` itself, through [`crate::cli::run`], against an isolated store the
@@ -36,9 +39,14 @@ use crate::exit::Failure;
 const APPLY_EXTRACTION: &str = "ekr.integrate.ApplyExtraction";
 const APPLIER: &str = "ekr.integrate.Applier";
 
+#[path = "knowledge.rs"]
+mod knowledge;
+use knowledge::KnowledgeAdapter;
+
 /// The conformance target over `ekr apply-extraction` on one native provider.
 pub struct IntegrateTarget {
     kernel: KernelTarget,
+    knowledge: KnowledgeAdapter,
     /// Whether the open scenario forces the external `refused` branch.
     refusing: Cell<bool>,
     /// Every event this component published in the open scenario.
@@ -58,11 +66,40 @@ impl IntegrateTarget {
         if kernel.manifest.extraction.is_none() {
             return Err("the fixture manifest names no `extraction` fixtures".to_owned());
         }
+        let seed = ekr_kernel::SeedDocument::from_yaml(
+            &std::fs::read_to_string(fixtures.join(&kernel.manifest.setup.seed))
+                .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let knowledge = KnowledgeAdapter::new(
+            provider,
+            kernel.host.clone(),
+            seed,
+            work.join("knowledge"),
+            std::fs::read(fixtures.join("knowledge-empty-interpretation.json"))
+                .map_err(|e| e.to_string())?,
+            std::fs::read(fixtures.join("knowledge-empty-schema-proposal.json"))
+                .map_err(|e| e.to_string())?,
+        );
         Ok(Self {
             kernel,
+            knowledge,
             refusing: Cell::new(false),
             observed: RefCell::new(Vec::new()),
         })
+    }
+
+    /// Supplies an independent synthetic reviewer for conformance fixtures only.
+    /// The signer receives exact kernel protocol bytes; it cannot supply command results.
+    /// The target enrolls this public key through a real signed authority transition.
+    #[must_use]
+    pub fn with_fixture_reviewer(
+        mut self,
+        public_key: Vec<u8>,
+        sign: impl Fn(&[u8]) -> Vec<u8> + 'static,
+    ) -> Self {
+        self.knowledge.reviewer(public_key, sign);
+        self
     }
 
     /// Seeds the lineage the branch declares, then runs `ekr apply-extraction` on the staged
@@ -164,6 +201,13 @@ impl IntegrateTarget {
 }
 
 impl ConformanceTarget for IntegrateTarget {
+    fn fixture_values(
+        &self,
+        scenario: &ScenarioContext,
+        contract: &ess_conformance::fixtures::Contract,
+    ) -> Result<std::collections::BTreeMap<String, ess_primitives::node::Node>, TargetError> {
+        self.knowledge.fixtures(scenario, contract)
+    }
     fn identity(&self) -> Result<ImplementationIdentity, TargetError> {
         let provider = match self.kernel.provider {
             Provider::File => "file",
@@ -178,6 +222,7 @@ impl ConformanceTarget for IntegrateTarget {
     fn begin_scenario(&self, scenario: &ScenarioContext) -> Result<(), TargetError> {
         self.refusing.set(false);
         self.observed.borrow_mut().clear();
+        self.knowledge.prepare(scenario)?;
         self.kernel.begin_scenario(scenario)
     }
 
@@ -186,6 +231,16 @@ impl ConformanceTarget for IntegrateTarget {
         request: SemanticCommandRequest,
     ) -> Result<SemanticCommandResult, TargetError> {
         let command = request.command.to_string();
+        if command == "ekr.integrate.ApplySchemaProposal" {
+            return Err(TargetError::unsupported(command, "Story F schema application is not implemented; this target cannot publish schema or mapped facts"));
+        }
+        if KnowledgeAdapter::supports(&command) {
+            let result = self.knowledge.execute(&request)?;
+            self.observed
+                .borrow_mut()
+                .extend(result.direct_events.iter().cloned());
+            return Ok(result);
+        }
         if command != APPLY_EXTRACTION {
             return Err(TargetError::unsupported(
                 format!("the command `{command}`"),
@@ -219,6 +274,16 @@ impl ConformanceTarget for IntegrateTarget {
         &self,
         request: ExternalOutcomeControl,
     ) -> Result<(), TargetError> {
+        if request.force.command.to_string() == "ekr.integrate.ApplySchemaProposal" {
+            return Err(TargetError::unsupported(request.force.to_string(), "Story F schema application is not implemented; no application refusal can be exercised"));
+        }
+        if KnowledgeAdapter::supports(&request.force.command.to_string())
+            && request.force.outcome.to_string() == "refused"
+        {
+            // FixtureValues/begin_scenario established genuine rejecting input or state.
+            // The command result is always taken from Runtime, never from this request.
+            return Ok(());
+        }
         if request.force.command.to_string() == APPLY_EXTRACTION
             && request.force.outcome.to_string() == "refused"
         {
@@ -240,6 +305,7 @@ impl ConformanceTarget for IntegrateTarget {
 
     fn end_scenario(&self, scenario: &ScenarioContext) -> Result<(), TargetError> {
         self.observed.borrow_mut().clear();
+        self.knowledge.clear();
         self.kernel.end_scenario(scenario)
     }
 }

@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+// model digest 1e0b3811627bd0ec3f1694ea3bbfe72b0d3a639819a331e0ca2e6b3c6f1bab6c
+// contract digest 81bc26adc457d90b34775fbb51b22228c911c951ed1a48fe6047b7dc22a76819
 // do not edit: regenerate with `ess synthesize`
 
 //! ekr-ontology — the `ekr-ontology` component of `ekr` v1.
