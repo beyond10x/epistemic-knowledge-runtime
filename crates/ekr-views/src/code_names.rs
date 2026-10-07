@@ -33,7 +33,11 @@ pub enum CodeNameMode {
 /// The ESS domains of this runtime, `systems/ekr/domains/*.yaml`, by file name, as this crate was
 /// built from them: the source of [`runtime_vocabulary`]. `tests/code_names.rs` holds the list
 /// to the directory, so a domain file added there and not here is named.
-pub const EMBEDDED_DOMAINS: [(&str, &str); 7] = [
+pub const EMBEDDED_DOMAINS: [(&str, &str); 8] = [
+    (
+        "cli.yaml",
+        include_str!("../../../systems/ekr/domains/cli.yaml"),
+    ),
     (
         "graph.yaml",
         include_str!("../../../systems/ekr/domains/graph.yaml"),
