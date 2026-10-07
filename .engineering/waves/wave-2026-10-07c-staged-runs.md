@@ -2,7 +2,7 @@
 
 Skill: aep:implementing 0.21.0 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-07.
-Status: **open**: unit S merged (`6c041e633f`), its adversary running; unit C dispatched.
+Status: **open**: units S and C merged; C's adversary running; unit P dispatched.
 
 Approved 2026-10-07: a consumer running one-shot `ekr` verbs against PostgreSQL needs a failed run
 to leave the head where it was; the shape (a stage published whole, not a rewound head) was chosen
@@ -29,9 +29,10 @@ that holds the one before.
 
 | unit | branch | head | worktree id | build dir | scratch | stage |
 |---|---|---|---|---|---|---|
-| int | `wave/20261007c` | `6c041e633f` | `ekr-w20261007c-int` | `<int>/target` | `<int>/.engineering/drafts` | S merged |
-| S | `unit/stage-specified` | `f3fc6c4a72` | `ekr-w20261007c-s` | `<s>/target` | `<s>/.engineering/drafts` | merged; adversary running |
-| C | `unit/postgres-source-copy` | `6c041e633f` | `ekr-w20261007c-c` | `<c>/target` | `<c>/.engineering/drafts` | implementor running |
+| int | `wave/20261007c` | `5906588c60` | `ekr-w20261007c-int` | `<int>/target` | `<int>/.engineering/drafts` | S, C merged |
+| S | `unit/stage-specified` | `3359dc47d6` | `ekr-w20261007c-s` | — | — | merged; adversary fixes merged; tree finished and archived |
+| C | `unit/postgres-source-copy` | `3c96c31e52` | `ekr-w20261007c-c` | `<c>/target` | `<c>/.engineering/drafts` | merged (`4276a3cae9`); adversary running |
+| P | `unit/stage-suffix-publication` | `5906588c60` | `ekr-w20261007c-p` | `<p>/target` | `<p>/.engineering/drafts` | implementor running |
 
 ## Unit S
 
