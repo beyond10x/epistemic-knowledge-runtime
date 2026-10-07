@@ -2,11 +2,14 @@
 format: aep.planning-md/3
 id: task:remove-unified-site-manifest
 kind: task
-status: draft
+status: active
 title: b10x.docs.yaml, the retired unified site's manifest, is deleted
 relations:
 - serves: vision:o5
-revision: 1
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-07T02:27:45Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "proposed", to: "active", at: "2026-10-07T02:27:45Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 ## What is wrong
 
@@ -18,8 +21,12 @@ to the retired unified site and should go.
 
 ## Build
 
-Delete `b10x.docs.yaml`, and the two planning references that name it as current
-(`story:cli-user-documentation` lists it as a scope path; `docs/roadmap.md:126`).
+Delete `b10x.docs.yaml`. It is the only unified-site file here: the repository has no
+unified-site bundle caller, façade caller or unified-site check (`.github/workflows/` on 2026-10-07
+holds `b10x-docs-site.yml`, `correctness.yml`, `pages.yml`, `shared-gates.yml`; `b10x-docs-site.yml`
+is the own-site caller and stays). Nothing in `crates/`, `xtask/`, `website/` or `Taskfile.yml`
+reads the manifest. `docs/roadmap.md:126` and `story:cli-user-documentation` name it as P0 history
+and stay.
 
 ## Order
 
