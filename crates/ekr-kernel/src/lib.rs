@@ -103,6 +103,8 @@
 
 mod answers;
 mod application_auth;
+mod application_mapping;
+mod application_fact;
 mod application_inputs;
 mod application_plan;
 mod application_projection;
