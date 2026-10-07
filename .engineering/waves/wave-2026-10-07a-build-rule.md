@@ -2,8 +2,9 @@
 
 Skill: aep:implementing 0.21.0 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-07.
-Status: **closing**: units A and B merged into `wave/20261007a`; the pull request into `main` is
-https://github.com/beyond10x/epistemic-knowledge-runtime/pull/85.
+Status: **closed**: merged to `main` in
+https://github.com/beyond10x/epistemic-knowledge-runtime/pull/85 (`2626b0ae4b`); both tasks are
+implemented. Its worktrees are finished and removed.
 
 Approved 2026-10-07: both changes were queued for this repository after release 0.0.32. Unit A
 follows the operator's rule of 2026-10-06 that every tree builds into its own `target/` and ends
