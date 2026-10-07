@@ -326,7 +326,14 @@ types:
   # is copied again under another fresh claim. Executed by `crates/ekr-kernel/tests/migrate_store.rs`
   # on File and SQLite, and by `interrupted_postgres_copy_is_unreadable_after_reopen` and
   # `a_claimed_copy_can_be_captured_and_copied_again` in `crates/ekr-kernel/tests/hosted_postgres.rs`
-  # where the PostgreSQL tests run; a stage's tenant as the destination is unexecuted. The CLI
+  # where the PostgreSQL tests run. A stage's tenant as the destination (2026-10-08, unit C): the
+  # source is read once, under one SQLite image or one PostgreSQL capture (`Commit::capture`), and
+  # the capture is copied into the stage's tenant of the same store (`CapturedStore::copy_into`),
+  # held by `a_postgres_store_is_copied_into_a_stage_under_one_capture`,
+  # `a_sqlite_store_is_copied_into_a_stage_under_one_image`,
+  # `a_commit_racing_the_capture_is_not_in_the_stage` and
+  # `an_interrupted_stage_copy_is_refused_as_incomplete_on_postgres` (and `_on_sqlite`) in the
+  # same file; the stage record and begin itself are unexecuted. The CLI
   # refuses a destination that is, lies inside or contains the source
   # (`migrate-destination-is-source`, `-inside-source`, `-contains-source`) before creating it.
   - name: ekr.kernel.MigratedOccurrence

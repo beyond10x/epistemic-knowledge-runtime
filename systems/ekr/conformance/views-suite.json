@@ -199,7 +199,7 @@
     "counts": {
       "authored": 32,
       "generated": 52,
-      "outside": 71,
+      "outside": 74,
       "refused": 0
     },
     "generated": [
@@ -446,6 +446,17 @@
         ],
         "origin": "generated",
         "reason": "other_component",
+        "scenario": "ekr.cli.PublishStage/outcome/abandoned-meanwhile"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.PublishStage"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
         "scenario": "ekr.cli.PublishStage/outcome/already-published"
       },
       {
@@ -458,6 +469,17 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.cli.PublishStage/outcome/head-moved"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.PublishStage"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.PublishStage/outcome/object-moved"
       },
       {
         "needs": [
@@ -531,6 +553,17 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.cli.PublishStage/outcome/stage-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.PublishStage"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.PublishStage/outcome/stream-moved"
       },
       {
         "needs": [
@@ -1934,8 +1967,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "b61854288dfdc29cef24018c7ba8b14d8b1283601648f0e186baaedcdb2805ad",
-    "spec_digest": "66ff8a00ce25fcf0df2f6b3ea55699ee3fb8373f456545ce6b036ca63746a53c",
+    "contract_digest": "443bdda9c2ac7b1bfe0d147c045453c15e7c66713d8716a2e5eacfd8df033566",
+    "spec_digest": "8d90e30250f06da14fffc9630226649783bbeba3349aadc1c0591bbc788417d4",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
