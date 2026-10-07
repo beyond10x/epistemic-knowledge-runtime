@@ -11,7 +11,8 @@ use ekr_ontology::Ontology;
 use eventlog_core::{
     AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CaptureError, CaptureLimits,
     CommandMeta, ConsistentTenantCapture, EventLogError, EventStore, Expected, NewEvent, Read,
-    ReadResult, RecordedEvent, StreamAppend, StreamId, StreamSlice, TenantId, MAX_READ_LIMIT,
+    ReadResult, RecordedEvent, StreamAppend, StreamId, StreamSlice, TenantCapture, TenantId,
+    MAX_READ_LIMIT,
 };
 use eventlog_file::FileEventStore;
 use eventlog_postgres::PostgresEventStore;
@@ -60,6 +61,9 @@ pub type PostgresStore = EventlogStore<PostgresEventStore>;
 
 /// Provider-specific authoritative tenant emptiness check.
 type EmptyCheck<S> = fn(&S, &Runtime, &TenantId) -> Result<bool, StoreError>;
+/// Provider-specific capture of one tenant's whole history and bound content in one observation;
+/// the flag says whether the handle only reads.
+type CaptureTenant<S> = fn(&S, &Runtime, &TenantId, bool) -> Result<TenantCapture, StoreError>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -160,8 +164,9 @@ pub struct EventlogStore<S: EventStore> {
     at_path: Option<replaced::AtPath>,
     /// Hosted read handles refuse all mutations, including replay checkpoints.
     hosted_read_only: bool,
-    /// Hosted history needs an explicit provider capture before full inventory can be claimed.
-    inventory_requires_capture: bool,
+    /// Where a provider's change feed can withhold committed events (PostgreSQL), the inventory
+    /// is one provider capture of the tenant instead of reads of the feed and its streams.
+    capture: Option<CaptureTenant<S>>,
     /// Provider-specific bounded shutdown, before dropping the runtime that drives its clients.
     shutdown: Option<fn(&S, &Runtime)>,
     /// Authoritative emptiness where a provider feed can temporarily withhold committed events.
@@ -576,7 +581,33 @@ impl EventlogStore<PostgresEventStore> {
         ))?;
         let mut opened = Self::assemble(runtime, store, tenant, None);
         opened.hosted_read_only = reading;
-        opened.inventory_requires_capture = true;
+        opened.capture = Some(|store, runtime, tenant, reading| {
+            // The inventory holds every event and object of the tenant by contract — it is what a
+            // preserving copy reads — so the capture carries no cap below the tenant's own size.
+            // The provider's operation deadline still bounds it.
+            let limits = CaptureLimits {
+                max_events: u64::MAX,
+                max_blobs: u64::MAX,
+                max_projection_rows: 0,
+                max_payload_bytes: u64::MAX,
+            };
+            // Provider publication does not itself allocate the capture identity, so a writing
+            // handle ensures it as the emptiness check does; this metadata is not canonical
+            // history. A reading handle allocates nothing.
+            if !reading {
+                runtime.block_on(store.stream_identity(tenant))?;
+            }
+            crate::verified::count_stream_read(|reads| reads.captures += 1);
+            match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
+                Ok(captured) => Ok(captured),
+                Err(CaptureError::Store(error)) => Err(error.into()),
+                Err(CaptureError::TenantIdentityMissing) if reading => Err(StoreError::ReadOnly(
+                    "a tenant inventory requires capture metadata a reading handle does not write"
+                        .into(),
+                )),
+                Err(error) => Err(StoreError::Document(format!("postgres-capture: {error}"))),
+            }
+        });
         opened.empty = Some(|store, runtime, tenant| {
             // A zero cap checks existence without loading arbitrary tenant payloads. Native
             // capture waits for committed publishers, unlike the watermark-filtered feed.
@@ -589,6 +620,7 @@ impl EventlogStore<PostgresEventStore> {
             // Provider publication does not itself allocate the capture identity. Ensure it
             // exists before taking absence as evidence; this metadata is not canonical history.
             runtime.block_on(store.stream_identity(tenant))?;
+            crate::verified::count_stream_read(|reads| reads.captures += 1);
             match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
                 Ok(_) => Ok(true),
                 Err(CaptureError::LimitExceeded { .. }) => Ok(false),
@@ -649,7 +681,7 @@ impl<S: EventStore> EventlogStore<S> {
             pointer: std::sync::Mutex::default(),
             at_path: None,
             hosted_read_only: false,
-            inventory_requires_capture: false,
+            capture: None,
             shutdown: None,
             empty: None,
             read_only: None,

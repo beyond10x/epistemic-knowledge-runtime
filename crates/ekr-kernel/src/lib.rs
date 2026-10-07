@@ -143,7 +143,7 @@ pub use explain::{
     ExplainedValidation, ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
-pub use migrate::{MigratedOccurrence, StoreMigrationV1};
+pub use migrate::{CapturedStore, MigratedOccurrence, StoreMigrationV1};
 pub use read::{SchemaHistory, VerifiedRead, VerifiedRevision};
 pub use records::{
     CommitReceiptV1, CreatedIdentitiesV1, ProposalRecordV1, RecordedValidationIssue,

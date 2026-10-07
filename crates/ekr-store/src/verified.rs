@@ -152,6 +152,9 @@ pub struct StreamReads {
     pub object: u64,
     /// Reads of the tenant log, looking for events on the streams of held objects.
     pub feed: u64,
+    /// Provider captures of the whole tenant (`ConsistentTenantCapture`): a PostgreSQL store's
+    /// inventory and its emptiness check each take one.
+    pub captures: u64,
 }
 
 thread_local! {
@@ -160,6 +163,7 @@ thread_local! {
         checkpoint: 0,
         object: 0,
         feed: 0,
+        captures: 0,
     }) };
 }
 
