@@ -149,10 +149,6 @@ pub(super) fn submitted(
 pub(super) fn shown(
     value: &w::EkrIntegrateSchemaProposalRead,
 ) -> Result<m::ShowSchemaProposalResult, StoreError> {
-    // Review and application persistence are separate handlers; never silently drop their history.
-    if !value.receipts.is_empty() || matches!(value.application, w::EssPresence::Present(_)) {
-        return Err(error("unsupported application history projection"));
-    }
     Ok(m::ShowSchemaProposalResult {
         proposal: document(&value.proposal)?,
         proposal_digest: k::ContentHash(value.proposal_digest.0.clone()),
@@ -166,7 +162,11 @@ pub(super) fn shown(
             .iter()
             .map(|v| review(v))
             .collect::<Result<_, _>>()?,
-        receipts: Vec::new(),
+        receipts: value
+            .receipts
+            .iter()
+            .map(|value| crate::application_projection::receipt(value))
+            .collect::<Result<_, _>>()?,
         basis: k::ReviewBasis {
             observed_revision: k::RevisionNumber(
                 value
@@ -184,7 +184,10 @@ pub(super) fn shown(
             w::EssPresence::Absent => None,
             w::EssPresence::Present(hash) => Some(k::ContentHash(hash.0.clone())),
         },
-        application: None,
+        application: match &value.application {
+            w::EssPresence::Absent => None,
+            w::EssPresence::Present(value) => Some(crate::application_projection::read(value)?),
+        },
     })
 }
 

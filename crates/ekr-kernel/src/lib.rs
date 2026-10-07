@@ -101,6 +101,8 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod application_projection;
+mod application_transaction;
 mod answers;
 mod apply;
 mod attention;
