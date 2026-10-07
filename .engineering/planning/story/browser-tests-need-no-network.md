@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:browser-tests-need-no-network
 kind: story
-status: active
+status: implemented
 title: Browser tests load the pinned graph libraries without the network
 relations:
 - serves: vision:o5
@@ -19,10 +19,11 @@ scope:
   path: crates/ekr/tests/search_live.rs
 - confidence: cited
   path: crates/ekr/tests/view_page.rs
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-07T06:22:52Z", actor: "agent:claude-ekr-controller", revision: 8}
 - {from: "proposed", to: "active", at: "2026-10-07T06:22:52Z", actor: "agent:claude-ekr-controller", revision: 9}
+- {from: "active", to: "implemented", at: "2026-10-07T07:33:54Z", actor: "agent:claude-ekr-controller", revision: 10, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## What is wrong
 

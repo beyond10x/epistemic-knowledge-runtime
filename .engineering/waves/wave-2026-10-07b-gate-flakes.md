@@ -2,7 +2,7 @@
 
 Skill: aep:implementing 0.21.0 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-07.
-Status: **open**.
+Status: **closing**: units A and B merged into `wave/20261007b`; the full gate runs on the integration head.
 
 Approved 2026-10-07: these two stories are the next wave after 2026-10-07a, one pull request, with
 a full gate on the integration branch.
@@ -33,9 +33,33 @@ it changes anything under `crates/ekr-store/src`; unit A changes tests only.
 
 | unit | branch | head | worktree id | build dir | scratch | stage |
 |---|---|---|---|---|---|---|
-| int | `wave/20261007b` | `2626b0ae4b` | `ekr-w20261007b-int` | `<int>/target` | `<int>/.engineering/drafts` | opening |
-| A | `unit/browser-tests-need-no-network` | — | `ekr-w20261007b-a` | `<a>/target` | `<a>/.engineering/drafts` | planned |
-| B | `unit/c7-lock-wait-under-load` | — | `ekr-w20261007b-b` | `<b>/target` | `<b>/.engineering/drafts` | planned |
+| int | `wave/20261007b` | `bca067e032` | `ekr-w20261007b-int` | `<int>/target` | `<int>/.engineering/drafts` | gate |
+| A | `unit/browser-tests-need-no-network` | `841edb1b17` | `ekr-w20261007b-a` | `<a>/target` (2,195 MiB, discarded) | `<a>/.engineering/drafts` (archived) | merged |
+| B | `unit/c7-lock-wait-under-load` | `233261c312` | `ekr-w20261007b-b` | `<b>/target` (3,701 MiB, discarded) | `<b>/.engineering/drafts` (archived) | merged |
+
+## What the units found
+
+- Unit B: the lock that the two `adversary_c7_s` opening races lost was the test's own writer's.
+  The races opened with `SqliteStore::sqlite`, which creates the owner tables through
+  eventlog-sqlite and so takes `BEGIN IMMEDIATE` on every open; instrumented at load 39–44, each
+  failing open waited 5.0–5.3 s there while the writer completed 7–47 publications, and no single
+  publication held the lock past 2.5 s. Every `ekr` store verb opens an existing store with
+  `sqlite_existing`, which takes no write lock. The races now open that way; no source changed, so
+  no adversary ran. `SqliteStore::sqlite` still takes the write lock on an existing store; it is
+  used only to create one.
+- Unit A: the `--dump-dom` launches in `view_page.rs` and `adversary_p_page.rs` could not be
+  intercepted, so they are now driven over the DevTools protocol under the same virtual-time
+  policy. SHA-384 is implemented in the test support module rather than taken from `sha2`, because
+  a new dev-dependency would change the dependency list `crates/ekr/tests/story_contract.rs`
+  holds.
+
+| unit | red | green |
+|---|---|---|
+| A | `view_page` 2 passed, 5 failed with the CDN unresolvable and nothing served | six binaries, 81 cases, 0 failed, CDN unresolvable |
+| B | 1 of 9 runs passed at load 27–40 | 41 of 41 runs at load 17–44; `ekr-store` 198 passed |
+
+Cost: unit A's `aep:implementor`, 368,123 tokens, 168 tool uses, 2,197 s; unit B's, 169,462
+tokens, 65 tool uses, 1,741 s.
 
 ## Gate
 

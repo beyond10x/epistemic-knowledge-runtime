@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:c7-reads-beside-a-checkpointing-writer-do-not-depend-on-load
 kind: story
-status: active
+status: implemented
 title: The C7 reads-beside-a-checkpointing-writer cases do not depend on how long a lock wait takes
 relations:
 - serves: vision:o5
@@ -11,10 +11,11 @@ scope:
   path: crates/ekr-store/src/eventlog.rs
 - confidence: cited
   path: crates/ekr-store/tests/adversary_c7_s.rs
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-07T06:22:52Z", actor: "agent:claude-ekr-controller", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-07T06:22:52Z", actor: "agent:claude-ekr-controller", revision: 5}
+- {from: "active", to: "implemented", at: "2026-10-07T07:33:54Z", actor: "agent:claude-ekr-controller", revision: 6, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## What is wrong
 
