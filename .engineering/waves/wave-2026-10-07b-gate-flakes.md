@@ -2,7 +2,7 @@
 
 Skill: aep:implementing 0.21.0 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-07.
-Status: **closing**: units A and B merged into `wave/20261007b`; the full gate runs on the integration head.
+Status: **closing**: units A and B merged into `wave/20261007b`; the full gate is green; the pull request into `main` is open.
 
 Approved 2026-10-07: these two stories are the next wave after 2026-10-07a, one pull request, with
 a full gate on the integration branch.
@@ -63,4 +63,22 @@ tokens, 65 tool uses, 1,741 s.
 
 ## Gate
 
-Not run yet.
+Every `task check` step, one at a time, on `wave/20261007b` at `56d2f32383` (tree `abe7b2c7e2`),
+2026-10-07 07:34–08:35Z, with the pinned `ess 0.36.0` and `aep 0.64.0`, the browser required,
+`cargo test --workspace --no-fail-fast`, and debug info off (`CARGO_PROFILE_DEV_DEBUG=false`) to
+keep the build directory within the machine's free space (it peaked at 10,550 MiB). The run was
+stopped (SIGSTOP) for a time when free space fell under 20 GiB and continued afterwards.
+
+| step | exit |
+|---|---|
+| fmt-check | 0 |
+| search-web-check | 0 |
+| clippy | 0 |
+| test: 375 suites, 2,477 cases passed, 0 failed | 0 |
+| bench `--no-run` | 0 |
+| doc-check | 0 |
+| vendor-check | 0 |
+| spec-check | 0 |
+| conform-fresh | 0 |
+| plan-check | 0 |
+| site-check | 0 |
