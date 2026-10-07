@@ -1476,6 +1476,20 @@ types:
       - {name: record_hash, type: ekr.kernel.ContentHash}
       - {name: record, type: ekr.kernel.HumanAnswerRecord}
 
+  # Actual ordinary correction provenance, never a relabeled attention answer. All four
+  # records are authenticated from one retained commit prefix. The proposal retains the
+  # reviewed correction instructions; the step retains exact effects and replacement IDs;
+  # the publication binds that step to the effective signed review and actual commit.
+  # Unexecuted until application_corrections_explain_the_real_schema_review passes on both
+  # providers, including detached captured history and full replay.
+  - name: ekr.kernel.ExplainedSchemaCorrection
+    kind: struct
+    fields:
+      - {name: proposal, type: ekr.integrate.RetainedSchemaProposal}
+      - {name: review, type: ekr.integrate.RetainedProposalReview}
+      - {name: step, type: ekr.integrate.RetainedApplicationStep}
+      - {name: publication, type: ekr.integrate.ApplicationPublicationRecord}
+
   - name: ekr.kernel.ExplanationLink
     kind: union
     tag: kind
@@ -1491,6 +1505,7 @@ types:
       HumanAnswer: ekr.kernel.ExplainedAnswer
       Mapping: ekr.integrate.RetainedMappingRecord
       Derivation: ekr.integrate.CanonicalDerivationRecord
+      SchemaCorrection: ekr.kernel.ExplainedSchemaCorrection
 
   # Mapping/Derivation links come only from verified committed application steps through the
   # captured revision. Planned, rejected and stale steps are not canonical derivations. Each
