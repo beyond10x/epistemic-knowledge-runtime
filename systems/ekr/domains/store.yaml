@@ -217,6 +217,59 @@ types:
     kind: enum
     variants: [Written, AlreadyRecorded, Conflict, UnknownCommit]
 
+  # Design § 107 (2026-10-07, story:a-run-is-staged-and-published-whole). A stage's identity.
+  # Begin mints it, from the `Id::mint()` family as `ekr mint` mints every other id, and returns
+  # it; the caller passes it on as `EKR_STAGE=<id>` or `--stage <id>` and never supplies one.
+  #
+  # The stage's Eventlog tenant is derived from the store's own tenant (the one the host
+  # configuration names, ekr.kernel.CliHostConfigurationV1.tenant) and this id, deterministically:
+  # the same store tenant and id give the same name; different ids give different names. The
+  # name is valid under Eventlog's TenantId rules (non-empty, at most 512 bytes, ASCII graphic or
+  # space: eventlog-core `validate_field`) for every store tenant a host configuration admits, and
+  # it is distinct from every store tenant: it carries a marker reserved to stage tenants, which a
+  # host configuration's tenant is refused for carrying, so neither this store's own tenant nor
+  # another store's can be produced by the derivation. The marker's spelling and that refusal's
+  # name are unit C's.
+  - name: ekr.store.StageId
+    kind: newtype
+    of: Uuid
+
+  # Design § 107. A store's identity: the Eventlog tenant it is opened with, the one its host
+  # configuration names. Unique among the tenants of one provider location; two stores at two
+  # paths may carry the same tenant.
+  - name: ekr.store.StoreTenant
+    kind: newtype
+    of: String
+
+  # The provider a store is opened on, as the CLI's `--backend` names it (`file`, `sqlite`,
+  # `postgres`).
+  - name: ekr.store.ProviderKind
+    kind: enum
+    variants: [File, Sqlite, Postgres]
+
+  # What begin, seal, publish and abandon answer: the stage record as the command left it. For a
+  # publication, `published_first` and `published_last` are the first and last revision it
+  # published into the store, by id, and `occurrences` how many revision-stream occurrences it
+  # appended; a publication of no commit has neither id. A retry that replays returns the original
+  # value. The printed document's format literal, if any, is unit L's to name with the verbs.
+  - name: ekr.store.StageResult
+    kind: struct
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: state
+        type: ekr.store.Stage.State
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: base_revision
+        type: ekr.kernel.RevisionId
+      - name: published_first
+        type: Optional<ekr.kernel.RevisionId>
+      - name: published_last
+        type: Optional<ekr.kernel.RevisionId>
+      - name: occurrences
+        type: Optional<Integer>
+
 entities:
   # Design § 57. Identity is the content hash; two writes of the same bytes are one object.
   - name: ekr.store.StoredObject
@@ -236,6 +289,103 @@ entities:
       initial: Stored
       states: [Stored]
       terminal: [Stored]
+
+  # Design § 107. A store: one Eventlog tenant on one provider. Minimal on purpose: it carries
+  # nothing the specification would have to keep in step with its head, which is read from its
+  # revision stream (ekr.kernel.CurrentRevision), not declared here. A store has many stages;
+  # each stage references the one store it was begun from.
+  - name: ekr.store.Store
+    identity:
+      name: tenant
+      type: ekr.store.StoreTenant
+    fields:
+      - name: provider
+        type: ekr.store.ProviderKind
+    lifecycle:
+      initial: Provisioned
+      states: [Provisioned]
+      terminal: [Provisioned]
+
+  # Design § 107. A stage: its own Eventlog tenant in the same store, begun by a preserving copy of
+  # the store at its head (§§ 100.3, 105.2), written by a run's one-shot verbs, then published into
+  # the store whole or abandoned whole. `base` and `base_revision` are the store's head when the
+  # stage was begun.
+  #
+  # The record is a private stream per stage in the store's own tenant, outside the revision
+  # stream, so writing it never moves `ekr head`. It holds only the small events below — begun,
+  # sealed, published, abandoned — and no blob. It stays after the stage's tenant is forgotten, as
+  # the stage's history: it is what answers a stage already published or abandoned, and what a
+  # handle joined to a stage reads before and after every write (held bytes, rule 2, below).
+  #
+  # Sealing fences joined writers from a publication. A publication first seals the stage and
+  # captures its suffix only after the seal; a verb joined to a Sealing, Published or Abandoned
+  # stage is refused ekr.store.StageStateConflict. A joined write reads the record again after its
+  # own write lands: Begun then means the write landed before the seal, so the capture holds it;
+  # anything else refuses the write by name, and the published range says whether it is in.
+  #
+  # A stage's revisions are provisional: they are not the store's committed revisions, and become
+  # committed only when a publication derives them again into the store's lineage.
+  #
+  # `published_revisions` are the store's revisions the publication added, in order. The record
+  # retains only the first and last (ekr.store.StagePublished); the list is read from the store as
+  # the revisions from the first to the last, contiguous because one append group published them.
+  #
+  # The stage's own tenant is not a field: it is derived from `store` and `stage_id` (see
+  # ekr.store.StageId). ekr.store.StageBegun records the name begin wrote, and the forgetting takes
+  # it from that record rather than deriving it again.
+  - name: ekr.store.Stage
+    identity:
+      name: stage_id
+      type: ekr.store.StageId
+    fields:
+      - name: store
+        type: ekr.store.StoreTenant
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: base_revision
+        type: ekr.kernel.RevisionId
+      - name: published_revisions
+        type: List<ekr.kernel.RevisionId>
+    relations:
+      # The store the stage was begun from, whose tenant holds the stage's record. One per stage;
+      # a store has many stages, and outlives them: references, one.
+      - name: store
+        kind: references
+        target: ekr.store.Store
+        cardinality: one
+        via: store
+      # The store's revision the stage was begun at. It outlives the stage: references, one.
+      - name: base_revision
+        kind: references
+        target: ekr.kernel.Revision
+        cardinality: one
+        via: base_revision
+      # The store's revisions a publication added. They are committed revisions of the store and
+      # outlive the stage: references, many.
+      - name: published
+        kind: references
+        target: ekr.kernel.Revision
+        cardinality: many
+        via: published_revisions
+      # The stage owns its own lineage, the provisional revisions and transactions in its tenant:
+      # forgetting the stage removes them. Not expressible as a relations entry: `owns` needs a
+      # field on the owned entity typed by ekr.store.StageId, which neither ekr.kernel.Revision
+      # nor ekr.kernel.GraphTransaction has (the tenant is the link, not a field), and
+      # ekr.kernel.GraphTransaction already has an owner (ekr.kernel.Agent.proposals).
+    lifecycle:
+      initial: Begun
+      states: [Begun, Sealing, Published, Abandoned]
+      terminal: [Published, Abandoned]
+      transitions:
+        - name: seal
+          from: [Begun]
+          to: Sealing
+        - name: publish
+          from: [Sealing]
+          to: Published
+        - name: abandon
+          from: [Begun, Sealing]
+          to: Abandoned
 
 events:
   # Private selection metadata, backend schema1; payload is a private native blob.
@@ -307,6 +457,57 @@ events:
       - name: stored_at
         type: Timestamp
 
+  # Design § 107. The stage record's events: a private stream per stage in the store's own tenant,
+  # small and without blobs, kept after the stage's tenant is forgotten as the stage's history.
+  # Each is one command's summary: the copy a begin writes into the stage's tenant and the suffix a
+  # publication appends to the store are the kernel's occurrences and the store's object events,
+  # as an apply-extraction's commits are, and their number is the run's.
+  #
+  # `tenant` is the stage's tenant as begin derived and wrote it; every later forgetting takes it
+  # from here.
+  - name: ekr.store.StageBegun
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: tenant
+        type: String
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: base_revision
+        type: ekr.kernel.RevisionId
+
+  # The stage accepts no further write; the suffix a publication captures after this is final.
+  - name: ekr.store.StageSealed
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: base
+        type: ekr.kernel.RevisionNumber
+
+  # `occurrences` counts the revision-stream occurrences the publication appended after `base`:
+  # every proposal, validation, rejection, stale record and commit the run made, derived again for
+  # the store's lineage. `published_first` and `published_last` are the first and last revision it
+  # added, by id, absent where the run committed nothing; `head` is the store's head after it.
+  - name: ekr.store.StagePublished
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: published_first
+        type: Optional<ekr.kernel.RevisionId>
+      - name: published_last
+        type: Optional<ekr.kernel.RevisionId>
+      - name: occurrences
+        type: Integer
+
+  - name: ekr.store.StageAbandoned
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+
 # Held bytes and a replaced store. Decided 2026-10-01 (store audit) for
 # task:sqlite-store-replaced-in-place and task:held-bytes-notice-deleted-blobs together: a live
 # handle never answers from bytes a fresh handle would refuse. Three rules hold it.
@@ -340,6 +541,28 @@ events:
 #    of the replay checkpoint's cache blob, after the pointer event naming its successor, and a
 #    source guard holds that list. Canonical objects are never withdrawn (invariant 5), and the
 #    memo does not look for them.
+#    Amended 2026-10-07 (design § 107.7): `forget_tenant` is admitted for a stage's own tenant and
+#    for nothing else. The store's own tenant, the one its host configuration names, is never
+#    forgotten, and the derivation of a stage's tenant can never produce a store's tenant
+#    (ekr.store.StageId). A forgotten tenant leaves no stream to append the event to, so the event
+#    a holding handle looks for is in the store's own tenant: the stage record's
+#    ekr.store.StagePublished or ekr.store.StageAbandoned, appended before the tenant is forgotten.
+#    A handle joined to a stage reads its stage's record before every read and write, as rule 1's
+#    check runs, and refuses ekr.store.StageStateConflict once the stage is not Begun, as a fresh
+#    handle joining it does; rule 1 alone cannot see a forgotten stage, because a tenant that
+#    holds no event is in rule 3's list. A stage's revisions are provisional, not the store's
+#    committed revisions, and nothing in the store's lineage names a record of the stage's, since
+#    a publication derives every record it appends again: forgetting a stage's tenant reclaims no
+#    committed revision and no Canonical object of the store, and the sentence above about
+#    Canonical objects is about the store's own tenant.
+#    The source guard is `crates/ekr-store/tests/eventlog_object_memo.rs`,
+#    `no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream`. Its `allowed`
+#    list (today `ekr-store/src/eventlog.rs` 1 and `ekr-store/src/eventlog_reads.rs` 5, the
+#    latter compiled only under `cfg(test)`) gains the one product source that calls
+#    `forget_tenant` for a stage, with its count, in the change that adds that call, and its doc
+#    comment names it. That source takes the tenant from the stage's ekr.store.StageBegun and
+#    refuses the store's own. Unexecuted until then: today the guard admits no product call of
+#    `forget_tenant`.
 # 3. Not seen, recorded rather than hidden: a redaction or blob deletion made through a provider
 #    directly, outside the runtime, without that event; a backup of the same store restored over
 #    its SQLite file, whose first and newest events this log holds; a database whose file holds no
@@ -356,3 +579,106 @@ errors:
         type: String
       - name: reason
         type: String
+
+  # Design § 107. The stage's named refusals. Every one writes nothing: no stage record, no
+  # occurrence or object in the store or in the stage, and no forgetting.
+  - name: ekr.store.StageNotFound
+    summary: No stage carries the requested id in this store; nothing was read or written.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+
+  # The stage is not in a state the command or the joined verb acts from; `state` says which, and
+  # the refusal is named by it: Sealing `stage-sealed`, Published `stage-already-published`,
+  # Abandoned `stage-already-abandoned`. Every verb joined to a stage that is not Begun answers
+  # it, before its write and again after it (a write that landed in a stage sealed meanwhile).
+  - name: ekr.store.StageStateConflict
+    summary: The stage is not in a state this acts from, so nothing was sealed, published, abandoned, read or written through it.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: state
+        type: ekr.store.Stage.State
+
+  - name: ekr.store.StageHeadMoved
+    summary: >-
+      The store's head is not the expected head, or not the stage's base; the suffix is never
+      rebased. Nothing was appended to the store.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: expected
+        type: ekr.kernel.RevisionNumber
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: current
+        type: ekr.kernel.RevisionNumber
+
+  # The stage's preserving copy holds no completion receipt (the copy's `migrate-incomplete`,
+  # design §§ 100.3 and 105.2): its begin was interrupted. Also what every verb joined to it answers.
+  - name: ekr.store.StageIncomplete
+    summary: The stage's copy of the store never finished; it is not the store at its base and can only be abandoned.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+
+  # A decision elected (design § 94) and never published: in the store, a begin's copy refuses it
+  # as the migration does (`migrate-unresolved-preparation`); in the stage, a seal or a
+  # publication refuses it, since the suffix would leave out an occurrence the run elected.
+  - name: ekr.store.UnresolvedPreparation
+    summary: >-
+      A decision was elected and never published; resolve it with the command that elected it,
+      then retry. Nothing was copied or appended.
+    fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+
+  # The kernel's check of the suffix derived again for the store's lineage refused it: a refusal of
+  # the stage's full replay, a record that does not derive again, or the store's replay after the
+  # suffix disagreeing with the stage's (`migrate-verification-disagrees`). All or nothing.
+  - name: ekr.store.StageSuffixRefused
+    summary: The stage's suffix did not validate against the store at the expected head; nothing was appended and the stage stays Sealing.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: code
+        type: String
+      - name: reason
+        type: String
+
+  # The File provider's `forget_tenant` rewrites the provider's one journal, which every other open
+  # handle of that directory may then read as a diverged history, so no stage is begun there.
+  # SQLite and PostgreSQL admit stages.
+  - name: ekr.store.StageUnsupportedProvider
+    summary: Stages are not admitted on this store's provider; nothing was recorded or copied.
+    fields:
+      - name: provider
+        type: ekr.store.ProviderKind
+
+# Design § 107. The stage's four commands are ekr.cli's (cli.yaml): ekr.cli.BeginStage,
+# ekr.cli.SealStage, ekr.cli.PublishStage and ekr.cli.AbandonStage. Decided: the CLI component
+# `ekr` handles them, not ekr-kernel. A command's one handler is the component owning its domain
+# (ESS-COMPONENT-004, `conflicting_declaration`, ess 0.36.0 and 0.55.0), and ekr-store owns
+# ekr.store, so they are declared in ekr.cli, which `ekr` owns. The Stage, its id, its record's
+# events, its refusals and the view below stay here, and the commands reference them.
+
+views:
+  # Every stage this store has recorded, in every state, from the stage records that stay after
+  # each stage's tenant is forgotten. A conformance read surface, not a CLI verb; it is also how a
+  # stage whose begin answer was lost is found. Whether the CLI lists stages is unit L's decision.
+  - name: ekr.store.Stages
+    source: ekr.store.Stage
+    consistency: read_your_writes
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: store
+        type: ekr.store.StoreTenant
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: base_revision
+        type: ekr.kernel.RevisionId
+      - name: published_revisions
+        type: List<ekr.kernel.RevisionId>
+      - name: state
+        type: ekr.store.Stage.State

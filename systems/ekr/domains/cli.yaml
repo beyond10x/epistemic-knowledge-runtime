@@ -1,0 +1,257 @@
+domain: ekr.cli
+
+summary: >-
+  The commands the `ekr` binary handles itself: the four stage commands of design § 107, which run
+  the kernel's preserving copy and its authority over a store and its stage's tenant together. The
+  stage they act on, its id, its record's events, its refusals and the view of every stage are
+  ekr.store's (store.yaml), and the commands here reference them.
+
+naming:
+  wire: cli
+  display: CLI
+
+# Design § 107. Begin, seal, publish and abandon. `ekr stage begin` is BeginStage, `ekr stage
+# publish` is SealStage then PublishStage (a publication first seals the stage), and `ekr stage
+# abandon` is AbandonStage. They run the kernel's preserving copy and its authority over a store
+# and its stage's tenant together.
+#
+# Decided: the CLI component `ekr` handles them, not ekr-kernel. A command's one handler is the
+# component owning its domain (ESS-COMPONENT-004, `conflicting_declaration`, ess 0.36.0 and
+# 0.55.0), and ekr-store owns ekr.store, so the commands are declared in this domain, which `ekr`
+# owns, and not beside the Stage in store.yaml. The committed ekr-kernel, ekr-views and
+# ekr-integrate suites select none of them, and no suite for the `ekr` component is synthesized in
+# this wave: unit L's named cases (design § 107.10) carry their acceptance.
+#
+# Joining is not a command: every store verb opens the stage's tenant instead of the store's when
+# the host names a stage (`--stage <id>` or `EKR_STAGE=<id>`), as the tenant itself is host
+# configuration and not declared input. A joined verb reads the stage's record in the store's
+# tenant first and refuses ekr.store.StageNotFound, ekr.store.StageStateConflict or
+# ekr.store.StageIncomplete before it opens the stage; a joined write reads the record again after
+# its write lands and refuses ekr.store.StageStateConflict if the stage is no longer Begun.
+#
+# An id no stage carries is answered `stage-not-found` by seal, publish and abandon, before any
+# other refusal. `unknown_instance:` (ess/15) would declare that order; this specification is
+# ess/14, so ess 0.55.0's synthesis notes it as undeclared and unchecked.
+commands:
+  # Begin: mint the stage id, write the stage record (ekr.store.StageBegun) in the store's tenant,
+  # then copy the store at its head into the stage's tenant, its completion receipt last. On SQLite
+  # the source is read as one image (`Runtime::sqlite_snapshot`); on PostgreSQL under one provider
+  # capture, which the inventory refuses today (`postgres-inventory-requires-capture`, held by
+  # `postgres_runtime_reopens_seed_and_committed_history` where the PostgreSQL tests run) and unit
+  # C adds; everything else said here about the stage is unexecuted. The copy is a
+  # migration, not a byte copy: the stage's seed is `ekr-seed-envelope/4` with a fresh claim, and
+  # every record that names the seed envelope or a prior root is derived again for the stage's
+  # lineage (design § 100.3; `crates/ekr-kernel/src/migrate.rs`). Revision numbers and identities,
+  # event identities and the knowledge, evidence, ontology and authority roots are the store's.
+  # Not resumable (§ 105.2): a stage whose begin was interrupted refuses as incomplete and is
+  # abandoned; a retried begin begins another stage under another id.
+  - name: ekr.cli.BeginStage
+    naming:
+      wire: stage-begin
+      display: Begin a stage
+    response:
+      - name: result
+        type: ekr.store.StageResult
+    outcomes:
+      - name: begun
+        creates: ekr.store.Stage
+        instance: stage_id
+        emits:
+          - ekr.store.StageBegun
+        payload:
+          ekr.store.StageBegun:
+            stage_id: {generated: true}
+            tenant: {generated: true}
+            base: {generated: true}
+            base_revision: {generated: true}
+        summary: >-
+          The stage exists, Begun, at the store's head, under an id begin minted and returned; its
+          tenant holds the store's history as a verified preserving copy, and the store's head and
+          revision stream are unchanged.
+      - name: unsupported-provider
+        external: the store is on the File provider
+        error: ekr.store.StageUnsupportedProvider
+        summary: Nothing was recorded or copied.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was recorded or copied; a store with no head has nothing to stage.
+      - name: unresolved-preparation
+        external: the store holds a decision elected and never published
+        error: ekr.store.UnresolvedPreparation
+        summary: Nothing was recorded or copied; the copy would leave out an elected occurrence.
+
+  # Seal, the first step of `ekr stage publish`: checked before anything is written, then the
+  # stage record's move to Sealing. From then on the stage accepts no write, and the publication
+  # captures its suffix. A publish retried after an interruption finds the stage Sealing.
+  - name: ekr.cli.SealStage
+    naming:
+      wire: stage-seal
+      display: Seal a stage for publication
+    input:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: expect_head
+        type: ekr.kernel.RevisionNumber
+    response:
+      - name: result
+        type: ekr.store.StageResult
+    outcomes:
+      - name: sealed
+        when_subject_state: Begun
+        moves: ekr.store.Stage.seal
+        instance: stage_id
+        emits:
+          - ekr.store.StageSealed
+        payload:
+          ekr.store.StageSealed:
+            stage_id: input.stage_id
+            base: {subject: base}
+        summary: The stage is Sealing; no joined write lands in it any more, and the store is unchanged.
+      - name: retained-seal
+        when_subject_state: Sealing
+        replays: sealed
+        summary: Return the original result and record nothing; the stage was sealed by an earlier attempt.
+      - name: head-moved
+        external: the store's head is not input.expect_head, or not the stage's base
+        error: ekr.store.StageHeadMoved
+        summary: Nothing was recorded; the stage stays as it was and the store's head is where it was.
+      - name: stage-not-found
+        external: no stage carries input.stage_id in this store
+        error: ekr.store.StageNotFound
+        summary: Nothing was read or recorded.
+      - name: stage-incomplete
+        external: the stage's preserving copy holds no completion receipt
+        error: ekr.store.StageIncomplete
+        summary: Nothing was recorded; the stage can only be abandoned.
+      - name: unresolved-preparation
+        external: the stage holds a decision elected and never published
+        error: ekr.store.UnresolvedPreparation
+        summary: Nothing was recorded; resolve the decision in the stage, then publish again.
+      - name: wrong-state
+        error: ekr.store.StageStateConflict
+        summary: A Published or Abandoned stage refuses without a record, an event or a subject change.
+
+  # Publish, the second step: the stage's occurrences after its base, derived again for the
+  # store's lineage by the functions replay checks them with, checked by the kernel against the
+  # store at the expected head, and appended with every object the stage stored after its copy and
+  # the stage record's StagePublished in ONE append group, conditional on the store's revision
+  # stream at the expected head and on the record still Sealing (design § 105.3). The store's head
+  # must equal both input.expect_head and the stage's base; a moved store is refused, never
+  # rebased. Then the stage's tenant is forgotten.
+  #
+  # The election is a publication preparation of a new kind (design §§ 94, 107.5): keyed by
+  # Publish and the stage id, its decision is the whole suffix and its native request the whole
+  # append group. It is a new format, `ekr.publication-preparation/4`, used by that kind only;
+  # `/1`–`/3` and their kinds are unchanged. Its carriers are declared in ekr.store (store.yaml)
+  # together with their Rust types (unit P), because the store's binding cases hold every
+  # declaration there to a Rust carrier member for member.
+  - name: ekr.cli.PublishStage
+    naming:
+      wire: stage-publish
+      display: Publish a stage
+    input:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: expect_head
+        type: ekr.kernel.RevisionNumber
+    response:
+      - name: result
+        type: ekr.store.StageResult
+    outcomes:
+      - name: published
+        when_subject_state: Sealing
+        moves: ekr.store.Stage.publish
+        instance: stage_id
+        sets:
+          published_revisions: {generated: true}
+        emits:
+          - ekr.store.StagePublished
+        payload:
+          ekr.store.StagePublished:
+            stage_id: input.stage_id
+            base: {subject: base}
+            head: {generated: true}
+            published_first: {generated: true}
+            published_last: {generated: true}
+            occurrences: {generated: true}
+        summary: >-
+          Every occurrence the stage holds after its base is in the store, derived again for its
+          lineage, with the same event and revision identities and roots; `ekr head` is the
+          stage's last revision; the stage's tenant holds nothing.
+      - name: retained-publication
+        when_subject_state: Published
+        replays: published
+        summary: >-
+          An exact retry: the same stage and expected head as the elected publication. Return its
+          original result and append nothing; forget the stage's tenant if anything of it remains.
+      - name: already-published
+        external: the stage is Published and input.expect_head is not the head its publication was elected against
+        error: ekr.store.StageStateConflict
+        summary: Nothing was appended; the stage's publication stands as elected.
+      - name: head-moved
+        external: the store's head is not input.expect_head, or not the stage's base
+        error: ekr.store.StageHeadMoved
+        summary: Nothing was appended, the store's head is where it was, and the stage stays Sealing; abandon it and make the run again.
+      - name: unresolved-preparation
+        external: the sealed stage holds a decision elected and never published
+        error: ekr.store.UnresolvedPreparation
+        summary: Nothing was appended and the stage stays Sealing.
+      - name: suffix-refused
+        external: the kernel refuses the stage's suffix derived again for the store's lineage
+        error: ekr.store.StageSuffixRefused
+        summary: Nothing was appended and the stage stays Sealing.
+      - name: stage-not-found
+        external: no stage carries input.stage_id in this store
+        error: ekr.store.StageNotFound
+        summary: Nothing was read or appended.
+      - name: wrong-state
+        error: ekr.store.StageStateConflict
+        summary: A Begun stage (not sealed) or an Abandoned one refuses without an append, an event or a subject change.
+
+  # Abandon: the stage record's move to Abandoned first, in the store's tenant, then
+  # `forget_tenant` of the tenant ekr.store.StageBegun names (held bytes, rule 2). The store's
+  # tenant is never forgotten. A retry after an interruption finds the stage Abandoned and finishes
+  # the forgetting.
+  - name: ekr.cli.AbandonStage
+    naming:
+      wire: stage-abandon
+      display: Abandon a stage
+    input:
+      - name: stage_id
+        type: ekr.store.StageId
+    response:
+      - name: result
+        type: ekr.store.StageResult
+    outcomes:
+      - name: abandoned
+        when_subject_state: Begun
+        moves: ekr.store.Stage.abandon
+        instance: stage_id
+        emits:
+          - ekr.store.StageAbandoned
+        payload:
+          ekr.store.StageAbandoned:
+            stage_id: input.stage_id
+        summary: The stage is Abandoned and its tenant holds nothing; the store's head and revision stream are unchanged.
+      - name: abandoned-sealed
+        when_subject_state: Sealing
+        moves: ekr.store.Stage.abandon
+        instance: stage_id
+        emits:
+          - ekr.store.StageAbandoned
+        payload:
+          ekr.store.StageAbandoned:
+            stage_id: input.stage_id
+        summary: A sealed stage whose publication was refused or never finished is Abandoned and its tenant holds nothing.
+      - name: retained-abandonment
+        when_subject_state: Abandoned
+        replays: abandoned
+        summary: Return the original result and append nothing; forget the stage's tenant if anything of it remains.
+      - name: stage-not-found
+        external: no stage carries input.stage_id in this store
+        error: ekr.store.StageNotFound
+        summary: Nothing was read or forgotten.
+      - name: wrong-state
+        error: ekr.store.StageStateConflict
+        summary: A Published stage refuses without an event, a subject change or any forgetting.
