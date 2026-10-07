@@ -28,6 +28,9 @@ use ekr_views::{
 };
 use serde_json::Value;
 
+#[path = "support/viewer_libraries.rs"]
+mod viewer_libraries;
+
 /// The seven addresses the page may read, and no other: the head, the overview, the streamed
 /// expansion, one node's detail, the search, the subjects' timeline and evidence by id (the
 /// `ekr view` data contract).
@@ -556,6 +559,231 @@ fn every_browser_a_test_starts_installs_no_components_and_makes_no_background_re
     assert!(launches >= 8, "the browser launches were found: {launches}");
 }
 
+/// What the browser launches in `source` lack, one finding per gap. Every `--headless` launch
+/// carries the flag that leaves the libraries' host unresolvable and is paired with the call that
+/// has the harness serve the pinned libraries over the DevTools protocol; a file that launches
+/// hands the requests it pauses to the shared answer; and no launch takes its result with
+/// `--dump-dom` or `--screenshot`, which read the page from a browser no harness is connected to,
+/// whose libraries could not be served. The needles are put together here rather than written out,
+/// so that this file's own text does not count.
+fn launch_findings(file: &str, source: &str) -> Vec<String> {
+    let module = "viewer_libraries";
+    let headless = format!("\"--{}\"", "headless");
+    let launches = source.matches(&headless).count();
+    let mut findings = Vec::new();
+    for (needle, what) in [
+        (
+            format!("{module}::UNRESOLVABLE"),
+            "leaves the libraries' host unresolvable",
+        ),
+        (
+            format!("{module}::serve("),
+            "is served the pinned libraries",
+        ),
+    ] {
+        let found = source.matches(&needle).count();
+        if found != launches {
+            findings.push(format!(
+                "{file}: {launches} {headless} launches and {found} `{needle}`: every launch {what}"
+            ));
+        }
+    }
+    let answer = format!("{module}::answer");
+    if launches > 0 && !source.contains(&answer) {
+        findings.push(format!(
+            "{file}: starts a browser and hands no paused request to `{answer}`"
+        ));
+    }
+    for flag in ["dump-dom", "screenshot"] {
+        let unserved = format!("\"--{flag}");
+        if source.contains(&unserved) {
+            findings.push(format!(
+                "{file}: a launch with --{flag} reads the page from a browser no harness serves"
+            ));
+        }
+    }
+    findings
+}
+
+/// `story:browser-tests-need-no-network`: every browser a test starts is served the page's pinned
+/// libraries by the test process and cannot resolve their host, so none of them reaches the network
+/// for its libraries (a failed download left the page at "the graph libraries did not load": CI run
+/// 37529812043, and a local gate at load 30 on 2026-10-07).
+#[test]
+fn every_browser_a_test_starts_is_served_the_pinned_libraries_and_cannot_resolve_their_host() {
+    let headless = format!("\"--{}\"", "headless");
+    let mut launches = 0;
+    let mut findings = Vec::new();
+    for entry in std::fs::read_dir(manifest_dir().join("tests")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).unwrap();
+        launches += source.matches(&headless).count();
+        findings.extend(launch_findings(&path.display().to_string(), &source));
+    }
+    assert!(findings.is_empty(), "{findings:#?}");
+    assert!(launches >= 8, "the browser launches were found: {launches}");
+}
+
+/// The guard above goes red on a launch it should: one not served the libraries, one that can
+/// resolve their host, two launches of which one is served, a file that never answers a paused
+/// request and a `--dump-dom` launch are each named; a served launch is not.
+#[test]
+fn the_launch_guard_names_a_launch_that_is_not_served_the_pinned_libraries() {
+    let module = "viewer_libraries";
+    let launch = |unresolvable: bool, served: bool| {
+        format!(
+            "let child = Command::new(browser).args([\"--{}\", \"--remote-debugging-port=0\"{}]).spawn();\n{}\n",
+            "headless",
+            if unresolvable {
+                format!(", {module}::UNRESOLVABLE")
+            } else {
+                String::new()
+            },
+            if served {
+                format!("{module}::serve(|method, params| driven.call(method, params));")
+            } else {
+                String::new()
+            },
+        )
+    };
+    let answers = format!("if let Some((method, params)) = {module}::answer(&paused) {{}}\n");
+    let served = format!("{}{answers}", launch(true, true));
+    assert_eq!(launch_findings("served.rs", &served), Vec::<String>::new());
+    for (file, source, names) in [
+        (
+            "unserved.rs",
+            format!("{}{answers}", launch(true, false)),
+            "::serve(",
+        ),
+        (
+            "resolvable.rs",
+            format!("{}{answers}", launch(false, true)),
+            "::UNRESOLVABLE",
+        ),
+        (
+            "one-of-two.rs",
+            format!("{served}{}", launch(true, false)),
+            "::serve(",
+        ),
+        ("unanswered.rs", launch(true, true), "::answer"),
+        (
+            "dumped.rs",
+            format!(
+                "{served}Command::new(browser).args([\"--{}\"]);\n",
+                "dump-dom"
+            ),
+            "with --dump-dom",
+        ),
+    ] {
+        let findings = launch_findings(file, &source);
+        assert!(
+            findings.len() == 1 && findings[0].contains(names),
+            "{file}: {findings:?}"
+        );
+    }
+}
+
+/// `story:browser-tests-need-no-network`: each library the page loads is committed under
+/// `tests/fixtures/viewer-libraries/` at its address's path and hashes to the `integrity` the page
+/// carries for it, read off the page's own tags, so a page that pins another version without its
+/// fixture fails here. The directory holds no script the page does not load, and each package's
+/// MIT licence is kept beside its files.
+#[test]
+fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
+    let pinned = viewer_libraries::pinned(&page());
+    assert!(!pinned.is_empty(), "the page's scripts with an address");
+    let root = manifest_dir().join(viewer_libraries::FIXTURES);
+    for library in &pinned {
+        let path = viewer_libraries::fixture_path(&library.url)
+            .unwrap_or_else(|| panic!("{}: not on {}", library.url, viewer_libraries::HOST));
+        let bytes = std::fs::read(&path).unwrap_or_else(|error| {
+            panic!(
+                "{}: no fixture at {}: {error}; a library the page pins is committed there",
+                library.url,
+                path.display()
+            )
+        });
+        assert_eq!(
+            viewer_libraries::integrity(&bytes),
+            library.integrity,
+            "{}: the fixture {} hashes to the page's integrity",
+            library.url,
+            path.display()
+        );
+        let relative = path.strip_prefix(&root).unwrap();
+        let package = root.join(relative.iter().take(2).collect::<PathBuf>());
+        let licence = ["LICENSE", "LICENSE.txt", "LICENSE.md"]
+            .iter()
+            .map(|name| package.join(name))
+            .find(|path| path.is_file())
+            .unwrap_or_else(|| panic!("{}: no licence beside it", package.display()));
+        assert!(
+            std::fs::read_to_string(&licence)
+                .unwrap()
+                .contains("Permission is hereby granted, free of charge"),
+            "{}: the MIT licence",
+            licence.display()
+        );
+    }
+    let mut scripts = Vec::new();
+    let mut directories = vec![root.clone()];
+    while let Some(directory) = directories.pop() {
+        for entry in std::fs::read_dir(&directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                directories.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "js") {
+                scripts.push(path);
+            }
+        }
+    }
+    assert_eq!(scripts.len(), pinned.len(), "{scripts:?}");
+    for script in scripts {
+        assert!(
+            pinned.iter().any(|library| {
+                viewer_libraries::fixture_path(&library.url).as_ref() == Some(&script)
+            }),
+            "{} is a script the page does not load",
+            script.display()
+        );
+    }
+    let urls: Vec<&str> = pinned.iter().map(|library| library.url.as_str()).collect();
+    assert_eq!(urls, LIBRARIES, "the scripts the page loads were all read");
+}
+
+/// The integrity check's SHA-384 gives FIPS 180-4's examples (one block, the empty message, two
+/// blocks) and `openssl dgst -sha384`'s digests of `a` repeated across each padding boundary.
+#[test]
+fn the_integrity_digest_is_sha384() {
+    let hex = |bytes: &[u8]| -> String { bytes.iter().map(|byte| format!("{byte:02x}")).collect() };
+    let mut examples = vec![
+        ("abc".to_owned(), "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"),
+        (String::new(), "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+        ("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".to_owned(), "09330c33f71147e83d192fc782cd1b4753111b173b3b05d22fa08086e3b0f712fcc7c71a557e2db966c3e9fa91746039"),
+    ];
+    for (length, digest) in [
+        (111, "3c37955051cb5c3026f94d551d5b5e2ac38d572ae4e07172085fed81f8466b8f90dc23a8ffcdea0b8d8e58e8fdacc80a"),
+        (112, "187d4e07cb306103c69967bf544d0dfbe9042577599c73c330abc0cb64c61236d5ed565ee19119d8c31779a38f791fcd"),
+        (127, "9bd06b1763c2cf7aef40e795dc65bc96d59c41b537f3ad72ebdefd485476b5717c1aeb37c327fe9c1831b12b9efd08ae"),
+        (128, "edb12730a366098b3b2beac75a3bef1b0969b15c48e2163c23d96994f8d1bef760c7e27f3c464d3829f56c0d53808b0b"),
+        (239, "e247c35f4bc1aa38026f8880c8c97305545d00d3f859e00c57d1c1f0a176b3c6b749c4eb081f08bd0fba500969cd056a"),
+        (240, "4d86957beab348a29180f02d02564ac1d32f5b4c217ece2b038f7c184f0cafc8c8e438eb82aa03796170e0a7ce8c0675"),
+    ] {
+        examples.push(("a".repeat(length), digest));
+    }
+    for (message, digest) in examples {
+        assert_eq!(
+            hex(&viewer_libraries::sha384(message.as_bytes())),
+            digest,
+            "{} bytes",
+            message.len()
+        );
+    }
+}
+
 #[test]
 fn the_embedded_page_loads_only_the_pinned_libraries_by_integrity() {
     for (file, page) in pages() {
@@ -698,12 +926,33 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// The DOM the page has built after `url` loads and its reads settle.
+/// How much virtual time a page gets to load and settle before its DOM is read.
+const SETTLE_BUDGET: u32 = 8000;
+
+/// How many runs [`rendered`] gets before a stalled browser fails the case.
+const RENDER_ATTEMPTS: usize = 3;
+
+/// The DOM the page has built after `url` loads and its reads settle: [`SETTLE_BUDGET`] ms of
+/// virtual time, as `--virtual-time-budget` gives, in a browser driven over the DevTools protocol
+/// so that the page's libraries are served from the fixtures (a browser that writes its own DOM out
+/// has no harness to serve them). A run whose virtual clock stalls is tried again, up to
+/// [`RENDER_ATTEMPTS`] runs, as `adversary_page_stream_1.rs` does for its dumps.
 fn rendered(browser: &Path, url: &str) -> String {
-    let _one = one_browser();
+    for _ in 0..RENDER_ATTEMPTS {
+        match rendered_once(browser, url) {
+            Ok(dom) => return dom,
+            Err(stalled) => eprintln!("the browser stalled on {url}: {stalled}"),
+        }
+    }
+    panic!("the browser stalled {RENDER_ATTEMPTS} times on {url}");
+}
+
+fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
+    let one = one_browser();
     let profile = tempfile::tempdir().unwrap();
-    // Two cores at the lowest priority: the machine is shared.
-    let output = Command::new("taskset")
+    // Two cores at the lowest priority: the machine is shared. `taskset` and `nice` exec the
+    // browser, so the child is the browser itself.
+    let child = Command::new("taskset")
         .args(["-c", "0-1", "nice", "-n", "19"])
         .arg(browser)
         .args([
@@ -715,20 +964,28 @@ fn rendered(browser: &Path, url: &str) -> String {
             "--disable-component-update",
             "--disable-background-networking",
             "--disable-extensions",
+            viewer_libraries::UNRESOLVABLE,
+            "--remote-debugging-port=0",
             &format!("--user-data-dir={}", profile.path().display()),
-            "--virtual-time-budget=8000",
-            "--dump-dom",
-            url,
+            "about:blank",
         ])
         .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .unwrap();
-    assert!(output.status.success(), "the browser failed on {url}");
-    String::from_utf8(output.stdout).unwrap()
+    let mut driven = Driven::connect(child, profile, one, viewer_libraries::fixture);
+    viewer_libraries::serve(|method, params| driven.call(method, params));
+    driven.call("Page.navigate", serde_json::json!({ "url": url }));
+    driven.settle(SETTLE_BUDGET)?;
+    Ok(driven
+        .eval("document.documentElement.outerHTML")
+        .as_str()
+        .unwrap_or_default()
+        .to_owned())
 }
 
-/// Text as `--dump-dom` writes it inside an element.
+/// Text as a serialised DOM writes it inside an element.
 fn escaped(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -1988,7 +2245,7 @@ fn expanded_page(index: &Index, seed: &str, depth: i64) -> SlicePage {
 /// neighbourhood the page has not loaded streams that neighbourhood with one `/expand` of depth 2,
 /// and the focus then holds exactly it. The address carries the slider's value, and the slider and
 /// the address set it through the same function, so an address stands in for the slider here: a
-/// headless browser under `--dump-dom` cannot move one.
+/// page read once it has settled ([`rendered`]) is not moved.
 #[test]
 fn a_hops_depth_on_a_focus_streams_the_neighbourhood_it_names_once() {
     let Some(browser) = browser() else {
@@ -2121,10 +2378,11 @@ const STAR: (usize, usize, usize, usize, usize) = (2, 1, 801, 800, 1);
 
 /// A screenshot of `url` into `file`, after `millis` of virtual time — or of real time when `real`: a stream
 /// still arriving holds virtual time still, so an expansion is seen in progress only in real time.
+/// Taken over the DevTools protocol, so the page's libraries are served from the fixtures.
 fn shoot(browser: &Path, url: &str, file: &Path, millis: u32, real: bool) {
-    let _one = one_browser();
+    let one = one_browser();
     let profile = tempfile::tempdir().unwrap();
-    let output = Command::new(browser)
+    let child = Command::new(browser)
         .args([
             "--headless",
             "--use-angle=swiftshader",
@@ -2134,23 +2392,43 @@ fn shoot(browser: &Path, url: &str, file: &Path, millis: u32, real: bool) {
             "--disable-component-update",
             "--disable-background-networking",
             "--disable-extensions",
+            viewer_libraries::UNRESOLVABLE,
             "--hide-scrollbars",
             "--window-size=1600,1000",
+            "--remote-debugging-port=0",
             &format!("--user-data-dir={}", profile.path().display()),
-            &if real {
-                format!("--timeout={millis}")
-            } else {
-                format!("--virtual-time-budget={millis}")
-            },
-            &format!("--screenshot={}", file.display()),
-            url,
+            "about:blank",
         ])
         .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .unwrap();
-    assert!(output.status.success(), "the browser failed on {url}");
-    assert!(file.is_file(), "no screenshot at {}", file.display());
+    let mut driven = Driven::connect(child, profile, one, viewer_libraries::fixture);
+    viewer_libraries::serve(|method, params| driven.call(method, params));
+    driven.call("Page.navigate", serde_json::json!({ "url": url }));
+    if real {
+        // the protocol is read throughout, so the page's library requests are answered
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_millis(millis.into()) {
+            driven.eval("0");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    } else if let Err(stalled) = driven.settle(millis) {
+        panic!("the browser stalled on {url}: {stalled}");
+    }
+    let shot = driven.call(
+        "Page.captureScreenshot",
+        serde_json::json!({"format": "png"}),
+    );
+    let png = {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD
+            .decode(shot["result"]["data"].as_str().unwrap_or_default())
+            .unwrap()
+    };
+    assert!(!png.is_empty(), "no screenshot of {url}: {shot}");
+    std::fs::write(file, png).unwrap();
 }
 
 /// Not a check: writes the operator's screenshots — the overview, an expansion in progress, 3D, the
@@ -2260,9 +2538,11 @@ fn a_focus_at_three_hops_streams_nothing_the_server_refuses() {
 
 // ---- a page driven over the DevTools protocol ------------------------------------------------------
 //
-// `--dump-dom` loads one address and cannot press, drag or move a slider. `Driven` starts the same
-// headless browser with a DevTools port, speaks the protocol over one WebSocket (text frames only)
-// and evaluates expressions in the page, so a case can act as a reader does.
+// `Driven` starts a headless browser with a DevTools port, speaks the protocol over one WebSocket
+// (text frames only) and evaluates expressions in the page, so a case can act as a reader does, and
+// [`rendered`] can read the DOM once the page has settled. Every request to the libraries' host is
+// paused and answered from the fixtures (`support/viewer_libraries.rs`), and the host is
+// unresolvable for the browser, so no page a case opens reaches the network.
 
 struct Driven {
     child: Child,
@@ -2275,8 +2555,74 @@ struct Driven {
     /// The page's console and network log, one line per message, request, response or failure,
     /// the newest [`LOG_LINES`] kept: what a case that times out prints (issue #81).
     log: std::collections::VecDeque<String>,
+    /// The bytes served for each of the page's library addresses.
+    served: Served,
+    /// Every paused library request answered, as `<command> <address>`, in order.
+    answered: Vec<String>,
+    /// The page's requests sent and not yet finished or failed, by request id.
+    in_flight: BTreeSet<String>,
+    /// Whether the virtual-time budget [`Driven::settle`] set has run out.
+    budget_expired: bool,
     _profile: tempfile::TempDir,
     _one: std::sync::MutexGuard<'static, ()>,
+}
+
+/// How long the page's virtual clock may stand still, with no request in flight, before
+/// [`Driven::settle`] takes the run for stalled.
+const STALL_WINDOW: Duration = Duration::from_secs(30);
+
+/// The longest [`Driven::settle`] waits while the page's virtual clock keeps moving.
+const SETTLE_CEILING: Duration = Duration::from_secs(600);
+
+/// The bytes a harness serves for a library address, or `None` to fail the request.
+type Served = fn(&str) -> Option<Vec<u8>>;
+
+/// The address of the DevTools socket of the browser's page target, once it lists one: the
+/// listener can be announced before the first page target exists.
+fn page_socket(port: u16) -> String {
+    let start = std::time::Instant::now();
+    loop {
+        let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        list.set_read_timeout(Some(Duration::from_secs(30)))
+            .unwrap();
+        write!(
+            list,
+            "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        // the DevTools server keeps the connection open: the body is read by its length
+        let mut listed = BufReader::new(list);
+        let mut length = 0;
+        loop {
+            let mut line = String::new();
+            listed.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                break;
+            }
+            if let Some((name, value)) = line.split_once(':') {
+                if name.eq_ignore_ascii_case("content-length") {
+                    length = value.trim().parse().unwrap();
+                }
+            }
+        }
+        let mut body = vec![0_u8; length];
+        listed.read_exact(&mut body).unwrap();
+        let targets: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+        if let Some(address) = targets
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|target| target["type"] == "page")
+            .and_then(|target| target["webSocketDebuggerUrl"].as_str())
+        {
+            return address.to_owned();
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(60),
+            "the browser listed no page target: {targets}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }
 
 /// How many lines of the page's console and network log [`Driven`] keeps.
@@ -2351,9 +2697,18 @@ impl Driven {
 
     /// [`Driven::launch`] in a window of `size` (width, height) pixels, from the first load.
     fn launch_sized(browser: &Path, url: &str, size: (u32, u32)) -> Self {
+        Self::launch_with(browser, url, size, viewer_libraries::fixture)
+    }
+
+    /// [`Driven::launch`], each library address answered with the bytes `served` gives.
+    fn launch_serving(browser: &Path, url: &str, served: Served) -> Self {
+        Self::launch_with(browser, url, (1600, 1000), served)
+    }
+
+    fn launch_with(browser: &Path, url: &str, size: (u32, u32), served: Served) -> Self {
         let one = one_browser();
         let profile = tempfile::tempdir().unwrap();
-        let mut child = Command::new(browser)
+        let child = Command::new(browser)
             .args([
                 "--headless",
                 "--use-angle=swiftshader",
@@ -2363,6 +2718,7 @@ impl Driven {
                 "--disable-component-update",
                 "--disable-background-networking",
                 "--disable-extensions",
+                viewer_libraries::UNRESOLVABLE,
                 &format!("--window-size={},{}", size.0, size.1),
                 "--remote-debugging-port=0",
                 &format!("--user-data-dir={}", profile.path().display()),
@@ -2373,6 +2729,21 @@ impl Driven {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap();
+        let mut driven = Self::connect(child, profile, one, served);
+        viewer_libraries::serve(|method, params| driven.call(method, params));
+        driven.call("Page.navigate", serde_json::json!({ "url": url }));
+        driven
+    }
+
+    /// The protocol connection to the page of `child`, a browser started with
+    /// `--remote-debugging-port=0` and its standard error piped, with its console, log and network
+    /// events enabled. Nothing is served until the caller has the libraries served.
+    fn connect(
+        mut child: Child,
+        profile: tempfile::TempDir,
+        one: std::sync::MutexGuard<'static, ()>,
+        served: Served,
+    ) -> Self {
         let mut lines = BufReader::new(child.stderr.take().unwrap());
         let port: u16 = loop {
             let mut line = String::new();
@@ -2388,37 +2759,7 @@ impl Driven {
             }
         };
         std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
-        let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
-        write!(
-            list,
-            "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
-        )
-        .unwrap();
-        // the DevTools server keeps the connection open: the body is read by its length
-        let mut listed = BufReader::new(list);
-        let mut length = 0;
-        loop {
-            let mut line = String::new();
-            listed.read_line(&mut line).unwrap();
-            if line == "\r\n" || line.is_empty() {
-                break;
-            }
-            if let Some((name, value)) = line.split_once(':') {
-                if name.eq_ignore_ascii_case("content-length") {
-                    length = value.trim().parse().unwrap();
-                }
-            }
-        }
-        let mut body = vec![0_u8; length];
-        listed.read_exact(&mut body).unwrap();
-        let targets: Value = serde_json::from_slice(&body).unwrap();
-        let page = targets
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|target| target["type"] == "page")
-            .expect("a page target");
-        let address = page["webSocketDebuggerUrl"].as_str().unwrap();
+        let address = page_socket(port);
         let path = &address[address.find("/devtools/").unwrap()..];
         let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(
@@ -2446,14 +2787,79 @@ impl Driven {
             next: 0,
             errors: Vec::new(),
             log: std::collections::VecDeque::new(),
+            served,
+            answered: Vec::new(),
+            in_flight: BTreeSet::new(),
+            budget_expired: false,
             _profile: profile,
             _one: one,
         };
         driven.call("Runtime.enable", serde_json::json!({}));
         driven.call("Log.enable", serde_json::json!({}));
         driven.call("Network.enable", serde_json::json!({}));
-        driven.call("Page.navigate", serde_json::json!({ "url": url }));
         driven
+    }
+
+    /// Runs `budget` ms of virtual time under the policy `--virtual-time-budget` sets: the page's
+    /// clock waits while a request is in flight. Returns once the budget has run out, or says why
+    /// the run is taken for stalled: the page's clock (`performance.now()`, which reads virtual
+    /// time) stood still for [`STALL_WINDOW`] with no request in flight, or kept moving past
+    /// [`SETTLE_CEILING`]. A slow run on a loaded machine keeps moving its clock.
+    fn settle(&mut self, budget: u32) -> Result<(), String> {
+        self.budget_expired = false;
+        self.call(
+            "Emulation.setVirtualTimePolicy",
+            serde_json::json!({"policy": "pauseIfNetworkFetchesPending", "budget": budget}),
+        );
+        let start = std::time::Instant::now();
+        let (mut clock, mut moved) = (Value::Null, std::time::Instant::now());
+        loop {
+            if self.budget_expired {
+                return Ok(());
+            }
+            let now = self.eval("performance.now()");
+            if now != clock || !self.in_flight.is_empty() {
+                (clock, moved) = (now, std::time::Instant::now());
+            }
+            if moved.elapsed() >= STALL_WINDOW {
+                return Err(format!(
+                    "the page's virtual clock stood at {clock} ms for {STALL_WINDOW:?} with no request in flight, {:?} into the run\n{}",
+                    start.elapsed(),
+                    self.report("the virtual-time budget ran out")
+                ));
+            }
+            if start.elapsed() >= SETTLE_CEILING {
+                return Err(format!(
+                    "the page's virtual clock was at {clock} ms of {budget} after {SETTLE_CEILING:?}\n{}",
+                    self.report("the virtual-time budget ran out")
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    }
+
+    /// Answers a paused request to the libraries' host from [`Driven::served`], without waiting
+    /// for the browser's reply: it is read, and passed over, as the next call reads on.
+    fn answer_paused(&mut self, paused: &Value) {
+        let Some((method, params)) = viewer_libraries::answer_from(paused, self.served) else {
+            return;
+        };
+        let line = format!(
+            "{method} {}",
+            paused["request"]["url"].as_str().unwrap_or_default()
+        );
+        self.log_push(format!("library {line}"));
+        self.answered.push(line);
+        self.next += 1;
+        let id = self.next;
+        self.send(&serde_json::json!({"id": id, "method": method, "params": params}).to_string());
+    }
+
+    fn log_push(&mut self, line: String) {
+        if self.log.len() == LOG_LINES {
+            self.log.pop_front();
+        }
+        self.log.push_back(line);
     }
 
     /// One masked text frame, its mask all zeros so the payload goes as it stands.
@@ -2521,10 +2927,28 @@ impl Driven {
                 return reply;
             }
             if let Some(line) = log_line(&reply) {
-                if self.log.len() == LOG_LINES {
-                    self.log.pop_front();
+                self.log_push(line);
+            }
+            if reply.get("error").is_some() {
+                // the reply to an answer a paused library request was given
+                self.log_push(format!("protocol error: {reply}"));
+            }
+            let request = || {
+                reply["params"]["requestId"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_owned()
+            };
+            match reply["method"].as_str() {
+                Some("Fetch.requestPaused") => self.answer_paused(&reply["params"]),
+                Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
+                Some("Network.requestWillBeSent") => {
+                    self.in_flight.insert(request());
                 }
-                self.log.push_back(line);
+                Some("Network.loadingFinished" | "Network.loadingFailed") => {
+                    self.in_flight.remove(&request());
+                }
+                _ => {}
             }
             if reply["method"] == "Runtime.exceptionThrown"
                 || (reply["method"] == "Runtime.consoleAPICalled"
@@ -2643,6 +3067,69 @@ impl Drop for Driven {
     fn drop(&mut self) {
         self.child.kill().ok();
         self.child.wait().ok();
+    }
+}
+
+/// A library's fixture with one byte appended: `;`, so it is still a script, and no longer the
+/// bytes its integrity names.
+fn tampered(url: &str) -> Option<Vec<u8>> {
+    let mut bytes = viewer_libraries::fixture(url)?;
+    bytes.push(b';');
+    Some(bytes)
+}
+
+/// `story:browser-tests-need-no-network`, acceptance: a served library whose bytes do not match
+/// the page's `integrity` is refused. The page is opened twice on one store with its libraries'
+/// host unresolvable. Served the pinned bytes it starts. Served each library with a byte appended,
+/// the browser receives all four and refuses each on its integrity, none of their globals exists,
+/// and the page says the libraries did not load.
+#[test]
+fn a_library_served_with_bytes_its_integrity_does_not_name_is_refused() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let url = format!("{}#view=2d", double.url);
+    let mut pinned = Driven::launch_serving(&browser, &url, viewer_libraries::fixture);
+    assert!(
+        pinned.wait_for(&format!("{SETTLED} && !!window.__viewer.renderer"), 90),
+        "served the pinned bytes, the page starts"
+    );
+    drop(pinned);
+
+    let mut driven = Driven::launch_serving(&browser, &url, tampered);
+    assert!(
+        driven.wait_for(
+            "document.getElementById('error').textContent.includes('the graph libraries did not load')",
+            90
+        ),
+        "served altered bytes, the page does not start"
+    );
+    assert_eq!(
+        driven.eval(
+            "[typeof window.graphology, typeof window.graphologyLibrary, typeof window.Sigma, typeof window.ForceGraph3D]"
+        ),
+        serde_json::json!(["undefined", "undefined", "undefined", "undefined"]),
+        "no library ran"
+    );
+    for library in LIBRARIES {
+        assert!(
+            driven
+                .answered
+                .contains(&format!("Fetch.fulfillRequest {library}")),
+            "{library} was served: {:?}",
+            driven.answered
+        );
+        assert!(
+            driven.errors.iter().any(|error| {
+                let text = error.to_string();
+                text.contains("integrity") && text.contains(library)
+            }),
+            "the browser refused {library} on its integrity: {:#?}",
+            driven.errors
+        );
     }
 }
 
