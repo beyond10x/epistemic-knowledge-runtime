@@ -843,6 +843,8 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
             "--enable-unsafe-swiftshader",
             "--no-sandbox",
             "--no-first-run",
+            "--disable-component-update",
+            "--disable-background-networking",
             "--disable-extensions",
             "--window-size=1600,1000",
             "--remote-debugging-port=0",

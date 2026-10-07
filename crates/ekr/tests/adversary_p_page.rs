@@ -160,6 +160,8 @@ fn rendered(browser: &Path, url: &str) -> String {
             "--enable-unsafe-swiftshader",
             "--no-sandbox",
             "--no-first-run",
+            "--disable-component-update",
+            "--disable-background-networking",
             "--disable-extensions",
             &format!("--user-data-dir={}", profile.path().display()),
             "--virtual-time-budget=8000",
