@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-07T02:31:13Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "task:remove-unified-site-manifest",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test -p xtask --bin ekr-docs (3 passed); ekr-docs build; ekr-docs check; aep plan artifact validate — all exit 0 on wave/20261007a 66e4416190"
+  }
+}
