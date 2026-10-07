@@ -11,6 +11,42 @@ naming:
   display: Store
 
 types:
+  # F uses the existing atomic publication path; these are typed persistence/read ports,
+  # not a second canonical writer or a separate attention queue (§105.17).
+  - name: ekr.store.ApplicationElectionRetention
+    kind: struct
+    fields:
+      - {name: election, type: ekr.integrate.RetainedApplicationElection}
+      - {name: objects, type: "Map<String, ekr.store.PublicationObject>"}
+    # Atomic absent-only election by proposal id + exact digest, with all independent
+    # pinned input objects; a competing election returns the winner, never merges IDs.
+  - name: ekr.store.ApplicationStepRetention
+    kind: struct
+    fields:
+      - {name: step, type: ekr.integrate.RetainedApplicationStep}
+      - {name: objects, type: "Map<String, ekr.store.PublicationObject>"}
+    # Atomic absent-only election by application id + exact ApplicationStep. Exact retries
+    # return the original; altered frozen content under an existing identity refuses.
+  - name: ekr.store.ApplicationAttemptRetention
+    kind: struct
+    fields:
+      - {name: attempt, type: ekr.integrate.RetainedApplicationAttempt}
+    # Atomic election compares the latest attempt in this step chain; an exact retry
+    # returns that election. A successor requires its predecessor resolved as terminal
+    # Stale, never merely not-yet-seen. This port cannot create canonical transactions.
+  - name: ekr.store.ApplicationRetentionHistory
+    kind: struct
+    fields:
+      - {name: elections, type: List<ekr.integrate.RetainedApplicationElection>}
+      - {name: steps, type: List<ekr.integrate.RetainedApplicationStep>}
+      - {name: attempts, type: List<ekr.integrate.RetainedApplicationAttempt>}
+      - {name: coordination, type: List<ekr.integrate.ProposalCoordinationRead>}
+      - {name: receipts, type: List<ekr.integrate.ApplicationReceiptSnapshot>}
+      - {name: processing_receipts, type: List<ekr.integrate.ProcessingReceiptSnapshot>}
+    # Augments the existing retained ordinary occurrence/object history. Store validates
+    # envelopes, identity/position consistency and addresses; injected KernelAuthority
+    # verifies authorization, step operations, exact evidence and all marker links.
+    # No retained Interpretation entity or live incubation root is required by replay.
   # Design § 37.
   - name: ekr.store.StorageClass
     kind: enum
@@ -66,6 +102,12 @@ types:
         type: Map<String, ekr.store.PublicationObject>
       - name: expected_version
         type: Integer
+    # Application guard occurs once in event.application. Existing unguarded encodings
+    # omit it, preserving historical hashes. Every ordinary occurrence for an elected
+    # application transaction must carry it, including generic command entry points.
+    # KernelAuthority verifies current review/material and the planned step; the provider
+    # atomically CASes canonical and proposal-stream positions. A stale prepared request
+    # cannot be amended at resume. Resolve its original result before electing a successor.
 
   - name: ekr.store.NativeExpectedKind
     kind: enum
@@ -192,6 +234,14 @@ types:
       - {name: EkrPublicationPreparation3, wire: ekr.publication-preparation/3}
       - {name: EkrPublicationPreparation4, wire: ekr.publication-preparation/4}
       - {name: EkrPublicationPreparation5, wire: ekr.publication-preparation/5}
+      - {name: EkrPublicationPreparation6, wire: ekr.publication-preparation/6}
+      - {name: EkrPublicationPreparation7, wire: ekr.publication-preparation/7}
+  # /6 preserves the shared human-decision index format of §105.16. /7 is exclusively
+  # guarded ordinary application publication: revision + one nonempty marker on the
+  # proposal coordination stream + precisely required object appends/blobs, one group.
+  # The marker stream is derived from trusted tenant/proposal coordinates; its Exact
+  # expectation equals event.application.review_stream_version. No arbitrary streams
+  # or empty guard appends. /1–/6 bytes, hashes and replay rules remain unchanged.
   - name: ekr.store.PublicationPreparationV1
     kind: struct
     fields:

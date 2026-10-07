@@ -5862,3 +5862,177 @@ supported during this transition. Unsigned canonical advancement creates no huma
 
 These are format and implementation obligations. Their implementation, both-provider recovery
 tests and conformance reports must be recorded before this amendment is reported as delivered.
+
+## 105.17 Durable schema application and effective-review publication (2026-10-03)
+
+This amendment specifies the F application protocol before implementation. ESS validation and
+Rust generation do not execute these obligations. File and SQLite providers must eventually
+pass the same crash, concurrency, reopen and full-replay checks; this contract unit claims none
+of those results.
+
+An `ApplicationElection` is an immutable operational plan, unique within the store for the exact
+proposal identity and byte digest. It retains the initial reviewed decision, base schema, selected
+mapping-qualified items and the complete initial schema transaction. An `ApplicationStepElection`
+fixes one schema, mapping or corrections step, its complete ordinary transaction template,
+replacement identities and planned mapping/derivation records. Neither election claims that a
+canonical transaction or assertion already exists. Their named generated retention projections
+are the persisted documents; persistence remains behind the existing store abstraction.
+
+An `ApplicationItemKey` contains the immutable interpretation version, exact `facts[index]`
+selector and mapping digest. A success under one mapping does not resolve a different mapping of
+the same fact, and identical item strings in different documents remain distinct. The selected
+set contains exactly the proposal's approved mappings, deduplicated by that complete key. No
+application may drop unresolved items to manufacture completion or infer missing subject/object
+entities. A blocked mapping remains inspectable without a fabricated transaction.
+
+A step template is not a permanently reusable ordinary transaction: `Stale` is terminal. Each
+`ApplicationStepAttempt` freezes a transaction before its first `Propose`. The initial attempt is
+the template's transaction; after resolving its exact outcome, a successor may be elected only
+when the previous attempt has a verified terminal `Stale` record. The successor names that record
+hash and transaction identity. It changes only the transaction ID, preserving every other
+transaction field, operation, schema/type/property/relation/assertion/evidence identity and
+replacement allocation. Election atomically compares the latest step attempt; concurrent callers
+recover one winner. Unknown provider outcomes are resolved against the frozen request before any
+successor is elected. Rejected attempts remain a reported stop; this protocol does not silently
+retry them or alter their operations.
+
+The schema commits first. Selected mapping steps follow through ordinary `Propose`, `Validate`
+and `Commit`. All selected corrections are one final atomic ordinary transaction, permitted only
+after every selected mapping has a verified commit. No partial correction list is progress, and
+no further application canonical writes follow that final correction commit. Empty correction
+lists create no correction step. This ordering preserves the original proposal's correction
+instructions while avoiding a partially executed correction list that could no longer be reviewed.
+The application uses the existing authenticated schema-review target when admitting corrections;
+it must not fabricate an attention-answer proof or relax ordinary unsigned correction rules.
+
+Every ordinary publication belonging to an application, including proposed, validated, rejected,
+stale and committed occurrences, carries a kernel-derived `ApplicationPublicationGuard`. It binds
+the application, step, exact attempt transaction, proposal bytes, effective review and human proof
+to the physical position of the proposal coordination stream. The guard appears once on the
+revision event. Client JSON carrying such a value confers no authority. The kernel reconstructs
+its authority from the pinned reviewer policy, verified human proof, retained proposal and source
+bytes, coherent canonical state, elected operations and current review stream prefix.
+
+The existing per-proposal review stream admits one additional physical event,
+`ekr.integrate.ApplicationPublicationRecorded`. Its generated payload repeats the guard and names
+the ordinary event ID, complete record hash, transaction and publication command. Its transaction
+must equal the guard's attempt and the elected attempt's transaction. It is published as a real,
+nonempty event in the same native atomic group as the ordinary revision event, objects and blobs.
+Its stream coordinates derive from trusted store/tenant/proposal identity. No arbitrary stream,
+empty compare-only append, reservation, second canonical writer or parallel attention queue is
+introduced.
+
+Both human review retention and application publication compare the same physical proposal-stream
+position. The typed `ProposalCoordinationRead` exposes contiguous positions and a closed union of
+reviews and application markers. Physical markers advance this cursor but never change the latest
+human decision, its audience-wide identity binding or `expected_previous_decision` proof digest.
+A review racing only markers may retry its physical compare-and-append while retaining its exact
+signed human predecessor. A newer rejection wins against an earlier prepared application request
+because that request still carries its old exact stream expectation. If the request committed
+before the rejection but its response was lost, exact native idempotency recovers the earlier
+result. This does not authorize another write after rejection.
+
+Guarded ordinary occurrences use `ekr.revision-event/6`; the optional `application` field is omitted
+from every older encoding and older canonical hash input. Unguarded historical event kinds and
+formats retain their existing replay rules. The guard contains no event or marker hash; the marker
+points to the event and complete kernel record, so there is no digest fixed-point requirement.
+`ekr.publication-preparation/7` freezes the exact native group with the required marker. Formats
+`/1` through `/6` retain their existing bytes and authority. In particular, `/6` remains the shared
+human-decision identity format from §105.16. Authorization permits only the precisely derived
+extra marker append. Resume never amends a previously elected native request.
+
+Cold/full replay must verify a one-to-one association between each guarded ordinary occurrence
+and its marker, the historical effective approval at that marker's prefix, exact step/attempt
+operations and the required retained evidence. It must refuse missing, duplicated, mismatched or
+out-of-order links. Generic transaction entry points cannot publish an elected application's
+transaction without its guard; the elected transaction identity remains linked to the application
+through propose, validate, commit and recovery. Merely omitting the optional field is not an
+escape from that obligation. The existing injected kernel authority checks this path, not a
+second store writer.
+
+An approval governs material effects, not an unconditional future write. Application-aware Show
+and Approve/Reject material retain the exact original proposal and bind verified committed-prefix
+publication references plus residual evidence, choices and effects. An initial review is checked
+against its original material and the permitted progress of its own elected plan. A later review
+observes the verified prefix at its own recorded basis. Application may extend that prefix only
+with exact approved remaining effects. Own schema/mapping commits therefore do not demand another
+answer solely because they happened; a coincidental external schema or fact change is never
+attributed to this application. Changed residual evidence, choices or effects requires renewed
+review. A newer approval for the same immutable proposal resumes the existing election and stable
+allocations. An operation change to an already frozen step requires a new proposal/election.
+These material checks are cross-record kernel obligations, not predicates supplied by the ESS
+validator.
+
+`RetainedMappingRecord` projects the existing MappingRecord fields plus its exact mapping bytes.
+The mapping digest is `ContentHash::of_bytes` of compact UTF-8 JSON serialized from the generated
+`EkrIntegrateKnowledgeMapping` data model by the pinned JSON codec, with no trailing newline. It
+hashes the mapping alone, not a record containing its own digest. The input proposal and source
+interpretation digests continue to address their independently retained exact original bytes.
+These bytes, cited evidence and observation bytes are verified and pinned at Provenance or
+stronger before their canonical use. Planned `CanonicalDerivationRecord` rows become canonical
+provenance only when their transaction commits. Each row requires actual admissible Evidence;
+its observation link is optional for HumanStatement-only sources, never invented. Several
+observation/evidence supports produce several real links. Replay reads independent immutable
+bytes and mapping records, never a live Interpretation entity or TransientGraph.
+
+`ApplicationRead` exposes elections, steps, attempts and verified publication history even before
+schema commit. Public `ApplicationReport` uses `Elected` with absent receipt ID and schema revision
+until that commit is confirmed. Its schema transaction is the current elected attempt before
+commit and the actual committed attempt afterward. Persisted ApplicationReceipt records remain
+post-schema-commit documents with mandatory committed transaction/revision references. Progress
+and remaining items are derived from actual linked commits even if recording a receipt crashed.
+A genuinely changed progress snapshot gets a fresh receipt ID; exact retry returns the existing
+snapshot without appending duplicates. `corrections_pending` prevents a report with no remaining
+mapping items from falsely claiming complete. Provider uncertainty, a preparation, or successful
+Propose/Validate is never reported as committed progress. A later stop preserves its confirmed
+prefix and pending work; completion requires the schema, all selected mappings and all selected
+corrections, with no further canonical writes on repetition.
+
+Required implementation probes include rejection racing a prepared publication, marker-only
+review races, missing/tampered cold-replay links, generic-commit bypass, stale-attempt succession,
+crashes before/after schema and item atomic groups, receipt loss after the final correction,
+qualified mapping identity, unrelated versus material basis changes, and newer approval resuming
+partial progress. The frozen old event/preparation fixtures must retain their original hashes.
+All are still implementation and conformance work after this contract amendment.
+
+### 105.17.1 Cursor observability and outstanding view scenarios
+
+Cursor invariants belong to the authoritative retained/read entities, not to the untrusted
+transport carriers. `ApplicationPublication.review_stream_version > 0`,
+`ProposalCoordinationOccurrence.stream_version > 0` and
+`ProposalCoordination.stream_version >= 0` preserve the exact three admission predicates.
+Their respective `ApplicationPublicationRecords`, `ProposalCoordinationOccurrenceRecords` and
+`ProposalCoordinationRecords` views publish those scalar fields alongside the complete existing
+generated records. Admission and replay also require every repeated scalar/identity to equal the
+corresponding transport field. Decoding an arbitrary transport value is not admitting a record.
+
+These entities fold the existing proposal stream and guarded ordinary occurrences. An application
+publication uses its actual ordinary event identity; a coordination occurrence uses the physical
+proposal/sequence address within the trusted tenant; the current coordination fold uses the
+retained proposal identity and includes empty streams at cursor zero. They require no additional
+persistence database and confer no independent write authority.
+
+ESS 0.52 cannot synthesize a global type-invariant witness through the carriers' list, union and
+optional positions. Publishing a view alone would still leave it without a declared lifecycle
+outcome that honestly creates the row: Apply is idempotent and a review append does not create an
+application marker. This amendment therefore transfers the same predicates to those explicit
+authority entities and publishes their scalar observations; it does not invent a create outcome
+or silently reduce the checks to comments. Current synthesis derives no lifecycle-subject scenario
+for these entities. Successful synthesis is consequently not execution of these invariants.
+
+F acceptance must add and execute these named authored view scenarios against both providers,
+including reopen/full replay where relevant:
+
+- `proposal_coordination_zero_and_positive_cursors_are_observable`: a retained proposal starts
+  at zero; real review/marker appends produce positive contiguous occurrence positions, and the
+  current-fold cursor equals the last verified position.
+- `invalid_application_and_coordination_cursors_are_refused`: zero/negative publication guards,
+  zero/negative occurrences, negative current cursors, mismatched repeated cursor fields and
+  broken sequence continuity are refused through actual admission/replay. Invalid transports
+  must never be projected as authority rows.
+- `application_publication_view_requires_exact_marker_links`: each application row has exactly
+  its real guarded ordinary occurrence and marker, with matching proposal, application, attempt,
+  event and complete-record identities; missing, extra and mismatched links fail on reopen.
+
+Those scenarios remain unexecuted contract obligations at this stage. They complement, rather
+than replace, the existing rejection-race, frozen-attempt and recovery acceptance requirements.

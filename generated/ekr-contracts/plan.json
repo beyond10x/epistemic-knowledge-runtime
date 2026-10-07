@@ -2,8 +2,8 @@
   "provenance": {
     "system": "ekr",
     "specification_version": "v1",
-    "source_digest": "7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11",
-    "contract_digest": "9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278"
+    "source_digest": "d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087",
+    "contract_digest": "ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130"
   },
   "scope": {
     "profile": "component-skeletons"
@@ -347,7 +347,49 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationElection.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationItemKey",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.integrate.ApplicationProgress",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationPublication.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationPublicationGuard",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationPublicationRecord",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationRead",
       "disposition": {
         "disposition": "generated"
       }
@@ -382,7 +424,49 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationStep",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationStepAttempt.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationStepElection.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationStepId",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ApplicationStepKind",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.integrate.CanonicalDerivation.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.CanonicalDerivationRecord",
       "disposition": {
         "disposition": "generated"
       }
@@ -725,6 +809,41 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.integrate.ProposalCoordination.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ProposalCoordinationEntry",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ProposalCoordinationOccurrence.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ProposalCoordinationRead",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.ProposalCoordinationRecord",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.integrate.ProposalEvidence.State",
       "disposition": {
         "disposition": "generated"
@@ -816,7 +935,35 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.integrate.RetainedApplicationAttempt",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.RetainedApplicationElection",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.RetainedApplicationStep",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.integrate.RetainedInterpretation",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.RetainedMappingRecord",
       "disposition": {
         "disposition": "generated"
       }
@@ -838,6 +985,13 @@
     {
       "kind": "domain_type",
       "source": "ekr.integrate.ReviewDecision",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.integrate.SchemaApplicationId",
       "disposition": {
         "disposition": "generated"
       }
@@ -2209,6 +2363,34 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.store.ApplicationAttemptRetention",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.store.ApplicationElectionRetention",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.store.ApplicationRetentionHistory",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.store.ApplicationStepRetention",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.store.NativeBlobWrite",
       "disposition": {
         "disposition": "generated"
@@ -3224,7 +3406,35 @@
     },
     {
       "kind": "entity_lifecycle",
+      "source": "ekr.integrate.ApplicationElection",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
+      "source": "ekr.integrate.ApplicationPublication",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
       "source": "ekr.integrate.ApplicationReceipt",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
+      "source": "ekr.integrate.ApplicationStepAttempt",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
+      "source": "ekr.integrate.ApplicationStepElection",
       "disposition": {
         "disposition": "generated"
       }
@@ -3274,6 +3484,20 @@
     {
       "kind": "entity_lifecycle",
       "source": "ekr.integrate.ProcessingReceipt",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
+      "source": "ekr.integrate.ProposalCoordination",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
+      "source": "ekr.integrate.ProposalCoordinationOccurrence",
       "disposition": {
         "disposition": "generated"
       }
@@ -3488,7 +3712,7 @@
           "class": "undetermined",
           "construct": "a typed response (`response:`)"
         },
-        "contract": "given `ekr.integrate.ApplySchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApplySchemaProposalResult`; `refused` externally decided (Before mutation require the referenced review to match proposal_id and exact proposal digest, to be Approved, and to be the latest trusted human decision for that proposal. Refuse changed digest/evidence/options/effects or incompatible base schema. A later failure after any commit produces a partial receipt, not a refusal.), error `ekr.integrate.KnowledgeRefused`"
+        "contract": "given `ekr.integrate.ApplySchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApplySchemaProposalResult`; `refused` externally decided (Before a new write require exact proposal id/digest, the latest trusted Approved review and its proof, policy, evidence/options/effects and source bytes. Renewed review is required when reviewed material changes; unrelated canonical advancement alone is not. Verify this election's committed prefix before comparing remaining approved effects; its own committed additions/mappings do not invalidate its review and an external coincidental effect is not its progress. Application-aware review binds verified own-prefix publication references and residual evidence/options/effects; proposal corrections remain immutable. Completion follows actual linked commits even if recording the receipt crashed. A newer approval of the same proposal resumes the election, never duplicates completed steps. Frozen operation changes require a new proposal/election, not mutation of an existing step. Unresolved or ambiguous mappings remain qualified pending work; no entity creation is inferred. A generic transaction command cannot publish an elected application transaction without its guard. Refuse before election when authorization is invalid; after election expose its actual status, and after any schema commit return a partial receipt instead of a fictitious rollback. Provider uncertainty is not a commit; cold/full replay must verify one-to-one marker links, retained proposal/source/mapping/evidence bytes and historical human authority.), error `ekr.integrate.KnowledgeRefused`"
       }
     },
     {
@@ -4653,6 +4877,20 @@
     },
     {
       "kind": "view_type",
+      "source": "ekr.integrate.ApplicationPublicationRecords",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "view_query",
+      "source": "ekr.integrate.ApplicationPublicationRecords",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "view_type",
       "source": "ekr.integrate.ApplicationReceiptRecords",
       "disposition": {
         "disposition": "generated"
@@ -4745,6 +4983,34 @@
     {
       "kind": "view_query",
       "source": "ekr.integrate.ProcessingReceiptRecords",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "view_type",
+      "source": "ekr.integrate.ProposalCoordinationOccurrenceRecords",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "view_query",
+      "source": "ekr.integrate.ProposalCoordinationOccurrenceRecords",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "view_type",
+      "source": "ekr.integrate.ProposalCoordinationRecords",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "view_query",
+      "source": "ekr.integrate.ProposalCoordinationRecords",
       "disposition": {
         "disposition": "generated"
       }

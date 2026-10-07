@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+// model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
+// contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
 // do not edit: regenerate with `ess synthesize`
 
 //! What the specification fully determines, generated: the behaviour of every command the plan
@@ -54,6 +54,24 @@ pub trait EvidenceStorage {
     /// Every stored instance, in the order the store keeps them: the order a generated query
     /// answers an unordered view in.
     fn list(&self) -> Vec<crate::graph::EvidenceSnapshot>;
+}
+
+/// Where `ekr.integrate.ApplicationPublication` is stored — a port the implementor provides.
+///
+/// Keyed by the identity `event_id`. ess generates this trait and never an implementation of it.
+pub trait ApplicationPublicationStorage {
+    /// The instance with this identity, or `None` where none is stored.
+    fn get(&self, identity: &crate::kernel::EventId) -> Option<crate::integrate::ApplicationPublicationSnapshot>;
+
+    /// Stores this instance under its identity, replacing what was held.
+    fn put(&mut self, snapshot: crate::integrate::ApplicationPublicationSnapshot);
+
+    /// Removes the instance with this identity.
+    fn delete(&mut self, identity: &crate::kernel::EventId);
+
+    /// Every stored instance, in the order the store keeps them: the order a generated query
+    /// answers an unordered view in.
+    fn list(&self) -> Vec<crate::integrate::ApplicationPublicationSnapshot>;
 }
 
 /// Where `ekr.integrate.ApplicationReceipt` is stored — a port the implementor provides.
@@ -180,6 +198,42 @@ pub trait ProcessingReceiptStorage {
     /// Every stored instance, in the order the store keeps them: the order a generated query
     /// answers an unordered view in.
     fn list(&self) -> Vec<crate::integrate::ProcessingReceiptEntitySnapshot>;
+}
+
+/// Where `ekr.integrate.ProposalCoordination` is stored — a port the implementor provides.
+///
+/// Keyed by the identity `proposal_id`. ess generates this trait and never an implementation of it.
+pub trait ProposalCoordinationStorage {
+    /// The instance with this identity, or `None` where none is stored.
+    fn get(&self, identity: &crate::integrate::SchemaProposalId) -> Option<crate::integrate::ProposalCoordinationSnapshot>;
+
+    /// Stores this instance under its identity, replacing what was held.
+    fn put(&mut self, snapshot: crate::integrate::ProposalCoordinationSnapshot);
+
+    /// Removes the instance with this identity.
+    fn delete(&mut self, identity: &crate::integrate::SchemaProposalId);
+
+    /// Every stored instance, in the order the store keeps them: the order a generated query
+    /// answers an unordered view in.
+    fn list(&self) -> Vec<crate::integrate::ProposalCoordinationSnapshot>;
+}
+
+/// Where `ekr.integrate.ProposalCoordinationOccurrence` is stored — a port the implementor provides.
+///
+/// Keyed by the identity `occurrence_key`. ess generates this trait and never an implementation of it.
+pub trait ProposalCoordinationOccurrenceStorage {
+    /// The instance with this identity, or `None` where none is stored.
+    fn get(&self, identity: &String) -> Option<crate::integrate::ProposalCoordinationOccurrenceSnapshot>;
+
+    /// Stores this instance under its identity, replacing what was held.
+    fn put(&mut self, snapshot: crate::integrate::ProposalCoordinationOccurrenceSnapshot);
+
+    /// Removes the instance with this identity.
+    fn delete(&mut self, identity: &String);
+
+    /// Every stored instance, in the order the store keeps them: the order a generated query
+    /// answers an unordered view in.
+    fn list(&self) -> Vec<crate::integrate::ProposalCoordinationOccurrenceSnapshot>;
 }
 
 /// Where `ekr.integrate.ProposalEvidence` is stored — a port the implementor provides.
@@ -748,6 +802,28 @@ where
     }
 }
 
+/// `ekr.integrate.ApplicationPublicationRecords`, generated: every row is one the specification fully determines from the stored `ekr.integrate.ApplicationPublication`s.
+impl<P> crate::integrate::obligations::ApplicationPublicationRecordsQuery for Generated<P>
+where
+    P: ApplicationPublicationStorage,
+{
+    fn application_publication_records(&self) -> Result<Vec<crate::integrate::ApplicationPublicationRecords>, UnmetObligation> {
+        let admitted = ApplicationPublicationStorage::list(&self.ports);
+        Ok(admitted
+            .into_iter()
+            .map(|held| crate::integrate::ApplicationPublicationRecords {
+                event_id: held.data.event_id,
+                state: held.state,
+                proposal_id: held.data.proposal_id,
+                application_id: held.data.application_id,
+                transaction_id: held.data.transaction_id,
+                review_stream_version: held.data.review_stream_version,
+                publication: held.data.publication,
+            })
+            .collect())
+    }
+}
+
 /// `ekr.integrate.ApplicationReceiptRecords`, generated: every row is one the specification fully determines from the stored `ekr.integrate.ApplicationReceipt`s.
 impl<P> crate::integrate::obligations::ApplicationReceiptRecordsQuery for Generated<P>
 where
@@ -758,6 +834,7 @@ where
         Ok(admitted
             .into_iter()
             .map(|held| crate::integrate::ApplicationReceiptRecords {
+                application_id: held.data.application_id,
                 receipt_id: held.data.receipt_id,
                 state: held.state,
                 proposal_id: held.data.proposal_id,
@@ -767,6 +844,7 @@ where
                 schema_revision: held.data.schema_revision,
                 processing_receipts: held.data.processing_receipts,
                 remaining_items: held.data.remaining_items,
+                corrections_pending: held.data.corrections_pending,
                 stop_reason: held.data.stop_reason,
             })
             .collect())
@@ -898,6 +976,45 @@ where
                 transaction_id: held.data.transaction_id,
                 assertions: held.data.assertions,
                 basis_digest: held.data.basis_digest,
+            })
+            .collect())
+    }
+}
+
+/// `ekr.integrate.ProposalCoordinationOccurrenceRecords`, generated: every row is one the specification fully determines from the stored `ekr.integrate.ProposalCoordinationOccurrence`s.
+impl<P> crate::integrate::obligations::ProposalCoordinationOccurrenceRecordsQuery for Generated<P>
+where
+    P: ProposalCoordinationOccurrenceStorage,
+{
+    fn proposal_coordination_occurrence_records(&self) -> Result<Vec<crate::integrate::ProposalCoordinationOccurrenceRecords>, UnmetObligation> {
+        let admitted = ProposalCoordinationOccurrenceStorage::list(&self.ports);
+        Ok(admitted
+            .into_iter()
+            .map(|held| crate::integrate::ProposalCoordinationOccurrenceRecords {
+                occurrence_key: held.data.occurrence_key,
+                state: held.state,
+                proposal_id: held.data.proposal_id,
+                stream_version: held.data.stream_version,
+                entry: held.data.entry,
+            })
+            .collect())
+    }
+}
+
+/// `ekr.integrate.ProposalCoordinationRecords`, generated: every row is one the specification fully determines from the stored `ekr.integrate.ProposalCoordination`s.
+impl<P> crate::integrate::obligations::ProposalCoordinationRecordsQuery for Generated<P>
+where
+    P: ProposalCoordinationStorage,
+{
+    fn proposal_coordination_records(&self) -> Result<Vec<crate::integrate::ProposalCoordinationRecords>, UnmetObligation> {
+        let admitted = ProposalCoordinationStorage::list(&self.ports);
+        Ok(admitted
+            .into_iter()
+            .map(|held| crate::integrate::ProposalCoordinationRecords {
+                proposal_id: held.data.proposal_id,
+                state: held.state,
+                stream_version: held.data.stream_version,
+                history: held.data.history,
             })
             .collect())
     }

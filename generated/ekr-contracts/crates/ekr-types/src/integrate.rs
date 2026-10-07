@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+// model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
+// contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
 // do not edit: regenerate with `ess synthesize`
 
 //! Integrate — `ekr.integrate`.
@@ -36,9 +36,32 @@ pub struct AmbiguousReference {
     pub candidates: Vec<crate::graph::NodeId>,
 }
 
+/// The states of `ekr.integrate.ApplicationElection`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `ApplicationElection<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationElectionState {
+    /// `Elected`.
+    Elected,
+}
+
+/// ApplicationItemKey — `ekr.integrate.ApplicationItemKey`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationItemKey {
+    /// `source` — `ekr.integrate.InterpretationVersion`.
+    pub source: InterpretationVersion,
+    /// `item` — `String`.
+    pub item: String,
+    /// `mapping_digest` — `ekr.kernel.ContentHash`.
+    pub mapping_digest: crate::kernel::ContentHash,
+}
+
 /// ApplicationProgress — `ekr.integrate.ApplicationProgress`: one of a closed set of names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationProgress {
+    /// `Elected`.
+    Elected,
     /// `SchemaCommitted`.
     SchemaCommitted,
     /// `FactsInProgress`.
@@ -47,6 +70,73 @@ pub enum ApplicationProgress {
     Complete,
     /// `Partial`.
     Partial,
+}
+
+/// The states of `ekr.integrate.ApplicationPublication`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `ApplicationPublication<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationPublicationState {
+    /// `Recorded`.
+    Recorded,
+}
+
+/// ApplicationPublicationGuard — `ekr.integrate.ApplicationPublicationGuard`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationPublicationGuard {
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
+    /// `step_election_id` — `ekr.integrate.ApplicationStepId`.
+    pub step_election_id: ApplicationStepId,
+    /// `attempt_transaction` — `ekr.kernel.TransactionId`.
+    pub attempt_transaction: crate::kernel::TransactionId,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `review_id` — `ekr.integrate.ProposalReviewId`.
+    pub review_id: ProposalReviewId,
+    /// `human_proof_digest` — `ekr.kernel.ContentHash`.
+    pub human_proof_digest: crate::kernel::ContentHash,
+    /// `review_stream_version` — `Integer`.
+    pub review_stream_version: i64,
+    /// `step` — `ekr.integrate.ApplicationStep`.
+    pub step: ApplicationStep,
+}
+
+/// ApplicationPublicationRecord — `ekr.integrate.ApplicationPublicationRecord`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationPublicationRecord {
+    /// `guard` — `ekr.integrate.ApplicationPublicationGuard`.
+    pub guard: ApplicationPublicationGuard,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: crate::kernel::TransactionId,
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: crate::kernel::EventId,
+    /// `record_hash` — `ekr.kernel.ContentHash`.
+    pub record_hash: crate::kernel::ContentHash,
+    /// `command` — `ekr.store.PublicationCommandKind`.
+    pub command: crate::store::PublicationCommandKind,
+}
+
+/// ApplicationRead — `ekr.integrate.ApplicationRead`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationRead {
+    /// `election` — `ekr.integrate.RetainedApplicationElection`.
+    pub election: RetainedApplicationElection,
+    /// `steps` — `List<ekr.integrate.RetainedApplicationStep>`.
+    pub steps: Vec<RetainedApplicationStep>,
+    /// `attempts` — `List<ekr.integrate.RetainedApplicationAttempt>`.
+    pub attempts: Vec<RetainedApplicationAttempt>,
+    /// `publications` — `List<ekr.integrate.ApplicationPublicationRecord>`.
+    pub publications: Vec<ApplicationPublicationRecord>,
+    /// `receipts` — `List<ekr.integrate.ApplicationReceiptSnapshot>`.
+    pub receipts: Vec<ApplicationReceiptSnapshot>,
+    /// `remaining_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub remaining_items: Vec<ApplicationItemKey>,
+    /// `corrections_pending` — `Boolean`.
+    pub corrections_pending: bool,
 }
 
 /// The states of `ekr.integrate.ApplicationReceipt`, as runtime values.
@@ -66,6 +156,8 @@ pub struct ApplicationReceiptId(pub crate::primitives::Uuid);
 /// ApplicationReceiptSnapshot — `ekr.integrate.ApplicationReceiptSnapshot`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationReceiptSnapshot {
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
     /// `receipt_id` — `ekr.integrate.ApplicationReceiptId`.
     pub receipt_id: ApplicationReceiptId,
     /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
@@ -80,8 +172,10 @@ pub struct ApplicationReceiptSnapshot {
     pub schema_revision: crate::kernel::RevisionNumber,
     /// `processing_receipts` — `List<ekr.integrate.ProcessingReceiptId>`.
     pub processing_receipts: Vec<ProcessingReceiptId>,
-    /// `remaining_items` — `List<String>`.
-    pub remaining_items: Vec<String>,
+    /// `remaining_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub remaining_items: Vec<ApplicationItemKey>,
+    /// `corrections_pending` — `Boolean`.
+    pub corrections_pending: bool,
     /// `stop_reason` — `Optional<String>`.
     pub stop_reason: Option<String>,
 }
@@ -89,22 +183,70 @@ pub struct ApplicationReceiptSnapshot {
 /// ApplicationReport — `ekr.integrate.ApplicationReport`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationReport {
-    /// `receipt_id` — `ekr.integrate.ApplicationReceiptId`.
-    pub receipt_id: ApplicationReceiptId,
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
+    /// `receipt_id` — `Optional<ekr.integrate.ApplicationReceiptId>`.
+    pub receipt_id: Option<ApplicationReceiptId>,
     /// `progress` — `ekr.integrate.ApplicationProgress`.
     pub progress: ApplicationProgress,
     /// `schema_transaction` — `ekr.kernel.TransactionId`.
     pub schema_transaction: crate::kernel::TransactionId,
-    /// `schema_revision` — `ekr.kernel.RevisionNumber`.
-    pub schema_revision: crate::kernel::RevisionNumber,
+    /// `schema_revision` — `Optional<ekr.kernel.RevisionNumber>`.
+    pub schema_revision: Option<crate::kernel::RevisionNumber>,
     /// `items` — `List<ekr.integrate.IntegrationItemReceipt>`.
     pub items: Vec<IntegrationItemReceipt>,
-    /// `remaining_items` — `List<String>`.
-    pub remaining_items: Vec<String>,
+    /// `remaining_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub remaining_items: Vec<ApplicationItemKey>,
+    /// `corrections_pending` — `Boolean`.
+    pub corrections_pending: bool,
     /// `stop_reason` — `Optional<String>`.
     pub stop_reason: Option<String>,
     /// `already_complete` — `Boolean`.
     pub already_complete: bool,
+}
+
+/// ApplicationStep — `ekr.integrate.ApplicationStep`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStep {
+    /// `kind` — `ekr.integrate.ApplicationStepKind`.
+    pub kind: ApplicationStepKind,
+    /// `item` — `Optional<ekr.integrate.ApplicationItemKey>`.
+    pub item: Option<ApplicationItemKey>,
+}
+
+/// The states of `ekr.integrate.ApplicationStepAttempt`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `ApplicationStepAttempt<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationStepAttemptState {
+    /// `Elected`.
+    Elected,
+}
+
+/// The states of `ekr.integrate.ApplicationStepElection`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `ApplicationStepElection<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationStepElectionState {
+    /// `Elected`.
+    Elected,
+}
+
+/// ApplicationStepId — `ekr.integrate.ApplicationStepId`: a distinct wrapper around `Uuid`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStepId(pub crate::primitives::Uuid);
+
+/// ApplicationStepKind — `ekr.integrate.ApplicationStepKind`: one of a closed set of names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationStepKind {
+    /// `Schema`.
+    Schema,
+    /// `Mapping`.
+    Mapping,
+    /// `Corrections`.
+    Corrections,
 }
 
 /// The states of `ekr.integrate.CanonicalDerivation`, as runtime values.
@@ -115,6 +257,21 @@ pub struct ApplicationReport {
 pub enum CanonicalDerivationState {
     /// `Recorded`.
     Recorded,
+}
+
+/// CanonicalDerivationRecord — `ekr.integrate.CanonicalDerivationRecord`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalDerivationRecord {
+    /// `derivation_id` — `Uuid`.
+    pub derivation_id: crate::primitives::Uuid,
+    /// `assertion_id` — `ekr.graph.AssertionId`.
+    pub assertion_id: crate::graph::AssertionId,
+    /// `mapping_id` — `ekr.integrate.MappingRecordId`.
+    pub mapping_id: MappingRecordId,
+    /// `observation_id` — `Optional<ekr.graph.ObservationId>`.
+    pub observation_id: Option<crate::graph::ObservationId>,
+    /// `evidence_id` — `ekr.graph.EvidenceId`.
+    pub evidence_id: crate::graph::EvidenceId,
 }
 
 /// CommittedExtraction — `ekr.integrate.CommittedExtraction`.
@@ -680,6 +837,55 @@ pub struct PropertySpec {
     pub required: bool,
 }
 
+/// The states of `ekr.integrate.ProposalCoordination`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `ProposalCoordination<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProposalCoordinationState {
+    /// `Observed`.
+    Observed,
+}
+
+/// ProposalCoordinationEntry — `ekr.integrate.ProposalCoordinationEntry`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationEntry {
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `record` — `ekr.integrate.ProposalCoordinationRecord`.
+    pub record: ProposalCoordinationRecord,
+}
+
+/// The states of `ekr.integrate.ProposalCoordinationOccurrence`, as runtime values.
+///
+/// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
+/// carried here — it is carried by `ProposalCoordinationOccurrence<S>`, where an undeclared move does not compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProposalCoordinationOccurrenceState {
+    /// `Recorded`.
+    Recorded,
+}
+
+/// ProposalCoordinationRead — `ekr.integrate.ProposalCoordinationRead`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationRead {
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `entries` — `List<ekr.integrate.ProposalCoordinationEntry>`.
+    pub entries: Vec<ProposalCoordinationEntry>,
+}
+
+/// ProposalCoordinationRecord — `ekr.integrate.ProposalCoordinationRecord`: one of a fixed set of shapes, tagged on the wire by `kind`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProposalCoordinationRecord {
+    /// Tagged `ApplicationPublicationRecorded` — `ekr.integrate.ApplicationPublicationRecord`.
+    ApplicationPublicationRecorded(ApplicationPublicationRecord),
+    /// Tagged `ProposalReviewRetained` — `ekr.integrate.RetainedProposalReview`.
+    ProposalReviewRetained(RetainedProposalReview),
+}
+
 /// The states of `ekr.integrate.ProposalEvidence`, as runtime values.
 ///
 /// Synthesised from the lifecycle, so the two cannot disagree. Which *moves* are legal is not
@@ -822,6 +1028,67 @@ pub struct ResolvedReference {
     pub node_id: crate::graph::NodeId,
 }
 
+/// RetainedApplicationAttempt — `ekr.integrate.RetainedApplicationAttempt`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedApplicationAttempt {
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: crate::kernel::TransactionId,
+    /// `step_election_id` — `ekr.integrate.ApplicationStepId`.
+    pub step_election_id: ApplicationStepId,
+    /// `predecessor_transaction` — `Optional<ekr.kernel.TransactionId>`.
+    pub predecessor_transaction: Option<crate::kernel::TransactionId>,
+    /// `predecessor_record_hash` — `Optional<ekr.kernel.ContentHash>`.
+    pub predecessor_record_hash: Option<crate::kernel::ContentHash>,
+    /// `transaction` — `ekr.kernel.CanonicalTransactionProjection`.
+    pub transaction: crate::kernel::CanonicalTransactionProjection,
+    /// `elected_at` — `Timestamp`.
+    pub elected_at: crate::primitives::Timestamp,
+}
+
+/// RetainedApplicationElection — `ekr.integrate.RetainedApplicationElection`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedApplicationElection {
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `initial_review_id` — `ekr.integrate.ProposalReviewId`.
+    pub initial_review_id: ProposalReviewId,
+    /// `initial_proof_digest` — `ekr.kernel.ContentHash`.
+    pub initial_proof_digest: crate::kernel::ContentHash,
+    /// `base_schema` — `ekr.ontology.SchemaVersionId`.
+    pub base_schema: crate::ontology::SchemaVersionId,
+    /// `elected_at` — `Timestamp`.
+    pub elected_at: crate::primitives::Timestamp,
+    /// `schema_transaction` — `ekr.kernel.CanonicalTransactionProjection`.
+    pub schema_transaction: crate::kernel::CanonicalTransactionProjection,
+    /// `selected_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub selected_items: Vec<ApplicationItemKey>,
+}
+
+/// RetainedApplicationStep — `ekr.integrate.RetainedApplicationStep`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedApplicationStep {
+    /// `step_election_id` — `ekr.integrate.ApplicationStepId`.
+    pub step_election_id: ApplicationStepId,
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
+    /// `step` — `ekr.integrate.ApplicationStep`.
+    pub step: ApplicationStep,
+    /// `transaction` — `ekr.kernel.CanonicalTransactionProjection`.
+    pub transaction: crate::kernel::CanonicalTransactionProjection,
+    /// `replacements` — `List<ekr.kernel.ClaimReplacement>`.
+    pub replacements: Vec<crate::kernel::ClaimReplacement>,
+    /// `mappings` — `List<ekr.integrate.RetainedMappingRecord>`.
+    pub mappings: Vec<RetainedMappingRecord>,
+    /// `derivations` — `List<ekr.integrate.CanonicalDerivationRecord>`.
+    pub derivations: Vec<CanonicalDerivationRecord>,
+    /// `elected_at` — `Timestamp`.
+    pub elected_at: crate::primitives::Timestamp,
+}
+
 /// RetainedInterpretation — `ekr.integrate.RetainedInterpretation`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedInterpretation {
@@ -833,6 +1100,25 @@ pub struct RetainedInterpretation {
     pub payload: Vec<u8>,
     /// `root` — `ekr.graph.GraphRootRecord`.
     pub root: crate::graph::GraphRootRecord,
+}
+
+/// RetainedMappingRecord — `ekr.integrate.RetainedMappingRecord`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedMappingRecord {
+    /// `mapping_id` — `ekr.integrate.MappingRecordId`.
+    pub mapping_id: MappingRecordId,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `mapping_digest` — `ekr.kernel.ContentHash`.
+    pub mapping_digest: crate::kernel::ContentHash,
+    /// `source_document_digest` — `ekr.kernel.ContentHash`.
+    pub source_document_digest: crate::kernel::ContentHash,
+    /// `mapping` — `ekr.integrate.KnowledgeMapping`.
+    pub mapping: KnowledgeMapping,
+    /// `evidence` — `List<ekr.graph.EvidenceId>`.
+    pub evidence: Vec<crate::graph::EvidenceId>,
+    /// `payload` — `Bytes`.
+    pub payload: Vec<u8>,
 }
 
 /// RetainedProposalReview — `ekr.integrate.RetainedProposalReview`.
@@ -869,6 +1155,10 @@ pub enum ReviewDecision {
     /// `Rejected`.
     Rejected,
 }
+
+/// SchemaApplicationId — `ekr.integrate.SchemaApplicationId`: a distinct wrapper around `Uuid`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaApplicationId(pub crate::primitives::Uuid);
 
 /// SchemaLearningRequest — `ekr.integrate.SchemaLearningRequest`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -953,6 +1243,8 @@ pub struct SchemaProposalRead {
     pub basis: crate::kernel::ReviewBasis,
     /// `expected_previous_decision` — `Optional<ekr.kernel.ContentHash>`.
     pub expected_previous_decision: Option<crate::kernel::ContentHash>,
+    /// `application` — `Optional<ekr.integrate.ApplicationRead>`.
+    pub application: Option<ApplicationRead>,
 }
 
 /// SchemaProposalReviewApplication — `ekr.integrate.SchemaProposalReviewApplication`.
@@ -1008,6 +1300,314 @@ pub struct ValueSpec {
     pub fields: Option<std::collections::BTreeMap<String, std::boxed::Box<ValueSpec>>>,
 }
 
+/// What ApplicationElection — `ekr.integrate.ApplicationElection` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`ApplicationElection<S>`], and at a boundary by [`ApplicationElectionSnapshot::state`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationElectionData {
+    /// The identity: `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    ///
+    /// Carries `proposal`: `ekr.integrate.ApplicationElection` references one `ekr.integrate.SchemaProposal`.
+    pub proposal_id: SchemaProposalId,
+    /// `proposal_digest` — `ekr.kernel.ContentHash`.
+    ///
+    /// Carries `proposal_bytes`: `ekr.integrate.ApplicationElection` references one `ekr.store.StoredObject`.
+    pub proposal_digest: crate::kernel::ContentHash,
+    /// `initial_review_id` — `ekr.integrate.ProposalReviewId`.
+    ///
+    /// Carries `initial_review`: `ekr.integrate.ApplicationElection` references one `ekr.integrate.ProposalReview`.
+    pub initial_review_id: ProposalReviewId,
+    /// `initial_proof_digest` — `ekr.kernel.ContentHash`.
+    pub initial_proof_digest: crate::kernel::ContentHash,
+    /// `base_schema` — `ekr.ontology.SchemaVersionId`.
+    pub base_schema: crate::ontology::SchemaVersionId,
+    /// `elected_at` — `Timestamp`.
+    pub elected_at: crate::primitives::Timestamp,
+    /// `schema_transaction` — `ekr.kernel.CanonicalTransactionProjection`.
+    pub schema_transaction: crate::kernel::CanonicalTransactionProjection,
+    /// `selected_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub selected_items: Vec<ApplicationItemKey>,
+}
+
+/// The states of `ekr.integrate.ApplicationElection`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](application_election_state::Marker), so [`ApplicationElection<S>`](ApplicationElection) can only ever rest in a real state.
+pub mod application_election_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Elected {}
+    }
+
+    /// A declared state of `ApplicationElection`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::ApplicationElectionState;
+    }
+
+    /// `Elected`. Where a new instance starts.
+    pub struct Elected;
+
+    impl Marker for Elected {
+        const STATE: super::ApplicationElectionState = super::ApplicationElectionState::Elected;
+    }
+}
+
+/// ApplicationElection — `ekr.integrate.ApplicationElection` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Elected`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`ApplicationElectionSnapshot`]
+/// and [`ApplicationElectionSnapshot::refine`].
+pub struct ApplicationElection<S: application_election_state::Marker> {
+    data: ApplicationElectionData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: application_election_state::Marker> ApplicationElection<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> ApplicationElectionState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &ApplicationElectionData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> ApplicationElectionData {
+        self.data
+    }
+}
+
+impl ApplicationElection<application_election_state::Elected> {
+    /// A new instance, resting in `Elected` — the only state the lifecycle starts one in.
+    pub fn new(data: ApplicationElectionData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.integrate.ApplicationElection` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`ApplicationElectionSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationElectionSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: ApplicationElectionState,
+    /// What it holds.
+    pub data: ApplicationElectionData,
+}
+
+/// An `ApplicationElection` in whichever declared state it was found.
+pub enum AnyApplicationElection {
+    /// Resting in `Elected`.
+    Elected(ApplicationElection<application_election_state::Elected>),
+}
+
+impl ApplicationElectionSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `ApplicationElectionState` cannot spell one.
+    pub fn refine(self) -> AnyApplicationElection {
+        match self.state {
+            ApplicationElectionState::Elected => AnyApplicationElection::Elected(ApplicationElection {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyApplicationElection {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> ApplicationElectionState {
+        match self {
+            Self::Elected(_) => ApplicationElectionState::Elected,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> ApplicationElectionSnapshot {
+        match self {
+            Self::Elected(instance) => ApplicationElectionSnapshot {
+                state: ApplicationElectionState::Elected,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
+/// What ApplicationPublication — `ekr.integrate.ApplicationPublication` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`ApplicationPublication<S>`], and at a boundary by [`ApplicationPublicationSnapshot::state`].
+///
+/// Every value satisfies `review_stream_version > 0` — checked by [`ApplicationPublicationData::broken_invariant`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationPublicationData {
+    /// The identity: `event_id` — `ekr.kernel.EventId`.
+    pub event_id: crate::kernel::EventId,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    ///
+    /// Carries `proposal`: `ekr.integrate.ApplicationPublication` references one `ekr.integrate.SchemaProposal`.
+    pub proposal_id: SchemaProposalId,
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    ///
+    /// Carries `application`: `ekr.integrate.ApplicationPublication` references one `ekr.integrate.ApplicationElection`.
+    pub application_id: SchemaApplicationId,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    ///
+    /// Carries `transaction`: `ekr.integrate.ApplicationPublication` references one `ekr.kernel.GraphTransaction`.
+    pub transaction_id: crate::kernel::TransactionId,
+    /// `review_stream_version` — `Integer`.
+    pub review_stream_version: i64,
+    /// `publication` — `ekr.integrate.ApplicationPublicationRecord`.
+    pub publication: ApplicationPublicationRecord,
+}
+
+impl ApplicationPublicationData {
+    /// The first declared invariant of `ekr.integrate.ApplicationPublication` this value breaks, as the specification declares it,
+    /// or `None` when it breaks none.
+    ///
+    /// An invariant is broken only when it is false of this value. One that reads something
+    /// absent — an empty `Optional`, a list position past the end, or `state`, which this
+    /// type does not hold — decides nothing, as the conformance interpreter reads it.
+    pub fn broken_invariant(&self) -> Option<&'static str> {
+        use crate::primitives::invariant as iv;
+        if iv::broken(iv::compare(Some(iv::Fact::integer(self.review_stream_version)), iv::Op::Gt, iv::Fact::number("0"), false, true)) {
+            return Some("review_stream_version > 0");
+        }
+        None
+    }
+}
+
+/// The states of `ekr.integrate.ApplicationPublication`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](application_publication_state::Marker), so [`ApplicationPublication<S>`](ApplicationPublication) can only ever rest in a real state.
+pub mod application_publication_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Recorded {}
+    }
+
+    /// A declared state of `ApplicationPublication`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::ApplicationPublicationState;
+    }
+
+    /// `Recorded`. Where a new instance starts.
+    pub struct Recorded;
+
+    impl Marker for Recorded {
+        const STATE: super::ApplicationPublicationState = super::ApplicationPublicationState::Recorded;
+    }
+}
+
+/// ApplicationPublication — `ekr.integrate.ApplicationPublication` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Recorded`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`ApplicationPublicationSnapshot`]
+/// and [`ApplicationPublicationSnapshot::refine`].
+pub struct ApplicationPublication<S: application_publication_state::Marker> {
+    data: ApplicationPublicationData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: application_publication_state::Marker> ApplicationPublication<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> ApplicationPublicationState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &ApplicationPublicationData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> ApplicationPublicationData {
+        self.data
+    }
+}
+
+impl ApplicationPublication<application_publication_state::Recorded> {
+    /// A new instance, resting in `Recorded` — the only state the lifecycle starts one in.
+    pub fn new(data: ApplicationPublicationData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.integrate.ApplicationPublication` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`ApplicationPublicationSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationPublicationSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: ApplicationPublicationState,
+    /// What it holds.
+    pub data: ApplicationPublicationData,
+}
+
+/// An `ApplicationPublication` in whichever declared state it was found.
+pub enum AnyApplicationPublication {
+    /// Resting in `Recorded`.
+    Recorded(ApplicationPublication<application_publication_state::Recorded>),
+}
+
+impl ApplicationPublicationSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `ApplicationPublicationState` cannot spell one.
+    pub fn refine(self) -> AnyApplicationPublication {
+        match self.state {
+            ApplicationPublicationState::Recorded => AnyApplicationPublication::Recorded(ApplicationPublication {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyApplicationPublication {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> ApplicationPublicationState {
+        match self {
+            Self::Recorded(_) => ApplicationPublicationState::Recorded,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> ApplicationPublicationSnapshot {
+        match self {
+            Self::Recorded(instance) => ApplicationPublicationSnapshot {
+                state: ApplicationPublicationState::Recorded,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
 /// What ApplicationReceipt — `ekr.integrate.ApplicationReceipt` — holds, apart from where it is in its lifecycle.
 ///
 /// The identity and every declared field. The state is deliberately not one: inside the domain it
@@ -1016,6 +1616,10 @@ pub struct ValueSpec {
 pub struct ApplicationReceiptData {
     /// The identity: `receipt_id` — `ekr.integrate.ApplicationReceiptId`.
     pub receipt_id: ApplicationReceiptId,
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    ///
+    /// Carries `application`: `ekr.integrate.ApplicationReceipt` references one `ekr.integrate.ApplicationElection`.
+    pub application_id: SchemaApplicationId,
     /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
     ///
     /// Carries `proposal`: `ekr.integrate.ApplicationReceipt` references one `ekr.integrate.SchemaProposal`.
@@ -1034,8 +1638,10 @@ pub struct ApplicationReceiptData {
     pub schema_revision: crate::kernel::RevisionNumber,
     /// `processing_receipts` — `List<ekr.integrate.ProcessingReceiptId>`.
     pub processing_receipts: Vec<ProcessingReceiptId>,
-    /// `remaining_items` — `List<String>`.
-    pub remaining_items: Vec<String>,
+    /// `remaining_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub remaining_items: Vec<ApplicationItemKey>,
+    /// `corrections_pending` — `Boolean`.
+    pub corrections_pending: bool,
     /// `stop_reason` — `Optional<String>`.
     pub stop_reason: Option<String>,
 }
@@ -1156,6 +1762,288 @@ impl AnyApplicationReceipt {
     }
 }
 
+/// What ApplicationStepAttempt — `ekr.integrate.ApplicationStepAttempt` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`ApplicationStepAttempt<S>`], and at a boundary by [`ApplicationStepAttemptSnapshot::state`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStepAttemptData {
+    /// The identity: `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: crate::kernel::TransactionId,
+    /// `step_election_id` — `ekr.integrate.ApplicationStepId`.
+    ///
+    /// Carries `step`: `ekr.integrate.ApplicationStepAttempt` references one `ekr.integrate.ApplicationStepElection`.
+    pub step_election_id: ApplicationStepId,
+    /// `predecessor_transaction` — `Optional<ekr.kernel.TransactionId>`.
+    ///
+    /// Carries `predecessor`: `ekr.integrate.ApplicationStepAttempt` references one `ekr.kernel.GraphTransaction`.
+    pub predecessor_transaction: Option<crate::kernel::TransactionId>,
+    /// `predecessor_record_hash` — `Optional<ekr.kernel.ContentHash>`.
+    pub predecessor_record_hash: Option<crate::kernel::ContentHash>,
+    /// `transaction` — `ekr.kernel.CanonicalTransactionProjection`.
+    pub transaction: crate::kernel::CanonicalTransactionProjection,
+    /// `elected_at` — `Timestamp`.
+    pub elected_at: crate::primitives::Timestamp,
+}
+
+/// The states of `ekr.integrate.ApplicationStepAttempt`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](application_step_attempt_state::Marker), so [`ApplicationStepAttempt<S>`](ApplicationStepAttempt) can only ever rest in a real state.
+pub mod application_step_attempt_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Elected {}
+    }
+
+    /// A declared state of `ApplicationStepAttempt`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::ApplicationStepAttemptState;
+    }
+
+    /// `Elected`. Where a new instance starts.
+    pub struct Elected;
+
+    impl Marker for Elected {
+        const STATE: super::ApplicationStepAttemptState = super::ApplicationStepAttemptState::Elected;
+    }
+}
+
+/// ApplicationStepAttempt — `ekr.integrate.ApplicationStepAttempt` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Elected`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`ApplicationStepAttemptSnapshot`]
+/// and [`ApplicationStepAttemptSnapshot::refine`].
+pub struct ApplicationStepAttempt<S: application_step_attempt_state::Marker> {
+    data: ApplicationStepAttemptData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: application_step_attempt_state::Marker> ApplicationStepAttempt<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> ApplicationStepAttemptState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &ApplicationStepAttemptData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> ApplicationStepAttemptData {
+        self.data
+    }
+}
+
+impl ApplicationStepAttempt<application_step_attempt_state::Elected> {
+    /// A new instance, resting in `Elected` — the only state the lifecycle starts one in.
+    pub fn new(data: ApplicationStepAttemptData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.integrate.ApplicationStepAttempt` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`ApplicationStepAttemptSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStepAttemptSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: ApplicationStepAttemptState,
+    /// What it holds.
+    pub data: ApplicationStepAttemptData,
+}
+
+/// An `ApplicationStepAttempt` in whichever declared state it was found.
+pub enum AnyApplicationStepAttempt {
+    /// Resting in `Elected`.
+    Elected(ApplicationStepAttempt<application_step_attempt_state::Elected>),
+}
+
+impl ApplicationStepAttemptSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `ApplicationStepAttemptState` cannot spell one.
+    pub fn refine(self) -> AnyApplicationStepAttempt {
+        match self.state {
+            ApplicationStepAttemptState::Elected => AnyApplicationStepAttempt::Elected(ApplicationStepAttempt {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyApplicationStepAttempt {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> ApplicationStepAttemptState {
+        match self {
+            Self::Elected(_) => ApplicationStepAttemptState::Elected,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> ApplicationStepAttemptSnapshot {
+        match self {
+            Self::Elected(instance) => ApplicationStepAttemptSnapshot {
+                state: ApplicationStepAttemptState::Elected,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
+/// What ApplicationStepElection — `ekr.integrate.ApplicationStepElection` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`ApplicationStepElection<S>`], and at a boundary by [`ApplicationStepElectionSnapshot::state`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStepElectionData {
+    /// The identity: `step_election_id` — `ekr.integrate.ApplicationStepId`.
+    pub step_election_id: ApplicationStepId,
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    ///
+    /// Carries `application`: `ekr.integrate.ApplicationStepElection` references one `ekr.integrate.ApplicationElection`.
+    pub application_id: SchemaApplicationId,
+    /// `step` — `ekr.integrate.ApplicationStep`.
+    pub step: ApplicationStep,
+    /// `transaction` — `ekr.kernel.CanonicalTransactionProjection`.
+    pub transaction: crate::kernel::CanonicalTransactionProjection,
+    /// `replacements` — `List<ekr.kernel.ClaimReplacement>`.
+    pub replacements: Vec<crate::kernel::ClaimReplacement>,
+    /// `mappings` — `List<ekr.integrate.RetainedMappingRecord>`.
+    pub mappings: Vec<RetainedMappingRecord>,
+    /// `derivations` — `List<ekr.integrate.CanonicalDerivationRecord>`.
+    pub derivations: Vec<CanonicalDerivationRecord>,
+    /// `elected_at` — `Timestamp`.
+    pub elected_at: crate::primitives::Timestamp,
+}
+
+/// The states of `ekr.integrate.ApplicationStepElection`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](application_step_election_state::Marker), so [`ApplicationStepElection<S>`](ApplicationStepElection) can only ever rest in a real state.
+pub mod application_step_election_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Elected {}
+    }
+
+    /// A declared state of `ApplicationStepElection`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::ApplicationStepElectionState;
+    }
+
+    /// `Elected`. Where a new instance starts.
+    pub struct Elected;
+
+    impl Marker for Elected {
+        const STATE: super::ApplicationStepElectionState = super::ApplicationStepElectionState::Elected;
+    }
+}
+
+/// ApplicationStepElection — `ekr.integrate.ApplicationStepElection` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Elected`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`ApplicationStepElectionSnapshot`]
+/// and [`ApplicationStepElectionSnapshot::refine`].
+pub struct ApplicationStepElection<S: application_step_election_state::Marker> {
+    data: ApplicationStepElectionData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: application_step_election_state::Marker> ApplicationStepElection<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> ApplicationStepElectionState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &ApplicationStepElectionData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> ApplicationStepElectionData {
+        self.data
+    }
+}
+
+impl ApplicationStepElection<application_step_election_state::Elected> {
+    /// A new instance, resting in `Elected` — the only state the lifecycle starts one in.
+    pub fn new(data: ApplicationStepElectionData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.integrate.ApplicationStepElection` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`ApplicationStepElectionSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStepElectionSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: ApplicationStepElectionState,
+    /// What it holds.
+    pub data: ApplicationStepElectionData,
+}
+
+/// An `ApplicationStepElection` in whichever declared state it was found.
+pub enum AnyApplicationStepElection {
+    /// Resting in `Elected`.
+    Elected(ApplicationStepElection<application_step_election_state::Elected>),
+}
+
+impl ApplicationStepElectionSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `ApplicationStepElectionState` cannot spell one.
+    pub fn refine(self) -> AnyApplicationStepElection {
+        match self.state {
+            ApplicationStepElectionState::Elected => AnyApplicationStepElection::Elected(ApplicationStepElection {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyApplicationStepElection {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> ApplicationStepElectionState {
+        match self {
+            Self::Elected(_) => ApplicationStepElectionState::Elected,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> ApplicationStepElectionSnapshot {
+        match self {
+            Self::Elected(instance) => ApplicationStepElectionSnapshot {
+                state: ApplicationStepElectionState::Elected,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
 /// What CanonicalDerivation — `ekr.integrate.CanonicalDerivation` — holds, apart from where it is in its lifecycle.
 ///
 /// The identity and every declared field. The state is deliberately not one: inside the domain it
@@ -1172,10 +2060,10 @@ pub struct CanonicalDerivationData {
     ///
     /// Carries `mapping`: `ekr.integrate.CanonicalDerivation` references one `ekr.integrate.MappingRecord`.
     pub mapping_id: MappingRecordId,
-    /// `observation_id` — `ekr.graph.ObservationId`.
+    /// `observation_id` — `Optional<ekr.graph.ObservationId>`.
     ///
     /// Carries `observation`: `ekr.integrate.CanonicalDerivation` references one `ekr.observe.RetainedObservation`.
-    pub observation_id: crate::graph::ObservationId,
+    pub observation_id: Option<crate::graph::ObservationId>,
     /// `evidence_id` — `ekr.graph.EvidenceId`.
     ///
     /// Carries `evidence`: `ekr.integrate.CanonicalDerivation` references one `ekr.graph.Evidence`.
@@ -2120,6 +3008,308 @@ impl AnyProcessingReceipt {
     }
 }
 
+/// What ProposalCoordination — `ekr.integrate.ProposalCoordination` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`ProposalCoordination<S>`], and at a boundary by [`ProposalCoordinationSnapshot::state`].
+///
+/// Every value satisfies `stream_version >= 0` — checked by [`ProposalCoordinationData::broken_invariant`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationData {
+    /// The identity: `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    ///
+    /// Carries `proposal`: `ekr.integrate.ProposalCoordination` references one `ekr.integrate.SchemaProposal`.
+    pub proposal_id: SchemaProposalId,
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `history` — `ekr.integrate.ProposalCoordinationRead`.
+    pub history: ProposalCoordinationRead,
+}
+
+impl ProposalCoordinationData {
+    /// The first declared invariant of `ekr.integrate.ProposalCoordination` this value breaks, as the specification declares it,
+    /// or `None` when it breaks none.
+    ///
+    /// An invariant is broken only when it is false of this value. One that reads something
+    /// absent — an empty `Optional`, a list position past the end, or `state`, which this
+    /// type does not hold — decides nothing, as the conformance interpreter reads it.
+    pub fn broken_invariant(&self) -> Option<&'static str> {
+        use crate::primitives::invariant as iv;
+        if iv::broken(iv::compare(Some(iv::Fact::integer(self.stream_version)), iv::Op::Ge, iv::Fact::number("0"), false, true)) {
+            return Some("stream_version >= 0");
+        }
+        None
+    }
+}
+
+/// The states of `ekr.integrate.ProposalCoordination`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](proposal_coordination_state::Marker), so [`ProposalCoordination<S>`](ProposalCoordination) can only ever rest in a real state.
+pub mod proposal_coordination_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Observed {}
+    }
+
+    /// A declared state of `ProposalCoordination`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::ProposalCoordinationState;
+    }
+
+    /// `Observed`. Where a new instance starts.
+    pub struct Observed;
+
+    impl Marker for Observed {
+        const STATE: super::ProposalCoordinationState = super::ProposalCoordinationState::Observed;
+    }
+}
+
+/// ProposalCoordination — `ekr.integrate.ProposalCoordination` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Observed`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`ProposalCoordinationSnapshot`]
+/// and [`ProposalCoordinationSnapshot::refine`].
+pub struct ProposalCoordination<S: proposal_coordination_state::Marker> {
+    data: ProposalCoordinationData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: proposal_coordination_state::Marker> ProposalCoordination<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> ProposalCoordinationState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &ProposalCoordinationData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> ProposalCoordinationData {
+        self.data
+    }
+}
+
+impl ProposalCoordination<proposal_coordination_state::Observed> {
+    /// A new instance, resting in `Observed` — the only state the lifecycle starts one in.
+    pub fn new(data: ProposalCoordinationData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.integrate.ProposalCoordination` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`ProposalCoordinationSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: ProposalCoordinationState,
+    /// What it holds.
+    pub data: ProposalCoordinationData,
+}
+
+/// An `ProposalCoordination` in whichever declared state it was found.
+pub enum AnyProposalCoordination {
+    /// Resting in `Observed`.
+    Observed(ProposalCoordination<proposal_coordination_state::Observed>),
+}
+
+impl ProposalCoordinationSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `ProposalCoordinationState` cannot spell one.
+    pub fn refine(self) -> AnyProposalCoordination {
+        match self.state {
+            ProposalCoordinationState::Observed => AnyProposalCoordination::Observed(ProposalCoordination {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyProposalCoordination {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> ProposalCoordinationState {
+        match self {
+            Self::Observed(_) => ProposalCoordinationState::Observed,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> ProposalCoordinationSnapshot {
+        match self {
+            Self::Observed(instance) => ProposalCoordinationSnapshot {
+                state: ProposalCoordinationState::Observed,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
+/// What ProposalCoordinationOccurrence — `ekr.integrate.ProposalCoordinationOccurrence` — holds, apart from where it is in its lifecycle.
+///
+/// The identity and every declared field. The state is deliberately not one: inside the domain it
+/// is carried by the type parameter of [`ProposalCoordinationOccurrence<S>`], and at a boundary by [`ProposalCoordinationOccurrenceSnapshot::state`].
+///
+/// Every value satisfies `stream_version > 0` — checked by [`ProposalCoordinationOccurrenceData::broken_invariant`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationOccurrenceData {
+    /// The identity: `occurrence_key` — `String`.
+    pub occurrence_key: String,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    ///
+    /// Carries `proposal`: `ekr.integrate.ProposalCoordinationOccurrence` references one `ekr.integrate.SchemaProposal`.
+    pub proposal_id: SchemaProposalId,
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `entry` — `ekr.integrate.ProposalCoordinationEntry`.
+    pub entry: ProposalCoordinationEntry,
+}
+
+impl ProposalCoordinationOccurrenceData {
+    /// The first declared invariant of `ekr.integrate.ProposalCoordinationOccurrence` this value breaks, as the specification declares it,
+    /// or `None` when it breaks none.
+    ///
+    /// An invariant is broken only when it is false of this value. One that reads something
+    /// absent — an empty `Optional`, a list position past the end, or `state`, which this
+    /// type does not hold — decides nothing, as the conformance interpreter reads it.
+    pub fn broken_invariant(&self) -> Option<&'static str> {
+        use crate::primitives::invariant as iv;
+        if iv::broken(iv::compare(Some(iv::Fact::integer(self.stream_version)), iv::Op::Gt, iv::Fact::number("0"), false, true)) {
+            return Some("stream_version > 0");
+        }
+        None
+    }
+}
+
+/// The states of `ekr.integrate.ProposalCoordinationOccurrence`, at the type level.
+///
+/// One marker type per declared state, sealed: a state the lifecycle does not declare cannot
+/// implement [`Marker`](proposal_coordination_occurrence_state::Marker), so [`ProposalCoordinationOccurrence<S>`](ProposalCoordinationOccurrence) can only ever rest in a real state.
+pub mod proposal_coordination_occurrence_state {
+    /// Closes [`Marker`] over the declared states.
+    mod sealed {
+        /// Implemented only by the marker types beside this module.
+        pub trait Sealed {}
+        impl Sealed for super::Recorded {}
+    }
+
+    /// A declared state of `ProposalCoordinationOccurrence`, as a type.
+    pub trait Marker: sealed::Sealed {
+        /// The same state, as the runtime value.
+        const STATE: super::ProposalCoordinationOccurrenceState;
+    }
+
+    /// `Recorded`. Where a new instance starts.
+    pub struct Recorded;
+
+    impl Marker for Recorded {
+        const STATE: super::ProposalCoordinationOccurrenceState = super::ProposalCoordinationOccurrenceState::Recorded;
+    }
+}
+
+/// ProposalCoordinationOccurrence — `ekr.integrate.ProposalCoordinationOccurrence` — with its lifecycle state carried by the type.
+///
+/// The one constructor rests in `Recorded`, and the only way to change `S` is a method generated from
+/// a declared transition. A move the specification does not declare is therefore not an error
+/// case: it does not compile. Where the state is data — wire, storage — use [`ProposalCoordinationOccurrenceSnapshot`]
+/// and [`ProposalCoordinationOccurrenceSnapshot::refine`].
+pub struct ProposalCoordinationOccurrence<S: proposal_coordination_occurrence_state::Marker> {
+    data: ProposalCoordinationOccurrenceData,
+    state: core::marker::PhantomData<S>,
+}
+
+impl<S: proposal_coordination_occurrence_state::Marker> ProposalCoordinationOccurrence<S> {
+    /// The state this instance rests in, as the runtime value.
+    pub fn state(&self) -> ProposalCoordinationOccurrenceState {
+        S::STATE
+    }
+
+    /// What it holds.
+    pub fn data(&self) -> &ProposalCoordinationOccurrenceData {
+        &self.data
+    }
+
+    /// Hands the data back, giving up the typed state.
+    pub fn into_data(self) -> ProposalCoordinationOccurrenceData {
+        self.data
+    }
+}
+
+impl ProposalCoordinationOccurrence<proposal_coordination_occurrence_state::Recorded> {
+    /// A new instance, resting in `Recorded` — the only state the lifecycle starts one in.
+    pub fn new(data: ProposalCoordinationOccurrenceData) -> Self {
+        Self {
+            data,
+            state: core::marker::PhantomData,
+        }
+    }
+}
+
+/// `ekr.integrate.ProposalCoordinationOccurrence` as it crosses a boundary: the state as a value beside the data.
+///
+/// Wire and storage know states only at runtime; [`ProposalCoordinationOccurrenceSnapshot::refine`] is the one door back
+/// into the typed lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationOccurrenceSnapshot {
+    /// Where the instance is in its lifecycle.
+    pub state: ProposalCoordinationOccurrenceState,
+    /// What it holds.
+    pub data: ProposalCoordinationOccurrenceData,
+}
+
+/// An `ProposalCoordinationOccurrence` in whichever declared state it was found.
+pub enum AnyProposalCoordinationOccurrence {
+    /// Resting in `Recorded`.
+    Recorded(ProposalCoordinationOccurrence<proposal_coordination_occurrence_state::Recorded>),
+}
+
+impl ProposalCoordinationOccurrenceSnapshot {
+    /// Refines the runtime state into the typed one.
+    ///
+    /// Total: every declared state has an arm, and an undeclared state cannot reach here because
+    /// `ProposalCoordinationOccurrenceState` cannot spell one.
+    pub fn refine(self) -> AnyProposalCoordinationOccurrence {
+        match self.state {
+            ProposalCoordinationOccurrenceState::Recorded => AnyProposalCoordinationOccurrence::Recorded(ProposalCoordinationOccurrence {
+                data: self.data,
+                state: core::marker::PhantomData,
+            }),
+        }
+    }
+}
+
+impl AnyProposalCoordinationOccurrence {
+    /// The state, as the runtime value.
+    pub fn state(&self) -> ProposalCoordinationOccurrenceState {
+        match self {
+            Self::Recorded(_) => ProposalCoordinationOccurrenceState::Recorded,
+        }
+    }
+
+    /// Back to the boundary shape.
+    pub fn snapshot(self) -> ProposalCoordinationOccurrenceSnapshot {
+        match self {
+            Self::Recorded(instance) => ProposalCoordinationOccurrenceSnapshot {
+                state: ProposalCoordinationOccurrenceState::Recorded,
+                data: instance.into_data(),
+            },
+        }
+    }
+}
+
 /// What ProposalEvidence — `ekr.integrate.ProposalEvidence` — holds, apart from where it is in its lifecycle.
 ///
 /// The identity and every declared field. The state is deliberately not one: inside the domain it
@@ -3000,12 +4190,12 @@ pub struct ApplySchemaProposalResponse {
 pub enum ApplySchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Revalidate the exact approved additions/mappings/corrections and latest effective review before each canonical write; a later rejection stops application/resume and reports confirmed partial progress. Commit schema with evidence first, then selected facts and corrections by ordinary validated transactions. Return durable partial progress on interruption; reconcile receipts and resume without duplicates.
+    /// Revalidate the exact approved additions/mappings/corrections and latest effective review. Atomically elect one immutable application per proposal digest and freeze each applicable step and attempt before ordinary Propose/Validate/Commit. Repeated application recovers schema, assertion, evidence and replacement identities and the current attempt. Only a verified terminal Stale attempt permits a successor transaction id with identical frozen operation bytes; proposed, validated or uncertain attempts are recovered first. Commit schema with supporting evidence first, then every selected mapping item, and finally all selected claim corrections in one atomic ordinary validated transaction. Blocked mappings cannot be dropped to reach corrections. After the correction commit only exact recovery/reporting remains; no further canonical application writes are allowed. Every application occurrence carries a verified review guard and atomically appends a nonempty marker on the proposal review stream with the ordinary occurrence and objects. Review decisions and markers compare the same physical stream position; markers never count as human decisions. A later rejection defeats an uncommitted prepared group. Recover an already committed exact request after rejection as historical progress only. Qualify remaining work by source version, item and mapping digest. Return Elected before schema commit, Partial after a confirmed prefix stops, and Complete only after all selected work commits. Reconcile uncertain provider results before another attempt; never infer success from preparation.
     Answered {
         /// The `ekr.integrate.ApplySchemaProposalResult` this outcome publishes.
         apply_schema_proposal_result: ApplySchemaProposalResult,
     },
-    /// `refused` — externally decided (Before mutation require the referenced review to match proposal_id and exact proposal digest, to be Approved, and to be the latest trusted human decision for that proposal. Refuse changed digest/evidence/options/effects or incompatible base schema. A later failure after any commit produces a partial receipt, not a refusal.).
+    /// `refused` — externally decided (Before a new write require exact proposal id/digest, the latest trusted Approved review and its proof, policy, evidence/options/effects and source bytes. Renewed review is required when reviewed material changes; unrelated canonical advancement alone is not. Verify this election's committed prefix before comparing remaining approved effects; its own committed additions/mappings do not invalidate its review and an external coincidental effect is not its progress. Application-aware review binds verified own-prefix publication references and residual evidence/options/effects; proposal corrections remain immutable. Completion follows actual linked commits even if recording the receipt crashed. A newer approval of the same proposal resumes the election, never duplicates completed steps. Frozen operation changes require a new proposal/election, not mutation of an existing step. Unresolved or ambiguous mappings remain qualified pending work; no entity creation is inferred. A generic transaction command cannot publish an elected application transaction without its guard. Refuse before election when authorization is invalid; after election expose its actual status, and after any schema commit return a partial receipt instead of a fictitious rollback. Provider uncertainty is not a commit; cold/full replay must verify one-to-one marker links, retained proposal/source/mapping/evidence bytes and historical human authority.).
     Refused {
         /// Why it was refused: `ekr.integrate.KnowledgeRefused`.
         error: KnowledgeRefused,
@@ -3045,7 +4235,7 @@ pub struct ApproveSchemaProposalResponse {
 pub enum ApproveSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections. Verify material against one coherent canonical snapshot, then atomically retain the decision, proof, policy and statement against the exact review predecessor. Canonical revisions do not advance. A concurrent canonical change may immediately make this observed-basis decision stale; application revalidates it. Exact retries retain the original review; a reused decision identity with changed input refuses across all human decision kinds in the audience, including upgrades and attention answers, in the same atomic publication.
+    /// Record the host-authenticated human decision and retain its statement as evidence; approval includes additions, mappings and selected corrections. Verify material against one coherent canonical snapshot. For an elected application verify its committed prefix and bind those publication references plus remaining reviewed evidence/options/effects; never rerun initial additions against their own committed results or mutate the original proposal corrections. Then atomically retain the decision, proof, policy and statement against the exact review predecessor and physical proposal coordination stream position. Marker-only advancement retries the physical CAS without changing the expected human predecessor. Canonical revisions do not advance. A concurrent canonical change may immediately make this observed-basis decision stale; application revalidates it. Exact retries retain the original review; a reused decision identity with changed input refuses across all human decision kinds in the audience, including upgrades and attention answers, in the same atomic publication.
     Answered {
         /// The `ekr.integrate.ApproveSchemaProposalResult` this outcome publishes.
         approve_schema_proposal_result: ApproveSchemaProposalResult,
@@ -3194,7 +4384,7 @@ pub struct RejectSchemaProposalResponse {
 pub enum RejectSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Record the host-authenticated human decision and retain its statement as evidence without advancing canonical revisions. Atomically retain rejection, proof, policy and statement against the exact review predecessor. Rejection prevents subsequent application writes while preserving committed history. Exact retries return the retained decision; changed input under the same decision identity refuses across all human decision kinds in the audience, including upgrades and attention answers, in the same atomic publication.
+    /// Record the host-authenticated human decision and retain its statement as evidence without advancing canonical revisions. Atomically retain rejection, proof, policy and statement against the exact review predecessor and physical proposal coordination stream position. Marker-only advancement retries the physical CAS without changing the expected human predecessor. Rejection prevents subsequent application writes while preserving committed history. Exact retries return the retained decision; changed input under the same decision identity refuses across all human decision kinds in the audience, including upgrades and attention answers, in the same atomic publication.
     Answered {
         /// The `ekr.integrate.RejectSchemaProposalResult` this outcome publishes.
         reject_schema_proposal_result: RejectSchemaProposalResult,
@@ -3273,6 +4463,8 @@ pub struct ShowSchemaProposalResponse {
     pub basis: crate::kernel::ReviewBasis,
     /// `expected_previous_decision` — `Optional<ekr.kernel.ContentHash>`.
     pub expected_previous_decision: Option<crate::kernel::ContentHash>,
+    /// `application` — `Optional<ekr.integrate.ApplicationRead>`.
+    pub application: Option<ApplicationRead>,
 }
 
 /// Everything `ekr.integrate.ShowSchemaProposal` can result in — one variant per declared outcome.
@@ -3284,7 +4476,7 @@ pub struct ShowSchemaProposalResponse {
 pub enum ShowSchemaProposalOutcome {
     /// `answered` — otherwise.
     ///
-    /// Show proposed additions, supporting observations, exact mappings and review/application history through CLI, SDK and the read-only viewer. Expose the current material review basis and the latest retained proof digest so a human can sign the exact target and predecessor outside the runtime. The predecessor is HumanDecisionRecord.proof_digest, not proof_object_hash. Recorded approval is a decision on its observed basis; compare the current material basis to show when renewed review is needed. An approval is not an unconditional applicability grant.
+    /// Show proposed additions, supporting observations, exact mappings and review/application history through CLI, SDK and the read-only viewer. Expose the current material review basis and the latest retained proof digest so a human can sign the exact target and predecessor outside the runtime. The predecessor is HumanDecisionRecord.proof_digest, not proof_object_hash or physical stream position. Application markers never change the human predecessor. Show the frozen election and steps even before schema commit; later receipts report only verified commits. Recorded approval is a decision on its observed basis; compare the current material basis to show when renewed review is needed. For an elected application bind its verified committed-prefix publication references and residual evidence/options/effects, preserving exact original proposal corrections. Do not treat an external coincidental effect as owned progress. An approval is not an unconditional applicability grant.
     Answered {
         /// The `ekr.integrate.ShowSchemaProposalResult` this outcome publishes.
         show_schema_proposal_result: ShowSchemaProposalResult,
@@ -3422,6 +4614,8 @@ pub struct ShowSchemaProposalResult {
     pub basis: crate::kernel::ReviewBasis,
     /// `expected_previous_decision` — `Optional<ekr.kernel.ContentHash>`.
     pub expected_previous_decision: Option<crate::kernel::ContentHash>,
+    /// `application` — `Optional<ekr.integrate.ApplicationRead>`.
+    pub application: Option<ApplicationRead>,
 }
 
 /// SubmitSchemaProposalResult — the event `ekr.integrate.SubmitSchemaProposalResult`.
@@ -3457,6 +4651,29 @@ pub struct KnowledgeRefused {
     pub reason: String,
 }
 
+/// ApplicationPublicationRecords — one row of the view `ekr.integrate.ApplicationPublicationRecords`.
+///
+/// Projects `ekr.integrate.ApplicationPublication` at `read_your_writes` consistency.
+/// The specification fully determines every row, so its query is generated over the storage port —
+/// see the plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationPublicationRecords {
+    /// `event_id` — `ekr.kernel.EventId`.
+    pub event_id: crate::kernel::EventId,
+    /// `state` — `ekr.integrate.ApplicationPublication.State`.
+    pub state: ApplicationPublicationState,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
+    /// `transaction_id` — `ekr.kernel.TransactionId`.
+    pub transaction_id: crate::kernel::TransactionId,
+    /// `review_stream_version` — `Integer`.
+    pub review_stream_version: i64,
+    /// `publication` — `ekr.integrate.ApplicationPublicationRecord`.
+    pub publication: ApplicationPublicationRecord,
+}
+
 /// ApplicationReceiptRecords — one row of the view `ekr.integrate.ApplicationReceiptRecords`.
 ///
 /// Projects `ekr.integrate.ApplicationReceipt` at `read_your_writes` consistency.
@@ -3464,6 +4681,8 @@ pub struct KnowledgeRefused {
 /// see the plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationReceiptRecords {
+    /// `application_id` — `ekr.integrate.SchemaApplicationId`.
+    pub application_id: SchemaApplicationId,
     /// `receipt_id` — `ekr.integrate.ApplicationReceiptId`.
     pub receipt_id: ApplicationReceiptId,
     /// `state` — `ekr.integrate.ApplicationReceipt.State`.
@@ -3480,8 +4699,10 @@ pub struct ApplicationReceiptRecords {
     pub schema_revision: crate::kernel::RevisionNumber,
     /// `processing_receipts` — `List<ekr.integrate.ProcessingReceiptId>`.
     pub processing_receipts: Vec<ProcessingReceiptId>,
-    /// `remaining_items` — `List<String>`.
-    pub remaining_items: Vec<String>,
+    /// `remaining_items` — `List<ekr.integrate.ApplicationItemKey>`.
+    pub remaining_items: Vec<ApplicationItemKey>,
+    /// `corrections_pending` — `Boolean`.
+    pub corrections_pending: bool,
     /// `stop_reason` — `Optional<String>`.
     pub stop_reason: Option<String>,
 }
@@ -3501,8 +4722,8 @@ pub struct CanonicalDerivationRecords {
     pub assertion_id: crate::graph::AssertionId,
     /// `mapping_id` — `ekr.integrate.MappingRecordId`.
     pub mapping_id: MappingRecordId,
-    /// `observation_id` — `ekr.graph.ObservationId`.
-    pub observation_id: crate::graph::ObservationId,
+    /// `observation_id` — `Optional<ekr.graph.ObservationId>`.
+    pub observation_id: Option<crate::graph::ObservationId>,
     /// `evidence_id` — `ekr.graph.EvidenceId`.
     pub evidence_id: crate::graph::EvidenceId,
 }
@@ -3618,6 +4839,42 @@ pub struct ProcessingReceiptRecords {
     pub assertions: Vec<crate::graph::AssertionId>,
     /// `basis_digest` — `ekr.kernel.ContentHash`.
     pub basis_digest: crate::kernel::ContentHash,
+}
+
+/// ProposalCoordinationOccurrenceRecords — one row of the view `ekr.integrate.ProposalCoordinationOccurrenceRecords`.
+///
+/// Projects `ekr.integrate.ProposalCoordinationOccurrence` at `read_your_writes` consistency.
+/// The specification fully determines every row, so its query is generated over the storage port —
+/// see the plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationOccurrenceRecords {
+    /// `occurrence_key` — `String`.
+    pub occurrence_key: String,
+    /// `state` — `ekr.integrate.ProposalCoordinationOccurrence.State`.
+    pub state: ProposalCoordinationOccurrenceState,
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `entry` — `ekr.integrate.ProposalCoordinationEntry`.
+    pub entry: ProposalCoordinationEntry,
+}
+
+/// ProposalCoordinationRecords — one row of the view `ekr.integrate.ProposalCoordinationRecords`.
+///
+/// Projects `ekr.integrate.ProposalCoordination` at `read_your_writes` consistency.
+/// The specification fully determines every row, so its query is generated over the storage port —
+/// see the plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalCoordinationRecords {
+    /// `proposal_id` — `ekr.integrate.SchemaProposalId`.
+    pub proposal_id: SchemaProposalId,
+    /// `state` — `ekr.integrate.ProposalCoordination.State`.
+    pub state: ProposalCoordinationState,
+    /// `stream_version` — `Integer`.
+    pub stream_version: i64,
+    /// `history` — `ekr.integrate.ProposalCoordinationRead`.
+    pub history: ProposalCoordinationRead,
 }
 
 /// ProposalEvidenceRecords — one row of the view `ekr.integrate.ProposalEvidenceRecords`.
@@ -3742,7 +4999,7 @@ pub mod obligations {
     ///
     /// Why it is not generated: kept an obligation by a typed response (`response:`).
     ///
-    /// Contract: given `ekr.integrate.ApplySchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApplySchemaProposalResult`; `refused` externally decided (Before mutation require the referenced review to match proposal_id and exact proposal digest, to be Approved, and to be the latest trusted human decision for that proposal. Refuse changed digest/evidence/options/effects or incompatible base schema. A later failure after any commit produces a partial receipt, not a refusal.), error `ekr.integrate.KnowledgeRefused`.
+    /// Contract: given `ekr.integrate.ApplySchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApplySchemaProposalResult`; `refused` externally decided (Before a new write require exact proposal id/digest, the latest trusted Approved review and its proof, policy, evidence/options/effects and source bytes. Renewed review is required when reviewed material changes; unrelated canonical advancement alone is not. Verify this election's committed prefix before comparing remaining approved effects; its own committed additions/mappings do not invalidate its review and an external coincidental effect is not its progress. Application-aware review binds verified own-prefix publication references and residual evidence/options/effects; proposal corrections remain immutable. Completion follows actual linked commits even if recording the receipt crashed. A newer approval of the same proposal resumes the election, never duplicates completed steps. Frozen operation changes require a new proposal/election, not mutation of an existing step. Unresolved or ambiguous mappings remain qualified pending work; no entity creation is inferred. A generic transaction command cannot publish an elected application transaction without its guard. Refuse before election when authorization is invalid; after election expose its actual status, and after any schema commit return a partial receipt instead of a fictitious rollback. Provider uncertainty is not a commit; cold/full replay must verify one-to-one marker links, retained proposal/source/mapping/evidence bytes and historical human authority.), error `ekr.integrate.KnowledgeRefused`.
     pub trait ApplySchemaProposalBehavior {
         /// Decides and enacts exactly one declared outcome of `ekr.integrate.ApplySchemaProposal`.
         ///
@@ -3855,6 +5112,17 @@ pub mod obligations {
         fn submit_schema_proposal(&mut self, input: super::SubmitSchemaProposal) -> Result<super::SubmitSchemaProposalOutcome, crate::obligation::UnmetObligation>;
     }
 
+    /// The query `ekr.integrate.ApplicationPublicationRecords` — generated.
+    ///
+    /// The specification fully determines it: [`crate::behaviour::Generated`] implements it
+    /// over the storage port. Implement it yourself to replace that query.
+    pub trait ApplicationPublicationRecordsQuery {
+        /// Serves `ekr.integrate.ApplicationPublicationRecords` rows at the view's declared consistency.
+        ///
+        /// `Err` is the typed refusal of a row whose declared type cannot hold its value.
+        fn application_publication_records(&self) -> Result<Vec<super::ApplicationPublicationRecords>, crate::obligation::UnmetObligation>;
+    }
+
     /// The query `ekr.integrate.ApplicationReceiptRecords` — generated.
     ///
     /// The specification fully determines it: [`crate::behaviour::Generated`] implements it
@@ -3930,6 +5198,28 @@ pub mod obligations {
         ///
         /// `Err` is the typed refusal of a row whose declared type cannot hold its value.
         fn processing_receipt_records(&self) -> Result<Vec<super::ProcessingReceiptRecords>, crate::obligation::UnmetObligation>;
+    }
+
+    /// The query `ekr.integrate.ProposalCoordinationOccurrenceRecords` — generated.
+    ///
+    /// The specification fully determines it: [`crate::behaviour::Generated`] implements it
+    /// over the storage port. Implement it yourself to replace that query.
+    pub trait ProposalCoordinationOccurrenceRecordsQuery {
+        /// Serves `ekr.integrate.ProposalCoordinationOccurrenceRecords` rows at the view's declared consistency.
+        ///
+        /// `Err` is the typed refusal of a row whose declared type cannot hold its value.
+        fn proposal_coordination_occurrence_records(&self) -> Result<Vec<super::ProposalCoordinationOccurrenceRecords>, crate::obligation::UnmetObligation>;
+    }
+
+    /// The query `ekr.integrate.ProposalCoordinationRecords` — generated.
+    ///
+    /// The specification fully determines it: [`crate::behaviour::Generated`] implements it
+    /// over the storage port. Implement it yourself to replace that query.
+    pub trait ProposalCoordinationRecordsQuery {
+        /// Serves `ekr.integrate.ProposalCoordinationRecords` rows at the view's declared consistency.
+        ///
+        /// `Err` is the typed refusal of a row whose declared type cannot hold its value.
+        fn proposal_coordination_records(&self) -> Result<Vec<super::ProposalCoordinationRecords>, crate::obligation::UnmetObligation>;
     }
 
     /// The query `ekr.integrate.ProposalEvidenceRecords` — generated.

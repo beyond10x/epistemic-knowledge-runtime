@@ -977,8 +977,41 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.AmbiguousReference"
     },
+    "ekr.integrate.ApplicationElection.State": {
+      "enum": [
+        "Elected"
+      ],
+      "title": "State",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ApplicationElection.State"
+    },
+    "ekr.integrate.ApplicationItemKey": {
+      "additionalProperties": false,
+      "properties": {
+        "item": {
+          "type": "string"
+        },
+        "mapping_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "source": {
+          "$ref": "#/$defs/ekr.integrate.InterpretationVersion"
+        }
+      },
+      "required": [
+        "source",
+        "item",
+        "mapping_digest"
+      ],
+      "title": "ApplicationItemKey",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ApplicationItemKey"
+    },
     "ekr.integrate.ApplicationProgress": {
       "enum": [
+        "Elected",
         "SchemaCommitted",
         "FactsInProgress",
         "Complete",
@@ -988,6 +1021,147 @@
       "type": "string",
       "x-ess-kind": "enum",
       "x-ess-name": "ekr.integrate.ApplicationProgress"
+    },
+    "ekr.integrate.ApplicationPublication.State": {
+      "enum": [
+        "Recorded"
+      ],
+      "title": "State",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ApplicationPublication.State"
+    },
+    "ekr.integrate.ApplicationPublicationGuard": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaApplicationId"
+        },
+        "attempt_transaction": {
+          "$ref": "#/$defs/ekr.kernel.TransactionId"
+        },
+        "human_proof_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "proposal_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalId"
+        },
+        "review_id": {
+          "$ref": "#/$defs/ekr.integrate.ProposalReviewId"
+        },
+        "review_stream_version": {
+          "type": "integer"
+        },
+        "step": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationStep"
+        },
+        "step_election_id": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationStepId"
+        }
+      },
+      "required": [
+        "application_id",
+        "step_election_id",
+        "attempt_transaction",
+        "proposal_id",
+        "proposal_digest",
+        "review_id",
+        "human_proof_digest",
+        "review_stream_version",
+        "step"
+      ],
+      "title": "ApplicationPublicationGuard",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ApplicationPublicationGuard"
+    },
+    "ekr.integrate.ApplicationPublicationRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/ekr.store.PublicationCommandKind"
+        },
+        "event_id": {
+          "$ref": "#/$defs/ekr.kernel.EventId"
+        },
+        "guard": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationPublicationGuard"
+        },
+        "record_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "transaction_id": {
+          "$ref": "#/$defs/ekr.kernel.TransactionId"
+        }
+      },
+      "required": [
+        "guard",
+        "transaction_id",
+        "event_id",
+        "record_hash",
+        "command"
+      ],
+      "title": "ApplicationPublicationRecord",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ApplicationPublicationRecord"
+    },
+    "ekr.integrate.ApplicationRead": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.RetainedApplicationAttempt"
+          },
+          "type": "array"
+        },
+        "corrections_pending": {
+          "type": "boolean"
+        },
+        "election": {
+          "$ref": "#/$defs/ekr.integrate.RetainedApplicationElection"
+        },
+        "publications": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ApplicationPublicationRecord"
+          },
+          "type": "array"
+        },
+        "receipts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ApplicationReceiptSnapshot"
+          },
+          "type": "array"
+        },
+        "remaining_items": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ApplicationItemKey"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.RetainedApplicationStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "election",
+        "steps",
+        "attempts",
+        "publications",
+        "receipts",
+        "remaining_items",
+        "corrections_pending"
+      ],
+      "title": "ApplicationRead",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ApplicationRead"
     },
     "ekr.integrate.ApplicationReceipt.State": {
       "enum": [
@@ -1009,6 +1183,12 @@
     "ekr.integrate.ApplicationReceiptSnapshot": {
       "additionalProperties": false,
       "properties": {
+        "application_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaApplicationId"
+        },
+        "corrections_pending": {
+          "type": "boolean"
+        },
         "processing_receipts": {
           "items": {
             "$ref": "#/$defs/ekr.integrate.ProcessingReceiptId"
@@ -1026,7 +1206,7 @@
         },
         "remaining_items": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ekr.integrate.ApplicationItemKey"
           },
           "type": "array"
         },
@@ -1044,6 +1224,7 @@
         }
       },
       "required": [
+        "application_id",
         "receipt_id",
         "proposal_id",
         "review_id",
@@ -1051,7 +1232,8 @@
         "schema_transaction",
         "schema_revision",
         "processing_receipts",
-        "remaining_items"
+        "remaining_items",
+        "corrections_pending"
       ],
       "title": "ApplicationReceiptSnapshot",
       "type": "object",
@@ -1062,6 +1244,12 @@
       "additionalProperties": false,
       "properties": {
         "already_complete": {
+          "type": "boolean"
+        },
+        "application_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaApplicationId"
+        },
+        "corrections_pending": {
           "type": "boolean"
         },
         "items": {
@@ -1078,7 +1266,7 @@
         },
         "remaining_items": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ekr.integrate.ApplicationItemKey"
           },
           "type": "array"
         },
@@ -1093,18 +1281,73 @@
         }
       },
       "required": [
-        "receipt_id",
+        "application_id",
         "progress",
         "schema_transaction",
-        "schema_revision",
         "items",
         "remaining_items",
+        "corrections_pending",
         "already_complete"
       ],
       "title": "ApplicationReport",
       "type": "object",
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.ApplicationReport"
+    },
+    "ekr.integrate.ApplicationStep": {
+      "additionalProperties": false,
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationItemKey"
+        },
+        "kind": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationStepKind"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ApplicationStep",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ApplicationStep"
+    },
+    "ekr.integrate.ApplicationStepAttempt.State": {
+      "enum": [
+        "Elected"
+      ],
+      "title": "State",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ApplicationStepAttempt.State"
+    },
+    "ekr.integrate.ApplicationStepElection.State": {
+      "enum": [
+        "Elected"
+      ],
+      "title": "State",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ApplicationStepElection.State"
+    },
+    "ekr.integrate.ApplicationStepId": {
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "ApplicationStepId",
+      "type": "string",
+      "x-ess-kind": "newtype",
+      "x-ess-name": "ekr.integrate.ApplicationStepId"
+    },
+    "ekr.integrate.ApplicationStepKind": {
+      "enum": [
+        "Schema",
+        "Mapping",
+        "Corrections"
+      ],
+      "title": "ApplicationStepKind",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ApplicationStepKind"
     },
     "ekr.integrate.CanonicalDerivation.State": {
       "enum": [
@@ -1114,6 +1357,38 @@
       "type": "string",
       "x-ess-kind": "enum",
       "x-ess-name": "ekr.integrate.CanonicalDerivation.State"
+    },
+    "ekr.integrate.CanonicalDerivationRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion_id": {
+          "$ref": "#/$defs/ekr.graph.AssertionId"
+        },
+        "derivation_id": {
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "type": "string"
+        },
+        "evidence_id": {
+          "$ref": "#/$defs/ekr.graph.EvidenceId"
+        },
+        "mapping_id": {
+          "$ref": "#/$defs/ekr.integrate.MappingRecordId"
+        },
+        "observation_id": {
+          "$ref": "#/$defs/ekr.graph.ObservationId"
+        }
+      },
+      "required": [
+        "derivation_id",
+        "assertion_id",
+        "mapping_id",
+        "evidence_id"
+      ],
+      "title": "CanonicalDerivationRecord",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.CanonicalDerivationRecord"
     },
     "ekr.integrate.CommittedExtraction": {
       "additionalProperties": false,
@@ -2230,6 +2505,113 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.PropertySpec"
     },
+    "ekr.integrate.ProposalCoordination.State": {
+      "enum": [
+        "Observed"
+      ],
+      "title": "State",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ProposalCoordination.State"
+    },
+    "ekr.integrate.ProposalCoordinationEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/ekr.integrate.ProposalCoordinationRecord"
+        },
+        "stream_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stream_version",
+        "record"
+      ],
+      "title": "ProposalCoordinationEntry",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ProposalCoordinationEntry"
+    },
+    "ekr.integrate.ProposalCoordinationOccurrence.State": {
+      "enum": [
+        "Recorded"
+      ],
+      "title": "State",
+      "type": "string",
+      "x-ess-kind": "enum",
+      "x-ess-name": "ekr.integrate.ProposalCoordinationOccurrence.State"
+    },
+    "ekr.integrate.ProposalCoordinationRead": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ProposalCoordinationEntry"
+          },
+          "type": "array"
+        },
+        "proposal_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalId"
+        },
+        "stream_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "stream_version",
+        "entries"
+      ],
+      "title": "ProposalCoordinationRead",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.ProposalCoordinationRead"
+    },
+    "ekr.integrate.ProposalCoordinationRecord": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "ApplicationPublicationRecorded",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.integrate.ApplicationPublicationRecord"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "ApplicationPublicationRecorded",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "ProposalReviewRetained",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ekr.integrate.RetainedProposalReview"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "title": "ProposalReviewRetained",
+          "type": "object"
+        }
+      ],
+      "title": "ProposalCoordinationRecord",
+      "x-ess-kind": "union",
+      "x-ess-name": "ekr.integrate.ProposalCoordinationRecord",
+      "x-ess-union-tag": "kind"
+    },
     "ekr.integrate.ProposalEvidence.State": {
       "enum": [
         "Recorded"
@@ -2527,6 +2909,144 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.ResolvedReference"
     },
+    "ekr.integrate.RetainedApplicationAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "elected_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "predecessor_record_hash": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "predecessor_transaction": {
+          "$ref": "#/$defs/ekr.kernel.TransactionId"
+        },
+        "step_election_id": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationStepId"
+        },
+        "transaction": {
+          "$ref": "#/$defs/ekr.kernel.CanonicalTransactionProjection"
+        },
+        "transaction_id": {
+          "$ref": "#/$defs/ekr.kernel.TransactionId"
+        }
+      },
+      "required": [
+        "transaction_id",
+        "step_election_id",
+        "transaction",
+        "elected_at"
+      ],
+      "title": "RetainedApplicationAttempt",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedApplicationAttempt"
+    },
+    "ekr.integrate.RetainedApplicationElection": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaApplicationId"
+        },
+        "base_schema": {
+          "$ref": "#/$defs/ekr.ontology.SchemaVersionId"
+        },
+        "elected_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "initial_proof_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "initial_review_id": {
+          "$ref": "#/$defs/ekr.integrate.ProposalReviewId"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "proposal_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaProposalId"
+        },
+        "schema_transaction": {
+          "$ref": "#/$defs/ekr.kernel.CanonicalTransactionProjection"
+        },
+        "selected_items": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ApplicationItemKey"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "application_id",
+        "proposal_id",
+        "proposal_digest",
+        "initial_review_id",
+        "initial_proof_digest",
+        "base_schema",
+        "elected_at",
+        "schema_transaction",
+        "selected_items"
+      ],
+      "title": "RetainedApplicationElection",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedApplicationElection"
+    },
+    "ekr.integrate.RetainedApplicationStep": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "$ref": "#/$defs/ekr.integrate.SchemaApplicationId"
+        },
+        "derivations": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.CanonicalDerivationRecord"
+          },
+          "type": "array"
+        },
+        "elected_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "mappings": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.RetainedMappingRecord"
+          },
+          "type": "array"
+        },
+        "replacements": {
+          "items": {
+            "$ref": "#/$defs/ekr.kernel.ClaimReplacement"
+          },
+          "type": "array"
+        },
+        "step": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationStep"
+        },
+        "step_election_id": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationStepId"
+        },
+        "transaction": {
+          "$ref": "#/$defs/ekr.kernel.CanonicalTransactionProjection"
+        }
+      },
+      "required": [
+        "step_election_id",
+        "application_id",
+        "step",
+        "transaction",
+        "replacements",
+        "mappings",
+        "derivations",
+        "elected_at"
+      ],
+      "title": "RetainedApplicationStep",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedApplicationStep"
+    },
     "ekr.integrate.RetainedInterpretation": {
       "additionalProperties": false,
       "properties": {
@@ -2555,6 +3075,50 @@
       "type": "object",
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.integrate.RetainedInterpretation"
+    },
+    "ekr.integrate.RetainedMappingRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/ekr.graph.EvidenceId"
+          },
+          "type": "array"
+        },
+        "mapping": {
+          "$ref": "#/$defs/ekr.integrate.KnowledgeMapping"
+        },
+        "mapping_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "mapping_id": {
+          "$ref": "#/$defs/ekr.integrate.MappingRecordId"
+        },
+        "payload": {
+          "contentEncoding": "base64",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        },
+        "source_document_digest": {
+          "$ref": "#/$defs/ekr.kernel.ContentHash"
+        }
+      },
+      "required": [
+        "mapping_id",
+        "proposal_digest",
+        "mapping_digest",
+        "source_document_digest",
+        "mapping",
+        "evidence",
+        "payload"
+      ],
+      "title": "RetainedMappingRecord",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.integrate.RetainedMappingRecord"
     },
     "ekr.integrate.RetainedProposalReview": {
       "additionalProperties": false,
@@ -2625,6 +3189,14 @@
       "type": "string",
       "x-ess-kind": "enum",
       "x-ess-name": "ekr.integrate.ReviewDecision"
+    },
+    "ekr.integrate.SchemaApplicationId": {
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "SchemaApplicationId",
+      "type": "string",
+      "x-ess-kind": "newtype",
+      "x-ess-name": "ekr.integrate.SchemaApplicationId"
     },
     "ekr.integrate.SchemaLearningRequest": {
       "additionalProperties": false,
@@ -2786,6 +3358,9 @@
     "ekr.integrate.SchemaProposalRead": {
       "additionalProperties": false,
       "properties": {
+        "application": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationRead"
+        },
         "basis": {
           "$ref": "#/$defs/ekr.kernel.ReviewBasis"
         },
@@ -5655,6 +6230,9 @@
     "ekr.kernel.RevisionEventV3": {
       "additionalProperties": false,
       "properties": {
+        "application": {
+          "$ref": "#/$defs/ekr.integrate.ApplicationPublicationGuard"
+        },
         "event_id": {
           "$ref": "#/$defs/ekr.kernel.EventId"
         },
@@ -7683,6 +8261,120 @@
       "x-ess-kind": "struct",
       "x-ess-name": "ekr.ontology.ValueTypeProjection"
     },
+    "ekr.store.ApplicationAttemptRetention": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "$ref": "#/$defs/ekr.integrate.RetainedApplicationAttempt"
+        }
+      },
+      "required": [
+        "attempt"
+      ],
+      "title": "ApplicationAttemptRetention",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.store.ApplicationAttemptRetention"
+    },
+    "ekr.store.ApplicationElectionRetention": {
+      "additionalProperties": false,
+      "properties": {
+        "election": {
+          "$ref": "#/$defs/ekr.integrate.RetainedApplicationElection"
+        },
+        "objects": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ekr.store.PublicationObject"
+          },
+          "type": "object",
+          "x-ess-map-key": "String"
+        }
+      },
+      "required": [
+        "election",
+        "objects"
+      ],
+      "title": "ApplicationElectionRetention",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.store.ApplicationElectionRetention"
+    },
+    "ekr.store.ApplicationRetentionHistory": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.RetainedApplicationAttempt"
+          },
+          "type": "array"
+        },
+        "coordination": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ProposalCoordinationRead"
+          },
+          "type": "array"
+        },
+        "elections": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.RetainedApplicationElection"
+          },
+          "type": "array"
+        },
+        "processing_receipts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ProcessingReceiptSnapshot"
+          },
+          "type": "array"
+        },
+        "receipts": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.ApplicationReceiptSnapshot"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ekr.integrate.RetainedApplicationStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "elections",
+        "steps",
+        "attempts",
+        "coordination",
+        "receipts",
+        "processing_receipts"
+      ],
+      "title": "ApplicationRetentionHistory",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.store.ApplicationRetentionHistory"
+    },
+    "ekr.store.ApplicationStepRetention": {
+      "additionalProperties": false,
+      "properties": {
+        "objects": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ekr.store.PublicationObject"
+          },
+          "type": "object",
+          "x-ess-map-key": "String"
+        },
+        "step": {
+          "$ref": "#/$defs/ekr.integrate.RetainedApplicationStep"
+        }
+      },
+      "required": [
+        "step",
+        "objects"
+      ],
+      "title": "ApplicationStepRetention",
+      "type": "object",
+      "x-ess-kind": "struct",
+      "x-ess-name": "ekr.store.ApplicationStepRetention"
+    },
     "ekr.store.NativeBlobWrite": {
       "additionalProperties": false,
       "properties": {
@@ -8016,7 +8708,9 @@
         "ekr.publication-preparation/2",
         "ekr.publication-preparation/3",
         "ekr.publication-preparation/4",
-        "ekr.publication-preparation/5"
+        "ekr.publication-preparation/5",
+        "ekr.publication-preparation/6",
+        "ekr.publication-preparation/7"
       ],
       "title": "PublicationPreparationFormatV1",
       "type": "string",
@@ -11319,8 +12013,8 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "x-ess-provenance": {
-    "contract_digest": "slice-sha256/2:3d42d49e01157f6748cc59ce3a15a1b661565ff6dff9a1286f7997d8df41222c",
-    "source_digest": "7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11",
+    "contract_digest": "slice-sha256/2:a7c365ea40d8640ce4bdfbf311ab4fe463f0ae9574593db2e0efb64cfe56a533",
+    "source_digest": "d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087",
     "specification_version": "v1",
     "system": "ekr"
   }

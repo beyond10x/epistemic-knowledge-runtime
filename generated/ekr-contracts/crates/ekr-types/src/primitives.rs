@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+// model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
+// contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
 // do not edit: regenerate with `ess synthesize`
 
 //! How the specification's primitives are spelled in this workspace.

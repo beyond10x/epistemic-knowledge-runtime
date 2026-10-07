@@ -1,14 +1,14 @@
 <!--
   generated from ekr v1
-  model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-  contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+  model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
+  contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
   do not edit: regenerate with `ess synthesize`
 -->
 # Synthesis plan — ekr v1
 
 Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synthesize`.
 
-708 capabilities: **658 generated**, **39 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
+746 capabilities: **696 generated**, **39 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
 
 ## Generated
 
@@ -62,12 +62,24 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.integrate.AdditiveSchemaOperation` |
 | domain type | `ekr.integrate.AmbiguousExtraction` |
 | domain type | `ekr.integrate.AmbiguousReference` |
+| domain type | `ekr.integrate.ApplicationElection.State` |
+| domain type | `ekr.integrate.ApplicationItemKey` |
 | domain type | `ekr.integrate.ApplicationProgress` |
+| domain type | `ekr.integrate.ApplicationPublication.State` |
+| domain type | `ekr.integrate.ApplicationPublicationGuard` |
+| domain type | `ekr.integrate.ApplicationPublicationRecord` |
+| domain type | `ekr.integrate.ApplicationRead` |
 | domain type | `ekr.integrate.ApplicationReceipt.State` |
 | domain type | `ekr.integrate.ApplicationReceiptId` |
 | domain type | `ekr.integrate.ApplicationReceiptSnapshot` |
 | domain type | `ekr.integrate.ApplicationReport` |
+| domain type | `ekr.integrate.ApplicationStep` |
+| domain type | `ekr.integrate.ApplicationStepAttempt.State` |
+| domain type | `ekr.integrate.ApplicationStepElection.State` |
+| domain type | `ekr.integrate.ApplicationStepId` |
+| domain type | `ekr.integrate.ApplicationStepKind` |
 | domain type | `ekr.integrate.CanonicalDerivation.State` |
+| domain type | `ekr.integrate.CanonicalDerivationRecord` |
 | domain type | `ekr.integrate.CommittedExtraction` |
 | domain type | `ekr.integrate.DeclaredSourceField` |
 | domain type | `ekr.integrate.DeclaredSourceRelation` |
@@ -116,6 +128,11 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.integrate.ProcessingReceiptSnapshot` |
 | domain type | `ekr.integrate.PropertyFact` |
 | domain type | `ekr.integrate.PropertySpec` |
+| domain type | `ekr.integrate.ProposalCoordination.State` |
+| domain type | `ekr.integrate.ProposalCoordinationEntry` |
+| domain type | `ekr.integrate.ProposalCoordinationOccurrence.State` |
+| domain type | `ekr.integrate.ProposalCoordinationRead` |
+| domain type | `ekr.integrate.ProposalCoordinationRecord` |
 | domain type | `ekr.integrate.ProposalEvidence.State` |
 | domain type | `ekr.integrate.ProposalObservation.State` |
 | domain type | `ekr.integrate.ProposalReview.State` |
@@ -129,10 +146,15 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.integrate.ResolutionRefusal` |
 | domain type | `ekr.integrate.ResolutionRefusalCode` |
 | domain type | `ekr.integrate.ResolvedReference` |
+| domain type | `ekr.integrate.RetainedApplicationAttempt` |
+| domain type | `ekr.integrate.RetainedApplicationElection` |
+| domain type | `ekr.integrate.RetainedApplicationStep` |
 | domain type | `ekr.integrate.RetainedInterpretation` |
+| domain type | `ekr.integrate.RetainedMappingRecord` |
 | domain type | `ekr.integrate.RetainedProposalReview` |
 | domain type | `ekr.integrate.RetainedSchemaProposal` |
 | domain type | `ekr.integrate.ReviewDecision` |
+| domain type | `ekr.integrate.SchemaApplicationId` |
 | domain type | `ekr.integrate.SchemaLearningRequest` |
 | domain type | `ekr.integrate.SchemaLearningResult` |
 | domain type | `ekr.integrate.SchemaProposal.State` |
@@ -328,6 +350,10 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.ontology.TypeId` |
 | domain type | `ekr.ontology.ValueKind` |
 | domain type | `ekr.ontology.ValueTypeProjection` |
+| domain type | `ekr.store.ApplicationAttemptRetention` |
+| domain type | `ekr.store.ApplicationElectionRetention` |
+| domain type | `ekr.store.ApplicationRetentionHistory` |
+| domain type | `ekr.store.ApplicationStepRetention` |
 | domain type | `ekr.store.NativeBlobWrite` |
 | domain type | `ekr.store.NativeClaim` |
 | domain type | `ekr.store.NativeCommandMeta` |
@@ -473,7 +499,11 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | entity lifecycle | `ekr.graph.Node` |
 | entity lifecycle | `ekr.graph.Observation` |
 | entity lifecycle | `ekr.graph.Support` |
+| entity lifecycle | `ekr.integrate.ApplicationElection` |
+| entity lifecycle | `ekr.integrate.ApplicationPublication` |
 | entity lifecycle | `ekr.integrate.ApplicationReceipt` |
+| entity lifecycle | `ekr.integrate.ApplicationStepAttempt` |
+| entity lifecycle | `ekr.integrate.ApplicationStepElection` |
 | entity lifecycle | `ekr.integrate.CanonicalDerivation` |
 | entity lifecycle | `ekr.integrate.IntegrationBlocker` |
 | entity lifecycle | `ekr.integrate.Interpretation` |
@@ -481,6 +511,8 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | entity lifecycle | `ekr.integrate.MappingRecord` |
 | entity lifecycle | `ekr.integrate.Merge` |
 | entity lifecycle | `ekr.integrate.ProcessingReceipt` |
+| entity lifecycle | `ekr.integrate.ProposalCoordination` |
+| entity lifecycle | `ekr.integrate.ProposalCoordinationOccurrence` |
 | entity lifecycle | `ekr.integrate.ProposalEvidence` |
 | entity lifecycle | `ekr.integrate.ProposalObservation` |
 | entity lifecycle | `ekr.integrate.ProposalReview` |
@@ -612,6 +644,8 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | view type | `ekr.graph.Assertions` |
 | view type | `ekr.graph.SettledAssertions` |
 | view query | `ekr.graph.SettledAssertions` |
+| view type | `ekr.integrate.ApplicationPublicationRecords` |
+| view query | `ekr.integrate.ApplicationPublicationRecords` |
 | view type | `ekr.integrate.ApplicationReceiptRecords` |
 | view query | `ekr.integrate.ApplicationReceiptRecords` |
 | view type | `ekr.integrate.CanonicalDerivationRecords` |
@@ -626,6 +660,10 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | view query | `ekr.integrate.MappingRecordRecords` |
 | view type | `ekr.integrate.ProcessingReceiptRecords` |
 | view query | `ekr.integrate.ProcessingReceiptRecords` |
+| view type | `ekr.integrate.ProposalCoordinationOccurrenceRecords` |
+| view query | `ekr.integrate.ProposalCoordinationOccurrenceRecords` |
+| view type | `ekr.integrate.ProposalCoordinationRecords` |
+| view query | `ekr.integrate.ProposalCoordinationRecords` |
 | view type | `ekr.integrate.ProposalEvidenceRecords` |
 | view query | `ekr.integrate.ProposalEvidenceRecords` |
 | view type | `ekr.integrate.ProposalObservationRecords` |
@@ -687,7 +725,7 @@ What the specification fully determines is generated; what it cannot determine i
 | capability | source | why not generated | contract |
 | --- | --- | --- | --- |
 | command behaviour | `ekr.integrate.ApplyExtraction` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.ApplyExtraction` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `applied` otherwise, emits `ekr.integrate.ExtractionApplied`; `refused` externally decided (the reader refuses the document against the ontology of the store's head), error `ekr.integrate.ExtractionRefused` |
-| command behaviour | `ekr.integrate.ApplySchemaProposal` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.ApplySchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApplySchemaProposalResult`; `refused` externally decided (Before mutation require the referenced review to match proposal_id and exact proposal digest, to be Approved, and to be the latest trusted human decision for that proposal. Refuse changed digest/evidence/options/effects or incompatible base schema. A later failure after any commit produces a partial receipt, not a refusal.), error `ekr.integrate.KnowledgeRefused` |
+| command behaviour | `ekr.integrate.ApplySchemaProposal` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.ApplySchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApplySchemaProposalResult`; `refused` externally decided (Before a new write require exact proposal id/digest, the latest trusted Approved review and its proof, policy, evidence/options/effects and source bytes. Renewed review is required when reviewed material changes; unrelated canonical advancement alone is not. Verify this election's committed prefix before comparing remaining approved effects; its own committed additions/mappings do not invalidate its review and an external coincidental effect is not its progress. Application-aware review binds verified own-prefix publication references and residual evidence/options/effects; proposal corrections remain immutable. Completion follows actual linked commits even if recording the receipt crashed. A newer approval of the same proposal resumes the election, never duplicates completed steps. Frozen operation changes require a new proposal/election, not mutation of an existing step. Unresolved or ambiguous mappings remain qualified pending work; no entity creation is inferred. A generic transaction command cannot publish an elected application transaction without its guard. Refuse before election when authorization is invalid; after election expose its actual status, and after any schema commit return a partial receipt instead of a fictitious rollback. Provider uncertainty is not a commit; cold/full replay must verify one-to-one marker links, retained proposal/source/mapping/evidence bytes and historical human authority.), error `ekr.integrate.KnowledgeRefused` |
 | command behaviour | `ekr.integrate.ApproveSchemaProposal` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.ApproveSchemaProposal` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ApproveSchemaProposalResult`; `refused` externally decided (Verify human_proof under the independently enrolled reviewer policy, with a target matching this approve/reject operation, proposal id, proposal digest, statement and expected predecessor decision. Derive the operator from the verified key registry; a host UUID, agent statement or caller-supplied key cannot authenticate a human. The exact proposal, reviewed evidence and intended effects must match the verified observed snapshot. Unknown proposals and stale review predecessors refuse. Agent-supplied content cannot grant approval.), error `ekr.integrate.KnowledgeRefused` |
 | command behaviour | `ekr.integrate.DiscoverSchemaGaps` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.DiscoverSchemaGaps` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.DiscoverSchemaGapsResult`; `refused` externally decided (A canonical base schema is required; an unseeded or unverifiable store is refused.), error `ekr.integrate.KnowledgeRefused` |
 | command behaviour | `ekr.integrate.ImportInterpretation` | kept an obligation by a typed response (`response:`) | given `ekr.integrate.ImportInterpretation` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.integrate.ImportInterpretationResult`; `refused` externally decided (The typed document must match its bytes and digest; its root must be Transient, every observation retained, every evidence source admissible, and an existing version immutable. Local declaration/reference integrity is checked independently of canonical ontology; a canonical vocabulary mismatch is a durable blocker, not an import refusal.), error `ekr.integrate.KnowledgeRefused` |

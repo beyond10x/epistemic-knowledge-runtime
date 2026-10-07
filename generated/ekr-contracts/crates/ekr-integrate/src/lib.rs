@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+// model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
+// contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
 // do not edit: regenerate with `ess synthesize`
 
 //! ekr-integrate — the `ekr-integrate` component of `ekr` v1.
@@ -70,7 +70,7 @@ impl<B> EkrIntegrate<B> {
 
 impl<B> EkrIntegrate<B>
 where
-    B: ekr_types::integrate::obligations::ApplyExtractionBehavior + ekr_types::integrate::obligations::ApplySchemaProposalBehavior + ekr_types::integrate::obligations::ApproveSchemaProposalBehavior + ekr_types::integrate::obligations::DiscoverSchemaGapsBehavior + ekr_types::integrate::obligations::ImportInterpretationBehavior + ekr_types::integrate::obligations::ListInterpretationsBehavior + ekr_types::integrate::obligations::RejectSchemaProposalBehavior + ekr_types::integrate::obligations::ShowInterpretationBehavior + ekr_types::integrate::obligations::ShowSchemaProposalBehavior + ekr_types::integrate::obligations::SubmitSchemaProposalBehavior + ekr_types::integrate::obligations::ApplicationReceiptRecordsQuery + ekr_types::integrate::obligations::CanonicalDerivationRecordsQuery + ekr_types::integrate::obligations::IntegrationBlockerRecordsQuery + ekr_types::integrate::obligations::InterpretationObservationRecordsQuery + ekr_types::integrate::obligations::InterpretationRecordsQuery + ekr_types::integrate::obligations::MappingRecordRecordsQuery + ekr_types::integrate::obligations::ProcessingReceiptRecordsQuery + ekr_types::integrate::obligations::ProposalEvidenceRecordsQuery + ekr_types::integrate::obligations::ProposalObservationRecordsQuery + ekr_types::integrate::obligations::ProposalReviewRecordsQuery + ekr_types::integrate::obligations::ProposalSourceBindingRecordsQuery + ekr_types::integrate::obligations::SchemaProposalRecordsQuery,
+    B: ekr_types::integrate::obligations::ApplyExtractionBehavior + ekr_types::integrate::obligations::ApplySchemaProposalBehavior + ekr_types::integrate::obligations::ApproveSchemaProposalBehavior + ekr_types::integrate::obligations::DiscoverSchemaGapsBehavior + ekr_types::integrate::obligations::ImportInterpretationBehavior + ekr_types::integrate::obligations::ListInterpretationsBehavior + ekr_types::integrate::obligations::RejectSchemaProposalBehavior + ekr_types::integrate::obligations::ShowInterpretationBehavior + ekr_types::integrate::obligations::ShowSchemaProposalBehavior + ekr_types::integrate::obligations::SubmitSchemaProposalBehavior + ekr_types::integrate::obligations::ApplicationPublicationRecordsQuery + ekr_types::integrate::obligations::ApplicationReceiptRecordsQuery + ekr_types::integrate::obligations::CanonicalDerivationRecordsQuery + ekr_types::integrate::obligations::IntegrationBlockerRecordsQuery + ekr_types::integrate::obligations::InterpretationObservationRecordsQuery + ekr_types::integrate::obligations::InterpretationRecordsQuery + ekr_types::integrate::obligations::MappingRecordRecordsQuery + ekr_types::integrate::obligations::ProcessingReceiptRecordsQuery + ekr_types::integrate::obligations::ProposalCoordinationOccurrenceRecordsQuery + ekr_types::integrate::obligations::ProposalCoordinationRecordsQuery + ekr_types::integrate::obligations::ProposalEvidenceRecordsQuery + ekr_types::integrate::obligations::ProposalObservationRecordsQuery + ekr_types::integrate::obligations::ProposalReviewRecordsQuery + ekr_types::integrate::obligations::ProposalSourceBindingRecordsQuery + ekr_types::integrate::obligations::SchemaProposalRecordsQuery,
 {
     /// Accepts `ekr.integrate.ApplyExtraction`: runs the behaviour obligation, then publishes the declared events
     /// the outcome carries.
@@ -231,6 +231,11 @@ where
         Ok(outcome)
     }
 
+    /// Serves `ekr.integrate.ApplicationPublicationRecords` at `read_your_writes` consistency, from the owed projection.
+    pub fn application_publication_records(&self) -> Result<Vec<ekr_types::integrate::ApplicationPublicationRecords>, ekr_types::obligation::UnmetObligation> {
+        self.behaviors.application_publication_records()
+    }
+
     /// Serves `ekr.integrate.ApplicationReceiptRecords` at `read_your_writes` consistency, from the owed projection.
     pub fn application_receipt_records(&self) -> Result<Vec<ekr_types::integrate::ApplicationReceiptRecords>, ekr_types::obligation::UnmetObligation> {
         self.behaviors.application_receipt_records()
@@ -264,6 +269,16 @@ where
     /// Serves `ekr.integrate.ProcessingReceiptRecords` at `read_your_writes` consistency, from the owed projection.
     pub fn processing_receipt_records(&self) -> Result<Vec<ekr_types::integrate::ProcessingReceiptRecords>, ekr_types::obligation::UnmetObligation> {
         self.behaviors.processing_receipt_records()
+    }
+
+    /// Serves `ekr.integrate.ProposalCoordinationOccurrenceRecords` at `read_your_writes` consistency, from the owed projection.
+    pub fn proposal_coordination_occurrence_records(&self) -> Result<Vec<ekr_types::integrate::ProposalCoordinationOccurrenceRecords>, ekr_types::obligation::UnmetObligation> {
+        self.behaviors.proposal_coordination_occurrence_records()
+    }
+
+    /// Serves `ekr.integrate.ProposalCoordinationRecords` at `read_your_writes` consistency, from the owed projection.
+    pub fn proposal_coordination_records(&self) -> Result<Vec<ekr_types::integrate::ProposalCoordinationRecords>, ekr_types::obligation::UnmetObligation> {
+        self.behaviors.proposal_coordination_records()
     }
 
     /// Serves `ekr.integrate.ProposalEvidenceRecords` at `read_your_writes` consistency, from the owed projection.

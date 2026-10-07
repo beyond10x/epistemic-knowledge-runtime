@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 7e8583c5dd6b1d7e52589c443b3c8b6c5233df495af62c0e960428a3a47ece11
-// contract digest 9550c8d18f57a577443582d1bea77eb4d77722699be32435ef6a2c207c435278
+// model digest d93593588d2611a3d25542c06ca23a3ac2992d57a37c6785cf8b89f0846dc087
+// contract digest ea2e8b0cc8f708c0b41768fcc389f371d3eddc8554b05b10d5d26385cc30a130
 // do not edit: regenerate with `ess synthesize`
 
 //! Store — `ekr.store`.
@@ -8,6 +8,48 @@
 //! Persistence through eventlog. A committed revision is an event; the graph is a fold; snapshots are eventlog snapshots; bytes are content-addressed and carry a storage class that decides their retention. Design § 34, § 37, § 57. Reclamation (§ 38–39) arrives in P6 with the commands that move an object toward deletion.
 //!
 //! Everything this bounded context declares that the synthesis plan marks generated.
+
+/// ApplicationAttemptRetention — `ekr.store.ApplicationAttemptRetention`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationAttemptRetention {
+    /// `attempt` — `ekr.integrate.RetainedApplicationAttempt`.
+    pub attempt: crate::integrate::RetainedApplicationAttempt,
+}
+
+/// ApplicationElectionRetention — `ekr.store.ApplicationElectionRetention`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationElectionRetention {
+    /// `election` — `ekr.integrate.RetainedApplicationElection`.
+    pub election: crate::integrate::RetainedApplicationElection,
+    /// `objects` — `Map<String, ekr.store.PublicationObject>`.
+    pub objects: std::collections::BTreeMap<String, PublicationObject>,
+}
+
+/// ApplicationRetentionHistory — `ekr.store.ApplicationRetentionHistory`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationRetentionHistory {
+    /// `elections` — `List<ekr.integrate.RetainedApplicationElection>`.
+    pub elections: Vec<crate::integrate::RetainedApplicationElection>,
+    /// `steps` — `List<ekr.integrate.RetainedApplicationStep>`.
+    pub steps: Vec<crate::integrate::RetainedApplicationStep>,
+    /// `attempts` — `List<ekr.integrate.RetainedApplicationAttempt>`.
+    pub attempts: Vec<crate::integrate::RetainedApplicationAttempt>,
+    /// `coordination` — `List<ekr.integrate.ProposalCoordinationRead>`.
+    pub coordination: Vec<crate::integrate::ProposalCoordinationRead>,
+    /// `receipts` — `List<ekr.integrate.ApplicationReceiptSnapshot>`.
+    pub receipts: Vec<crate::integrate::ApplicationReceiptSnapshot>,
+    /// `processing_receipts` — `List<ekr.integrate.ProcessingReceiptSnapshot>`.
+    pub processing_receipts: Vec<crate::integrate::ProcessingReceiptSnapshot>,
+}
+
+/// ApplicationStepRetention — `ekr.store.ApplicationStepRetention`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationStepRetention {
+    /// `step` — `ekr.integrate.RetainedApplicationStep`.
+    pub step: crate::integrate::RetainedApplicationStep,
+    /// `objects` — `Map<String, ekr.store.PublicationObject>`.
+    pub objects: std::collections::BTreeMap<String, PublicationObject>,
+}
 
 /// NativeBlobWrite — `ekr.store.NativeBlobWrite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,6 +231,10 @@ pub enum PublicationPreparationFormatV1 {
     EkrPublicationPreparation4,
     /// `EkrPublicationPreparation5`.
     EkrPublicationPreparation5,
+    /// `EkrPublicationPreparation6`.
+    EkrPublicationPreparation6,
+    /// `EkrPublicationPreparation7`.
+    EkrPublicationPreparation7,
 }
 
 /// PublicationPreparationV1 — `ekr.store.PublicationPreparationV1`.
