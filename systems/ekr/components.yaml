@@ -13,6 +13,7 @@ components:
         - ekr.kernel.ListAttention
         - ekr.kernel.ShowAttention
         - ekr.kernel.AnswerAttention
+        - ekr.kernel.ListAnswers
         - ekr.kernel.PreviewUpgrade
         - ekr.kernel.ApplyUpgrade
         - ekr.kernel.Seed
@@ -26,6 +27,8 @@ components:
         - ekr.kernel.ListAttentionResult
         - ekr.kernel.ShowAttentionResult
         - ekr.kernel.AnswerAttentionResult
+        - ekr.kernel.ListAnswersResult
+        - ekr.kernel.AttentionAnswered
         - ekr.kernel.PreviewUpgradeResult
         - ekr.kernel.ApplyUpgradeResult
         - ekr.kernel.Seeded

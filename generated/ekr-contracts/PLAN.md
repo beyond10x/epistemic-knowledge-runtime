@@ -1,14 +1,14 @@
 <!--
   generated from ekr v1
-  model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
-  contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
+  model digest 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146
+  contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c
   do not edit: regenerate with `ess synthesize`
 -->
 # Synthesis plan — ekr v1
 
 Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synthesize`.
 
-687 capabilities: **638 generated**, **38 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
+702 capabilities: **652 generated**, **39 obligations**, **11 refused**. An obligation is yours to implement against its contract; a refusal is a fact about this synthesis scope, not about the specification.
 
 ## Generated
 
@@ -145,8 +145,12 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.AliasAdditionProjection` |
 | domain type | `ekr.kernel.AnswerOutcome` |
 | domain type | `ekr.kernel.AnswerReceipt` |
+| domain type | `ekr.kernel.AnswerRecordFormat` |
+| domain type | `ekr.kernel.AnswerReplacement.State` |
 | domain type | `ekr.kernel.ApplicationProfileV1` |
+| domain type | `ekr.kernel.AttentionAnswerApplication` |
 | domain type | `ekr.kernel.AttentionAnswerTarget` |
+| domain type | `ekr.kernel.AttentionAnsweredPayload` |
 | domain type | `ekr.kernel.AttentionItem` |
 | domain type | `ekr.kernel.AttentionKind` |
 | domain type | `ekr.kernel.AttentionSubject` |
@@ -165,6 +169,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.CanonicalTransactionProjection` |
 | domain type | `ekr.kernel.ClaimCorrection` |
 | domain type | `ekr.kernel.ClaimCorrectionKind` |
+| domain type | `ekr.kernel.ClaimReplacement` |
 | domain type | `ekr.kernel.CliHostConfigurationV1` |
 | domain type | `ekr.kernel.CliHostFormatV1` |
 | domain type | `ekr.kernel.CommitCommandResult` |
@@ -182,6 +187,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.EventId` |
 | domain type | `ekr.kernel.EvidenceAdditionProjection` |
 | domain type | `ekr.kernel.EvidenceAttachmentProjection` |
+| domain type | `ekr.kernel.ExplainedAnswer` |
 | domain type | `ekr.kernel.ExplainedAttachment` |
 | domain type | `ekr.kernel.ExplainedCommit` |
 | domain type | `ekr.kernel.ExplainedLifecycle` |
@@ -194,6 +200,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.GraphTransaction.State` |
 | domain type | `ekr.kernel.HumanAnswer.State` |
 | domain type | `ekr.kernel.HumanAnswerId` |
+| domain type | `ekr.kernel.HumanAnswerRecord` |
 | domain type | `ekr.kernel.HumanDecisionAudience` |
 | domain type | `ekr.kernel.HumanDecisionFormat` |
 | domain type | `ekr.kernel.HumanDecisionIntent` |
@@ -231,12 +238,15 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | domain type | `ekr.kernel.Revision.State` |
 | domain type | `ekr.kernel.RevisionEventFormatV2` |
 | domain type | `ekr.kernel.RevisionEventFormatV3` |
+| domain type | `ekr.kernel.RevisionEventFormatV4` |
 | domain type | `ekr.kernel.RevisionEventV2` |
 | domain type | `ekr.kernel.RevisionEventV3` |
+| domain type | `ekr.kernel.RevisionEventV4` |
 | domain type | `ekr.kernel.RevisionId` |
 | domain type | `ekr.kernel.RevisionNumber` |
 | domain type | `ekr.kernel.RevisionPayload` |
 | domain type | `ekr.kernel.RevisionPayloadV3` |
+| domain type | `ekr.kernel.RevisionPayloadV4` |
 | domain type | `ekr.kernel.RulesetV1` |
 | domain type | `ekr.kernel.SchemaReviewTarget` |
 | domain type | `ekr.kernel.SchemaTransactionEvidence.State` |
@@ -472,6 +482,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | entity lifecycle | `ekr.integrate.SchemaProposal` |
 | entity lifecycle | `ekr.integrate.Split` |
 | entity lifecycle | `ekr.kernel.Agent` |
+| entity lifecycle | `ekr.kernel.AnswerReplacement` |
 | entity lifecycle | `ekr.kernel.AuthorityTransition` |
 | entity lifecycle | `ekr.kernel.Dispute` |
 | entity lifecycle | `ekr.kernel.DisputeClaim` |
@@ -503,6 +514,7 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | command contract | `ekr.kernel.ApplyUpgrade` |
 | command contract | `ekr.kernel.Commit` |
 | command contract | `ekr.kernel.Explain` |
+| command contract | `ekr.kernel.ListAnswers` |
 | command contract | `ekr.kernel.ListAttention` |
 | command contract | `ekr.kernel.PreviewUpgrade` |
 | command contract | `ekr.kernel.Propose` |
@@ -537,8 +549,10 @@ Scope: `component-skeletons`, planned by `ess-synth`. Regenerate with `ess synth
 | event type | `ekr.integrate.SubmitSchemaProposalResult` |
 | event type | `ekr.kernel.AnswerAttentionResult` |
 | event type | `ekr.kernel.ApplyUpgradeResult` |
+| event type | `ekr.kernel.AttentionAnswered` |
 | event type | `ekr.kernel.AuthorityUpgraded` |
 | event type | `ekr.kernel.Explained` |
+| event type | `ekr.kernel.ListAnswersResult` |
 | event type | `ekr.kernel.ListAttentionResult` |
 | event type | `ekr.kernel.PreviewUpgradeResult` |
 | event type | `ekr.kernel.RevisionCommitted` |
@@ -680,6 +694,7 @@ What the specification fully determines is generated; what it cannot determine i
 | command behaviour | `ekr.kernel.ApplyUpgrade` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.ApplyUpgrade` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ApplyUpgradeResult`, emits `ekr.kernel.AuthorityUpgraded`; `refused` externally decided (Verify an UpgradeAuthority human_proof and the independently provisioned host/store reviewer binding before enrollment or mutation. Never trust a policy or verification key solely because request content supplies it. Before any mutation refuse a stale head, altered preview digest, unsupported target, unauthenticated operator or incomplete historical verification.), error `ekr.kernel.KnowledgeRefused` |
 | command behaviour | `ekr.kernel.Commit` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.Commit` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `committed` when the existing subject is in Validated, takes `commit` of `ekr.kernel.GraphTransaction`, emits `ekr.kernel.RevisionCommitted`, emits `ekr.store.PublicationPrepared`, emits `ekr.store.ObjectStored`, emits `ekr.store.CheckpointWritten`; `stale` externally decided (the canonical revision moved since the transaction was validated), takes `stale` of `ekr.kernel.GraphTransaction`, emits `ekr.kernel.TransactionStale`, emits `ekr.store.PublicationPrepared`, emits `ekr.store.ObjectStored`; `retained-commit` when the existing subject is in Committed, returns the exact retained result of `committed` without errors, events, or subject changes; `transaction-not-found` externally decided (no retained transaction carries input.transaction_id), error `ekr.kernel.TransactionNotFound`; `wrong-state` otherwise, error `ekr.kernel.TransactionStateConflict` |
 | command behaviour | `ekr.kernel.Explain` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.Explain` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `explained` otherwise, emits `ekr.kernel.Explained`; `not-found` externally decided (the canonical core holds no such assertion), error `ekr.kernel.AssertionNotFound` |
+| command behaviour | `ekr.kernel.ListAnswers` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.ListAnswers` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ListAnswersResult` |
 | command behaviour | `ekr.kernel.ListAttention` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.ListAttention` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ListAttentionResult` |
 | command behaviour | `ekr.kernel.PreviewUpgrade` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.PreviewUpgrade` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.PreviewUpgradeResult`; `refused` externally decided (Unknown rule versions, unverified history and unsupported transitions are refused.), error `ekr.kernel.KnowledgeRefused` |
 | command behaviour | `ekr.kernel.Propose` | kept an obligation by a typed response (`response:`) | given `ekr.kernel.Propose` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `proposed` otherwise, creates `ekr.kernel.GraphTransaction`, emits `ekr.kernel.TransactionProposed`, emits `ekr.store.PublicationPrepared`, emits `ekr.store.ObjectStored`; `malformed` externally decided (strict document parsing or structural admission refuses before recording), error `ekr.kernel.StructurallyInvalid`; `misattributed` externally decided (the document names a proposer other than the trusted submitter, or the submitter is unregistered), error `ekr.kernel.ProposalAttribution` |
@@ -714,7 +729,7 @@ What the specification fully determines is generated; what it cannot determine i
 | actor grants | `ekr.integrate.KnowledgeProposer` | planning | may invoke `ekr.integrate.ApplySchemaProposal`, `ekr.integrate.DiscoverSchemaGaps`, `ekr.integrate.ImportInterpretation`, `ekr.integrate.ListInterpretations`, `ekr.integrate.ShowInterpretation`, `ekr.integrate.ShowSchemaProposal`, `ekr.integrate.SubmitSchemaProposal`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
 | actor grants | `ekr.kernel.Committer` | planning | may invoke `ekr.kernel.Commit`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
 | actor grants | `ekr.kernel.HumanOperator` | planning | may invoke `ekr.kernel.AnswerAttention`, `ekr.kernel.ApplyUpgrade`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
-| actor grants | `ekr.kernel.KnowledgeReader` | planning | may invoke `ekr.kernel.ListAttention`, `ekr.kernel.PreviewUpgrade`, `ekr.kernel.ShowAttention`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
+| actor grants | `ekr.kernel.KnowledgeReader` | planning | may invoke `ekr.kernel.ListAnswers`, `ekr.kernel.ListAttention`, `ekr.kernel.PreviewUpgrade`, `ekr.kernel.ShowAttention`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
 | actor grants | `ekr.kernel.Operator` | planning | may invoke `ekr.kernel.Explain`, `ekr.kernel.Seed`, `ekr.kernel.Snapshot`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
 | actor grants | `ekr.kernel.Proposer` | planning | may invoke `ekr.kernel.Propose`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |
 | actor grants | `ekr.kernel.Validator` | planning | may invoke `ekr.kernel.Validate`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry |

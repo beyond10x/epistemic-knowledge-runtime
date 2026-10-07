@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
-// contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
+// model digest 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146
+// contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c
 // do not edit: regenerate with `ess synthesize`
 
 //! The `ekr` system, v1: its components assembled, its bindings wired, and its one transport.
@@ -43,8 +43,12 @@ pub enum SystemEvent {
     AnswerAttentionResult(ekr_types::kernel::AnswerAttentionResult),
     /// `ekr.kernel.ApplyUpgradeResult`.
     ApplyUpgradeResult(ekr_types::kernel::ApplyUpgradeResult),
+    /// `ekr.kernel.AttentionAnswered`.
+    AttentionAnswered(ekr_types::kernel::AttentionAnswered),
     /// `ekr.kernel.Explained`.
     Explained(ekr_types::kernel::Explained),
+    /// `ekr.kernel.ListAnswersResult`.
+    ListAnswersResult(ekr_types::kernel::ListAnswersResult),
     /// `ekr.kernel.ListAttentionResult`.
     ListAttentionResult(ekr_types::kernel::ListAttentionResult),
     /// `ekr.kernel.PreviewUpgradeResult`.
@@ -97,7 +101,9 @@ impl SystemEvent {
             Self::SubmitSchemaProposalResult(_) => "ekr.integrate.SubmitSchemaProposalResult",
             Self::AnswerAttentionResult(_) => "ekr.kernel.AnswerAttentionResult",
             Self::ApplyUpgradeResult(_) => "ekr.kernel.ApplyUpgradeResult",
+            Self::AttentionAnswered(_) => "ekr.kernel.AttentionAnswered",
             Self::Explained(_) => "ekr.kernel.Explained",
+            Self::ListAnswersResult(_) => "ekr.kernel.ListAnswersResult",
             Self::ListAttentionResult(_) => "ekr.kernel.ListAttentionResult",
             Self::PreviewUpgradeResult(_) => "ekr.kernel.PreviewUpgradeResult",
             Self::RevisionCommitted(_) => "ekr.kernel.RevisionCommitted",
@@ -148,7 +154,9 @@ impl From<ekr_kernel::PublishedEvent> for SystemEvent {
         match event {
             ekr_kernel::PublishedEvent::AnswerAttentionResult(event) => Self::AnswerAttentionResult(event),
             ekr_kernel::PublishedEvent::ApplyUpgradeResult(event) => Self::ApplyUpgradeResult(event),
+            ekr_kernel::PublishedEvent::AttentionAnswered(event) => Self::AttentionAnswered(event),
             ekr_kernel::PublishedEvent::Explained(event) => Self::Explained(event),
+            ekr_kernel::PublishedEvent::ListAnswersResult(event) => Self::ListAnswersResult(event),
             ekr_kernel::PublishedEvent::ListAttentionResult(event) => Self::ListAttentionResult(event),
             ekr_kernel::PublishedEvent::PreviewUpgradeResult(event) => Self::PreviewUpgradeResult(event),
             ekr_kernel::PublishedEvent::RevisionCommitted(event) => Self::RevisionCommitted(event),
@@ -261,7 +269,7 @@ impl<EkrGraphBehaviors, EkrIntegrateBehaviors, EkrKernelBehaviors, EkrObserveBeh
 where
     EkrGraphBehaviors: ekr_types::graph::obligations::AssertionsQuery + ekr_types::graph::obligations::SettledAssertionsQuery,
     EkrIntegrateBehaviors: ekr_types::integrate::obligations::ApplyExtractionBehavior + ekr_types::integrate::obligations::ApplySchemaProposalBehavior + ekr_types::integrate::obligations::ApproveSchemaProposalBehavior + ekr_types::integrate::obligations::DiscoverSchemaGapsBehavior + ekr_types::integrate::obligations::ImportInterpretationBehavior + ekr_types::integrate::obligations::ListInterpretationsBehavior + ekr_types::integrate::obligations::RejectSchemaProposalBehavior + ekr_types::integrate::obligations::ShowInterpretationBehavior + ekr_types::integrate::obligations::ShowSchemaProposalBehavior + ekr_types::integrate::obligations::SubmitSchemaProposalBehavior + ekr_types::integrate::obligations::ApplicationReceiptRecordsQuery + ekr_types::integrate::obligations::CanonicalDerivationRecordsQuery + ekr_types::integrate::obligations::IntegrationBlockerRecordsQuery + ekr_types::integrate::obligations::InterpretationObservationRecordsQuery + ekr_types::integrate::obligations::InterpretationRecordsQuery + ekr_types::integrate::obligations::MappingRecordRecordsQuery + ekr_types::integrate::obligations::ProcessingReceiptRecordsQuery + ekr_types::integrate::obligations::ProposalEvidenceRecordsQuery + ekr_types::integrate::obligations::ProposalObservationRecordsQuery + ekr_types::integrate::obligations::ProposalReviewRecordsQuery + ekr_types::integrate::obligations::ProposalSourceBindingRecordsQuery + ekr_types::integrate::obligations::SchemaProposalRecordsQuery,
-    EkrKernelBehaviors: ekr_types::kernel::obligations::AnswerAttentionBehavior + ekr_types::kernel::obligations::ApplyUpgradeBehavior + ekr_types::kernel::obligations::CommitBehavior + ekr_types::kernel::obligations::ExplainBehavior + ekr_types::kernel::obligations::ListAttentionBehavior + ekr_types::kernel::obligations::PreviewUpgradeBehavior + ekr_types::kernel::obligations::ProposeBehavior + ekr_types::kernel::obligations::SeedBehavior + ekr_types::kernel::obligations::ShowAttentionBehavior + ekr_types::kernel::obligations::SnapshotBehavior + ekr_types::kernel::obligations::ValidateBehavior + ekr_types::kernel::obligations::AuthorityTransitionRecordsQuery + ekr_types::kernel::obligations::CurrentRevisionQuery + ekr_types::kernel::obligations::DisputeClaimRecordsQuery + ekr_types::kernel::obligations::DisputeRecordsQuery + ekr_types::kernel::obligations::HumanAnswerRecordsQuery + ekr_types::kernel::obligations::HumanDecisionRecordsQuery + ekr_types::kernel::obligations::PendingTransactionsQuery + ekr_types::kernel::obligations::RejectionsQuery + ekr_types::kernel::obligations::RetainedEvidenceQuery + ekr_types::kernel::obligations::RevisionsQuery + ekr_types::kernel::obligations::SchemaTransactionEvidenceRecordsQuery + ekr_types::kernel::obligations::TransactionsQuery + ekr_types::kernel::obligations::ValidationIssuesQuery,
+    EkrKernelBehaviors: ekr_types::kernel::obligations::AnswerAttentionBehavior + ekr_types::kernel::obligations::ApplyUpgradeBehavior + ekr_types::kernel::obligations::CommitBehavior + ekr_types::kernel::obligations::ExplainBehavior + ekr_types::kernel::obligations::ListAnswersBehavior + ekr_types::kernel::obligations::ListAttentionBehavior + ekr_types::kernel::obligations::PreviewUpgradeBehavior + ekr_types::kernel::obligations::ProposeBehavior + ekr_types::kernel::obligations::SeedBehavior + ekr_types::kernel::obligations::ShowAttentionBehavior + ekr_types::kernel::obligations::SnapshotBehavior + ekr_types::kernel::obligations::ValidateBehavior + ekr_types::kernel::obligations::AuthorityTransitionRecordsQuery + ekr_types::kernel::obligations::CurrentRevisionQuery + ekr_types::kernel::obligations::DisputeClaimRecordsQuery + ekr_types::kernel::obligations::DisputeRecordsQuery + ekr_types::kernel::obligations::HumanAnswerRecordsQuery + ekr_types::kernel::obligations::HumanDecisionRecordsQuery + ekr_types::kernel::obligations::PendingTransactionsQuery + ekr_types::kernel::obligations::RejectionsQuery + ekr_types::kernel::obligations::RetainedEvidenceQuery + ekr_types::kernel::obligations::RevisionsQuery + ekr_types::kernel::obligations::SchemaTransactionEvidenceRecordsQuery + ekr_types::kernel::obligations::TransactionsQuery + ekr_types::kernel::obligations::ValidationIssuesQuery,
     EkrObserveBehaviors: ekr_types::observe::obligations::ImportObservationBehavior + ekr_types::observe::obligations::ListObservationsBehavior + ekr_types::observe::obligations::ShowObservationBehavior + ekr_types::observe::obligations::RetainedObservationRecordsQuery,
     EkrOntologyBehaviors: ekr_types::ontology::obligations::NodeTypesByVersionQuery,
     EkrViewsBehaviors: ekr_types::views::obligations::ProjectGraphBehavior,

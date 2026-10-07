@@ -1,6 +1,6 @@
 // generated from ekr v1
-// model digest 147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad
-// contract digest b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6
+// model digest 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146
+// contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c
 // do not edit: regenerate with `ess synthesize`
 
 //! Store — `ekr.store`.
@@ -136,6 +136,8 @@ pub struct Publication {
 /// PublicationCommandKey — `ekr.store.PublicationCommandKey`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicationCommandKey {
+    /// `answer_id` — `Optional<ekr.kernel.HumanAnswerId>`.
+    pub answer_id: Option<crate::kernel::HumanAnswerId>,
     /// `kind` — `ekr.store.PublicationCommandKind`.
     pub kind: PublicationCommandKind,
     /// `transaction_id` — `Optional<ekr.kernel.TransactionId>`.
@@ -159,6 +161,8 @@ pub enum PublicationCommandKind {
     Commit,
     /// `UpgradeAuthority`.
     UpgradeAuthority,
+    /// `AnswerAttention`.
+    AnswerAttention,
 }
 
 /// PublicationObject — `ekr.store.PublicationObject`.
@@ -183,6 +187,8 @@ pub enum PublicationPreparationFormatV1 {
     EkrPublicationPreparation3,
     /// `EkrPublicationPreparation4`.
     EkrPublicationPreparation4,
+    /// `EkrPublicationPreparation5`.
+    EkrPublicationPreparation5,
 }
 
 /// PublicationPreparationV1 — `ekr.store.PublicationPreparationV1`.

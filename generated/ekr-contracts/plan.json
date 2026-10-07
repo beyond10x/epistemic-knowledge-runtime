@@ -2,8 +2,8 @@
   "provenance": {
     "system": "ekr",
     "specification_version": "v1",
-    "source_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
-    "contract_digest": "b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6"
+    "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c"
   },
   "scope": {
     "profile": "component-skeletons"
@@ -928,6 +928,20 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.kernel.AnswerRecordFormat",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.kernel.AnswerReplacement.State",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.kernel.ApplicationProfileV1",
       "disposition": {
         "disposition": "generated"
@@ -935,7 +949,21 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.kernel.AttentionAnswerApplication",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.kernel.AttentionAnswerTarget",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.kernel.AttentionAnsweredPayload",
       "disposition": {
         "disposition": "generated"
       }
@@ -1068,6 +1096,13 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.kernel.ClaimReplacement",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.kernel.CliHostConfigurationV1",
       "disposition": {
         "disposition": "generated"
@@ -1187,6 +1222,13 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.kernel.ExplainedAnswer",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.kernel.ExplainedAttachment",
       "disposition": {
         "disposition": "generated"
@@ -1265,6 +1307,13 @@
     {
       "kind": "domain_type",
       "source": "ekr.kernel.HumanAnswerId",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.kernel.HumanAnswerRecord",
       "disposition": {
         "disposition": "generated"
       }
@@ -1530,6 +1579,13 @@
     },
     {
       "kind": "domain_type",
+      "source": "ekr.kernel.RevisionEventFormatV4",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
       "source": "ekr.kernel.RevisionEventV2",
       "disposition": {
         "disposition": "generated"
@@ -1538,6 +1594,13 @@
     {
       "kind": "domain_type",
       "source": "ekr.kernel.RevisionEventV3",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.kernel.RevisionEventV4",
       "disposition": {
         "disposition": "generated"
       }
@@ -1566,6 +1629,13 @@
     {
       "kind": "domain_type",
       "source": "ekr.kernel.RevisionPayloadV3",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "domain_type",
+      "source": "ekr.kernel.RevisionPayloadV4",
       "disposition": {
         "disposition": "generated"
       }
@@ -3217,6 +3287,13 @@
     },
     {
       "kind": "entity_lifecycle",
+      "source": "ekr.kernel.AnswerReplacement",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "entity_lifecycle",
       "source": "ekr.kernel.AuthorityTransition",
       "disposition": {
         "disposition": "generated"
@@ -3598,6 +3675,25 @@
           "construct": "a typed response (`response:`)"
         },
         "contract": "given `ekr.kernel.Explain` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `explained` otherwise, emits `ekr.kernel.Explained`; `not-found` externally decided (the canonical core holds no such assertion), error `ekr.kernel.AssertionNotFound`"
+      }
+    },
+    {
+      "kind": "command_contract",
+      "source": "ekr.kernel.ListAnswers",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "command_behavior",
+      "source": "ekr.kernel.ListAnswers",
+      "disposition": {
+        "disposition": "obligation",
+        "reason": {
+          "class": "undetermined",
+          "construct": "a typed response (`response:`)"
+        },
+        "contract": "given `ekr.kernel.ListAnswers` input, decide and enact exactly one outcome. Declared outcomes (declaration order, not selection precedence): `answered` otherwise, emits `ekr.kernel.ListAnswersResult`"
       }
     },
     {
@@ -4104,6 +4200,13 @@
     },
     {
       "kind": "event_type",
+      "source": "ekr.kernel.AttentionAnswered",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "event_type",
       "source": "ekr.kernel.AuthorityUpgraded",
       "disposition": {
         "disposition": "generated"
@@ -4112,6 +4215,13 @@
     {
       "kind": "event_type",
       "source": "ekr.kernel.Explained",
+      "disposition": {
+        "disposition": "generated"
+      }
+    },
+    {
+      "kind": "event_type",
+      "source": "ekr.kernel.ListAnswersResult",
       "disposition": {
         "disposition": "generated"
       }
@@ -4939,7 +5049,7 @@
         "disposition": "refused",
         "reason": "needs_caller_identity",
         "stage": "planning",
-        "detail": "may invoke `ekr.kernel.ListAttention`, `ekr.kernel.PreviewUpgrade`, `ekr.kernel.ShowAttention`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
+        "detail": "may invoke `ekr.kernel.ListAnswers`, `ekr.kernel.ListAttention`, `ekr.kernel.PreviewUpgrade`, `ekr.kernel.ShowAttention`; generated as data, not enforced: the grant is available as the declared actors and the qualified commands each may invoke, and enforcement stays with the caller, because a grant is checked against a caller identity, which types do not carry"
       }
     },
     {
