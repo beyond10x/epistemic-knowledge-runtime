@@ -263,6 +263,8 @@ impl Driven {
             "--enable-unsafe-swiftshader".to_owned(),
             "--no-sandbox".to_owned(),
             "--no-first-run".to_owned(),
+            "--disable-component-update".to_owned(),
+            "--disable-background-networking".to_owned(),
             "--disable-extensions".to_owned(),
             format!("--window-size={},{}", size.0, size.1),
             "--remote-debugging-port=0".to_owned(),

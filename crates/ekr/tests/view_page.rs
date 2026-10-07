@@ -521,6 +521,41 @@ fn without_pinned_libraries(page: &str) -> String {
     rest.replace(&line, "")
 }
 
+/// Within its first minute a browser on a fresh profile downloads Chromium's components, among them
+/// `PKIMetadata`, which carries the certificate root store (measured on 2026-10-07 with a net log:
+/// 176 requests to the update host without the two flags, none with them). On CI a library request
+/// failed with `net::ERR_CERT_VERIFIER_CHANGED` and the page never settled (run 37529812043); a
+/// root store installed mid-request is the inferred cause. Every browser a test starts is told not
+/// to fetch components or make background requests.
+#[test]
+fn every_browser_a_test_starts_installs_no_components_and_makes_no_background_requests() {
+    let quoted = |flag: &str| format!("\"--{flag}\"");
+    let (headless, components, background) = (
+        quoted("headless"),
+        quoted("disable-component-update"),
+        quoted("disable-background-networking"),
+    );
+    let mut launches = 0;
+    for entry in std::fs::read_dir(manifest_dir().join("tests")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).unwrap();
+        let started = source.matches(&headless).count();
+        launches += started;
+        for flag in [&components, &background] {
+            assert_eq!(
+                source.matches(flag.as_str()).count(),
+                started,
+                "{}: every {headless} launch carries {flag}",
+                path.display()
+            );
+        }
+    }
+    assert!(launches >= 8, "the browser launches were found: {launches}");
+}
+
 #[test]
 fn the_embedded_page_loads_only_the_pinned_libraries_by_integrity() {
     for (file, page) in pages() {
@@ -677,6 +712,8 @@ fn rendered(browser: &Path, url: &str) -> String {
             "--enable-unsafe-swiftshader",
             "--no-sandbox",
             "--no-first-run",
+            "--disable-component-update",
+            "--disable-background-networking",
             "--disable-extensions",
             &format!("--user-data-dir={}", profile.path().display()),
             "--virtual-time-budget=8000",
@@ -2094,6 +2131,8 @@ fn shoot(browser: &Path, url: &str, file: &Path, millis: u32, real: bool) {
             "--enable-unsafe-swiftshader",
             "--no-sandbox",
             "--no-first-run",
+            "--disable-component-update",
+            "--disable-background-networking",
             "--disable-extensions",
             "--hide-scrollbars",
             "--window-size=1600,1000",
@@ -2321,6 +2360,8 @@ impl Driven {
                 "--enable-unsafe-swiftshader",
                 "--no-sandbox",
                 "--no-first-run",
+                "--disable-component-update",
+                "--disable-background-networking",
                 "--disable-extensions",
                 &format!("--window-size={},{}", size.0, size.1),
                 "--remote-debugging-port=0",

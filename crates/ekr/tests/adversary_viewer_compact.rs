@@ -353,6 +353,8 @@ impl Driven {
                     "--enable-unsafe-swiftshader",
                     "--no-sandbox",
                     "--no-first-run",
+                    "--disable-component-update",
+                    "--disable-background-networking",
                     "--disable-extensions",
                     "--window-size=1600,1000",
                     "--remote-debugging-port=0",
@@ -509,6 +511,9 @@ impl Driven {
         reply["result"]["result"]["value"].clone()
     }
 
+    /// Waits up to `seconds` for `expression` to be `true`. When it never is, the page's own state
+    /// and the errors it reported go to the case's output, so a red run names what the page was
+    /// doing.
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
         for _ in 0..seconds * 5 {
             if self.eval(&format!(
@@ -519,6 +524,18 @@ impl Driven {
             }
             std::thread::sleep(Duration::from_millis(200));
         }
+        let state = self.eval(
+            "(() => { const v = window.__viewer; return {
+               readyState: document.readyState, viewer: !!v,
+               layoutRunning: v ? v.layoutRunning : null, fg: v ? !!v.fg : null,
+               streamStop: !!document.querySelector('[data-act=stream-stop]'),
+               hud: document.getElementById('hud')?.textContent ?? null,
+               status: document.getElementById('status')?.textContent ?? null }; })()",
+        );
+        eprintln!(
+            "never true: {expression}\npage state: {state}\npage errors: {}",
+            serde_json::to_string_pretty(&self.errors).unwrap()
+        );
         false
     }
 

@@ -316,6 +316,8 @@ impl Browser {
                     "--headless",
                     "--no-sandbox",
                     "--no-first-run",
+                    "--disable-component-update",
+                    "--disable-background-networking",
                     "--disable-gpu",
                     "--remote-debugging-port=0",
                 ])
