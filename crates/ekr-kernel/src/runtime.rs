@@ -1,8 +1,12 @@
 //! Kernel-owned provider opening for consumers which must never depend on the raw store.
+//!
+//! Every opener here takes the tenant a host configuration names, and refuses one that carries
+//! the marker reserved to stage tenants (`stage-tenant-reserved`, design § 107.1) before it
+//! reads, creates or writes anything: no store's tenant is ever a stage's derived tenant.
 use crate::{AuthorityStateV1, BootstrapContext, Commit, SeedDocument, SeedError, SeedResultV1};
 use ekr_core::{ContentHash, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, Root};
-use ekr_store::{FileStore, PostgresStore, SqliteStore, StoreError};
+use ekr_store::{admit_store_tenant, FileStore, PostgresStore, SqliteStore, StoreError};
 
 pub use ekr_store::postgres::{PostgresConfiguration, PostgresPool};
 use std::path::Path;
@@ -38,6 +42,7 @@ impl Runtime {
         anchor: AuthorityStateV1,
         reading: bool,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Postgres(Box::new(Commit::over_with_authority(
                 context,
@@ -60,6 +65,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -201,6 +207,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::File(Box::new(Commit::over_with_authority(
                 context,
@@ -218,6 +225,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -238,6 +246,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::File(Box::new(Commit::over_with_authority(
                 context,
@@ -258,6 +267,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -280,6 +290,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::File(Box::new(Commit::over_with_authority(
                 context,
@@ -301,6 +312,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,

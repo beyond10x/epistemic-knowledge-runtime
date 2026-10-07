@@ -184,26 +184,33 @@ pub(crate) fn finished(
     Ok(())
 }
 
+/// A store read once for a preserving copy (design §§ 105.2, 107.2): its inventory, taken in one
+/// read of the provider — the image a read-only SQLite store holds, or one PostgreSQL capture —
+/// and replayed in full through the kernel's authority.
+///
+/// Everything a copy publishes comes from this value; [`CapturedStore::copy_into`] reads nothing
+/// more of the source. A commit to the source after the capture is therefore in no copy of it, and
+/// the capture's [`head`](CapturedStore::head) is the head every copy of it holds: a stage's base.
+/// Holding one grants nothing but copying.
+pub struct CapturedStore<'a, S: RevisionLog + ObjectStore> {
+    /// The store it was read from, whose authority decodes its seed envelope.
+    source: &'a Commit<S>,
+    inventory: ekr_store::StoreInventory,
+    history: RetainedHistory,
+    /// The inventory replayed in full: what every copy is compared with.
+    state: std::sync::Arc<ReplayState>,
+}
+
 impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
-    /// Migrates this store into `destination`, a store that holds nothing yet, opened under the
-    /// same host anchor. This store is only read.
+    /// Reads this store once for a preserving copy: its inventory ([`Inventory::inventory`], one
+    /// provider capture on PostgreSQL), checked for an elected decision never published, and
+    /// replayed in full. Writes nothing.
     ///
     /// # Errors
-    /// `migrate-destination-not-empty` for a destination that holds any event;
-    /// `migrate-unresolved-preparation` for a source preparation whose decision was never
-    /// published; any refusal of the source's full replay; `migrate-verification-disagrees` where
-    /// the destination's full replay does not reach the source's state.
-    pub fn migrate_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
-        &self,
-        destination: &Commit<D>,
-    ) -> Result<StoreMigrationV1, CommitError> {
-        if !destination.store.is_empty()? {
-            return Err(migration(
-                "migrate-destination-not-empty",
-                "a migration writes only into a store that holds nothing",
-            )
-            .into());
-        }
+    /// `migrate-unresolved-preparation` for a preparation whose decision was never published; any
+    /// refusal of the inventory or of the full replay, `migrate-incomplete` included;
+    /// [`CommitError::NotSeeded`] for a store with no seed.
+    pub fn capture(&self) -> Result<CapturedStore<'_, S>, CommitError> {
         let inventory = self.store.inventory()?;
         let published: BTreeSet<EventId> = inventory
             .occurrences
@@ -232,11 +239,85 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 .map(|(hash, held)| (*hash, held.object.clone()))
                 .collect(),
         };
-        let source = self
+        let state = self
             .authority
             .reconstruct_in_full(&history)?
             .ok_or(CommitError::NotSeeded)?;
+        Ok(CapturedStore {
+            source: self,
+            inventory,
+            history,
+            state,
+        })
+    }
 
+    /// Migrates this store into `destination`, a store that holds nothing yet, opened under the
+    /// same host anchor: [`Commit::capture`], then [`CapturedStore::copy_into`]. This store is
+    /// only read.
+    ///
+    /// # Errors
+    /// `migrate-destination-not-empty` for a destination that holds any event;
+    /// `migrate-unresolved-preparation` for a source preparation whose decision was never
+    /// published; any refusal of the source's full replay; `migrate-verification-disagrees` where
+    /// the destination's full replay does not reach the source's state.
+    pub fn migrate_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
+        empty(destination)?;
+        self.capture()?.copy_unchecked(destination)
+    }
+}
+
+/// Refuses a destination that holds anything.
+fn empty<D: RevisionLog + ObjectStore + Inventory>(
+    destination: &Commit<D>,
+) -> Result<(), CommitError> {
+    if destination.store.is_empty()? {
+        Ok(())
+    } else {
+        Err(migration(
+            "migrate-destination-not-empty",
+            "a migration writes only into a store that holds nothing",
+        )
+        .into())
+    }
+}
+
+impl<S: RevisionLog + ObjectStore + Inventory> CapturedStore<'_, S> {
+    /// The captured head: the head every copy of this capture holds, whatever the source has
+    /// committed since.
+    #[must_use]
+    pub fn head(&self) -> ekr_graph::Root {
+        self.state.head().root
+    }
+
+    /// Copies the captured store into `destination`, a store that holds nothing yet, opened under
+    /// the same host anchor — a new store, or a stage's own tenant of the same store (design
+    /// § 107.2) — and verifies the copy there. Reads nothing more of the source.
+    ///
+    /// The destination's seed binds a fresh claim under `ekr-seed-envelope/4` and its completion
+    /// receipt is written last, so a copy interrupted at any point leaves a destination every
+    /// other reader refuses as `migrate-incomplete`. A capture can be copied more than once, each
+    /// copy under its own claim.
+    ///
+    /// # Errors
+    /// `migrate-destination-not-empty`; any refusal of the destination's writes or replay;
+    /// `migrate-verification-disagrees` where the destination's full replay does not reach the
+    /// captured state.
+    pub fn copy_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
+        empty(destination)?;
+        self.copy_unchecked(destination)
+    }
+
+    /// [`Self::copy_into`] after its destination was found empty.
+    fn copy_unchecked<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
         // The seed atomically binds a fresh claim to this copy. Until the
         // completion receipt is written last, other readers refuse `migrate-incomplete`, so a
         // migration interrupted at any point leaves no store that answers as the migrated one.
@@ -247,19 +328,27 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
         }
         let outcome = (|| {
             let claim = EventId::mint();
-            let report = self.publish_into(destination, &history, &inventory, &source, claim)?;
+            let report = self.source.publish_into(
+                destination,
+                &self.history,
+                &self.inventory,
+                &self.state,
+                claim,
+            )?;
             let finished = completion(claim, report.destination_seed_hash)?;
             let _ = destination.store.put(
                 StorageClass::Canonical,
                 &finished,
-                source.head().committed_at,
+                self.state.head().committed_at,
             )?;
             Ok(report)
         })();
         destination.authority.cache()?.migrating = false;
         outcome
     }
+}
 
+impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     /// Publishes the verified `source` history, `inventory` and `history` of this store into
     /// `destination`, verifies it there and retains the report.
     fn publish_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(

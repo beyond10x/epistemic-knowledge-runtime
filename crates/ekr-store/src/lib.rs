@@ -13,6 +13,9 @@
 //!   design § 37 and § 57.
 //! * [`snapshot`] — [`GraphDocument`], the materialised fold as bytes, and the one named place a
 //!   document is serialized; kernel admission is delegated through the authority port.
+//! * [`stage`] — a stage's tenant (design § 107.1): [`stage_tenant`] derives it from the store's
+//!   tenant and the stage id, and [`admit_store_tenant`] refuses a store's tenant that carries
+//!   the marker reserved to stage tenants.
 //! * [`eventlog`] — the implementation over `eventlog-sqlite` and `eventlog-file`.
 //! * [`legacy`] — supplied-byte verification of the original graph format.
 //!
@@ -54,6 +57,7 @@ pub mod log;
 pub mod objects;
 pub mod postgres;
 pub mod snapshot;
+pub mod stage;
 mod verified;
 
 pub use eventlog::remove_read_only_copies;
@@ -76,6 +80,7 @@ pub use log::{
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
+pub use stage::{admit_store_tenant, stage_tenant, STAGE_TENANT_MARKER};
 #[doc(hidden)]
 pub use verified::{objects_loaded, read_work, stream_reads, ReadWork, StreamReads};
 
@@ -137,6 +142,16 @@ pub enum StoreError {
     /// the store again on it, as on [`StoreError::Diverged`].
     #[error("store-replaced: {0}")]
     Replaced(String),
+
+    /// `stage-tenant-reserved` (`ekr.store.StageTenantReserved`): a store was to be opened under
+    /// a tenant that carries the marker reserved to stage tenants ([`STAGE_TENANT_MARKER`]), so
+    /// it could be a stage's derived tenant. No store was opened; nothing was read, created or
+    /// written. It carries the refused tenant.
+    #[error(
+        "stage-tenant-reserved: the tenant {0:?} carries the marker reserved to stage tenants \
+         ({STAGE_TENANT_MARKER}); no store is opened under it"
+    )]
+    StageTenantReserved(String),
 
     /// An existing-only open found no store at the path: nothing there, an empty directory, an
     /// empty file, a symlink to nothing, a SQLite database without the owner tables, or a File
