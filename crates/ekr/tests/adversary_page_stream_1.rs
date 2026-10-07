@@ -6,7 +6,8 @@
 //! by a probe script of the case's own (the page is not changed; the probe only reads the page's
 //! state and writes it into a `<pre id="probe-out">` the case reads off `--dump-dom`), and forwards
 //! every other request to `ekr view` unchanged — or, where a case says so, re-frames a streamed
-//! answer into chunks of a few bytes, or answers one address itself.
+//! answer into chunks of a few bytes, or answers one address itself. The page's graph libraries are
+//! served to the browser from `tests/fixtures/viewer-libraries/` (`support/viewer_libraries.rs`).
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -18,6 +19,9 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
+
+#[path = "support/viewer_libraries.rs"]
+mod viewer_libraries;
 
 const OPERATOR: &str = "00000000-0000-4000-8000-000000000101";
 const DAY: i64 = 86_400_000;
@@ -723,6 +727,25 @@ impl Cdp {
                 };
             }
             let params = &value["params"];
+            if value["method"] == "Fetch.requestPaused" {
+                // a library the page loads, answered from the fixtures; the reply is passed over
+                if let Some((answer, answered)) = viewer_libraries::answer(params) {
+                    self.console.push(format!(
+                        "library {answer} {}",
+                        params["request"]["url"].as_str().unwrap_or_default()
+                    ));
+                    self.next += 1;
+                    let command =
+                        serde_json::json!({"id": self.next, "method": answer, "params": answered});
+                    self.socket
+                        .send(tungstenite::Message::Text(command.to_string().into()))
+                        .map_err(|error| format!("{answer}: sending: {error}"))?;
+                }
+                continue;
+            }
+            if value.get("error").is_some() {
+                self.console.push(format!("protocol error: {value}"));
+            }
             match value["method"].as_str() {
                 Some("Runtime.consoleAPICalled") => self.console.push(format!(
                     "console.{}: {}",
@@ -846,6 +869,7 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
             "--disable-component-update",
             "--disable-background-networking",
             "--disable-extensions",
+            viewer_libraries::UNRESOLVABLE,
             "--window-size=1600,1000",
             "--remote-debugging-port=0",
             &format!("--user-data-dir={}", profile.path().display()),
@@ -887,6 +911,7 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
     let ran = (|| -> Result<Result<String, String>, String> {
         cdp.call("Runtime.enable", serde_json::json!({}))?;
         cdp.call("Log.enable", serde_json::json!({}))?;
+        viewer_libraries::serve(|method, params| cdp.call(method, params))?;
         cdp.call("Page.navigate", serde_json::json!({ "url": url }))?;
         cdp.call(
             "Emulation.setVirtualTimePolicy",

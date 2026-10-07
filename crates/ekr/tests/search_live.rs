@@ -7,6 +7,9 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 use tungstenite::{Message, WebSocket};
 
+#[path = "support/viewer_libraries.rs"]
+mod viewer_libraries;
+
 struct World {
     dir: tempfile::TempDir,
     child: Child,
@@ -319,6 +322,7 @@ impl Browser {
                     "--disable-component-update",
                     "--disable-background-networking",
                     "--disable-gpu",
+                    viewer_libraries::UNRESOLVABLE,
                     "--remote-debugging-port=0",
                 ])
                 .arg(format!("--user-data-dir={}", dir.path().display()))
@@ -343,6 +347,7 @@ impl Browser {
         };
         browser.call("Page.enable", json!({}));
         browser.call("Page.setLifecycleEventsEnabled", json!({"enabled":true}));
+        viewer_libraries::serve(|method, params| browser.call(method, params));
         Some(browser)
     }
     fn call(&mut self, method: &str, params: Value) -> Value {
@@ -387,6 +392,21 @@ impl Browser {
             let message = self.socket.read().unwrap();
             if let Message::Text(text) = message {
                 let value: Value = serde_json::from_str(&text).unwrap();
+                if value["method"] == "Fetch.requestPaused" {
+                    // a request to the viewer's libraries' host is answered from the fixtures, its
+                    // reply passed over; any other paused request is the case's to answer
+                    if let Some((method, params)) = viewer_libraries::answer(&value["params"]) {
+                        self.next += 1;
+                        self.socket
+                            .send(Message::Text(
+                                json!({"id":self.next,"method":method,"params":params})
+                                    .to_string()
+                                    .into(),
+                            ))
+                            .unwrap();
+                        continue;
+                    }
+                }
                 if value["id"] == id {
                     if let Some(deadline) = deadline {
                         assert!(
@@ -723,7 +743,9 @@ fn superseded_query_clear_failure_and_enter_are_honest() {
     browser.call("Network.enable", json!({}));
     browser.call(
         "Fetch.enable",
-        json!({"patterns":[{"urlPattern":"*/find?q=*","requestStage":"Request"}]}),
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/find?q=*","requestStage":"Request"}),
+        ]),
     );
     browser.focus();
     browser.type_text("Alice");
@@ -776,7 +798,9 @@ fn composition_suppresses_partial_queries_and_no_script_get_still_works() {
     browser.focus();
     browser.call(
         "Fetch.enable",
-        json!({"patterns":[{"urlPattern":"*/find?q=*","requestStage":"Request"}]}),
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/find?q=*","requestStage":"Request"}),
+        ]),
     );
     browser.call(
         "Input.imeSetComposition",
@@ -819,7 +843,8 @@ fn composition_suppresses_partial_queries_and_no_script_get_still_works() {
     let (_, alice) = world.get("/find?q=Alice");
     browser.fulfill(&request, 200, &alice);
     browser.until("class=\"result\"");
-    browser.call("Fetch.disable", json!({}));
+    // the page's reads are no longer paused; the libraries' host stays served
+    browser.call("Fetch.enable", viewer_libraries::patterns_with(&[]));
     browser.call(
         "Emulation.setVirtualTimePolicy",
         json!({"policy":"advance"}),
@@ -916,7 +941,9 @@ fn adversary_clearing_an_inflight_read_keeps_the_empty_state_after_late_failure(
     browser.call("Network.enable", json!({}));
     browser.call(
         "Fetch.enable",
-        json!({"patterns":[{"urlPattern":"*/find?q=*","requestStage":"Request"}]}),
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/find?q=*","requestStage":"Request"}),
+        ]),
     );
     browser.focus();
     browser.type_text("Alice");
@@ -958,7 +985,9 @@ fn adversary_reserved_characters_round_trip_as_one_query_without_navigation() {
     browser.until("data-live-search=\"ready\"");
     browser.call(
         "Fetch.enable",
-        json!({"patterns":[{"urlPattern":"*/find?q=*","requestStage":"Request"}]}),
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/find?q=*","requestStage":"Request"}),
+        ]),
     );
     browser.focus();
     let query = "Å<&+?#%'\"";
