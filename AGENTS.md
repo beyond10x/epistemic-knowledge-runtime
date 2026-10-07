@@ -124,9 +124,12 @@ Each is a claim that can be checked. Breaking one is a design change, not a refa
 errors, the planning store's validation. Land nothing until it exits zero. Prefer `cargo check -p`
 and `cargo test -p` on touched crates while working; run the whole gate before claiming a phase.
 
-Set `CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime`. One tree at a time
-shares that directory with every other tree of this repository, which is what keeps a second
-checkout from paying for a second full build.
+Every tree of this repository builds into its own `target/` and never sets `CARGO_TARGET_DIR`.
+Every tree ends with `worktree finish --discard-cache --archive <tree>`, which deletes only the
+build cache it recognises and archives everything else. Before a gate's result counts as evidence,
+`cargo test -- --list` shows that the tests the run printed exist in the gated tree. The dated
+observations below are the reason: a shared build directory serves one checkout's test binary to
+another, and a guard run from that binary passes while reading the other checkout's source.
 
 **A test that reads this repository's own source must not locate it with
 `env!("CARGO_MANIFEST_DIR")`.** That macro is a compile-time constant: a test binary compiled in one
@@ -173,8 +176,8 @@ includes the package's manifest path. **That last clause was measured false on 2
 struck**: two checkouts of this repository write the same `deps/` filenames and do clobber each
 other, which is what the paragraph above is about. Two further outputs are not keyed by anything:
 `doc/<crate>` is a single shared path, so `task doc-check` from two trees writes the same files, and the uplifted binary is one path, `debug/ekr`. Sharing is therefore not
-merely slow for concurrent work, it is unsound for `doc-check`. A wave running more than one unit
-gives each its own directory and says so in its page.
+merely slow for concurrent work, it is unsound for `doc-check`. Each tree's own `target/` gives
+every unit its own directory.
 
 ## What must not happen here
 
