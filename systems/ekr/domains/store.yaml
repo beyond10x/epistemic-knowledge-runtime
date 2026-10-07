@@ -8,6 +8,15 @@ domain: ekr.store
 # complete until admitted replay and equivalence checks finish. Configuration is a
 # provider input, not a knowledge entity. Acceptance is currently unexecuted:
 # story:hosted-postgres-snapshot names the required real-provider cases.
+#
+# Amended 2026-10-08 (design § 107.2, task:postgres-source-copy): a PostgreSQL store's inventory
+# is read under one provider capture (eventlog `ConsistentTenantCapture`) and never from its
+# change feed, so PostgreSQL is a copy source for a stage as a SQLite image is. The inventory no
+# longer refuses `postgres-inventory-requires-capture`. A writing handle first ensures the
+# tenant's capture identity, as the emptiness check does; a reading handle whose tenant has none
+# refuses as read-only. A copy reads its source once (`Commit::capture`) and then only writes the
+# destination (`CapturedStore::copy_into`). Held by unit C's cases in
+# `crates/ekr-kernel/tests/hosted_postgres.rs` where the PostgreSQL tests run.
 
 summary: >-
   Persistence through eventlog. A committed revision is an event; the graph is a fold; snapshots
@@ -222,14 +231,22 @@ types:
   # it; the caller passes it on as `EKR_STAGE=<id>` or `--stage <id>` and never supplies one.
   #
   # The stage's Eventlog tenant is derived from the store's own tenant (the one the host
-  # configuration names, ekr.kernel.CliHostConfigurationV1.tenant) and this id, deterministically:
-  # the same store tenant and id give the same name; different ids give different names. The
-  # name is valid under Eventlog's TenantId rules (non-empty, at most 512 bytes, ASCII graphic or
-  # space: eventlog-core `validate_field`) for every store tenant a host configuration admits, and
-  # it is distinct from every store tenant: it carries a marker reserved to stage tenants, which a
-  # host configuration's tenant is refused for carrying, so neither this store's own tenant nor
-  # another store's can be produced by the derivation. The marker's spelling and that refusal's
-  # name are unit C's.
+  # configuration names, ekr.kernel.CliHostConfigurationV1.tenant) and this id, deterministically
+  # (`ekr_store::stage_tenant`): `ekr.stage:<store>:<stage>`, where `ekr.stage:` is the marker
+  # reserved to stage tenants, `<store>` the 64 lowercase hex characters of the store tenant's
+  # payload address (`ContentHash::of_bytes`) and `<stage>` this id in its lowercase hyphenated
+  # form. The same store tenant and id give the same name; different ids give different names. The
+  # name is 111 ASCII graphic bytes for every store tenant, however long, so it is valid under
+  # Eventlog's TenantId rules (non-empty, at most 512 bytes, eventlog-core `MAX_FIELD_LEN`; ASCII
+  # graphic or space: `validate_field`).
+  #
+  # It is distinct from every store tenant: a tenant that contains the marker anywhere is refused
+  # as a store's tenant by every provider's open, before anything is read or created
+  # (ekr.store.StageTenantReserved, `stage-tenant-reserved`; `Runtime`'s openers, which every host
+  # configuration opens through), so neither this store's own tenant nor another store's can be
+  # produced by the derivation. That refusal is the one refusal design § 107 adds for an existing
+  # store. Held by `a_stage_tenant_is_never_a_store_tenant` in `crates/ekr-kernel/tests/stage.rs`,
+  # on File and SQLite and, where the PostgreSQL tests run, on PostgreSQL.
   - name: ekr.store.StageId
     kind: newtype
     of: Uuid
@@ -600,6 +617,10 @@ errors:
       - name: state
         type: ekr.store.Stage.State
 
+  # A store's head, here and in every stage command, is the number of its last committed revision
+  # (`ekr head`), never the version of its revision stream: a proposal, a validation, a rejection
+  # or a stale record appends to that stream and does not move the head. `current` is the head
+  # when the refusal was decided, before the append or at a definitive conflict of it.
   - name: ekr.store.StageHeadMoved
     summary: >-
       The store's head is not the expected head, or not the stage's base; the suffix is never
@@ -613,6 +634,39 @@ errors:
         type: ekr.kernel.RevisionNumber
       - name: current
         type: ekr.kernel.RevisionNumber
+
+  # A publication's append group expects the store's revision stream at the version the
+  # publication read when it captured the suffix (design § 107.4). Another writer appended to that
+  # stream after the capture, and the head did not move: a proposal, a validation, a rejection or a
+  # stale record, which commits nothing. The stage stays Sealing; a publish retried with the same
+  # expected head prepares its slot's successor attempt (design § 94.2) at the stream's current
+  # version, with the same suffix.
+  - name: ekr.store.StageStreamMoved
+    summary: >-
+      The store's revision stream moved after the publication captured it, and its head did not;
+      nothing was appended and the stage stays Sealing.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: captured
+        type: Integer
+      - name: current
+        type: Integer
+
+  # An object stream the publication's append group expects (absent for an object the store did
+  # not hold at the capture, at its version for one whose retention it raises) moved after the
+  # capture: another writer stored or raised the same content-addressed object. The stage stays
+  # Sealing; a publish retried with the same expected head prepares its slot's successor attempt
+  # with that object's append rebuilt against what the store now holds (design § 94.2).
+  - name: ekr.store.StageObjectMoved
+    summary: >-
+      An object the publication appends moved in the store after the capture; nothing was appended
+      and the stage stays Sealing.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: content_hash
+        type: ekr.kernel.ContentHash
 
   # The stage's preserving copy holds no completion receipt (the copy's `migrate-incomplete`,
   # design §§ 100.3 and 105.2): its begin was interrupted. Also what every verb joined to it answers.
@@ -644,6 +698,16 @@ errors:
       - name: code
         type: String
       - name: reason
+        type: String
+
+  # Design § 107.1, unit C. A store is opened under a tenant that contains the marker reserved to
+  # stage tenants (`ekr.stage:`, ekr.store.StageId), so no store's tenant can be a stage's derived
+  # tenant. Every provider's open refuses it before it reads, creates or writes anything; a host
+  # configuration carrying such a tenant opens no store at all.
+  - name: ekr.store.StageTenantReserved
+    summary: The tenant carries the marker reserved to stage tenants; no store was opened under it and nothing was read or written.
+    fields:
+      - name: tenant
         type: String
 
   # The File provider's `forget_tenant` rewrites the provider's one journal, which every other open
