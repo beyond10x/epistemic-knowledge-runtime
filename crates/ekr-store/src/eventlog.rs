@@ -842,6 +842,7 @@ impl<S: EventStore> EventlogStore<S> {
         let mut events: Vec<PublishedEvent> = Vec::new();
         let mut after = 0;
         loop {
+            crate::verified::count_stream_read(|reads| reads.feed += 1);
             let page = self.runtime().block_on(self.store.read_feed(
                 &self.tenant,
                 after,
