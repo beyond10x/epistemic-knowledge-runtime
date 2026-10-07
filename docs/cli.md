@@ -3382,8 +3382,8 @@ hash and identifies carried objects. Logical knowledge, evidence, ontology and a
 revision identities and retained evidence bytes are preserved. The fresh migration claim changes
 the seed hash and derived physical record/root hashes; the report names those changes. PostgreSQL as a migration source is
 refused (`migrate-source-not-supported`); this command provides initial snapshot copying, not atomic
-incremental publication into a served store. Low-level PostgreSQL inventory also refuses
-`postgres-inventory-requires-capture`; its change feed is not a complete source snapshot.
+incremental publication into a served store. Low-level PostgreSQL inventory reads the
+tenant under one provider capture, never its change feed, which is not a complete source snapshot.
 
 SDK callers use the existing `StoreConfig { host, store, backend }` construction, setting
 `backend: Backend::Postgres` and `store` to the configuration file. Existing File/SQLite
