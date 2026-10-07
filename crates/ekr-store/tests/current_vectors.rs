@@ -50,6 +50,7 @@ fn bootstrap() -> (PublicationCommandKey, ContentHash, Publication) {
     };
     let decision = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: id::<EventId>(0x40),
             record_hash: ContentHash::of_bytes(RECORD),

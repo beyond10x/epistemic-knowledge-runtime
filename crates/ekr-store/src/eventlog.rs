@@ -44,6 +44,9 @@ pub use schema_proposals::SchemaProposalRetention;
 #[path = "proposal_reviews.rs"]
 mod proposal_reviews;
 pub use proposal_reviews::ProposalReviewRetention;
+#[path = "applications.rs"]
+mod applications;
+pub use applications::{ApplicationHistory, ApplicationRetention};
 #[path = "human_decisions.rs"]
 mod human_decisions;
 pub use human_decisions::HumanDecisionRetention;
@@ -670,6 +673,9 @@ impl<S: EventStore> EventlogStore<S> {
         if !self.checkpoints {
             return Ok(None);
         }
+        if self.has_application_records()? {
+            return Ok(None);
+        }
         let Ok((Some(pointer), _)) = self.checkpoint_pointer() else {
             return Ok(None);
         };
@@ -679,7 +685,7 @@ impl<S: EventStore> EventlogStore<S> {
         // including when an ordinary commit followed the signed occurrence.
         if occurrences
             .iter()
-            .any(|held| held.event.requires_human_binding())
+            .any(|held| held.event.requires_human_binding() || held.event.application.is_some())
         {
             return Ok(None);
         }
@@ -699,6 +705,7 @@ impl<S: EventStore> EventlogStore<S> {
             return Ok(None);
         };
         let mut history = RetainedHistory {
+            applications: Default::default(),
             occurrences,
             objects: BTreeMap::new(),
         };
@@ -1521,6 +1528,7 @@ impl<S: EventStore> EventlogStore<S> {
         required_objects: impl Fn(&RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError>,
     ) -> Result<RetainedHistory, StoreError> {
         let mut history = RetainedHistory {
+            applications: Default::default(),
             occurrences: self.occurrences(limit, selected)?,
             objects: BTreeMap::new(),
         };
@@ -1533,16 +1541,32 @@ impl<S: EventStore> EventlogStore<S> {
         }
         self.load_objects(&mut history, required)?;
         self.require_human_bindings(&history)?;
+        self.load_application_material(
+            &mut history,
+            if selected.is_some() {
+                applications::ApplicationCapture::Prefix
+            } else {
+                applications::ApplicationCapture::Complete
+            },
+        )?;
         if !history.occurrences.is_empty() {
-            if selected.is_none() {
-                self.offer_checkpoint(&history)?;
-            }
             let required = required_objects(&history)?;
             self.load_objects(&mut history, required)?;
             if let Ok(authority) = self.authority() {
                 let wanted = authority.objects_if_held(&history)?;
                 self.load_present(&mut history, wanted)?;
             }
+        }
+        if !history.applications.is_empty()
+            || history
+                .occurrences
+                .iter()
+                .any(|o| o.event.application.is_some())
+        {
+            self.authority()?.verify_application_history(&history)?;
+        }
+        if selected.is_none() && !history.occurrences.is_empty() {
+            self.offer_checkpoint(&history)?;
         }
         Ok(history)
     }
@@ -1560,6 +1584,10 @@ impl<S: EventStore> EventlogStore<S> {
     /// [`Self::load_authority_objects`] loads and verifies again, returning that answer: the one
     /// the complete history gives. As in [`Self::replayed`].
     pub(super) fn verify_replayed(&self, history: &mut RetainedHistory) -> Result<(), StoreError> {
+        if !history.applications.is_empty() {
+            self.load_authority_objects(history)?;
+        }
+        self.authority()?.verify_application_history(history)?;
         let (boundary, complete) = self.replay_boundary()?;
         let partial = self.authority().and_then(|authority| {
             let required = if complete {
@@ -1861,6 +1889,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                 provider_event_id: format!("pending:{}", publication.event.event_id),
                 event: publication.event.clone(),
             });
+            self.stage_application_marker(&mut history, &publication.event)?;
             self.load_object(&mut history, publication.event.record_hash)?;
             self.load_authority_objects(&mut history)?;
             self.authority()?
@@ -1880,6 +1909,9 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             }];
             if let Some(binding) = human_binding {
                 appends.push(binding);
+            }
+            if let Some(marker) = self.application_append(&publication.event)? {
+                appends.push(marker);
             }
             for (hash, object) in &publication.objects {
                 if let Some(append) = self.object_append(*hash, object)? {

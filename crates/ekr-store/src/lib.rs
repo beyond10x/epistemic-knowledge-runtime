@@ -61,6 +61,7 @@ pub use eventlog::IncubationRetention;
 pub use eventlog::ObservationRetention;
 pub use eventlog::ProposalReviewRetention;
 pub use eventlog::SchemaProposalRetention;
+pub use eventlog::{ApplicationHistory, ApplicationRetention};
 pub use eventlog::{
     EventlogStore, FileStore, InventoriedObject, Inventory, PublishedEvent, SqliteStore,
     StoreInventory,

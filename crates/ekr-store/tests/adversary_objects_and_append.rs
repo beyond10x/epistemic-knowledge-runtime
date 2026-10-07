@@ -235,6 +235,7 @@ fn seed(graph: &CanonicalGraph) -> Publication {
     };
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id,
             record_hash,

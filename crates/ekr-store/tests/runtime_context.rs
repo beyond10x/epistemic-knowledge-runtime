@@ -96,6 +96,7 @@ fn graph(ontology: &Ontology) -> CanonicalGraph {
 fn publication(payload: RevisionPayload, objects: &[&[u8]], expected_version: u64) -> Publication {
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.to_owned(),
             event_id: EventId::mint(),
             record_hash: ContentHash::of_bytes(objects[0]),

@@ -109,6 +109,13 @@ fn declarations(text: &str) -> Vec<Declaration> {
             "fields" if indent == 6 => {
                 if let Some(field) = body.strip_prefix("- name:") {
                     current.members.push(field.trim().to_owned());
+                } else if let Some(mapping) = body.strip_prefix("- {") {
+                    let field: serde_yaml_ng::Value =
+                        serde_yaml_ng::from_str(&format!("{{{mapping}"))
+                            .expect("valid inline field declaration");
+                    current
+                        .members
+                        .push(field["name"].as_str().expect("field name").to_owned());
                 }
             }
             "variants" if indent == 6 => {
@@ -134,7 +141,15 @@ fn declarations(text: &str) -> Vec<Declaration> {
 /// The member names of `pub struct name` (fields) or `pub enum name` (variants), read from the
 /// item's own braces.
 fn rust_members(name: &str) -> Option<Vec<String>> {
-    for source in crate_sources() {
+    let sources = if name.starts_with("EkrStoreApplication") {
+        vec![std::fs::read_to_string(
+            manifest_dir().join("../../generated/ekr-contract-data/types.rs"),
+        )
+        .expect("generated application carriers")]
+    } else {
+        crate_sources()
+    };
+    for source in sources {
         let mut lines = source.lines();
         let Some(_) = lines.by_ref().find(|line| {
             let line = line.trim();
@@ -182,6 +197,22 @@ fn rust_members(name: &str) -> Option<Vec<String>> {
 /// Each declaration and the one Rust type that carries it member for member, or `None` for a
 /// declaration the crate carries across more than one type (checked by the unit's case by name).
 const CARRIERS: &[(&str, Option<&str>)] = &[
+    (
+        "ekr.store.ApplicationElectionRetention",
+        Some("EkrStoreApplicationElectionRetention"),
+    ),
+    (
+        "ekr.store.ApplicationStepRetention",
+        Some("EkrStoreApplicationStepRetention"),
+    ),
+    (
+        "ekr.store.ApplicationAttemptRetention",
+        Some("EkrStoreApplicationAttemptRetention"),
+    ),
+    (
+        "ekr.store.ApplicationRetentionHistory",
+        Some("EkrStoreApplicationRetentionHistory"),
+    ),
     ("ekr.store.StorageClass", Some("StorageClass")),
     (
         "ekr.store.PublicationCommandKind",

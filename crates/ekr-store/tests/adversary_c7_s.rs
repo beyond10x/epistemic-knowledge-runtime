@@ -69,6 +69,7 @@ fn occurrence(payload: RevisionPayload, expected_version: u64, record: Vec<u8>) 
     )]);
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash,

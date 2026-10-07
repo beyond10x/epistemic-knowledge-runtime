@@ -31,6 +31,7 @@ fn seeded<S: AtomicBlobEventStore>(store: &EventlogStore<S>) -> Publication {
     let hash = ContentHash::of_bytes(&bytes);
     let seed = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash: hash,
@@ -73,6 +74,7 @@ fn candidate(seed: &Publication, answer: bool, new: bool) -> (PublicationCommand
     };
     let publication = Publication {
         event: RevisionEvent {
+            application: None,
             format: if new {
                 RevisionEvent::SIGNED_FORMAT
             } else {

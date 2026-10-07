@@ -74,6 +74,8 @@ pub struct RetainedObject {
 /// Immutable inputs to pure kernel replay, assembled outside a provider transaction.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RetainedHistory {
+    /// Independently retained immutable application inputs and physical review prefixes.
+    pub applications: crate::ApplicationHistory,
     /// Ordered complete revision stream.
     pub occurrences: Vec<RecordedOccurrence>,
     /// All objects required by the injected authority.
@@ -121,6 +123,36 @@ pub struct AdmittedRevision {
 }
 /// Fallible kernel interpretation. Deserialized records never authorize themselves.
 pub trait CommitAuthority {
+    /// Verify application authorization, effective historical review and exact elected effects.
+    /// Every store replay path invokes this separately, including candidate publication.
+    /// # Errors
+    /// Application data without an explicitly implemented semantic verifier fails closed.
+    fn verify_application_history(&self, history: &RetainedHistory) -> Result<(), StoreError> {
+        if !history.applications.is_empty()
+            || history
+                .occurrences
+                .iter()
+                .any(|o| o.event.application.is_some())
+        {
+            return Err(StoreError::Document(
+                "application-authority-unavailable".into(),
+            ));
+        }
+        Ok(())
+    }
+    /// Verify the initial attempt or an exact terminal-Stale-only successor against immutable data.
+    /// # Errors
+    /// Absent application semantic authority always refuses attempt election.
+    fn verify_application_attempt(
+        &self,
+        history: &RetainedHistory,
+        attempt: &ekr_core::contract_data::EkrIntegrateRetainedApplicationAttempt,
+    ) -> Result<(), StoreError> {
+        let _ = (history, attempt);
+        Err(StoreError::Document(
+            "application-attempt-authority-unavailable".into(),
+        ))
+    }
     /// A host-bound tenant audience, if this authority requires one. Providers must compare it
     /// with their actual tenant before admitting reads or publications.
     fn tenant_audience(&self) -> Option<&str> {

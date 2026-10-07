@@ -329,6 +329,7 @@ fn every_event_the_crate_writes_carries_the_fields_the_domain_declares() {
         let record = b"a seed record staged for publication";
         let decision = ekr_store::Publication {
             event: ekr_graph::RevisionEvent {
+                application: None,
                 format: ekr_graph::RevisionEvent::FORMAT.to_owned(),
                 event_id: ekr_core::EventId::mint(),
                 record_hash: ekr_core::ContentHash::of_bytes(record),
@@ -503,6 +504,22 @@ enum Carrier {
 /// each comparison are derived, so a declaration added without a row, a member added on one side,
 /// or a carrier renamed is red.
 const BINDINGS: &[(&str, Carrier)] = &[
+    (
+        "ekr.store.ApplicationElectionRetention",
+        Carrier::Whole("EkrStoreApplicationElectionRetention"),
+    ),
+    (
+        "ekr.store.ApplicationStepRetention",
+        Carrier::Whole("EkrStoreApplicationStepRetention"),
+    ),
+    (
+        "ekr.store.ApplicationAttemptRetention",
+        Carrier::Whole("EkrStoreApplicationAttemptRetention"),
+    ),
+    (
+        "ekr.store.ApplicationRetentionHistory",
+        Carrier::Whole("EkrStoreApplicationRetentionHistory"),
+    ),
     ("ekr.store.StorageClass", Carrier::Whole("StorageClass")),
     (
         "ekr.store.PublicationCommandKind",
@@ -549,7 +566,15 @@ const BINDINGS: &[(&str, Carrier)] = &[
         "ekr.store.PublicationPreparationFormatV1",
         Carrier::Constants(
             "PublicationPreparationV1",
-            &["FORMAT_V1", "FORMAT", "FORMAT_V3", "FORMAT_V4", "FORMAT_V5"],
+            &[
+                "FORMAT_V1",
+                "FORMAT",
+                "FORMAT_V3",
+                "FORMAT_V4",
+                "FORMAT_V5",
+                "FORMAT_V6",
+                "FORMAT_V7",
+            ],
         ),
     ),
     (
@@ -814,7 +839,16 @@ fn opens_type(line: &str, name: &str) -> bool {
 /// Members are the body's top-level comma-separated entries, where "top level" counts `()`, `[]`,
 /// `{}` and `<>` (a `->` is not a bracket), so a generic `BTreeMap<K, V>` is one entry.
 fn rust_members(name: &str) -> Option<BTreeSet<String>> {
-    for (_, code) in crate_sources() {
+    let sources = if name.starts_with("EkrStoreApplication") {
+        let path = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("../../generated/ekr-contract-data/types.rs");
+        let raw = std::fs::read_to_string(path).expect("generated application carriers");
+        let code = code_only(&raw);
+        vec![(raw, code)]
+    } else {
+        crate_sources()
+    };
+    for (_, code) in sources {
         let Some(block) = block_after(&code, |line| opens_type(line, name)) else {
             continue;
         };

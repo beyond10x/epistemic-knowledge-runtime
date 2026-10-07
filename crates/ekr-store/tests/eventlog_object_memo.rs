@@ -84,6 +84,7 @@ fn occurrence(
     }
     Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash,
@@ -169,9 +170,9 @@ fn read_again_only_after_a_raise<S: RevisionLog + ObjectStore + Initialize>(
             second_reads.object, first_reads.object
         ));
     }
-    if second_reads.feed != 1 {
+    if second_reads.feed != 2 {
         wrong.push(format!(
-            "a second load with the log not advanced read the log {} times, not once",
+            "an unchanged load read the log {} times, not twice for the object memo and application audit",
             second_reads.feed
         ));
     }

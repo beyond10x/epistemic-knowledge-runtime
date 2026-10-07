@@ -13,6 +13,113 @@ use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{AgentId, ContentHash, EventId, RevisionId, RevisionNumber, TransactionId};
 use serde::{Deserialize, Serialize};
 
+/// Immutable, physically checked codec for the generated application guard.
+/// This validates identities and representation, never approval or transaction semantics.
+#[derive(Clone, Debug)]
+pub struct ApplicationGuard {
+    data: ekr_core::contract_data::EkrIntegrateApplicationPublicationGuard,
+    bytes: Vec<u8>,
+}
+impl ApplicationGuard {
+    /// Exact generated data; mutation requires a fresh checked codec.
+    #[must_use]
+    pub fn as_data(&self) -> &ekr_core::contract_data::EkrIntegrateApplicationPublicationGuard {
+        &self.data
+    }
+}
+impl TryFrom<ekr_core::contract_data::EkrIntegrateApplicationPublicationGuard>
+    for ApplicationGuard
+{
+    type Error = String;
+    fn try_from(
+        data: ekr_core::contract_data::EkrIntegrateApplicationPublicationGuard,
+    ) -> Result<Self, Self::Error> {
+        use ekr_core::contract_data::{EkrIntegrateApplicationStepKind as Kind, EssPresence};
+        for id in [
+            &data.application_id.0,
+            &data.step_election_id.0,
+            &data.proposal_id.0,
+            &data.review_id.0,
+            &data.attempt_transaction.0,
+        ] {
+            let parsed: AgentId = id.parse().map_err(|_| "application guard identity")?;
+            if parsed.to_string() != *id {
+                return Err("application guard identity spelling".into());
+            }
+        }
+        for hash in [&data.proposal_digest.0, &data.human_proof_digest.0] {
+            hash.parse::<ContentHash>()
+                .map_err(|_| "application guard hash")?;
+        }
+        if data
+            .review_stream_version
+            .as_u64()
+            .filter(|n| *n > 0)
+            .is_none()
+        {
+            return Err("application guard cursor must be positive".into());
+        }
+        match (&*data.step.kind, &data.step.item) {
+            (Kind::V1, EssPresence::Present(item)) => {
+                let id: AgentId = item
+                    .source
+                    .interpretation_id
+                    .0
+                    .parse()
+                    .map_err(|_| "application source identity")?;
+                if id.to_string() != item.source.interpretation_id.0
+                    || item.source.version.as_u64().filter(|n| *n > 0).is_none()
+                    || item
+                        .item
+                        .strip_prefix("facts[")
+                        .and_then(|v| v.strip_suffix(']'))
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .is_none()
+                {
+                    return Err("application item selector".into());
+                }
+                item.mapping_digest
+                    .0
+                    .parse::<ContentHash>()
+                    .map_err(|_| "application mapping digest")?;
+                item.source
+                    .document_digest
+                    .0
+                    .parse::<ContentHash>()
+                    .map_err(|_| "application source digest")?;
+            }
+            (Kind::V0 | Kind::V2, EssPresence::Absent) => {}
+            _ => return Err("application step item disagrees with kind".into()),
+        }
+        let bytes = serde_json::to_vec(&data).map_err(|e| e.to_string())?;
+        Ok(Self { data, bytes })
+    }
+}
+impl PartialEq for ApplicationGuard {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes == other.bytes
+    }
+}
+impl Eq for ApplicationGuard {}
+impl Serialize for ApplicationGuard {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.data.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for ApplicationGuard {
+    fn deserialize<D: serde::Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
+        Self::try_from(
+            ekr_core::contract_data::EkrIntegrateApplicationPublicationGuard::deserialize(decoder)?,
+        )
+        .map_err(serde::de::Error::custom)
+    }
+}
+impl Canonical for ApplicationGuard {
+    fn encode(&self, out: &mut Encoder) {
+        self.bytes.encode(out);
+    }
+}
+
 /// What happened to a transaction and the revision lineage: the historical six `ekr.kernel`
 /// events plus separately versioned authority transitions and reviewed answers.
 ///
@@ -118,6 +225,9 @@ pub struct RevisionEvent {
     pub record_hash: ContentHash,
     /// Closed metadata vocabulary, matched to the envelope format by [`Self::supported`].
     pub payload: RevisionPayload,
+    /// Kernel-derived application binding, present only in guarded ordinary `/6` events.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub application: Option<ApplicationGuard>,
 }
 impl RevisionEvent {
     /// The unchanged envelope format for the historical six event kinds.
@@ -128,6 +238,8 @@ impl RevisionEvent {
     pub const ANSWER_FORMAT: &'static str = "ekr.revision-event/4";
     /// Signed publications with an atomic audience-wide decision identity binding.
     pub const SIGNED_FORMAT: &'static str = "ekr.revision-event/5";
+    /// Ordinary application publications with an atomic proposal-stream marker.
+    pub const APPLICATION_FORMAT: &'static str = "ekr.revision-event/6";
     /// Whether this envelope requires the shared human decision binding at replay.
     #[must_use]
     pub fn requires_human_binding(&self) -> bool {
@@ -144,11 +256,32 @@ impl RevisionEvent {
     /// Closed format dispatch; the new event cannot masquerade as a historical event.
     #[must_use]
     pub fn supported(&self) -> bool {
+        if let Some(guard) = &self.application {
+            return self.format == Self::APPLICATION_FORMAT
+                && self
+                    .transaction_id()
+                    .is_some_and(|id| id.to_string() == guard.as_data().attempt_transaction.0);
+        }
         self.format == self.payload.format() || self.requires_human_binding()
+    }
+    /// Ordinary transaction identity, absent for seed and separately signed publications.
+    #[must_use]
+    pub const fn transaction_id(&self) -> Option<TransactionId> {
+        match self.payload {
+            RevisionPayload::TransactionProposed { transaction_id, .. }
+            | RevisionPayload::TransactionValidated { transaction_id, .. }
+            | RevisionPayload::TransactionRejected { transaction_id, .. }
+            | RevisionPayload::TransactionStale { transaction_id, .. }
+            | RevisionPayload::RevisionCommitted { transaction_id, .. } => Some(transaction_id),
+            _ => None,
+        }
     }
     /// Native provider schema version matching the closed envelope vocabulary.
     #[must_use]
     pub fn schema_version(&self) -> u32 {
+        if self.format == Self::APPLICATION_FORMAT {
+            return 6;
+        }
         if self.requires_human_binding() {
             return 5;
         }
@@ -175,6 +308,11 @@ impl Canonical for RevisionEvent {
         self.event_id.encode(out);
         self.record_hash.encode(out);
         self.payload.encode(out);
+        // Historical formats retain their exact bytes. Unsupported old envelopes carrying a
+        // guard refuse admission; only the separately versioned encoding addresses that guard.
+        if self.format == Self::APPLICATION_FORMAT {
+            self.application.encode(out);
+        }
     }
 }
 

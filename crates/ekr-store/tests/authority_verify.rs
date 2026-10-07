@@ -124,6 +124,7 @@ fn a_head_no_pointer_answers_asks_the_authority_for_the_root_alone() {
     let (record, document) = (b"seed record".as_slice(), b"seed document".as_slice());
     let seed = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash: ContentHash::of_bytes(record),

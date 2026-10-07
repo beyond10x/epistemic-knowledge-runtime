@@ -43,15 +43,25 @@ fn payload(
     Ok((hash, bytes))
 }
 
-impl<S: AtomicBlobEventStore> SchemaProposalRetention for EventlogStore<S> {
-    fn retained_schema_proposals(
+impl<S: EventStore> EventlogStore<S> {
+    pub(super) fn read_schema_proposals(
         &self,
+    ) -> Result<Vec<EkrIntegrateRetainedSchemaProposal>, StoreError> {
+        self.read_schema_proposals_selected(None)
+    }
+    pub(super) fn read_schema_proposals_selected(
+        &self,
+        selected: Option<&str>,
     ) -> Result<Vec<EkrIntegrateRetainedSchemaProposal>, StoreError> {
         self.entered()?;
         let stream = StreamId::new(self.tenant.clone(), STREAM, "proposals")?;
         let mut identities = BTreeSet::new();
         let mut records = Vec::new();
         for event in self.read_all(&stream, MAX_READ_LIMIT)? {
+            if selected.is_some_and(|id| event.data["proposal"]["proposal_id"].as_str() != Some(id))
+            {
+                continue;
+            }
             if event.name != RECORDED || event.schema_version != 1 {
                 return Err(StoreError::Document("schema-proposal-envelope".into()));
             }
@@ -75,6 +85,13 @@ impl<S: AtomicBlobEventStore> SchemaProposalRetention for EventlogStore<S> {
             records.push(record);
         }
         Ok(records)
+    }
+}
+impl<S: AtomicBlobEventStore> SchemaProposalRetention for EventlogStore<S> {
+    fn retained_schema_proposals(
+        &self,
+    ) -> Result<Vec<EkrIntegrateRetainedSchemaProposal>, StoreError> {
+        self.read_schema_proposals()
     }
     fn retain_schema_proposal(
         &self,

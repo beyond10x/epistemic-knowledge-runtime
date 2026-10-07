@@ -87,6 +87,7 @@ fn publication(decision: &Decision, answer: bool, format: &str) -> Publication {
     let hash = ContentHash::of_bytes(&raw);
     Publication {
         event: RevisionEvent {
+            application: None,
             format: format.into(),
             event_id: EventId::mint(),
             record_hash: hash,
@@ -109,6 +110,7 @@ fn seed(store: &dyn Store) {
     let appended = store
         .publish(&Publication {
             event: RevisionEvent {
+                application: None,
                 format: RevisionEvent::FORMAT.into(),
                 event_id: EventId::mint(),
                 record_hash: hash,
@@ -407,6 +409,7 @@ fn checkpoint_fixture(path: &Path, sqlite: bool, signed: bool) -> ekr_graph::Roo
     let record_hash = ContentHash::of_bytes(&raw);
     let commit = Publication {
         event: RevisionEvent {
+            application: None,
             format: RevisionEvent::FORMAT.into(),
             event_id: EventId::mint(),
             record_hash,

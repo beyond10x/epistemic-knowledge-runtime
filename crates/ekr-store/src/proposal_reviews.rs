@@ -3,7 +3,7 @@ use super::*;
 use ekr_core::contract_data::{EkrIntegrateRetainedProposalReview, EkrIntegrateSchemaProposalId};
 use ekr_core::generated_identity::{Identity, ProposalReviewId, SchemaProposalId};
 
-const STREAM: &str = "ekr.integrate.proposal-reviews";
+pub(super) const STREAM: &str = "ekr.integrate.proposal-reviews";
 const IDENTITIES: &str = "ekr.integrate.proposal-review-identities";
 const RECORDED: &str = "ekr.integrate.ProposalReviewRetained";
 const BOUND: &str = "ekr.integrate.ProposalReviewIdentityBound";
@@ -14,6 +14,13 @@ const BOUND: &str = "ekr.integrate.ProposalReviewIdentityBound";
 /// predecessor against the explicit expected predecessor passed to this port.
 /// Human protocol digests are not the domain-addressed hashes of stored objects.
 pub trait ProposalReviewRetention {
+    /// Physical proposal stream including markers; markers never become human predecessors.
+    /// # Errors
+    /// Invalid closed event union, cursor, links, identities or pinned bytes.
+    fn proposal_coordination(
+        &self,
+        proposal_id: &EkrIntegrateSchemaProposalId,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateProposalCoordinationRead, StoreError>;
     /// Reads the verified physical records of one retained proposal, in publication order.
     /// # Errors
     /// Missing proposal, corrupt records or pinned bytes, or provider failure.
@@ -99,7 +106,7 @@ fn identity_keys(record: &EkrIntegrateRetainedProposalReview) -> [String; 2] {
     ]
 }
 
-impl<S: AtomicBlobEventStore> EventlogStore<S> {
+impl<S: EventStore> EventlogStore<S> {
     fn review_identity(
         &self,
         key: &str,
@@ -118,25 +125,86 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     }
 }
 
-impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
-    fn retained_proposal_reviews(
+impl<S: EventStore> EventlogStore<S> {
+    pub(super) fn read_proposal_reviews(
         &self,
         proposal_id: &EkrIntegrateSchemaProposalId,
     ) -> Result<Vec<EkrIntegrateRetainedProposalReview>, StoreError> {
+        use ekr_core::contract_data::EkrIntegrateProposalCoordinationRecord as Record;
+        Ok(self
+            .read_proposal_coordination(proposal_id)?
+            .entries
+            .into_iter()
+            .filter_map(|entry| match *entry.record {
+                Record::V1(record) => Some(*record.value),
+                Record::V0(_) => None,
+            })
+            .collect())
+    }
+    pub(super) fn read_proposal_coordination(
+        &self,
+        proposal_id: &EkrIntegrateSchemaProposalId,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateProposalCoordinationRead, StoreError> {
         self.entered()?;
         SchemaProposalId::parse_identity(&proposal_id.0).map_err(invalid)?;
         let proposal = self
-            .retained_schema_proposals()?
+            .read_schema_proposals_selected(Some(&proposal_id.0))?
             .into_iter()
             .find(|record| *record.proposal.proposal_id == *proposal_id)
             .ok_or_else(|| invalid("unknown proposal"))?;
         let stream = StreamId::new(self.tenant.clone(), STREAM, &proposal_id.0)?;
+        self.read_proposal_coordination_events(
+            proposal_id,
+            &proposal,
+            self.read_all(&stream, MAX_READ_LIMIT)?,
+        )
+    }
+    pub(super) fn read_proposal_coordination_events(
+        &self,
+        proposal_id: &EkrIntegrateSchemaProposalId,
+        proposal: &ekr_core::contract_data::EkrIntegrateRetainedSchemaProposal,
+        events: Vec<RecordedEvent>,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateProposalCoordinationRead, StoreError> {
+        use ekr_core::contract_data as w;
         let mut identities = BTreeSet::new();
         let mut proofs = BTreeSet::new();
         let mut records = Vec::new();
-        for event in self.read_all(&stream, MAX_READ_LIMIT)? {
-            // Future application markers need a physical cursor independent of the latest human
-            // predecessor. Until their format is implemented, unknown events fail closed.
+        let mut native_ids = BTreeSet::new();
+        for event in events {
+            if event.tenant != self.tenant
+                || event.stream_type != STREAM
+                || event.stream_id != proposal_id.0
+                || event.is_redacted()
+                || !native_ids.insert(event.event_id.clone())
+                || event.version != records.len() as u64 + 1
+            {
+                return Err(invalid("physical cursor discontinuity"));
+            }
+            if event.name == applications::MARKER && event.schema_version == 1 {
+                let record: w::EkrIntegrateApplicationPublicationRecord =
+                    serde_json::from_value(event.data).map_err(json_error)?;
+                let guard = ekr_graph::events::ApplicationGuard::try_from((*record.guard).clone())
+                    .map_err(invalid)?;
+                uuid(&record.event_id.0)?;
+                hash(&record.record_hash.0)?;
+                if record.guard.proposal_id.as_ref() != proposal_id
+                    || record.guard.proposal_digest != proposal.proposal_digest
+                    || record.transaction_id != record.guard.attempt_transaction
+                    || guard.as_data().review_stream_version.as_u64() != Some(event.version - 1)
+                {
+                    return Err(invalid("application marker identity or cursor"));
+                }
+                records.push(Box::new(w::EkrIntegrateProposalCoordinationEntry {
+                    stream_version: event.version.into(),
+                    record: Box::new(w::EkrIntegrateProposalCoordinationRecord::V0(
+                        w::EkrIntegrateProposalCoordinationRecordVariant0 {
+                            kind: w::EkrIntegrateProposalCoordinationRecordVariant0Kind::V0,
+                            value: Box::new(record),
+                        },
+                    )),
+                }));
+                continue;
+            }
             if event.name != RECORDED || ![1, 2].contains(&event.schema_version) {
                 return Err(invalid("review envelope"));
             }
@@ -179,11 +247,36 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
                     return Err(invalid("changed or unpinned bytes"));
                 }
             }
-            records.push(record);
+            records.push(Box::new(w::EkrIntegrateProposalCoordinationEntry {
+                stream_version: event.version.into(),
+                record: Box::new(w::EkrIntegrateProposalCoordinationRecord::V1(
+                    w::EkrIntegrateProposalCoordinationRecordVariant1 {
+                        kind: w::EkrIntegrateProposalCoordinationRecordVariant1Kind::V0,
+                        value: Box::new(record),
+                    },
+                )),
+            }));
         }
-        Ok(records)
+        Ok(w::EkrIntegrateProposalCoordinationRead {
+            proposal_id: Box::new(proposal_id.clone()),
+            stream_version: (records.len() as u64).into(),
+            entries: records,
+        })
     }
-
+}
+impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
+    fn retained_proposal_reviews(
+        &self,
+        id: &EkrIntegrateSchemaProposalId,
+    ) -> Result<Vec<EkrIntegrateRetainedProposalReview>, StoreError> {
+        self.read_proposal_reviews(id)
+    }
+    fn proposal_coordination(
+        &self,
+        id: &EkrIntegrateSchemaProposalId,
+    ) -> Result<ekr_core::contract_data::EkrIntegrateProposalCoordinationRead, StoreError> {
+        self.read_proposal_coordination(id)
+    }
     fn retain_proposal_review(
         &self,
         record: &EkrIntegrateRetainedProposalReview,
@@ -194,13 +287,14 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
         let payloads = payloads(record)?;
         let proposal_id = &record.review.proposal_id;
         // Retained proposals are immutable; observing this exact binding needs no mutable-head CAS.
-        if !self.retained_schema_proposals()?.iter().any(|proposal| {
+        if !self.read_schema_proposals()?.iter().any(|proposal| {
             proposal.proposal.proposal_id == *proposal_id
                 && proposal.proposal_digest == record.review.proposal_digest
         }) {
             return Err(invalid("unknown proposal or changed digest"));
         }
         for _ in 0..16 {
+            let coordination = self.read_proposal_coordination(proposal_id)?;
             let held = self.retained_proposal_reviews(proposal_id)?;
             if let Some(previous) = held.iter().find(|previous| {
                 previous.review.review_id == record.review.review_id
@@ -230,10 +324,10 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
             let data = serde_json::to_value(record).map_err(json_error)?;
             let mut appends = vec![StreamAppend {
                 stream: StreamId::new(self.tenant.clone(), STREAM, &proposal_id.0)?,
-                expected: if held.is_empty() {
+                expected: if coordination.entries.is_empty() {
                     Expected::NoStream
                 } else {
-                    Expected::Exact(held.len() as u64)
+                    Expected::Exact(coordination.entries.len() as u64)
                 },
                 events: vec![NewEvent::new(RECORDED, 2, data.clone())?],
             }];
