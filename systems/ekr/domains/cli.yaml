@@ -10,10 +10,14 @@ naming:
   wire: cli
   display: CLI
 
-# Design § 107. Begin, seal, publish and abandon. `ekr stage begin` is BeginStage, `ekr stage
-# publish` is SealStage then PublishStage (a publication first seals the stage), and `ekr stage
-# abandon` is AbandonStage. They run the kernel's preserving copy and its authority over a store
-# and its stage's tenant together.
+# Design § 107. Begin, seal, publish and abandon. `ekr stage begin` is BeginStage and `ekr stage
+# abandon` is AbandonStage. `ekr stage publish` reads the stage's record first: on a Begun stage it
+# runs SealStage then PublishStage (a publication first seals the stage); on any other state it
+# runs PublishStage alone. A publish retried after its seal therefore publishes, and one retried
+# after its append reaches PublishStage's `retained-publication`, which returns the original
+# result and forgets what remains of the stage's tenant; SealStage is never run on a Sealing,
+# Published or Abandoned stage. They run the kernel's preserving copy and its authority over a
+# store and its stage's tenant together.
 #
 # Decided: the CLI component `ekr` handles them, not ekr-kernel. A command's one handler is the
 # component owning its domain (ESS-COMPONENT-004, `conflicting_declaration`, ess 0.36.0 and
@@ -36,9 +40,12 @@ commands:
   # Begin: mint the stage id, write the stage record (ekr.store.StageBegun) in the store's tenant,
   # then copy the store at its head into the stage's tenant, its completion receipt last. On SQLite
   # the source is read as one image (`Runtime::sqlite_snapshot`); on PostgreSQL under one provider
-  # capture, which the inventory refuses today (`postgres-inventory-requires-capture`, held by
-  # `postgres_runtime_reopens_seed_and_committed_history` where the PostgreSQL tests run) and unit
-  # C adds; everything else said here about the stage is unexecuted. The copy is a
+  # capture (unit C: the inventory reads a PostgreSQL tenant under one capture, and
+  # `Commit::capture` reads the source once before `CapturedStore::copy_into` writes the stage's
+  # tenant; held by `a_postgres_store_is_copied_into_a_stage_under_one_capture` and
+  # `a_commit_racing_the_capture_is_not_in_the_stage` where the PostgreSQL tests run). The
+  # capture's head is the stage's base, so the record can name it before the copy is written.
+  # Everything else said here about the stage is unexecuted. The copy is a
   # migration, not a byte copy: the stage's seed is `ekr-seed-envelope/4` with a fresh claim, and
   # every record that names the seed envelope or a prior root is derived again for the stage's
   # lineage (design § 100.3; `crates/ekr-kernel/src/migrate.rs`). Revision numbers and identities,
@@ -77,13 +84,14 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was recorded or copied; a store with no head has nothing to stage.
       - name: unresolved-preparation
-        external: the store holds a decision elected and never published
+        external: the store holds a decision elected and never published that is not resolved, a /4 slot resolved as design § 107.5 says
         error: ekr.store.UnresolvedPreparation
         summary: Nothing was recorded or copied; the copy would leave out an elected occurrence.
 
-  # Seal, the first step of `ekr stage publish`: checked before anything is written, then the
-  # stage record's move to Sealing. From then on the stage accepts no write, and the publication
-  # captures its suffix. A publish retried after an interruption finds the stage Sealing.
+  # Seal, the first step of `ekr stage publish` on a Begun stage: checked before anything is
+  # written, then the stage record's move to Sealing. From then on the stage accepts no write, and
+  # the publication captures its suffix. A publish retried after an interruption finds the stage
+  # Sealing and runs PublishStage alone; `retained-seal` answers SealStage run on its own.
   - name: ekr.cli.SealStage
     naming:
       wire: stage-seal
@@ -132,20 +140,38 @@ commands:
         error: ekr.store.StageStateConflict
         summary: A Published or Abandoned stage refuses without a record, an event or a subject change.
 
-  # Publish, the second step: the stage's occurrences after its base, derived again for the
-  # store's lineage by the functions replay checks them with, checked by the kernel against the
-  # store at the expected head, and appended with every object the stage stored after its copy and
-  # the stage record's StagePublished in ONE append group, conditional on the store's revision
-  # stream at the expected head and on the record still Sealing (design § 105.3). The store's head
-  # must equal both input.expect_head and the stage's base; a moved store is refused, never
-  # rebased. Then the stage's tenant is forgotten.
+  # Publish, the second step, and the only one `ekr stage publish` runs on a stage that is not
+  # Begun. After the seal the publication reads the store and captures the stage's suffix: the
+  # stage's occurrences after its base, derived again for the store's lineage by the functions
+  # replay checks them with, and checked by the kernel against the store as captured. The store's
+  # head, its last committed revision and not its revision stream's version (see
+  # ekr.store.StageHeadMoved), must equal both input.expect_head and the stage's base; a moved store
+  # is refused, never rebased. The suffix, every object the stage stored after its copy and the
+  # stage record's StagePublished are appended in ONE append group (design § 105.3), conditional on
+  # the store's revision stream at the version read at the capture, on the record still Sealing
+  # and on each object stream it appends to. Then the stage's tenant is forgotten.
+  #
+  # Occurrences another writer appended to the store's revision stream after the base that commit
+  # nothing (a proposal, a validation, a rejection, a stale record) do not refuse the publication:
+  # the suffix is appended after them, so in the store's stream the run's occurrences follow
+  # theirs. A record of the suffix names no stream position (ekr.kernel.RevisionEventV2 carries a
+  # format, an event id, a record hash and a payload), and the kernel checks the store's whole
+  # history with the suffix after them. A commit moves the head and refuses.
+  #
+  # A definitive conflict of the group is answered by what moved, read again in this order: the
+  # record (an abandonment landed: `abandoned-meanwhile`, and the stage is Abandoned), the head (a
+  # commit landed: `head-moved`, the stage stays Sealing and can only be abandoned), the revision
+  # stream (`stream-moved`) and an object stream (`object-moved`); after either of the last two the
+  # stage stays Sealing and a publish retried with the same expected head publishes. All of this is
+  # unexecuted.
   #
   # The election is a publication preparation of a new kind (design §§ 94, 107.5): keyed by
   # Publish and the stage id, its decision is the whole suffix and its native request the whole
   # append group. It is a new format, `ekr.publication-preparation/4`, used by that kind only;
   # `/1`–`/3` and their kinds are unchanged. Its carriers are declared in ekr.store (store.yaml)
   # together with their Rust types (unit P), because the store's binding cases hold every
-  # declaration there to a Rust carrier member for member.
+  # declaration there to a Rust carrier member for member. When a `/4` slot counts as resolved,
+  # and the inventory's reading of `/4`, are design § 107.5's.
   - name: ekr.cli.PublishStage
     naming:
       wire: stage-publish
@@ -189,10 +215,22 @@ commands:
         external: the stage is Published and input.expect_head is not the head its publication was elected against
         error: ekr.store.StageStateConflict
         summary: Nothing was appended; the stage's publication stands as elected.
+      - name: abandoned-meanwhile
+        external: at a definitive conflict of the append group, the stage record is no longer Sealing because an abandonment landed after the capture
+        error: ekr.store.StageStateConflict
+        summary: Nothing was appended; the abandonment stands and the stage is Abandoned.
       - name: head-moved
-        external: the store's head is not input.expect_head, or not the stage's base
+        external: the store's head is not input.expect_head, or not the stage's base, before the append or at a definitive conflict of it
         error: ekr.store.StageHeadMoved
-        summary: Nothing was appended, the store's head is where it was, and the stage stays Sealing; abandon it and make the run again.
+        summary: Nothing was appended, and the stage stays Sealing; abandon it and make the run again.
+      - name: stream-moved
+        external: at a definitive conflict of the append group, the store's revision stream is past the version read at the capture and the head is still the stage's base
+        error: ekr.store.StageStreamMoved
+        summary: Nothing was appended and the stage stays Sealing; a publish retried with the same expected head publishes.
+      - name: object-moved
+        external: at a definitive conflict of the append group, an object stream the group appends to moved after the capture, and the record, the head and the revision stream did not
+        error: ekr.store.StageObjectMoved
+        summary: Nothing was appended and the stage stays Sealing; a publish retried with the same expected head publishes.
       - name: unresolved-preparation
         external: the sealed stage holds a decision elected and never published
         error: ekr.store.UnresolvedPreparation
@@ -212,7 +250,9 @@ commands:
   # Abandon: the stage record's move to Abandoned first, in the store's tenant, then
   # `forget_tenant` of the tenant ekr.store.StageBegun names (held bytes, rule 2). The store's
   # tenant is never forgotten. A retry after an interruption finds the stage Abandoned and finishes
-  # the forgetting.
+  # the forgetting. The record's move expects the record at the version the stage's elected
+  # publication group, if any, also expects, so once StageAbandoned is appended that group can never
+  # land: an abandonment resolves the stage's `/4` slot (design § 107.5).
   - name: ekr.cli.AbandonStage
     naming:
       wire: stage-abandon
