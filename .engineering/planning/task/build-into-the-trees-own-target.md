@@ -2,14 +2,15 @@
 format: aep.planning-md/3
 id: task:build-into-the-trees-own-target
 kind: task
-status: active
+status: implemented
 title: Every tree builds into its own target/ and ends with finish --discard-cache --archive
 relations:
 - serves: vision:o2
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-07T02:15:41Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-07T02:15:41Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-07T02:22:35Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 ## What is wrong
 

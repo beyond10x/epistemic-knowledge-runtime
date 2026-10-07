@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-07T02:22:44Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "task:build-into-the-trees-own-target",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test -p xtask --bin ekr-docs (3 passed); ekr-docs build; ekr-docs check; aep plan artifact validate — all exit 0 on wave/20261007a dd7eb2cf0a"
+  }
+}
