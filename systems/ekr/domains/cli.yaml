@@ -29,9 +29,13 @@ naming:
 # Joining is not a command: every store verb opens the stage's tenant instead of the store's when
 # the host names a stage (`--stage <id>` or `EKR_STAGE=<id>`), as the tenant itself is host
 # configuration and not declared input. A joined verb reads the stage's record in the store's
-# tenant first and refuses ekr.store.StageNotFound, ekr.store.StageStateConflict or
-# ekr.store.StageIncomplete before it opens the stage; a joined write reads the record again after
-# its write lands and refuses ekr.store.StageStateConflict if the stage is no longer Begun.
+# tenant before it opens the stage, refusing ekr.store.StageNotFound, ekr.store.StageStateConflict
+# or ekr.store.StageIncomplete, and again before every read and write through it, refusing
+# ekr.store.StageStateConflict once the stage is not Begun; a joined write reads the record again
+# after its write lands and refuses ekr.store.StageWriteLanded if the stage is no longer Begun.
+# The kernel's API for the CLI (unit P, 2026-10-08): `Runtime::begin_stage`, `seal_stage`,
+# `publish_stage`, `seal_and_publish_stage` (what `ekr stage publish` runs), `abandon_stage`,
+# `stages` and `join_stage`; held by `crates/ekr-kernel/tests/stage.rs`. The verbs are unit L's.
 #
 # An id no stage carries is answered `stage-not-found` by seal, publish and abandon, before any
 # other refusal. `unknown_instance:` (ess/15) would declare that order; this specification is
@@ -45,7 +49,8 @@ commands:
   # tenant; held by `a_postgres_store_is_copied_into_a_stage_under_one_capture` and
   # `a_commit_racing_the_capture_is_not_in_the_stage` where the PostgreSQL tests run). The
   # capture's head is the stage's base, so the record can name it before the copy is written.
-  # Everything else said here about the stage is unexecuted. The copy is a
+  # Begin itself is held through the kernel by `a_stage_begins_at_the_head_and_the_store_is_unchanged`
+  # (unit P, `crates/ekr-kernel/tests/stage.rs`); the verb is unexecuted. The copy is a
   # migration, not a byte copy: the stage's seed is `ekr-seed-envelope/4` with a fresh claim, and
   # every record that names the seed envelope or a prior root is derived again for the stage's
   # lineage (design § 100.3; `crates/ekr-kernel/src/migrate.rs`). Revision numbers and identities,
@@ -162,8 +167,8 @@ commands:
   # record (an abandonment landed: `abandoned-meanwhile`, and the stage is Abandoned), the head (a
   # commit landed: `head-moved`, the stage stays Sealing and can only be abandoned), the revision
   # stream (`stream-moved`) and an object stream (`object-moved`); after either of the last two the
-  # stage stays Sealing and a publish retried with the same expected head publishes. All of this is
-  # unexecuted.
+  # stage stays Sealing and a publish retried with the same expected head publishes. Each row is held
+  # through the kernel by its unit P case (design § 107.10); the verb is unexecuted.
   #
   # The election is a publication preparation of a new kind (design §§ 94, 107.5): keyed by
   # Publish and the stage id, its decision is the whole suffix and its native request the whole

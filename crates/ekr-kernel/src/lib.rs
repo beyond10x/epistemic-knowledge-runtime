@@ -20,6 +20,7 @@
 //! * [`authority`] — the host-supplied authority anchor and the two validation profiles.
 //! * [`commands`] and [`records`] — the durable command handlers and the strict retained records
 //!   they return.
+//! * [`stage`] — a run staged and published whole, or dropped whole (design § 107).
 //! * [`runtime`] — [`Runtime`], provider opening for consumers that must never depend on the raw
 //!   store.
 //! * [`legacy`] — frozen encodings for verifying history written before the current formats.
@@ -117,6 +118,7 @@ pub mod runtime;
 #[cfg(feature = "schema")]
 pub mod schema;
 pub mod seed;
+pub mod stage;
 pub mod transaction;
 pub mod validate;
 mod yaml;
@@ -138,6 +140,9 @@ pub use ekr_store::StoreError as PersistenceError;
 /// load can (`AGENTS.md`). They read counts; they reach no store.
 #[doc(hidden)]
 pub use ekr_store::{read_work, stream_reads, ReadWork, StreamReads};
+/// A stage's identity and what its commands answer (design § 107), re-exported so a consumer of
+/// the kernel needs no storage crate.
+pub use ekr_store::{ProviderKind, StageId, StageResult, StageState};
 pub use explain::{
     ExplainedAttachment, ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed,
     ExplainedValidation, ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
@@ -153,6 +158,7 @@ pub use records::{
 pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMITS};
+pub use stage::StageListing;
 pub use transaction::{
     AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment,
     GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,

@@ -79,8 +79,8 @@ fn is_canonical_uuid_text(text: &str) -> bool {
 
 /// Declares one id newtype over `u128`, minted as UUIDv7.
 ///
-/// Twenty types share this shape; writing it twenty times is twenty chances to write it
-/// differently. `$doc` is the type's own rustdoc and names the ESS declaration it carries.
+/// Twenty-one types share this shape; writing it twenty-one times is twenty-one chances to write
+/// it differently. `$doc` is the type's own rustdoc and names the ESS declaration it carries.
 macro_rules! id_newtype {
     ($(#[doc = $doc:expr])+ $name:ident) => {
         $(#[doc = $doc])+
@@ -302,6 +302,15 @@ id_newtype! {
     /// A source checkpoint: `ekr.observe.SourceCheckpointId` of
     /// `systems/ekr/domains/observe.yaml`.
     SourceCheckpointId
+}
+
+id_newtype! {
+    /// A stage: `ekr.store.StageId` of `systems/ekr/domains/store.yaml` (design § 107.1).
+    ///
+    /// Begin mints it, as `ekr mint` mints every other id, and returns it; a caller passes it on
+    /// and never supplies one of its own. A stage's Eventlog tenant is derived from the store's
+    /// tenant and this id (`ekr_store::stage_tenant`).
+    StageId
 }
 
 /// The position of a revision in the lineage: `ekr.kernel.RevisionNumber` of

@@ -388,11 +388,19 @@ fn withdrawals(source: &str) -> usize {
 /// provider wrapper of `eventlog_reads.rs` (one `redact`, one `forget_tenant`, three `delete_blob`).
 /// A new call — a redaction or a deletion path — must
 /// append an event to the object's stream and is added here with that said.
+///
+/// `stage_record.rs` holds the one `forget_tenant` held-bytes rule 2 admits (design § 107.7): a
+/// stage's own tenant, after the stage record's `StagePublished` or `StageAbandoned` in the
+/// store's tenant, taken from the stage's `StageBegun` only where it is the tenant derived from
+/// the store's tenant and the stage id, and never the store's own. A forgotten tenant has no
+/// stream to append to; a handle joined to the stage reads that record before every read and
+/// write instead.
 #[test]
 fn no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream() {
     let allowed = [
         ("ekr-store/src/eventlog.rs", 1),
         ("ekr-store/src/eventlog_reads.rs", 5),
+        ("ekr-store/src/stage_record.rs", 1),
     ];
     let root = crates_directory();
     let mut all = Vec::new();
