@@ -5447,8 +5447,10 @@ store is never opened under a tenant that contains the stage marker `ekr.stage:`
 already carries it no longer opens. The contract is `systems/ekr/domains/store.yaml`
 (`ekr.store.Store`, `ekr.store.Stage`, its events, refusals and view) and
 `systems/ekr/domains/cli.yaml` (the four commands, § 107.10); this section explains it. Every claim
-below about the stage itself is unexecuted at this amendment; a sentence about existing code names
-the case that runs it or says unexecuted.*
+below about the stage itself was unexecuted at this amendment; a sentence about existing code names
+the case that runs it or says unexecuted. Unit P (2026-10-08) executes the stage through the
+kernel's API in `crates/ekr-kernel/tests/stage.rs` and corrects the sentences its code contradicts;
+§ 107.12 says what it decided. The `ekr stage` verbs (unit L) remain unexecuted.*
 
 **What was asked.** A consumer runs a batch of separate one-shot processes — `ekr ontology`,
 `ekr apply-extraction`, `ekr snapshot`, `ekr mint`, `ekr propose`, `ekr validate`, `ekr commit` —
@@ -5510,7 +5512,8 @@ knowledge, evidence, ontology and authority roots are the store's. For a migrati
 store this is executed by `crates/ekr-kernel/tests/migrate_store.rs` on File and SQLite. Copying a
 `/4` source again under a fresh claim is executed by `a_claimed_copy_can_be_captured_and_copied_again`
 in `crates/ekr-kernel/tests/hosted_postgres.rs`, where the PostgreSQL tests run. A copy into a
-second tenant of the same store is unexecuted.
+second tenant of the same store is executed by unit C's stage-copy cases and by begin's own,
+`a_stage_begins_at_the_head_and_the_store_is_unchanged` (§ 107.10).
 
 **A stage's revisions are provisional.** They are not the store's committed revisions. They become
 committed only when a publication derives them again into the store's lineage. The stage owns its
@@ -5539,8 +5542,13 @@ tenant under one provider capture (eventlog `ConsistentTenantCapture`), never fr
 and no longer refuses `postgres-inventory-requires-capture`. A copy reads its source once
 (`Commit::capture`) and then only writes the stage's tenant (`CapturedStore::copy_into`); the
 capture's head is the stage's base. That is held by unit C's cases in
-`crates/ekr-kernel/tests/hosted_postgres.rs` (§ 107.10); the stage record and begin itself are
-unexecuted.
+`crates/ekr-kernel/tests/hosted_postgres.rs` (§ 107.10). The stage record and begin itself are
+unit P's: `a_stage_begins_at_the_head_and_the_store_is_unchanged`. On PostgreSQL begin takes one
+capture of the store and one zero-limit capture of the empty stage tenant
+(`a_stage_begin_reads_the_store_under_one_capture_and_counts_what_it_holds`). The store's
+capture holds every event and object of its tenant: no bound below the tenant's size is set, so
+the provider's per-operation timeout is the only one, while the schema's publication lock is held
+for its duration (unit C's adversary).
 
 Begin also refuses a store never seeded (`ekr.views.NotSeeded`), and a store holding a decision
 elected and never published (`ekr.store.UnresolvedPreparation`). The second is the migration's own
@@ -5562,11 +5570,21 @@ command.
 
 A joined write reads the record again after its write lands. If the stage is still Begun, the write
 landed before any seal, and the suffix a publication captures after its seal holds it. If the stage
-is Sealing or later, the write is refused `ekr.store.StageStateConflict`; whether it is in the
-publication is read from the published range. A write reported successful is therefore never lost
-to a publication. A late write that lands in a tenant already forgotten is refused the same way,
-and whatever it left there is removed by the retry of publish or abandon, which forgets whatever
-the tenant holds.
+is Sealing or later, the write is refused `ekr.store.StageWriteLanded` (`stage-write-landed`, unit
+P), which carries the revision-stream occurrences it landed: whether they are in the publication
+is read from the store by those ids once the stage is Published. A write reported successful is
+therefore never lost to a publication. A late write that finds the stage Published or Abandoned
+forgets the stage's tenant again before it refuses, so what it left in a tenant already forgotten
+is removed by the write itself, not by a retry nobody makes (adversary F1).
+
+What a joined write can land after the seal is measured narrower than this paragraph allows. A
+kernel command elects its decision in one append and publishes it in another, and the seal refuses
+a stage holding an elected decision never published (`ekr.store.UnresolvedPreparation`). So a seal
+never falls between those two appends: what lands after a seal is an election, or a checkpoint
+pointer, and never an occurrence. An election landing after the seal leaves the stage holding a
+decision the seal did not see; publish then refuses `unresolved-preparation` and the stage is
+abandoned. `a_write_joined_to_a_sealed_stage_is_refused_by_name` holds both, and
+`a_write_reported_successful_is_in_the_publication` the late write into a forgotten tenant.
 
 Open for unit L: which of the flag and the variable wins when both name different stages (the
 recommendation is a usage error); and what `seed`, `migrate`, `session`, `mcp`, `view` and the
@@ -5611,6 +5629,14 @@ Invariant 1 is unchanged: no new constructor of a validated transaction, and the
 canonical state only for what its injected `CommitAuthority` stands behind. The objects the stage
 stored after its copy go with the suffix, with their class, retention raises and `stored_at`. The
 stage's own migration report and completion receipt do not: they belong to the stage's lineage.
+"After its copy" is read from the stage's log (unit P): an object goes with the suffix when its
+stream holds an event after the copy's completion receipt, the copy's last write; one raised after
+it goes with its whole ladder, and the group raises it from the class the store holds. A record of
+the run that the publication derives again for the store's lineage is left out in favour of what it
+derived (a validation or commit receipt, which names the stage's seed envelope or its prior
+records; adversary F3); a proposal record is the same bytes in both and goes once. Held by
+`a_published_stage_lands_whole_and_the_store_replays_in_full`, which reads every stage-lineage
+validation and commit record and finds none of them in the store.
 
 The suffix, its object events and blob bindings, and `StagePublished` go into the store's tenant in
 one Eventlog append group. The group is conditional on the revision stream at the version the
@@ -5618,15 +5644,20 @@ publication read when it captured the suffix, on the stage record at its Sealing
 each object stream it appends to: absent for an object the store did not hold at the capture, at
 its version for one whose retention it raises. eventlog-core's `AppendGroup` is tenant-scoped and
 refuses entries that cross tenants. Repeated streams in one group observe earlier entries in the
-same transaction. `AtomicEventStore::append_group_guarded_with_blobs` commits a group with its blobs
-or, on a provider that cannot, refuses with `UNAVAILABLE` (pinned revision `fe8a0a7e`). That is read
-from source and unexecuted here.
+same transaction. The publication appends its group with `AtomicBlobEventStore::append_group_with_blobs`,
+or, where the suffix carries no object and the group binds no blob, `AtomicEventStore::append_group`,
+as every other publication of this store does (unit P). That the group lands whole or not at all is
+held by `a_reader_of_the_store_never_sees_part_of_a_suffix`: an object the group appends after its
+revision entries is stored by another writer first, and the store's revision stream is unchanged;
+the case is red against a publication that appends the revision entries apart (measured).
 
 `StagePublished` carries the published range: the first and last revision it added, by id. Both are
 absent when the run committed nothing; then the head stays where it was. The stage's
 `published_revisions` are the store's revisions from the first to the last, contiguous because one
-group appended them. No bound on the size of one group is set; unit P measures one. After the
-group, the stage's tenant is forgotten.
+group appended them. No bound on the size of one group is set. Eventlog admits at most 1024 events
+in one stream append (`MAX_EVENTS_PER_APPEND`), so the revision entries are appended in runs of
+1024, each expecting the stream after the one before. The groups the cases measure hold 1 to 7
+occurrences; a larger one is unmeasured. After the group, the stage's tenant is forgotten.
 
 The store's head must equal both the expected head and the stage's base. A store whose head moved
 is refused `ekr.store.StageHeadMoved` and never rebased: the stage's transactions were validated
@@ -5669,15 +5700,27 @@ suffix:
 - the ordered occurrences derived again for the store's lineage, each with its objects;
 - the `StagePublished` record event.
 
+As unit P carries it (`ekr.store.StagePublication`): the stage id, the base, the expected version,
+the ordered occurrences, every object they need by content hash (each with its first class, its
+raises and `stored_at`: `ekr.store.StagePublicationObject`), and what `StagePublished` records —
+the head after the group and the first and last revision it adds. The objects are one map rather
+than one per occurrence, since one object can serve several.
+
 Its native request is the whole append group: the store's tenant, every ordered stream append with
 its exact expectation (the revision stream, each object stream and the stage record's stream), the
-command metadata and every blob binding.
+command metadata and every blob binding. The retained record writes byte strings as base64 and
+omits the blob list, which is exactly the decision's objects in address order, as `/2` does.
 
 As § 94 requires, a retry after an uncertain outcome resumes the exact elected attempt. It adopts
 the attempt once written. A definitive conflict is answered by what moved (§ 107.4). After
 `stream-moved` or `object-moved` the next publish prepares the slot's successor attempt: § 94.2
 admits a successor after a definitive conflict with an unchanged canonical basis, keeping the
-decision and preparing a new native request.
+decision and preparing a new native request. The successor keeps every member of the decision but
+the expected version, which becomes the stream's current version; its object appends are built
+again against what the store holds then, and the store's authority checks the store's stream at
+that version with the suffix after it before the successor is elected. The publish that meets the
+conflict refuses by name; the next one, which resumes the attempt and meets it again, elects the
+successor and appends it.
 
 **When a `/4` slot is resolved.** § 94.3 resolves a slot by confirmed publication of its decision.
 BeginStage's `unresolved-preparation` and `ekr migrate`'s `migrate-unresolved-preparation` refuse
@@ -5721,13 +5764,16 @@ hold every declaration there to a Rust carrier member for member.
 `ekr.cli.AbandonStage` records `StageAbandoned` first, in the store's tenant, conditionally on the stage
 being Begun or Sealing. Then it forgets the tenant `StageBegun` names with the provider's
 `forget_tenant` ("Remove everything this kit holds for a tenant, in one transaction", eventlog-core
-at the pinned revision; unexecuted here). The store's tenant is never forgotten.
+at the pinned revision; executed by unit P's abandon and publish cases on SQLite and PostgreSQL).
+The store's tenant is never forgotten.
 
 A Published stage refuses `ekr.store.StageStateConflict`. A retry of an Abandoned stage returns the
 original result and finishes the forgetting. A publication and an abandonment of one stage both
-condition on the record's version, so at most one of them succeeds (unexecuted). An abandonment of
-a Sealing stage therefore resolves that stage's `/4` slot (§ 107.5): once `StageAbandoned` is
-appended, the elected group can never land.
+condition on the record's version, so at most one of them succeeds
+(`publish_and_abandon_of_one_stage_cannot_both_succeed`, and
+`an_abandonment_landing_between_capture_and_append_is_answered_stage_already_abandoned`). An
+abandonment of a Sealing stage therefore resolves that stage's `/4` slot (§ 107.5): once
+`StageAbandoned` is appended, the elected group can never land.
 
 ## 107.7 Held bytes, rule 2
 
@@ -5749,9 +5795,15 @@ is about the store's own tenant.
 
 The source guard is `crates/ekr-store/tests/eventlog_object_memo.rs`,
 `no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream`. Its `allowed` list is
-today `ekr-store/src/eventlog.rs` (1) and `ekr-store/src/eventlog_reads.rs` (5, compiled only under
-`cfg(test)`). It gains the one product source that calls `forget_tenant` for a stage, in the change
-that adds that call. That source takes the tenant from `StageBegun` and refuses the store's own.
+`ekr-store/src/eventlog.rs` (1), `ekr-store/src/eventlog_reads.rs` (5, compiled only under
+`cfg(test)`) and, since unit P, `ekr-store/src/stage_record.rs` (1): the one product source that
+calls `forget_tenant`, for a stage. That source takes the tenant from `StageBegun`, forgets only for
+a Published or Abandoned stage, and refuses `stage-tenant-not-derived`, forgetting nothing, unless
+the name carries the stage marker, equals the tenant derived from the store's tenant and the stage
+id, and is not the store's own (adversary F9). `the_store_tenant_is_never_forgotten` forges records
+naming the store's tenant, another store's at the same location, and two live stages' tenants;
+each is refused and each tenant keeps its events. The forged part runs on SQLite only, through the
+provider; the kernel's tests carry no PostgreSQL provider to forge one with.
 
 ## 107.8 Crash points and retries
 
@@ -5784,7 +5836,8 @@ stage is kept, is unit L's to decide.
 A reader of the store sees the base until the publication's group commits, then every revision of
 the suffix at once. It never sees part of a suffix and never sees a stage's revision before it is
 published. The stage record's events are not revision-stream occurrences, so `ekr head`, snapshots
-and replay checkpoints do not move for them (unexecuted).
+and replay checkpoints do not move for them: the head and the revision stream are held by
+`a_stage_begins_at_the_head_and_the_store_is_unchanged`; snapshots and checkpoints are unexecuted.
 
 A reader joined to a stage sees the store at the base and the run's commits, with revision numbers
 and identities continuing the store's. The knowledge, evidence, ontology and authority roots at the
@@ -5809,7 +5862,8 @@ domain of their own, `ekr.cli` (`systems/ekr/domains/cli.yaml`): `ekr.cli.BeginS
 The committed `ekr-kernel`, `ekr-views` and `ekr-integrate` suites select none of the four, and no
 suite for the `ekr` component is synthesized or committed in this wave.
 
-The cases below carry the stage's acceptance. Unit C's exist (2026-10-08); the others do not yet.
+The cases below carry the stage's acceptance. Unit C's and unit P's exist (2026-10-08); unit L's do
+not yet.
 "Where the PostgreSQL tests run" means: a case's PostgreSQL part returns early without
 `EKR_TEST_POSTGRES_CONFIG` (`EKR_REQUIRE_POSTGRES=1` makes that a failure), and no workflow under
 `.github/` sets it, so the gate passes that part unrun. Where each runs:
@@ -5865,6 +5919,9 @@ The cases below carry the stage's acceptance. Unit C's exist (2026-10-08); the o
   - `a_store_begins_a_stage_after_an_elected_sealing_stage_is_abandoned`
   - `a_store_with_a_published_stage_begins_another_and_migrates`, which holds the inventory's
     reading of `/4` (§ 107.5)
+  - `a_stage_begin_reads_the_store_under_one_capture_and_counts_what_it_holds`, on PostgreSQL
+    only, where its tests run (unit C's adversary: the capture holds the schema's publication
+    lock and has no bound below the tenant's size, so what it holds is counted, not timed)
 
   Unit P also amends `no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream`.
   It adds the Rust carriers and binding-table entries for every stage declaration in `store.yaml`,
@@ -5897,6 +5954,44 @@ on this amendment's declarations:
 The specification therefore lands together with unit P's carriers or with the binding tables
 naming the new declarations. The measured results are recorded with the unit that ran them.
 
+With unit P (2026-10-08) each of them passes: `domain_projection.rs` binds the new declarations,
+two through carrier kinds it gains — a `kind: newtype` over a Rust type (`ekr.store.StoreTenant`)
+and an identity of `ekr-core`'s `Id::mint()` family that this crate re-exports
+(`ekr.store.StageId`) — and its event scenario writes the stage record's four events through the
+File provider's store, `StagePublished` inside an elected `/4` group of an empty suffix.
+`identity_serde.rs` enumerates `StageId`, whose `id_newtype!` count the identity module's own
+doc now states as twenty-one.
+
 The new domain file `cli.yaml` is embedded by `ekr_views::EMBEDDED_DOMAINS`, which
 `crates/ekr-views/tests/code_names.rs` holds to `systems/ekr/domains/`; both list it in the change
 that adds it.
+
+## 107.12 What unit P decided
+
+*Added 2026-10-08 by `task:stage-suffix-publication`.* Each item is held by the case named, on
+SQLite and, where the PostgreSQL tests run, on PostgreSQL.
+
+- **The kernel's API, for unit L.** On a store's own `Runtime`: `begin_stage()`,
+  `seal_stage(stage, expect_head)`, `publish_stage(stage, expect_head)`,
+  `seal_and_publish_stage(stage, expect_head)` (what `ekr stage publish` runs: § 107.4),
+  `abandon_stage(stage)`, `stages()` (`ekr.store.Stages`) and `join_stage(stage)`, which returns
+  the `Runtime` every joined verb uses. Each answers `ekr.store.StageResult`, and each refusal is
+  a store error named in `store.yaml` inside `CommitError::Store`. A stage command on a joined
+  runtime is refused `stage-command-on-stage`; a File store refuses every one
+  `stage-unsupported-provider`.
+- **Refusal names.** `ekr.store.StageStateConflict` is named by the state: `stage-not-sealed` for a
+  Begun stage published alone (adversary F12), `stage-sealed`, `stage-already-published` and
+  `stage-already-abandoned`. A joined write that landed after the seal is `stage-write-landed`
+  (`ekr.store.StageWriteLanded`, § 107.3; adversary F2).
+- **Where the code reads "after its copy".** From the stage's log, after the completion receipt
+  (§ 107.4); occurrences after the copy are those after the prefix the stage shares with the store
+  by event identity, and none of them may already be in the store.
+- **A seal reads the stage once and a publication reads it again.** Each is one image of the
+  SQLite database or one PostgreSQL capture of the stage's tenant, replayed in full; their cost per
+  stage is unmeasured.
+- **Interleavings are held, not assumed.** `ekr_store::on_stage_point` runs another writer, or an
+  interruption, at a named point of a stage command. Each mechanism the adversary named was shown
+  red by removing it once: the post-write check, the check before every read (a reader of a
+  published stage answered `Ok(None)`), abandon's conditional append, the derived-tenant check at
+  forgetting, the one group, the inventory's reading of `/4`, the expected-head check and the
+  exclusion of stage-lineage records.

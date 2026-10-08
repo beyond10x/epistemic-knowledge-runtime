@@ -1603,8 +1603,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "443bdda9c2ac7b1bfe0d147c045453c15e7c66713d8716a2e5eacfd8df033566",
-    "spec_digest": "8d90e30250f06da14fffc9630226649783bbeba3349aadc1c0591bbc788417d4",
+    "contract_digest": "b4a1455bb8e4e3a6e4291d7452613c33708fdf215f24ead390558cb308d2eff4",
+    "spec_digest": "f7b0a824b05cfa32ae98a0c9d32992d6a962ffea4e9910ce88e85b1e65df6751",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"

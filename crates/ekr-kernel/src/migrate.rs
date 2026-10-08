@@ -100,7 +100,7 @@ fn legacy_markers() -> [ContentHash; 2] {
     MARKERS.map(ContentHash::of_bytes)
 }
 
-fn completion(claim: EventId, seed_hash: ContentHash) -> Result<Vec<u8>, StoreError> {
+pub(crate) fn completion(claim: EventId, seed_hash: ContentHash) -> Result<Vec<u8>, StoreError> {
     #[derive(Serialize)]
     struct Completed {
         format: &'static str,
@@ -211,6 +211,25 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     /// refusal of the inventory or of the full replay, `migrate-incomplete` included;
     /// [`CommitError::NotSeeded`] for a store with no seed.
     pub fn capture(&self) -> Result<CapturedStore<'_, S>, CommitError> {
+        self.capture_with(|pending| {
+            migration(
+                "migrate-unresolved-preparation",
+                format!(
+                    "occurrence {pending} was elected and never published; resolve it with the \
+                     command that elected it before migrating"
+                ),
+            )
+            .into()
+        })
+    }
+
+    /// [`Self::capture`], refusing a preparation whose decision was never published with
+    /// `unresolved`: a stage's begin, seal and publication name it
+    /// [`StoreError::UnresolvedPreparation`].
+    pub(crate) fn capture_with(
+        &self,
+        unresolved: impl FnOnce(EventId) -> CommitError,
+    ) -> Result<CapturedStore<'_, S>, CommitError> {
         let inventory = self.store.inventory()?;
         let published: BTreeSet<EventId> = inventory
             .occurrences
@@ -222,14 +241,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .iter()
             .find(|event_id| !published.contains(event_id))
         {
-            return Err(migration(
-                "migrate-unresolved-preparation",
-                format!(
-                    "occurrence {pending} was elected and never published; resolve it with the \
-                     command that elected it before migrating"
-                ),
-            )
-            .into());
+            return Err(unresolved(*pending));
         }
         let history = RetainedHistory {
             occurrences: inventory.occurrences.clone(),
@@ -290,6 +302,27 @@ impl<S: RevisionLog + ObjectStore + Inventory> CapturedStore<'_, S> {
     #[must_use]
     pub fn head(&self) -> ekr_graph::Root {
         self.state.head().root
+    }
+
+    /// The identity of the captured head revision.
+    #[must_use]
+    pub fn head_revision(&self) -> ekr_core::RevisionId {
+        self.state.head().revision_id
+    }
+
+    /// The captured inventory.
+    pub(crate) const fn inventory(&self) -> &ekr_store::StoreInventory {
+        &self.inventory
+    }
+
+    /// The captured history, every object of the inventory held.
+    pub(crate) const fn history(&self) -> &RetainedHistory {
+        &self.history
+    }
+
+    /// The inventory replayed in full.
+    pub(crate) fn state(&self) -> &ReplayState {
+        &self.state
     }
 
     /// Copies the captured store into `destination`, a store that holds nothing yet, opened under
@@ -634,7 +667,7 @@ impl<D: RevisionLog + ObjectStore> Commit<D> {
     /// what precedes it: the same identities, actors and times; a proposal record byte for byte;
     /// and a record naming the lineage derived again against `state` by the functions replay
     /// checks it with.
-    fn migrated_decision(
+    pub(crate) fn migrated_decision(
         &self,
         state: &ReplayState,
         event: &RevisionEvent,

@@ -41,9 +41,13 @@ types:
 
   # DESIGN 94: private recovery carriers, not canonical transaction states.
   # Runtime recovery controls remain unexecuted at declaration.
+  # `PublishStage` (design § 107.5, unit P) is a stage's publication. It is admitted only in an
+  # ekr.store.StagePublicationCommandKey, under `ekr.publication-preparation/4`; a
+  # PublicationCommandKey carrying it is refused `preparation-command-key`, so `/1`–`/3` never
+  # name it.
   - name: ekr.store.PublicationCommandKind
     kind: enum
-    variants: [Bootstrap, Propose, Validate, Commit]
+    variants: [Bootstrap, Propose, Validate, Commit, PublishStage]
 
   - name: ekr.store.PublicationCommandKey
     kind: struct
@@ -225,6 +229,99 @@ types:
   - name: ekr.store.PublicationResolution
     kind: enum
     variants: [Written, AlreadyRecorded, Conflict, UnknownCommit]
+
+  # Design § 107.5 (unit P). A stage's publication is elected in a preparation slot keyed by
+  # Publish and the stage id, one slot per stage: `kind` is always PublishStage.
+  - name: ekr.store.StagePublicationCommandKey
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.store.PublicationCommandKind
+      - name: stage_id
+        type: ekr.store.StageId
+
+  # One object a stage's publication appends to the store: its first class in the stage, the class
+  # of each retention raise the stage recorded after it, in order, its original `stored_at` and its
+  # bytes. The append group stores it at `storage_class` and raises it through `raised_to` where
+  # the store does not hold it, and raises it from the class the store holds through every later
+  # rung where the store holds it weaker; it appends nothing where the store holds it as strongly.
+  - name: ekr.store.StagePublicationObject
+    kind: struct
+    fields:
+      - name: storage_class
+        type: ekr.store.StorageClass
+      - name: raised_to
+        type: List<ekr.store.StorageClass>
+      - name: stored_at
+        type: Timestamp
+      - name: bytes
+        type: Bytes
+
+  # The decision of a stage's publication (design § 107.5): the whole suffix. `occurrences` are the
+  # stage's revision-stream occurrences after its copy, derived again for the store's lineage, in
+  # order; `objects` every object they and the run's other writes need, by content hash: each
+  # occurrence's record, each payload a commit added, and every other object the stage stored or
+  # raised after its copy, never a record of the stage's own lineage (its seed envelope, a record
+  # the publication derives again, its migration report or its completion receipt).
+  # `expected_version` is the store's revision-stream version the attempt's group expects: the
+  # version read at the capture, or, for a successor after `stream-moved`, the version read then.
+  # A successor keeps every other member. `head`, `published_first` and `published_last` are what
+  # ekr.store.StagePublished records: the store's head after the group, and the first and last
+  # revision it adds, absent where the run committed nothing.
+  - name: ekr.store.StagePublication
+    kind: struct
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: expected_version
+        type: Integer
+      - name: occurrences
+        type: List<ekr.kernel.RevisionEventV2>
+      - name: objects
+        type: Map<String, ekr.store.StagePublicationObject>
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: published_first
+        type: Optional<ekr.kernel.RevisionId>
+      - name: published_last
+        type: Optional<ekr.kernel.RevisionId>
+
+  # Design § 107.5. A new format, used by the PublishStage kind only; `/1`–`/3`, their kinds and
+  # every retained preparation are read exactly as before, and an earlier binary refuses `/4` by
+  # format.
+  - name: ekr.store.PublicationPreparationFormatV4
+    kind: enum
+    variants:
+      - ekr.publication-preparation/4
+
+  # An elected attempt of a stage's publication. Its native request is the whole append group in
+  # the store's tenant: the revision stream at `decision.expected_version` with every occurrence,
+  # each object stream it appends to (absent, or at the version whose class it raises), and the
+  # stage record's stream at its Sealing version with ekr.store.StagePublished, then every blob
+  # binding. The record writes byte strings as base64 and omits the blob list, which is exactly
+  # the decision's objects in address order, as `/2` does. Inventory resolution of a `/4` slot is
+  # design § 107.5's: published, abandoned, or definitively conflicted.
+  - name: ekr.store.PublicationPreparationV4
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.store.PublicationPreparationFormatV4
+      - name: command_key
+        type: ekr.store.StagePublicationCommandKey
+      - name: input_hash
+        type: ekr.kernel.ContentHash
+      - name: decision
+        type: ekr.store.StagePublication
+      - name: attempt_number
+        type: Integer
+      - name: previous_attempt_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: native_request
+        type: ekr.store.NativePublicationRequest
+      - name: native_fingerprint
+        type: String
 
   # Design § 107 (2026-10-07, story:a-run-is-staged-and-published-whole). A stage's identity.
   # Begin mints it, from the `Id::mint()` family as `ekr mint` mints every other id, and returns
@@ -574,12 +671,15 @@ events:
 #    Canonical objects is about the store's own tenant.
 #    The source guard is `crates/ekr-store/tests/eventlog_object_memo.rs`,
 #    `no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream`. Its `allowed`
-#    list (today `ekr-store/src/eventlog.rs` 1 and `ekr-store/src/eventlog_reads.rs` 5, the
-#    latter compiled only under `cfg(test)`) gains the one product source that calls
-#    `forget_tenant` for a stage, with its count, in the change that adds that call, and its doc
-#    comment names it. That source takes the tenant from the stage's ekr.store.StageBegun and
-#    refuses the store's own. Unexecuted until then: today the guard admits no product call of
-#    `forget_tenant`.
+#    list is `ekr-store/src/eventlog.rs` 1, `ekr-store/src/eventlog_reads.rs` 5 (compiled only
+#    under `cfg(test)`) and, since unit P (2026-10-08), `ekr-store/src/stage_record.rs` 1: the one
+#    product call of `forget_tenant`, and its doc comment names it. That source takes the tenant
+#    from the stage's ekr.store.StageBegun, forgets it only for a Published or Abandoned stage,
+#    and refuses (`stage-tenant-not-derived`, nothing forgotten) unless it carries the stage marker,
+#    equals the tenant derived from the store's tenant and the stage id, and is not the store's
+#    own. Held by `the_store_tenant_is_never_forgotten` (`crates/ekr-kernel/tests/stage.rs`), whose
+#    forged records name the store's tenant, another store's, and two other live stages'; its
+#    forged part runs on SQLite only.
 # 3. Not seen, recorded rather than hidden: a redaction or blob deletion made through a provider
 #    directly, outside the runtime, without that event; a backup of the same store restored over
 #    its SQLite file, whose first and newest events this log holds; a database whose file holds no
@@ -606,9 +706,10 @@ errors:
         type: ekr.store.StageId
 
   # The stage is not in a state the command or the joined verb acts from; `state` says which, and
-  # the refusal is named by it: Sealing `stage-sealed`, Published `stage-already-published`,
-  # Abandoned `stage-already-abandoned`. Every verb joined to a stage that is not Begun answers
-  # it, before its write and again after it (a write that landed in a stage sealed meanwhile).
+  # the refusal is named by it: Begun `stage-not-sealed` (a publish of a stage never sealed),
+  # Sealing `stage-sealed`, Published `stage-already-published`, Abandoned
+  # `stage-already-abandoned`. Every verb joined to a stage that is not Begun answers it before
+  # every read and write; a write that landed meanwhile answers ekr.store.StageWriteLanded.
   - name: ekr.store.StageStateConflict
     summary: The stage is not in a state this acts from, so nothing was sealed, published, abandoned, read or written through it.
     fields:
@@ -616,6 +717,24 @@ errors:
         type: ekr.store.StageId
       - name: state
         type: ekr.store.Stage.State
+
+  # Design § 107.3, unit P. A write joined to the stage passed its check while the stage was Begun,
+  # its append landed, and the stage record read again after it is no longer Begun: the stage was
+  # sealed, published or abandoned meanwhile. The write is refused, `stage-write-landed`, and is not
+  # reported successful. `event_ids` are the revision-stream occurrences it landed, empty for a
+  # write that landed none (an election, an object, a checkpoint pointer): whether those are in the
+  # publication is read from the store by these ids once the stage is Published. Where the stage
+  # is Published or Abandoned, the stage's tenant is forgotten again before the refusal, so a late
+  # write leaves nothing behind.
+  - name: ekr.store.StageWriteLanded
+    summary: A write joined to the stage landed after the stage left Begun; it is refused, and the store says by its event ids whether the publication holds it.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: state
+        type: ekr.store.Stage.State
+      - name: event_ids
+        type: List<ekr.kernel.EventId>
 
   # A store's head, here and in every stage command, is the number of its last committed revision
   # (`ekr head`), never the version of its revision stream: a proposal, a validation, a rejection

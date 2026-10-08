@@ -717,11 +717,10 @@ fn a_checkpoint_cannot_admit_a_copy_without_its_completion_receipt() {
 // Design § 107.10, unit C (`task:postgres-source-copy`): a stage is begun by a preserving copy of
 // the store at its head into the stage's own tenant of the same store. The source is read once —
 // one SQLite image, one PostgreSQL capture (`Commit::capture`) — and the capture is then copied
-// (`CapturedStore::copy_into`). Until `ekr.store.StageId` has its carrier (unit P), a stage id is
-// any minted id's value.
+// (`CapturedStore::copy_into`). A stage id is minted as begin mints it (`ekr.store.StageId`).
 
-fn stage_id() -> u128 {
-    TypeId::mint().as_u128()
+fn stage_id() -> ekr_core::StageId {
+    ekr_core::StageId::mint()
 }
 
 /// A seeded store with a schema change, retained evidence added after the seed and a retraction.
