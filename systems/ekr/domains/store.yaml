@@ -289,8 +289,11 @@ types:
         type: Optional<ekr.kernel.RevisionId>
 
   # Design § 107.5. A new format, used by the PublishStage kind only; `/1`–`/3`, their kinds and
-  # every retained preparation are read exactly as before, and an earlier binary refuses `/4` by
-  # format.
+  # every retained preparation are read exactly as before. An earlier binary never reads a `/4`
+  # slot by its key, since no earlier command has one; its inventory, which reads every slot's
+  # newest record without its format, refuses a `/4` record `inventory-preparation-unreadable`,
+  # because the decision holds no single occurrence (read from that inventory's source at the
+  # commit before unit P; unexecuted).
   - name: ekr.store.PublicationPreparationFormatV4
     kind: enum
     variants:
@@ -759,7 +762,8 @@ errors:
   # stream after the capture, and the head did not move: a proposal, a validation, a rejection or a
   # stale record, which commits nothing. The stage stays Sealing; a publish retried with the same
   # expected head prepares its slot's successor attempt (design § 94.2) at the stream's current
-  # version, with the same suffix.
+  # version, with the same suffix, which the store's authority checks again: where the occurrence
+  # decides a transaction the suffix decides too, the retry is refused ekr.store.StageSuffixRefused.
   - name: ekr.store.StageStreamMoved
     summary: >-
       The store's revision stream moved after the publication captured it, and its head did not;
@@ -798,13 +802,19 @@ errors:
   # A decision elected (design § 94) and never published: in the store, a begin's copy refuses it
   # as the migration does (`migrate-unresolved-preparation`); in the stage, a seal or a
   # publication refuses it, since the suffix would leave out an occurrence the run elected.
+  # A stage's publication slot that is not resolved (design § 107.5) is named by its stage,
+  # `stage_id`, which publishing or abandoning resolves, with the first occurrence it elected if it
+  # elected one; any other decision is named by its occurrence, `event_id`, alone (unit P's
+  # adversary, 2026-10-08).
   - name: ekr.store.UnresolvedPreparation
     summary: >-
       A decision was elected and never published; resolve it with the command that elected it,
-      then retry. Nothing was copied or appended.
+      or publish or abandon the stage it names, then retry. Nothing was copied or appended.
     fields:
       - name: event_id
-        type: ekr.kernel.EventId
+        type: Optional<ekr.kernel.EventId>
+      - name: stage_id
+        type: Optional<ekr.store.StageId>
 
   # The kernel's check of the suffix derived again for the store's lineage refused it: a refusal of
   # the stage's full replay, a record that does not derive again, or the store's replay after the

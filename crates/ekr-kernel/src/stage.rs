@@ -57,6 +57,30 @@ fn code_of(error: &StoreError) -> String {
     }
 }
 
+/// A refusal of a stage publication's election, as `stage-suffix-refused` where it is the store's
+/// authority refusing the store's history with the suffix after it (design § 107.4) — what a
+/// capture of the same store answers — and as itself where it is the provider's or the record's.
+fn suffix_refusal(stage: StageId, error: StoreError) -> CommitError {
+    match error {
+        error @ (StoreError::Conflict
+        | StoreError::UnknownCommit
+        | StoreError::PublicationInputConflict
+        | StoreError::RuntimeContext
+        | StoreError::Backend(_)
+        | StoreError::Diverged(_)
+        | StoreError::Replaced(_)
+        | StoreError::ReadOnly(_)
+        | StoreError::StageNotFound(_)
+        | StoreError::StageStateConflict { .. }) => error.into(),
+        error => StoreError::StageSuffixRefused {
+            stage_id: stage,
+            code: code_of(&error),
+            reason: error.to_string(),
+        }
+        .into(),
+    }
+}
+
 /// The store's head in `occurrences`: the number of its last committed revision.
 fn head_of(occurrences: &[RecordedOccurrence]) -> RevisionNumber {
     occurrences
@@ -152,7 +176,7 @@ impl<C: RevisionLog + ObjectStore + Inventory> Commit<C> {
     /// decision elected and never published, and replayed in full. A copy without its completion
     /// receipt, or no copy at all, is `stage-incomplete`.
     fn capture_stage(&self, stage: StageId) -> Result<CapturedStore<'_, C>, CommitError> {
-        self.capture_with(|pending| StoreError::UnresolvedPreparation(pending).into())
+        self.capture_with(|pending| pending.refusal().into())
             .map_err(|error| match error {
                 CommitError::NotSeeded => StoreError::StageIncomplete(stage).into(),
                 CommitError::Store(StoreError::Document(code))
@@ -210,8 +234,7 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
         if provider == ProviderKind::File {
             return Err(StoreError::StageUnsupportedProvider(provider).into());
         }
-        let captured =
-            source.capture_with(|pending| StoreError::UnresolvedPreparation(pending).into())?;
+        let captured = source.capture_with(|pending| pending.refusal().into())?;
         let stage = StageId::mint();
         let tenant = ekr_store::stage_tenant(&self.store.store_tenant(), stage)?;
         let record = self.store.record_stage_begun(
@@ -317,11 +340,10 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
                             expected_version: self.store.revision_stream_version()?,
                             ..elected.decision.clone()
                         };
-                        let next = self.store.prepare_stage_publication(
-                            input,
-                            &decision,
-                            Some(&elected),
-                        )?;
+                        let next = self
+                            .store
+                            .prepare_stage_publication(input, &decision, Some(&elected))
+                            .map_err(|error| suffix_refusal(stage, error))?;
                         ekr_store::stage::reached(StagePoint::PublishElected)?;
                         let _ = self.store.resume_stage_publication(&next)?;
                     }
@@ -330,9 +352,11 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
             }
             None => {
                 let decision = self.stage_suffix(&record, &open(&record.tenant)?)?;
+                ekr_store::stage::reached(StagePoint::PublishCaptured)?;
                 let prepared = self
                     .store
-                    .prepare_stage_publication(input, &decision, None)?;
+                    .prepare_stage_publication(input, &decision, None)
+                    .map_err(|error| suffix_refusal(stage, error))?;
                 ekr_store::stage::reached(StagePoint::PublishElected)?;
                 let _ = self.store.resume_stage_publication(&prepared)?;
             }
@@ -366,7 +390,8 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
             .capture_stage(stage)
             .map_err(|error| match error {
                 CommitError::Store(
-                    error @ (StoreError::StageIncomplete(_) | StoreError::UnresolvedPreparation(_)),
+                    error @ (StoreError::StageIncomplete(_)
+                    | StoreError::UnresolvedPreparation { .. }),
                 ) => error.into(),
                 CommitError::Store(error) => refused(error),
                 other => other,
@@ -549,7 +574,14 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
         let mut record = self.stage(stage)?;
         for _ in 0..8 {
             match record.state {
-                StageState::Published => return Err(conflict(stage, record.state)),
+                // A Published stage is not abandoned. What remains of its tenant — a publication
+                // interrupted between its append and its forgetting — is forgotten first, so after
+                // abandon or publish the stage's tenant holds nothing (held bytes, rule 2: the
+                // record's StagePublished is appended).
+                StageState::Published => {
+                    self.store.forget_stage_tenant(stage)?;
+                    return Err(conflict(stage, record.state));
+                }
                 StageState::Abandoned => {
                     self.store.forget_stage_tenant(stage)?;
                     return Ok(record.result());

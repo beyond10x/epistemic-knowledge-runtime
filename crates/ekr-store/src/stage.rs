@@ -318,6 +318,8 @@ pub enum StagePoint {
     SealChecked,
     /// Seal has written `StageSealed`; publish has not yet read the stage.
     Sealed,
+    /// Publish has captured the stage and derived its suffix, and not yet elected an attempt.
+    PublishCaptured,
     /// Publish has captured the stage and elected its attempt, and not yet appended the group.
     PublishElected,
     /// The group is appended; the stage's tenant is not yet forgotten.
