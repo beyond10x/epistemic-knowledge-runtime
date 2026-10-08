@@ -23,6 +23,7 @@ macro_rules! identity_types {
             split_id => SplitId,
             source_unit_id => SourceUnitId,
             source_checkpoint_id => SourceCheckpointId,
+            stage_id => StageId,
         }
     };
 }

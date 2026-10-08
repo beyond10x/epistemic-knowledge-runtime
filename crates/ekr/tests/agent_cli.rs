@@ -905,6 +905,19 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "stdin",
             ],
         ),
+        (
+            "stage",
+            &[
+                "ekr stage begin",
+                "EKR_STAGE",
+                "--stage",
+                "ekr stage publish",
+                "--expect-head",
+                "ekr stage abandon",
+                "ekr head",
+                store,
+            ],
+        ),
     ];
     let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();
     let rows: BTreeSet<&str> = own.iter().map(|(verb, _)| *verb).collect();

@@ -1910,6 +1910,7 @@ mod tests {
                 store: Some(path.clone()),
                 backend: Some(backend),
                 full_replay: false,
+                stage: None,
                 access: super::super::Access::Read,
             }
             .resolve("test")
@@ -2842,6 +2843,7 @@ mod tests {
             store: directory.path().join("store"),
             backend: super::super::Backend::File,
             full_replay: false,
+            stage: None,
             access: super::super::Access::Read,
         };
         let runtime = Runtime::file(

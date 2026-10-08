@@ -364,6 +364,60 @@ fn every_event_the_crate_writes_carries_the_fields_the_domain_declares() {
             )
             .expect("the checkpoint pointer is written");
     }
+    {
+        // A stage's record (design § 107): one stage begun, sealed and published by a
+        // publication of an empty suffix, and one begun and abandoned. Begin's refusal of the File
+        // provider is the kernel's; the record's events are the store's on every provider.
+        use ekr_store::StageLog;
+        let store = ekr_store::FileStore::file(&root, "ekr", ontology())
+            .expect("the file provider reopens")
+            .under(AdmitsNothingYet);
+        let seed = ekr_core::RevisionNumber::SEED;
+        let published = ekr_store::StageId::mint();
+        let begun = store
+            .record_stage_begun(
+                published,
+                &ekr_store::stage_tenant("ekr", published).expect("a stage tenant"),
+                seed,
+                ekr_core::RevisionId::mint(),
+            )
+            .expect("StageBegun is written");
+        store
+            .record_stage_sealed(&begun)
+            .expect("StageSealed is written");
+        let decision = ekr_store::StagePublication {
+            stage_id: published,
+            base: seed,
+            expected_version: 0,
+            occurrences: Vec::new(),
+            objects: BTreeMap::new(),
+            head: seed,
+            published_first: None,
+            published_last: None,
+        };
+        let prepared = store
+            .prepare_stage_publication(
+                ekr_core::ContentHash::of_bytes(b"stage publication input"),
+                &decision,
+                None,
+            )
+            .expect("the publication is elected");
+        let _ = store
+            .resume_stage_publication(&prepared)
+            .expect("StagePublished is written in the group");
+        let abandoned = ekr_store::StageId::mint();
+        let begun = store
+            .record_stage_begun(
+                abandoned,
+                &ekr_store::stage_tenant("ekr", abandoned).expect("a stage tenant"),
+                seed,
+                ekr_core::RevisionId::mint(),
+            )
+            .expect("StageBegun is written");
+        store
+            .record_stage_abandoned(&begun)
+            .expect("StageAbandoned is written");
+    }
 
     let declared = declared_events();
     let mut checked = 0usize;
@@ -487,6 +541,12 @@ enum Carrier {
     Split(&'static [(&'static str, &'static [&'static str], bool)]),
     /// An enumeration of format versions carried as one string constant each, `(type, constants)`.
     Constants(&'static str, &'static [&'static str]),
+    /// A `kind: newtype` declaration carried by a tuple struct over one Rust type,
+    /// `(type, inner)`: `pub struct type(pub inner);`. It has no members on either side.
+    Newtype(&'static str, &'static str),
+    /// A `kind: newtype, of: Uuid` identity minted in `ekr-core`'s `Id::mint()` family
+    /// (`id_newtype!` in `crates/ekr-core/src/identity.rs`) and re-exported by this crate.
+    Core(&'static str),
 }
 
 /// Each declaration under `types:` or `entities:`, and how the crate carries it.
@@ -556,6 +616,36 @@ const BINDINGS: &[(&str, Carrier)] = &[
         ]),
     ),
     ("ekr.store.StoredObject", Carrier::Whole("StoredObject")),
+    // Design § 107 (unit P): a store, a stage, and a stage's publication.
+    ("ekr.store.StageId", Carrier::Core("StageId")),
+    (
+        "ekr.store.StoreTenant",
+        Carrier::Newtype("StoreTenant", "String"),
+    ),
+    ("ekr.store.ProviderKind", Carrier::Whole("ProviderKind")),
+    ("ekr.store.StageResult", Carrier::Whole("StageResult")),
+    ("ekr.store.Store", Carrier::Whole("Store")),
+    ("ekr.store.Stage", Carrier::Whole("Stage")),
+    (
+        "ekr.store.StagePublicationCommandKey",
+        Carrier::Whole("StagePublicationCommandKey"),
+    ),
+    (
+        "ekr.store.StagePublicationObject",
+        Carrier::Whole("StagePublicationObject"),
+    ),
+    (
+        "ekr.store.StagePublication",
+        Carrier::Whole("StagePublication"),
+    ),
+    (
+        "ekr.store.PublicationPreparationFormatV4",
+        Carrier::Constants("PublicationPreparationV4", &["FORMAT"]),
+    ),
+    (
+        "ekr.store.PublicationPreparationV4",
+        Carrier::Whole("PublicationPreparationV4"),
+    ),
 ];
 
 /// Every declaration under the top-level `types:` and `entities:` keys of `document`, as
@@ -962,6 +1052,48 @@ fn every_type_and_entity_the_domain_declares_names_a_rust_carrier() {
                     domain, &values,
                     "{declaration} and {owner}'s formats disagree"
                 );
+            }
+            Carrier::Newtype(rust_type, inner) => {
+                assert!(domain.is_empty(), "{declaration} is a newtype: {domain:?}");
+                let declared = crate_sources().iter().any(|(_, code)| {
+                    code.lines().any(|line| {
+                        let line = line.trim();
+                        line == format!("pub struct {rust_type}(pub {inner});")
+                            || line == format!("pub struct {rust_type}({inner});")
+                    })
+                });
+                assert!(
+                    declared,
+                    "{declaration} is bound to `pub struct {rust_type}({inner});`, which this \
+                     crate does not declare"
+                );
+            }
+            Carrier::Core(rust_type) => {
+                assert!(domain.is_empty(), "{declaration} is a newtype: {domain:?}");
+                let identity = std::fs::read_to_string(
+                    std::path::PathBuf::from(
+                        std::env::var("CARGO_MANIFEST_DIR")
+                            .expect("Cargo supplies the runtime manifest directory"),
+                    )
+                    .join("../ekr-core/src/identity.rs"),
+                )
+                .expect("ekr-core's identities");
+                let minted = identity.split("id_newtype! {").skip(1).any(|block| {
+                    block
+                        .split('}')
+                        .next()
+                        .is_some_and(|body| body.lines().any(|line| line.trim() == *rust_type))
+                });
+                assert!(
+                    minted,
+                    "{declaration} is bound to ekr-core's {rust_type}, which `id_newtype!` does \
+                     not declare"
+                );
+                let reexported = crate_sources().iter().any(|(_, code)| {
+                    code.lines()
+                        .any(|line| line.trim() == format!("pub use ekr_core::{rust_type};"))
+                });
+                assert!(reexported, "this crate does not re-export {rust_type}");
             }
         }
     }

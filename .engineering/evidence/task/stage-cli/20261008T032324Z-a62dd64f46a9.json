@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-08T03:23:24Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "task:stage-cli",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "unit 7a2756fab6: ekr stage_cli 9, postgres_cli 13 (PostgreSQL required), docs_cli 18, story_contract 14, public_surface 12 passed, 0 failed"
+  }
+}

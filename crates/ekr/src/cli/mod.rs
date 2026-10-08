@@ -61,6 +61,7 @@ mod search_page;
 mod seed;
 mod session;
 mod snapshot;
+mod stage;
 mod transactions;
 mod validate;
 mod view;
@@ -78,6 +79,7 @@ use serde::Serialize;
 pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
 pub use mcp::serve_mcp;
 pub use session::serve;
+pub use stage::StageCommand;
 pub use transactions::StateFilter;
 
 use crate::exit::Failure;
@@ -115,6 +117,12 @@ pub struct Cli {
     /// (`1` or `true`) when absent.
     #[arg(long, global = true)]
     pub full_replay: bool,
+    /// Join a stage, as `ekr stage begin` printed its id: every verb that opens an existing store
+    /// reads and writes the stage's tenant instead (`ekr stage`). Store verbs only; `EKR_STAGE`
+    /// when absent, and the two naming different stages is a usage error. `seed`, `migrate` and
+    /// the `ekr stage` verbs, which run on the store, refuse it.
+    #[arg(long, global = true, value_name = "STAGE_ID")]
+    pub stage: Option<ekr_kernel::StageId>,
     /// The command.
     #[command(subcommand)]
     pub command: Command,
@@ -590,6 +598,22 @@ pub enum Command {
         #[arg(long)]
         config: PathBuf,
     },
+    /// Stage a run, then publish it whole or abandon it whole: `begin`, `publish`, `abandon` and
+    /// `list` (design § 107).
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST), on a SQLite or
+    /// PostgreSQL store. Every verb of the run joins the stage `ekr stage begin` printed with
+    /// `EKR_STAGE=<id>` or `--stage <id>`: its reads see the store at the stage's base and the
+    /// run's own commits, and its writes go to the stage, never to the store. A run that passes
+    /// its gate is published with `ekr stage publish <id> --expect-head <revision>`; one that
+    /// fails is dropped with `ekr stage abandon <id>`, and `ekr head` is where it was. The stage
+    /// verbs themselves run on the store: they ignore EKR_STAGE and refuse --stage.
+    #[command(after_help = SEE)]
+    Stage {
+        /// The stage verb.
+        #[command(subcommand)]
+        command: StageCommand,
+    },
 }
 
 /// What a verb does to the store it opens.
@@ -615,6 +639,8 @@ impl Command {
             | Self::Validate { .. }
             | Self::Commit { .. }
             | Self::ApplyExtraction { .. } => Access::Write,
+            Self::Stage { command } if command.writes() => Access::Write,
+            Self::Stage { .. } => Access::Read,
             Self::Snapshot { .. }
             | Self::Explain { .. }
             | Self::Resolve { .. }
@@ -1048,6 +1074,14 @@ fn dispatch(
             Runtime::postgres_schema(&config).map_err(opening)?;
             render(&serde_json::json!({ "format": "ekr.postgres-schema/1", "ready": true }))
         }
+        Command::Stage { command } => {
+            // A stage verb runs on the store's own tenant: its configuration joins no stage.
+            let runtime = source.configured("stage")?.open()?;
+            match stage::run(&runtime, command)? {
+                stage::Answered::Stage(result) => render(&result),
+                stage::Answered::Stages(listed) => render(&listed),
+            }
+        }
         Command::Session { .. } => Err(session::verb_refused("session")),
         Command::Mcp => Err(session::verb_refused("mcp")),
     }
@@ -1059,6 +1093,8 @@ struct Configured {
     store: Option<PathBuf>,
     backend: Option<Backend>,
     full_replay: bool,
+    /// The stage `--stage` names; `EKR_STAGE` is read only when a store verb resolves.
+    stage: Option<ekr_kernel::StageId>,
     /// What its verb does to the store, from [`Command::access`].
     access: Access,
 }
@@ -1071,6 +1107,7 @@ impl Configured {
             store,
             backend,
             full_replay,
+            stage,
             command,
         } = cli;
         (
@@ -1079,10 +1116,70 @@ impl Configured {
                 store,
                 backend,
                 full_replay,
+                stage,
                 access: command.access(),
             },
             command,
         )
+    }
+
+    /// The stage `verb` joins (design § 107.3): `--stage`, else `EKR_STAGE`, an empty value unset.
+    /// The two naming different stages is a usage error. `stage`, whose verbs run on the store,
+    /// ignores `EKR_STAGE` and refuses `--stage`; `seed` and `migrate`, which create a store,
+    /// refuse either.
+    fn stage(&self, verb: &str) -> Result<Option<ekr_kernel::StageId>, Failure> {
+        if verb == "stage" {
+            return match self.stage {
+                Some(stage) => Err(Failure::Usage {
+                    message: format!(
+                        "ekr: `ekr stage` runs on the store, not on a stage: name the stage as its \
+                         argument, not with --stage {stage} (EKR_STAGE is ignored)"
+                    ),
+                }),
+                None => Ok(None),
+            };
+        }
+        let variable = match std::env::var("EKR_STAGE") {
+            Ok(value) if value.is_empty() => None,
+            Ok(value) => {
+                Some(
+                    value
+                        .parse::<ekr_kernel::StageId>()
+                        .map_err(|_| Failure::Usage {
+                            message: format!(
+                        "ekr: EKR_STAGE={value:?} is not a stage id (the `stage_id` `ekr stage \
+                         begin` prints) for `{verb}`"
+                    ),
+                        })?,
+                )
+            }
+            Err(std::env::VarError::NotPresent) => None,
+            Err(std::env::VarError::NotUnicode(_)) => {
+                return Err(Failure::Usage {
+                    message: format!("ekr: EKR_STAGE is not text for `{verb}`"),
+                })
+            }
+        };
+        let stage = match (self.stage, variable) {
+            (Some(flag), Some(variable)) if flag != variable => {
+                return Err(Failure::Usage {
+                    message: format!(
+                        "ekr: --stage {flag} and EKR_STAGE={variable} name different stages for \
+                         `{verb}`; name one"
+                    ),
+                })
+            }
+            (flag, variable) => flag.or(variable),
+        };
+        match stage {
+            Some(stage) if verb == "seed" || verb == "migrate" => Err(Failure::Usage {
+                message: format!(
+                    "ekr: `{verb}` creates a store and joins no stage, and stage {stage} is named \
+                     (--stage or EKR_STAGE); unset it for `{verb}`"
+                ),
+            }),
+            stage => Ok(stage),
+        }
     }
 }
 
@@ -1093,6 +1190,8 @@ struct Store {
     store: PathBuf,
     backend: Backend,
     full_replay: bool,
+    /// The stage the verb joins ([`Configured::stage`]): [`Store::open`] opens its tenant.
+    stage: Option<ekr_kernel::StageId>,
     /// What the verb it was resolved for does to the store: how [`Store::open`] opens it.
     access: Access,
 }
@@ -1110,6 +1209,7 @@ fn flag_or_var(flag: Option<PathBuf>, var: &str) -> Option<PathBuf> {
 
 impl Configured {
     fn resolve(self, verb: &str) -> Result<Store, Failure> {
+        let stage = self.stage(verb)?;
         let host = required(
             flag_or_var(self.host, "EKR_HOST"),
             "--host",
@@ -1168,6 +1268,7 @@ impl Configured {
             store,
             backend,
             full_replay,
+            stage,
             access: if backend == Backend::Postgres && verb == "session" {
                 Access::Write
             } else {
@@ -1222,13 +1323,30 @@ impl Store {
     /// It opens as its verb's [`Access`] says: a verb that writes, on a store this process may
     /// not write, is the named refusal `store-read-only` (exit 2), and a verb that reads opens
     /// such a store read-only.
+    ///
+    /// A verb joined to a stage (`--stage`, `EKR_STAGE`) then joins it: the runtime it reads and
+    /// writes through is the stage's tenant of the store (`Runtime::join_stage`), and a stage it
+    /// cannot join is refused by name (exit 2): `stage-not-found`, `stage-sealed`,
+    /// `stage-already-published`, `stage-already-abandoned`, `stage-incomplete` or
+    /// `stage-unsupported-provider`.
     fn open(&self) -> Result<Runtime, Failure> {
-        self.open_existing(self.access)
-            .map_err(|error| self.failure(error))
+        let runtime = self
+            .open_existing(self.access)
+            .map_err(|error| self.failure(error))?;
+        self.join(runtime)
+    }
+
+    /// The runtime of the stage this verb joins, or `runtime` itself when it joins none.
+    fn join(&self, runtime: Runtime) -> Result<Runtime, Failure> {
+        match self.stage {
+            Some(stage) => Ok(runtime.join_stage(stage)?),
+            None => Ok(runtime),
+        }
     }
 
     /// What an open that failed with `error` reports: `store-not-found` and `store-read-only` by
-    /// name, anything else as the provider fault it is.
+    /// name, a host tenant that carries the stage marker as `stage-tenant-reserved` (exit 1, a
+    /// host-configuration fault), anything else as the provider fault it is.
     fn failure(&self, error: PersistenceError) -> Failure {
         let backend = match self.backend {
             Backend::File => "file",
@@ -1244,6 +1362,8 @@ impl Store {
                 "the {backend} store at {} is read-only to this process: {why}",
                 self.store.display()
             )),
+            // The kernel's own text names it: `stage-tenant-reserved: the tenant … carries …`.
+            error @ PersistenceError::StageTenantReserved(_) => Failure::store(error),
             error => opening(error),
         }
     }
@@ -1286,7 +1406,7 @@ impl Store {
     /// session starts before its store exists, and holds it once a seed has created it.
     fn open_if_any(&self) -> Result<Option<Runtime>, Failure> {
         match self.open_existing(self.access) {
-            Ok(runtime) => Ok(Some(runtime)),
+            Ok(runtime) => self.join(runtime).map(Some),
             Err(PersistenceError::NoStore(_)) => Ok(None),
             Err(error) => Err(self.failure(error)),
         }

@@ -386,7 +386,7 @@ fn existing_observe_identities_have_typed_contract_cases() {
 /// macro's shape. The count it states must be the count of invocations in `identity.rs`.
 #[test]
 fn adversary_i_macro_doc_counts_the_id_newtypes_it_declares() {
-    const WORDS: [&str; 21] = [
+    const WORDS: [&str; 22] = [
         "Zero",
         "One",
         "Two",
@@ -408,6 +408,7 @@ fn adversary_i_macro_doc_counts_the_id_newtypes_it_declares() {
         "Eighteen",
         "Nineteen",
         "Twenty",
+        "Twenty-one",
     ];
     let path = workspace_root().join("crates/ekr-core/src/identity.rs");
     let source = std::fs::read_to_string(&path)

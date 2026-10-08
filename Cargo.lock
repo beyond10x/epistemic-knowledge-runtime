@@ -883,8 +883,8 @@ dependencies = [
 
 [[package]]
 name = "eventlog-core"
-version = "0.5.0"
-source = "git+https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8"
+version = "0.8.1"
+source = "git+https://github.com/beyond10x/eventlog?rev=d5db40da9c0bee874eba3938a259c13c86f53277#d5db40da9c0bee874eba3938a259c13c86f53277"
 dependencies = [
  "serde",
  "serde_json",
@@ -896,8 +896,8 @@ dependencies = [
 
 [[package]]
 name = "eventlog-file"
-version = "0.5.0"
-source = "git+https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8"
+version = "0.8.1"
+source = "git+https://github.com/beyond10x/eventlog?rev=d5db40da9c0bee874eba3938a259c13c86f53277#d5db40da9c0bee874eba3938a259c13c86f53277"
 dependencies = [
  "eventlog-core",
  "serde",
@@ -909,8 +909,8 @@ dependencies = [
 
 [[package]]
 name = "eventlog-postgres"
-version = "0.5.0"
-source = "git+https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8"
+version = "0.8.1"
+source = "git+https://github.com/beyond10x/eventlog?rev=d5db40da9c0bee874eba3938a259c13c86f53277#d5db40da9c0bee874eba3938a259c13c86f53277"
 dependencies = [
  "eventlog-core",
  "rustls",
@@ -926,12 +926,13 @@ dependencies = [
 
 [[package]]
 name = "eventlog-sqlite"
-version = "0.5.0"
-source = "git+https://github.com/beyond10x/eventlog?rev=fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8#fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8"
+version = "0.8.1"
+source = "git+https://github.com/beyond10x/eventlog?rev=d5db40da9c0bee874eba3938a259c13c86f53277#d5db40da9c0bee874eba3938a259c13c86f53277"
 dependencies = [
  "eventlog-core",
  "nix",
  "rusqlite",
+ "serde",
  "serde_json",
  "time",
  "tokio",
@@ -2638,7 +2639,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

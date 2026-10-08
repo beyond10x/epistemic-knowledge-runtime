@@ -11,7 +11,8 @@ use ekr_ontology::Ontology;
 use eventlog_core::{
     AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CaptureError, CaptureLimits,
     CommandMeta, ConsistentTenantCapture, EventLogError, EventStore, Expected, NewEvent, Read,
-    ReadResult, RecordedEvent, StreamAppend, StreamId, StreamSlice, TenantId, MAX_READ_LIMIT,
+    ReadResult, RecordedEvent, StreamAppend, StreamId, StreamSlice, TenantCapture, TenantId,
+    MAX_READ_LIMIT,
 };
 use eventlog_file::FileEventStore;
 use eventlog_postgres::PostgresEventStore;
@@ -31,6 +32,13 @@ const OBJECT_STREAM_TYPE: &str = "ekr.store.object";
 const OBJECT_STORED: &str = "ekr.store.ObjectStored";
 const OBJECT_RETENTION_RAISED: &str = "ekr.store.ObjectRetentionRaised";
 const WRITER: &str = "ekr.store";
+/// The stream family of a stage's record in the store's own tenant (design § 107.1); the stream
+/// id is the stage id. Not the revision stream, so writing it never moves `ekr head`.
+const STAGE_STREAM_TYPE: &str = "ekr.stage";
+const STAGE_BEGUN: &str = "ekr.store.StageBegun";
+const STAGE_SEALED: &str = "ekr.store.StageSealed";
+const STAGE_PUBLISHED: &str = "ekr.store.StagePublished";
+const STAGE_ABANDONED: &str = "ekr.store.StageAbandoned";
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "preparation.rs"]
@@ -39,6 +47,11 @@ mod preparation;
 mod read_only;
 #[path = "replaced.rs"]
 mod replaced;
+#[path = "stage_preparation.rs"]
+mod stage_preparation;
+#[path = "stage_record.rs"]
+mod stage_record;
+use crate::{ProviderKind, StageId, StageState};
 pub use inventory::{InventoriedObject, Inventory, StoreInventory};
 pub use preparation::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
@@ -47,6 +60,9 @@ pub use preparation::{
     StagedPublicationObject,
 };
 pub use read_only::remove_read_only_copies;
+pub use stage_preparation::{
+    PublicationPreparationV4, StagePublication, StagePublicationCommandKey, StagePublicationObject,
+};
 #[cfg(test)]
 #[path = "eventlog_reads.rs"]
 mod reads;
@@ -60,6 +76,9 @@ pub type PostgresStore = EventlogStore<PostgresEventStore>;
 
 /// Provider-specific authoritative tenant emptiness check.
 type EmptyCheck<S> = fn(&S, &Runtime, &TenantId) -> Result<bool, StoreError>;
+/// Provider-specific capture of one tenant's whole history and bound content in one observation;
+/// the flag says whether the handle only reads.
+type CaptureTenant<S> = fn(&S, &Runtime, &TenantId, bool) -> Result<TenantCapture, StoreError>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -160,15 +179,28 @@ pub struct EventlogStore<S: EventStore> {
     at_path: Option<replaced::AtPath>,
     /// Hosted read handles refuse all mutations, including replay checkpoints.
     hosted_read_only: bool,
-    /// Hosted history needs an explicit provider capture before full inventory can be claimed.
-    inventory_requires_capture: bool,
+    /// Where a provider's change feed can withhold committed events (PostgreSQL), the inventory
+    /// is one provider capture of the tenant instead of reads of the feed and its streams.
+    capture: Option<CaptureTenant<S>>,
     /// Provider-specific bounded shutdown, before dropping the runtime that drives its clients.
     shutdown: Option<fn(&S, &Runtime)>,
     /// Authoritative emptiness where a provider feed can temporarily withhold committed events.
     empty: Option<EmptyCheck<S>>,
+    /// The provider this store is on.
+    provider: ProviderKind,
+    /// For a handle joined to a stage (design § 107.3): the stage and its record's stream in the
+    /// store's tenant, read before every read and write and again after every write lands.
+    joined: Option<Joined>,
     /// Set when the store was opened read-only: every write is refused and no checkpoint is
     /// written. Last, so that a File store's private copy is removed after the provider over it.
     read_only: Option<read_only::ReadOnly>,
+}
+/// What a handle joined to a stage checks: the stage, the store's tenant and the record's stream
+/// in it.
+struct Joined {
+    stage: StageId,
+    store_tenant: TenantId,
+    record: StreamId,
 }
 /// One verified object as a handle keeps it: its metadata, and its bytes shared with the process's
 /// registry of verified bytes.
@@ -268,7 +300,13 @@ impl EventlogStore<SqliteEventStore> {
         let store =
             waiting_out_the_lock(|| runtime.block_on(SqliteEventStore::open(&named, "ekr")))?;
         Self::at(
-            Self::assemble(runtime, store, tenant, ontology.into()),
+            Self::assemble(
+                runtime,
+                store,
+                tenant,
+                ontology.into(),
+                ProviderKind::Sqlite,
+            ),
             path,
         )
     }
@@ -303,7 +341,13 @@ impl EventlogStore<SqliteEventStore> {
             error => error.into(),
         })?;
         Self::at(
-            Self::assemble(runtime, store, tenant, ontology.into()),
+            Self::assemble(
+                runtime,
+                store,
+                tenant,
+                ontology.into(),
+                ProviderKind::Sqlite,
+            ),
             path,
         )
     }
@@ -343,7 +387,13 @@ impl EventlogStore<SqliteEventStore> {
         let image = read_only::sqlite_image(path, "ekr_events")?
             .ok_or_else(|| StoreError::NoStore(path.display().to_string()))?;
         let store = runtime.block_on(SqliteEventStore::from_image("ekr", image))?;
-        let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
+        let mut opened = Self::assemble(
+            runtime,
+            store,
+            tenant,
+            ontology.into(),
+            ProviderKind::Sqlite,
+        );
         opened.read_only = Some(read_only::ReadOnly {
             path: path.to_owned(),
             signature,
@@ -471,7 +521,13 @@ impl EventlogStore<FileEventStore> {
         let tenant = TenantId::new(tenant)?;
         std::fs::create_dir_all(path).map_err(|e| StoreError::Backend(e.to_string()))?;
         let store = runtime.block_on(FileEventStore::open(path))?;
-        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+        Ok(Self::assemble(
+            runtime,
+            store,
+            tenant,
+            ontology.into(),
+            ProviderKind::File,
+        ))
     }
     /// Opens an already provisioned File store, creating no directory, lock or manifest: a path
     /// holding none is refused and left as it was. A store this process may not write — its
@@ -493,7 +549,13 @@ impl EventlogStore<FileEventStore> {
             return Err(read_only::denied(path, &denied));
         }
         let store = runtime.block_on(FileEventStore::open_existing(path))?;
-        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+        Ok(Self::assemble(
+            runtime,
+            store,
+            tenant,
+            ontology.into(),
+            ProviderKind::File,
+        ))
     }
     /// Opens an already provisioned File store for a caller that only reads it: as
     /// [`EventlogStore::file_existing`] where this process may write the store, and otherwise as
@@ -530,7 +592,8 @@ impl EventlogStore<FileEventStore> {
         let signature = read_only::Signature::file(path);
         let copy = read_only::copy_file_store(path)?;
         let store = runtime.block_on(FileEventStore::open_existing(copy.path()))?;
-        let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
+        let mut opened =
+            Self::assemble(runtime, store, tenant, ontology.into(), ProviderKind::File);
         opened.read_only = Some(read_only::ReadOnly {
             path: path.to_owned(),
             signature,
@@ -574,9 +637,35 @@ impl EventlogStore<PostgresEventStore> {
             config.replicas,
             config.reserved_connections,
         ))?;
-        let mut opened = Self::assemble(runtime, store, tenant, None);
+        let mut opened = Self::assemble(runtime, store, tenant, None, ProviderKind::Postgres);
         opened.hosted_read_only = reading;
-        opened.inventory_requires_capture = true;
+        opened.capture = Some(|store, runtime, tenant, reading| {
+            // The inventory holds every event and object of the tenant by contract — it is what a
+            // preserving copy reads — so the capture carries no cap below the tenant's own size.
+            // The provider's operation deadline still bounds it.
+            let limits = CaptureLimits {
+                max_events: u64::MAX,
+                max_blobs: u64::MAX,
+                max_projection_rows: 0,
+                max_payload_bytes: u64::MAX,
+            };
+            // Provider publication does not itself allocate the capture identity, so a writing
+            // handle ensures it as the emptiness check does; this metadata is not canonical
+            // history. A reading handle allocates nothing.
+            if !reading {
+                runtime.block_on(store.stream_identity(tenant))?;
+            }
+            crate::verified::count_stream_read(|reads| reads.captures += 1);
+            match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
+                Ok(captured) => Ok(captured),
+                Err(CaptureError::Store(error)) => Err(error.into()),
+                Err(CaptureError::TenantIdentityMissing) if reading => Err(StoreError::ReadOnly(
+                    "a tenant inventory requires capture metadata a reading handle does not write"
+                        .into(),
+                )),
+                Err(error) => Err(StoreError::Document(format!("postgres-capture: {error}"))),
+            }
+        });
         opened.empty = Some(|store, runtime, tenant| {
             // A zero cap checks existence without loading arbitrary tenant payloads. Native
             // capture waits for committed publishers, unlike the watermark-filtered feed.
@@ -589,6 +678,7 @@ impl EventlogStore<PostgresEventStore> {
             // Provider publication does not itself allocate the capture identity. Ensure it
             // exists before taking absence as evidence; this metadata is not canonical history.
             runtime.block_on(store.stream_identity(tenant))?;
+            crate::verified::count_stream_read(|reads| reads.captures += 1);
             match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
                 Ok(_) => Ok(true),
                 Err(CaptureError::LimitExceeded { .. }) => Ok(false),
@@ -632,8 +722,16 @@ impl<S: EventStore> EventlogStore<S> {
     fn runtime(&self) -> &Runtime {
         self.runtime.as_ref().expect("runtime is owned until drop")
     }
-    fn assemble(runtime: Runtime, store: S, tenant: TenantId, ontology: Option<Ontology>) -> Self {
+    fn assemble(
+        runtime: Runtime,
+        store: S,
+        tenant: TenantId,
+        ontology: Option<Ontology>,
+        provider: ProviderKind,
+    ) -> Self {
         Self {
+            provider,
+            joined: None,
             runtime: Some(runtime),
             store,
             tenant,
@@ -649,7 +747,7 @@ impl<S: EventStore> EventlogStore<S> {
             pointer: std::sync::Mutex::default(),
             at_path: None,
             hosted_read_only: false,
-            inventory_requires_capture: false,
+            capture: None,
             shutdown: None,
             empty: None,
             read_only: None,
@@ -659,22 +757,22 @@ impl<S: EventStore> EventlogStore<S> {
     /// async runtime, and a SQLite database replaced in place since this handle opened it.
     fn entered(&self) -> Result<(), StoreError> {
         ensure_sync_context()?;
-        let Some(at_path) = &self.at_path else {
-            return Ok(());
-        };
-        at_path.check(|position| {
-            let page = self.runtime().block_on(self.store.read_feed(
-                &self.tenant,
-                position.saturating_sub(1),
-                1,
-            ))?;
-            Ok(page
-                .events
-                .into_iter()
-                .next()
-                .filter(|event| event.global_seq == position)
-                .map(|event| event.event_id))
-        })
+        if let Some(at_path) = &self.at_path {
+            at_path.check(|position| {
+                let page = self.runtime().block_on(self.store.read_feed(
+                    &self.tenant,
+                    position.saturating_sub(1),
+                    1,
+                ))?;
+                Ok(page
+                    .events
+                    .into_iter()
+                    .next()
+                    .filter(|event| event.global_seq == position)
+                    .map(|event| event.event_id))
+            })?;
+        }
+        self.check_joined()
     }
     /// `opened`, recording the database file at `path` it opened and checking it once.
     fn at(mut opened: Self, path: &Path) -> Result<Self, StoreError> {
@@ -810,6 +908,7 @@ impl<S: EventStore> EventlogStore<S> {
         let mut events: Vec<PublishedEvent> = Vec::new();
         let mut after = 0;
         loop {
+            crate::verified::count_stream_read(|reads| reads.feed += 1);
             let page = self.runtime().block_on(self.store.read_feed(
                 &self.tenant,
                 after,
@@ -1774,18 +1873,36 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         if let Some(read_only) = &self.read_only {
             return Err(read_only.refusal());
         }
+        // A write joined to a stage was checked when it entered; a test interleaves here.
+        if self.joined.is_some() {
+            crate::stage::reached(crate::StagePoint::JoinedWrite)?;
+        }
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
         for _ in 0..16 {
-            match self
-                .runtime()
-                .block_on(AtomicBlobEventStore::append_group_with_blobs(
-                    &self.store,
-                    request,
-                )) {
+            // A group that binds no blob (a stage record's move, or a publication of a suffix
+            // with no object) is the provider's plain atomic group: a blob group must bind one.
+            let appended = if request.blobs.is_empty() {
+                self.runtime()
+                    .block_on(eventlog_core::AtomicEventStore::append_group(
+                        &self.store,
+                        &request.group,
+                    ))
+            } else {
+                self.runtime()
+                    .block_on(AtomicBlobEventStore::append_group_with_blobs(
+                        &self.store,
+                        request,
+                    ))
+            };
+            match appended {
                 Err(EventLogError::UnknownCommit) => continue,
-                result => return result.map_err(StoreError::from),
+                Ok(result) => {
+                    self.landed(&request.group)?;
+                    return Ok(result);
+                }
+                Err(error) => return Err(error.into()),
             }
         }
         Err(StoreError::UnknownCommit)
@@ -2118,8 +2235,8 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     &self.store,
                     &request.group,
                 ))
-                .map(|_| ())
                 .map_err(StoreError::from)
+                .and_then(|_| self.landed(&request.group))
         } else {
             self.atomic(&request).map(|_| ())
         };

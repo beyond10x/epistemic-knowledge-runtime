@@ -304,22 +304,37 @@ types:
       - name: committed_at
         type: Timestamp
 
-  # Design §100.3: the report of the preserving migration (`ekr migrate --to <path>`). The source
-  # store is only read: nothing in it is deleted, rewritten or reinterpreted. The destination is a
-  # new store at a new path that must hold nothing. It is seeded with the source seed's exact input,
-  # context, authority, identities and time under ekr-seed-envelope/3, and every later occurrence
-  # is published again with its original event identity, revision identity, actors and times.
+  # Design §§ 100.3 and 105.2: the report of the preserving migration (`ekr migrate --to <path>`,
+  # `Commit::migrate_into`). The source store is only read: nothing in it is deleted, rewritten or
+  # reinterpreted. The destination is a store that must hold nothing: a new store at a new path
+  # for `ekr migrate`, or, for a stage (design § 107), the stage's own tenant of the same store. It
+  # is seeded with the source seed's exact input, context, authority, identities and time under
+  # ekr-seed-envelope/4, which binds a fresh migration claim, and every later occurrence is
+  # published again with its original event identity, revision identity, actors and times.
   # Proposal records are carried byte for byte; a record naming the seed envelope, a prior root or
   # a prior record is derived again by the kernel for the destination lineage, and the map below
   # says which. Every other object the source holds is carried with its class and stored_at, and a
   # legacy ObjectStored/schema1 inline object is verified under its frozen shape and carried as
   # ObjectStored/schema2 metadata and a provider blob. The destination is published only through
   # the real kernel authority and is replayed in full before the report is returned; the report is
-  # also retained in it, as a Canonical object at map_hash. Before its first write the migration
-  # retains the fixed Canonical object {"format":"ekr.migration-started/1"} in the destination, and
-  # after its last, the report included, {"format":"ekr.migration-finished/1"}; every replay of a
-  # store holding the first without the second refuses `migrate-incomplete`, except the migrating
-  # handle's own. The CLI refuses a destination that is, lies inside or contains the source
+  # also retained in it, as a Canonical object at map_hash. The claim is atomic with the seed, and
+  # after the last write, the report included, the migration writes the Canonical
+  # {"format":"ekr.migration-finished/2"} receipt naming the claim and the destination seed hash;
+  # every replay of a store whose `/4` seed has no matching receipt refuses `migrate-incomplete`,
+  # except the migrating handle's own. The fixed `ekr.migration-started/1` and
+  # `ekr.migration-finished/1` markers are read for `/2` and `/3` seeds only. A copied `/4` source
+  # is copied again under another fresh claim. Executed by `crates/ekr-kernel/tests/migrate_store.rs`
+  # on File and SQLite, and by `interrupted_postgres_copy_is_unreadable_after_reopen` and
+  # `a_claimed_copy_can_be_captured_and_copied_again` in `crates/ekr-kernel/tests/hosted_postgres.rs`
+  # where the PostgreSQL tests run. A stage's tenant as the destination (2026-10-08, unit C): the
+  # source is read once, under one SQLite image or one PostgreSQL capture (`Commit::capture`), and
+  # the capture is copied into the stage's tenant of the same store (`CapturedStore::copy_into`),
+  # held by `a_postgres_store_is_copied_into_a_stage_under_one_capture`,
+  # `a_sqlite_store_is_copied_into_a_stage_under_one_image`,
+  # `a_commit_racing_the_capture_is_not_in_the_stage` and
+  # `an_interrupted_stage_copy_is_refused_as_incomplete_on_postgres` (and `_on_sqlite`) in the
+  # same file; the stage record and begin itself are unexecuted. The CLI
+  # refuses a destination that is, lies inside or contains the source
   # (`migrate-destination-is-source`, `-inside-source`, `-contains-source`) before creating it.
   - name: ekr.kernel.MigratedOccurrence
     kind: struct
@@ -1525,6 +1540,10 @@ commands:
             number: {generated: true}
             knowledge_root: {generated: true}
         summary: A new immutable revision exists whose parent is the one validated against.
+      - name: retained-commit
+        when_subject_state: Committed
+        replays: committed
+        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: stale
         external: the canonical revision moved since the transaction was validated
         moves: ekr.kernel.GraphTransaction.stale
@@ -1550,10 +1569,6 @@ commands:
             validated_against: {generated: true}
             current: {generated: true}
         summary: Canonical state moved since validation; nothing committed and the transaction is Stale.
-      - name: retained-commit
-        when_subject_state: Committed
-        replays: committed
-        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: transaction-not-found
         external: no retained transaction carries input.transaction_id
         error: ekr.kernel.TransactionNotFound

@@ -1,5 +1,9 @@
 //! Real hosted PostgreSQL acceptance. Set EKR_TEST_POSTGRES_CONFIG and
 //! EKR_TEST_POSTGRES_OWNER to file references; EKR_REQUIRE_POSTGRES=1 makes absence a failure.
+//!
+//! The stage-copy cases of design § 107.10 (unit C, `task:postgres-source-copy`) run their SQLite
+//! halves without a database and their PostgreSQL halves where the PostgreSQL tests run. The
+//! stage tenant's own case, which runs on every provider, is in `stage.rs`.
 #[path = "support/hosted_store.rs"]
 mod controlled;
 #[allow(dead_code)]
@@ -7,12 +11,15 @@ mod current_fixture;
 
 use current_fixture::{context, seed, SEEDED_AT};
 use ekr_core::{ContentHash, RevisionNumber, Timestamp, TransactionId, TypeId};
+use ekr_graph::Root;
 use ekr_kernel::{
-    runtime::PostgresConfiguration, AuthorityStateV1, CommitCommandResult, GraphOperation,
-    GraphTransaction, Runtime, ValidationCommandResult, ValidationProfileV1,
+    runtime::PostgresConfiguration, AuthorityStateV1, Commit, CommitCommandResult, GraphOperation,
+    GraphTransaction, Runtime, StreamReads, ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::NodeType;
+use ekr_store::{ObjectStore, PostgresStore, RevisionLog, SqliteStore};
 use std::collections::BTreeSet;
+use std::path::Path;
 
 fn config() -> Option<PostgresConfiguration> {
     let path = match std::env::var_os("EKR_TEST_POSTGRES_CONFIG") {
@@ -113,12 +120,35 @@ fn postgres_runtime_reopens_seed_and_committed_history() {
     runtime.seed(seed(), || SEEDED_AT).unwrap();
     extend(&runtime, 20);
     let head = runtime.head().unwrap();
+    // Design § 107.2, unit C: the inventory no longer refuses `postgres-inventory-requires-capture`;
+    // it is read under one provider capture, never from the change feed.
     let raw = ekr_store::PostgresStore::postgres(&config, &tenant, false).unwrap();
-    assert!(raw
-        .inventory()
-        .unwrap_err()
-        .to_string()
-        .contains("postgres-inventory-requires-capture"));
+    let _ = ekr_kernel::stream_reads();
+    let inventory = raw.inventory().unwrap();
+    assert_eq!(
+        ekr_kernel::stream_reads(),
+        StreamReads {
+            captures: 1,
+            ..StreamReads::default()
+        },
+        "the inventory is one provider capture and no stream or feed read"
+    );
+    assert_eq!(
+        inventory.occurrences.len(),
+        4,
+        "the seed and one proposal, validation and commit"
+    );
+    let published: BTreeSet<_> = inventory
+        .occurrences
+        .iter()
+        .map(|occurrence| occurrence.event.event_id)
+        .collect();
+    assert_eq!(
+        inventory.prepared.iter().copied().collect::<BTreeSet<_>>(),
+        published,
+        "each decision's newest preparation is read from the capture and was published"
+    );
+    assert_eq!(inventory.events, raw.published_events().unwrap().len());
     drop(raw);
     drop(runtime);
     let reopened = open(&config, &tenant, true);
@@ -682,4 +712,361 @@ fn a_checkpoint_cannot_admit_a_copy_without_its_completion_receipt() {
         .unwrap_err()
         .to_string()
         .contains("migrate-incomplete"));
+}
+
+// Design § 107.10, unit C (`task:postgres-source-copy`): a stage is begun by a preserving copy of
+// the store at its head into the stage's own tenant of the same store. The source is read once —
+// one SQLite image, one PostgreSQL capture (`Commit::capture`) — and the capture is then copied
+// (`CapturedStore::copy_into`). A stage id is minted as begin mints it (`ekr.store.StageId`).
+
+fn stage_id() -> ekr_core::StageId {
+    ekr_core::StageId::mint()
+}
+
+/// A seeded store with a schema change, retained evidence added after the seed and a retraction.
+fn populate(runtime: &Runtime) {
+    runtime.seed(seed(), || SEEDED_AT).unwrap();
+    extend(runtime, 20);
+    let mut evidence = seed().graph.evidence.into_values().next().unwrap();
+    let payload = b"synthetic retained evidence a stage carries".to_vec();
+    evidence.id = ekr_core::EvidenceId::mint();
+    evidence.content_hash = ContentHash::of_bytes(&payload);
+    submit(
+        runtime,
+        GraphTransaction {
+            id: TransactionId::mint(),
+            proposer: context().operator,
+            operations: vec![
+                GraphOperation::AddEvidence(Box::new(ekr_kernel::EvidenceAddition {
+                    evidence,
+                    payload,
+                })),
+                GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+                    assertion: *seed().graph.assertions.keys().next().unwrap(),
+                    reason: ekr_graph::RetractionReason::new("synthetic withdrawal"),
+                }),
+            ],
+            evidence: BTreeSet::new(),
+            schema_version: None,
+        },
+        24,
+    );
+}
+
+/// A kernel over a PostgreSQL tenant; `full` replays every read from the seed.
+fn postgres_kernel(
+    config: &PostgresConfiguration,
+    tenant: &str,
+    reading: bool,
+    full: bool,
+) -> Commit<PostgresStore> {
+    Commit::over_with_authority(context(), anchor(), |authority| {
+        let mut store = PostgresStore::postgres(config, tenant, reading)?;
+        store.set_full_replay(full);
+        Ok(store.under(authority))
+    })
+    .unwrap()
+}
+
+/// A kernel over a SQLite tenant of the database at `path`; `full` replays every read from the
+/// seed.
+fn sqlite_kernel(path: &Path, tenant: &str, full: bool) -> Commit<SqliteStore> {
+    Commit::over_with_authority(context(), anchor(), |authority| {
+        let mut store = SqliteStore::sqlite(path, tenant, None)?;
+        store.set_full_replay(full);
+        Ok(store.under(authority))
+    })
+    .unwrap()
+}
+
+/// A kernel over one SQLite image of `tenant` in the database at `path`, as
+/// `Runtime::sqlite_snapshot` takes it.
+fn sqlite_image(path: &Path, tenant: &str) -> Commit<SqliteStore> {
+    Commit::over_with_authority(context(), anchor(), |authority| {
+        Ok(SqliteStore::sqlite_read_only(path, tenant, None)?.under(authority))
+    })
+    .unwrap()
+}
+
+/// The stage, replayed in full from its seed, holds the source's lineage through `at` and nothing
+/// after it: every revision's identities, time, graph and knowledge, evidence, ontology and
+/// authority roots, every schema and every retained evidence byte. Its head is `at`.
+fn assert_stage_holds<S, D>(source: &Commit<S>, at: Root, stage: &Commit<D>)
+where
+    S: RevisionLog + ObjectStore,
+    D: RevisionLog + ObjectStore,
+{
+    let head = stage.head().unwrap().expect("the stage is seeded");
+    assert_eq!(
+        (
+            head.revision,
+            head.ontology_root,
+            head.knowledge_root,
+            head.evidence_root,
+            head.agent_root
+        ),
+        (
+            at.revision,
+            at.ontology_root,
+            at.knowledge_root,
+            at.evidence_root,
+            at.agent_root
+        ),
+        "the stage's head is the captured head"
+    );
+    let after = RevisionNumber::new(at.revision.get() + 1);
+    assert!(
+        stage.read(Some(after)).is_err(),
+        "the stage holds no revision after the captured head"
+    );
+    for n in 0..=at.revision.get() {
+        let revision = RevisionNumber::new(n);
+        assert_eq!(
+            source.read(Some(revision)).unwrap().graph,
+            stage.read(Some(revision)).unwrap().graph,
+            "revision {n}"
+        );
+        let original = source.schema_history(revision).unwrap();
+        let copied = stage.schema_history(revision).unwrap();
+        assert_eq!(original.schemas, copied.schemas, "revision {n}");
+        assert_eq!(
+            original.retained_evidence, copied.retained_evidence,
+            "revision {n}"
+        );
+        for (number, held) in &original.revisions {
+            let staged = &copied.revisions[number];
+            assert_eq!(held.event_id, staged.event_id);
+            assert_eq!(held.revision_id, staged.revision_id);
+            assert_eq!(held.committed_at, staged.committed_at);
+            assert_eq!(held.root.ontology_root, staged.root.ontology_root);
+            assert_eq!(held.root.knowledge_root, staged.root.knowledge_root);
+            assert_eq!(held.root.evidence_root, staged.root.evidence_root);
+            assert_eq!(held.root.agent_root, staged.root.agent_root);
+        }
+    }
+    let evidence = source
+        .read(Some(at.revision))
+        .unwrap()
+        .graph
+        .evidence
+        .clone();
+    assert!(evidence.len() >= 2, "the seed's evidence and the added one");
+    for held in evidence.values() {
+        let hash = &held.content_hash;
+        let bytes = stage.content(hash).unwrap().expect("the stage retains it");
+        assert_eq!(source.content(hash).unwrap().as_deref(), Some(&bytes[..]));
+        assert_eq!(ContentHash::of_bytes(&bytes), *hash);
+    }
+}
+
+#[test]
+fn a_postgres_store_is_copied_into_a_stage_under_one_capture() {
+    let Some(config) = config() else { return };
+    let tenant = tenant();
+    let store = open(&config, &tenant, false);
+    populate(&store);
+    let events = store.published_events().unwrap();
+    let source = postgres_kernel(&config, &tenant, false, false);
+    let _ = ekr_kernel::stream_reads();
+    let captured = source.capture().unwrap();
+    assert_eq!(
+        ekr_kernel::stream_reads(),
+        StreamReads {
+            captures: 1,
+            ..StreamReads::default()
+        },
+        "the source is read under one provider capture and nothing else"
+    );
+    let at = captured.head();
+    assert_eq!(store.head().unwrap(), Some(at));
+    let staged = ekr_store::stage_tenant(&tenant, stage_id()).unwrap();
+    let stage = postgres_kernel(&config, &staged, false, false);
+    let report = captured.copy_into(&stage).unwrap();
+    assert_ne!(report.source_seed_hash, report.destination_seed_hash);
+    drop(stage);
+    assert_eq!(
+        store.published_events().unwrap(),
+        events,
+        "the store is only read"
+    );
+    assert_eq!(store.head().unwrap(), Some(at));
+    assert_stage_holds(&source, at, &postgres_kernel(&config, &staged, true, true));
+}
+
+#[test]
+fn a_sqlite_store_is_copied_into_a_stage_under_one_image() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("store.db");
+    let tenant = tenant();
+    let store = Runtime::sqlite(&path, &tenant, context(), anchor()).unwrap();
+    populate(&store);
+    let events = store.published_events().unwrap();
+    let source = sqlite_image(&path, &tenant);
+    let captured = source.capture().unwrap();
+    let at = captured.head();
+    assert_eq!(store.head().unwrap(), Some(at));
+    let staged = ekr_store::stage_tenant(&tenant, stage_id()).unwrap();
+    let stage = sqlite_kernel(&path, &staged, false);
+    captured.copy_into(&stage).unwrap();
+    drop(stage);
+    assert_eq!(
+        store.published_events().unwrap(),
+        events,
+        "the store is only read"
+    );
+    assert_eq!(store.head().unwrap(), Some(at));
+    assert_stage_holds(&source, at, &sqlite_kernel(&path, &staged, true));
+}
+
+#[test]
+fn a_commit_racing_the_capture_is_not_in_the_stage() {
+    // SQLite: the image is the capture. A commit after the image is taken is not in it, even
+    // though the copy reads the image afterwards.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("store.db");
+    let tenant = tenant();
+    let store = Runtime::sqlite(&path, &tenant, context(), anchor()).unwrap();
+    populate(&store);
+    let source = sqlite_image(&path, &tenant);
+    extend(&store, 30);
+    let captured = source.capture().unwrap();
+    let at = captured.head();
+    let moved = store.head().unwrap().unwrap();
+    assert!(
+        moved.revision > at.revision,
+        "the store moved past the image"
+    );
+    let staged = ekr_store::stage_tenant(&tenant, stage_id()).unwrap();
+    captured
+        .copy_into(&sqlite_kernel(&path, &staged, false))
+        .unwrap();
+    assert_eq!(store.head().unwrap(), Some(moved));
+    assert_stage_holds(&source, at, &sqlite_kernel(&path, &staged, true));
+
+    // PostgreSQL: a commit lands after the capture, while the copy is writing the stage.
+    let Some(config) = config() else { return };
+    let tenant = self::tenant();
+    let store = open(&config, &tenant, false);
+    populate(&store);
+    let source = postgres_kernel(&config, &tenant, false, false);
+    let captured = source.capture().unwrap();
+    let at = captured.head();
+    let staged = ekr_store::stage_tenant(&tenant, stage_id()).unwrap();
+    let racer = open(&config, &tenant, false);
+    let stage = Commit::over_with_authority(context(), anchor(), |authority| {
+        Ok(controlled::Controlled {
+            inner: PostgresStore::postgres(&config, &staged, false)?.under(authority),
+            before_initialize: Box::new(move || extend(&racer, 30)),
+            interrupt_after_seed: false,
+            interrupt_completion: false,
+        })
+    })
+    .unwrap();
+    captured.copy_into(&stage).unwrap();
+    drop(stage);
+    let moved = store.head().unwrap().unwrap();
+    assert!(
+        moved.revision > at.revision,
+        "the racing commit landed in the store"
+    );
+    assert_stage_holds(&source, at, &postgres_kernel(&config, &staged, true, true));
+}
+
+/// Interrupts a copy of `captured` into a fresh stage tenant, once just after the stage's seed and
+/// once just before its completion receipt, and hands each stage tenant to `refused`.
+fn interrupted_copies<S, D>(
+    captured: &ekr_kernel::CapturedStore<'_, S>,
+    store_tenant: &str,
+    open: impl Fn(&str, ekr_kernel::KernelAuthority) -> D,
+    refused: impl Fn(&str),
+) where
+    S: RevisionLog + ObjectStore + ekr_store::Inventory,
+    D: RevisionLog + ObjectStore + ekr_store::Initialize + ekr_store::Inventory,
+{
+    for (after_seed, completion, says) in [
+        (true, false, "synthetic publication interruption"),
+        (false, true, "synthetic completion interruption"),
+    ] {
+        let staged = ekr_store::stage_tenant(store_tenant, stage_id()).unwrap();
+        let into = Commit::over_with_authority(context(), anchor(), |authority| {
+            Ok(controlled::Controlled {
+                inner: open(&staged, authority),
+                before_initialize: Box::new(|| {}),
+                interrupt_after_seed: after_seed,
+                interrupt_completion: completion,
+            })
+        })
+        .unwrap();
+        let error = captured.copy_into(&into).unwrap_err().to_string();
+        assert!(error.contains(says), "{error}");
+        drop(into);
+        refused(&staged);
+    }
+}
+
+#[test]
+fn an_interrupted_stage_copy_is_refused_as_incomplete_on_postgres() {
+    let Some(config) = config() else { return };
+    let tenant = tenant();
+    let store = open(&config, &tenant, false);
+    populate(&store);
+    let events = store.published_events().unwrap();
+    let source = postgres_kernel(&config, &tenant, false, false);
+    let captured = source.capture().unwrap();
+    let at = captured.head();
+    interrupted_copies(
+        &captured,
+        &tenant,
+        |staged, authority| {
+            PostgresStore::postgres(&config, staged, false)
+                .unwrap()
+                .under(authority)
+        },
+        |staged| {
+            let stage = postgres_kernel(&config, staged, true, false);
+            for error in [
+                stage.head().map(|_| ()).unwrap_err().to_string(),
+                stage.snapshot().map(|_| ()).unwrap_err().to_string(),
+                stage.read(None).map(|_| ()).unwrap_err().to_string(),
+            ] {
+                assert!(error.contains("migrate-incomplete"), "{error}");
+            }
+        },
+    );
+    assert_eq!(store.published_events().unwrap(), events);
+    assert_eq!(store.head().unwrap(), Some(at));
+}
+
+#[test]
+fn an_interrupted_stage_copy_is_refused_as_incomplete_on_sqlite() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("store.db");
+    let tenant = tenant();
+    let store = Runtime::sqlite(&path, &tenant, context(), anchor()).unwrap();
+    populate(&store);
+    let events = store.published_events().unwrap();
+    let source = sqlite_image(&path, &tenant);
+    let captured = source.capture().unwrap();
+    let at = captured.head();
+    interrupted_copies(
+        &captured,
+        &tenant,
+        |staged, authority| {
+            SqliteStore::sqlite(&path, staged, None)
+                .unwrap()
+                .under(authority)
+        },
+        |staged| {
+            let stage = sqlite_kernel(&path, staged, false);
+            for error in [
+                stage.head().map(|_| ()).unwrap_err().to_string(),
+                stage.snapshot().map(|_| ()).unwrap_err().to_string(),
+                stage.read(None).map(|_| ()).unwrap_err().to_string(),
+            ] {
+                assert!(error.contains("migrate-incomplete"), "{error}");
+            }
+        },
+    );
+    assert_eq!(store.published_events().unwrap(), events);
+    assert_eq!(store.head().unwrap(), Some(at));
 }

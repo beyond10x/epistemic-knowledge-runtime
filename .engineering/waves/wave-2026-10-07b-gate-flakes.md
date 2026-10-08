@@ -2,7 +2,7 @@
 
 Skill: aep:implementing 0.21.0 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-07.
-Status: **closing**: units A and B merged into `wave/20261007b`; the full gate is green; the pull request into `main` is open.
+Status: **closed**: merged to `main` in https://github.com/beyond10x/epistemic-knowledge-runtime/pull/86 (`2d0bab6f4e`); both stories are implemented. Its worktrees are finished and removed.
 
 Approved 2026-10-07: these two stories are the next wave after 2026-10-07a, one pull request, with
 a full gate on the integration branch.

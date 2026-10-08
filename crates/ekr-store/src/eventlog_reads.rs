@@ -396,6 +396,7 @@ fn counted(path: &Path) -> (EventlogStore<Counting>, Arc<AtomicUsize>) {
         },
         TenantId::new("ekr").unwrap(),
         None,
+        ProviderKind::File,
     );
     (store, calls)
 }

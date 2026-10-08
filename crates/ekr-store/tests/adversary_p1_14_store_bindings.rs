@@ -208,6 +208,27 @@ const CARRIERS: &[(&str, Option<&str>)] = &[
     ),
     ("ekr.store.PublicationResolution", None),
     ("ekr.store.StoredObject", Some("StoredObject")),
+    // Design § 107 (unit P). The two newtypes have no braced body; the unit's case binds them.
+    ("ekr.store.StageId", None),
+    ("ekr.store.StoreTenant", None),
+    ("ekr.store.ProviderKind", Some("ProviderKind")),
+    ("ekr.store.StageResult", Some("StageResult")),
+    ("ekr.store.Store", Some("Store")),
+    ("ekr.store.Stage", Some("Stage")),
+    (
+        "ekr.store.StagePublicationCommandKey",
+        Some("StagePublicationCommandKey"),
+    ),
+    (
+        "ekr.store.StagePublicationObject",
+        Some("StagePublicationObject"),
+    ),
+    ("ekr.store.StagePublication", Some("StagePublication")),
+    ("ekr.store.PublicationPreparationFormatV4", None),
+    (
+        "ekr.store.PublicationPreparationV4",
+        Some("PublicationPreparationV4"),
+    ),
 ];
 
 /// A declaration is seen whether its mapping opens with `name:` or with any other key.

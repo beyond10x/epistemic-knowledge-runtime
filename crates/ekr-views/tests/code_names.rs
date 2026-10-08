@@ -58,7 +58,7 @@ fn declared_vocabulary() -> BTreeSet<String> {
         })
         .collect();
     files.sort();
-    assert!(files.len() >= 7, "{files:?}");
+    assert!(files.len() >= 8, "{files:?}");
     let mut vocabulary = BTreeSet::new();
     for file in files {
         let domain: Yaml =

@@ -13,6 +13,11 @@
 //!   design § 37 and § 57.
 //! * [`snapshot`] — [`GraphDocument`], the materialised fold as bytes, and the one named place a
 //!   document is serialized; kernel admission is delegated through the authority port.
+//! * [`stage`] — a stage of a store (design § 107): [`stage_tenant`] derives its tenant from the
+//!   store's tenant and the stage id, [`admit_store_tenant`] refuses a store's tenant that carries
+//!   the marker reserved to stage tenants, and [`StageLog`] keeps each stage's record in the
+//!   store's tenant, elects and appends its publication in `ekr.publication-preparation/4`, and
+//!   forgets a Published or Abandoned stage's tenant.
 //! * [`eventlog`] — the implementation over `eventlog-sqlite` and `eventlog-file`.
 //! * [`legacy`] — supplied-byte verification of the original graph format.
 //!
@@ -54,8 +59,11 @@ pub mod log;
 pub mod objects;
 pub mod postgres;
 pub mod snapshot;
+pub mod stage;
 mod verified;
 
+/// A stage's identity, `ekr.store.StageId`, minted in `ekr-core`'s `Id::mint()` family.
+pub use ekr_core::StageId;
 pub use eventlog::remove_read_only_copies;
 pub use eventlog::{
     EventlogStore, FileStore, InventoriedObject, Inventory, PostgresStore, PublishedEvent,
@@ -67,6 +75,9 @@ pub use eventlog::{
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
     StagedPublicationObject,
 };
+pub use eventlog::{
+    PublicationPreparationV4, StagePublication, StagePublicationCommandKey, StagePublicationObject,
+};
 #[doc(hidden)]
 pub use log::knowledge_roots_hashed;
 pub use log::{
@@ -76,10 +87,16 @@ pub use log::{
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
+pub use stage::{
+    admit_store_tenant, stage_tenant, ProviderKind, Stage, StageLog, StagePublishedRecord,
+    StageRecord, StageResult, StageState, Store, StoreTenant, STAGE_TENANT_MARKER,
+};
+#[doc(hidden)]
+pub use stage::{on_stage_point, StageHookGuard, StagePoint};
 #[doc(hidden)]
 pub use verified::{objects_loaded, read_work, stream_reads, ReadWork, StreamReads};
 
-use ekr_core::{ContentHash, RevisionNumber, TransactionId};
+use ekr_core::{ContentHash, EventId, RevisionNumber, TransactionId};
 
 /// Everything a store refuses, and what a caller must tell apart.
 ///
@@ -137,6 +154,127 @@ pub enum StoreError {
     /// the store again on it, as on [`StoreError::Diverged`].
     #[error("store-replaced: {0}")]
     Replaced(String),
+
+    /// `stage-tenant-reserved` (`ekr.store.StageTenantReserved`): a store was to be opened under
+    /// a tenant that carries the marker reserved to stage tenants ([`STAGE_TENANT_MARKER`]), so
+    /// it could be a stage's derived tenant. No store was opened; nothing was read, created or
+    /// written. It carries the refused tenant.
+    #[error(
+        "stage-tenant-reserved: the tenant {0:?} carries the marker reserved to stage tenants \
+         ({STAGE_TENANT_MARKER}); no store is opened under it"
+    )]
+    StageTenantReserved(String),
+
+    /// `stage-not-found` (`ekr.store.StageNotFound`): no stage carries the id in this store.
+    /// Nothing was read or written through a stage.
+    #[error("stage-not-found: no stage {0} in this store")]
+    StageNotFound(StageId),
+
+    /// `ekr.store.StageStateConflict`: the stage is not in a state this acts from, named by its
+    /// state ([`StageState::refusal`]): `stage-not-sealed`, `stage-sealed`,
+    /// `stage-already-published` or `stage-already-abandoned`. Nothing was written.
+    #[error("{}: stage {stage_id} is {state:?}", state.refusal())]
+    StageStateConflict {
+        /// The stage.
+        stage_id: StageId,
+        /// Its state.
+        state: StageState,
+    },
+
+    /// `stage-write-landed` (`ekr.store.StageWriteLanded`): a write joined to the stage passed
+    /// its check while the stage was Begun and landed after the stage left Begun. It is refused,
+    /// and not reported successful; `event_ids` are the revision-stream occurrences it landed,
+    /// which the store holds exactly when the stage's publication holds them.
+    #[error(
+        "stage-write-landed: a write joined to stage {stage_id} landed after it became \
+         {state:?}; occurrences {event_ids:?} are in the store only if its publication holds them"
+    )]
+    StageWriteLanded {
+        /// The stage.
+        stage_id: StageId,
+        /// Its state when the write's record read found it.
+        state: StageState,
+        /// The revision-stream occurrences the write landed.
+        event_ids: Vec<EventId>,
+    },
+
+    /// `stage-head-moved` (`ekr.store.StageHeadMoved`): the store's head, its last committed
+    /// revision, is not the expected head or not the stage's base. Nothing was appended.
+    #[error(
+        "stage-head-moved: stage {stage_id} expects head {expected} at base {base}, and the \
+         store's head is {current}"
+    )]
+    StageHeadMoved {
+        /// The stage.
+        stage_id: StageId,
+        /// The head the caller expected.
+        expected: RevisionNumber,
+        /// The stage's base.
+        base: RevisionNumber,
+        /// The store's head when this was decided.
+        current: RevisionNumber,
+    },
+
+    /// `stage-stream-moved` (`ekr.store.StageStreamMoved`): the store's revision stream moved
+    /// after the capture and its head did not; nothing was appended and the stage stays Sealing.
+    #[error(
+        "stage-stream-moved: stage {stage_id} captured the revision stream at {captured} and it \
+         is at {current}; publish again"
+    )]
+    StageStreamMoved {
+        /// The stage.
+        stage_id: StageId,
+        /// The version the group expected.
+        captured: u64,
+        /// The version found.
+        current: u64,
+    },
+
+    /// `stage-object-moved` (`ekr.store.StageObjectMoved`): an object the publication appends
+    /// moved in the store after the capture; nothing was appended and the stage stays Sealing.
+    #[error(
+        "stage-object-moved: stage {stage_id} found object {content_hash} moved; publish again"
+    )]
+    StageObjectMoved {
+        /// The stage.
+        stage_id: StageId,
+        /// The object.
+        content_hash: ContentHash,
+    },
+
+    /// `stage-incomplete` (`ekr.store.StageIncomplete`): the stage's copy holds no completion
+    /// receipt; it can only be abandoned.
+    #[error("stage-incomplete: the copy of stage {0} never finished; abandon it")]
+    StageIncomplete(StageId),
+
+    /// `unresolved-preparation` (`ekr.store.UnresolvedPreparation`): a decision was elected and
+    /// never published. Nothing was copied, sealed or appended. A stage's publication elected and
+    /// not resolved (design § 107.5) names its stage, which publishing or abandoning resolves, and
+    /// the first occurrence it elected, if it elected one; any other names its occurrence.
+    #[error("unresolved-preparation: {}", unresolved(*event_id, *stage_id))]
+    UnresolvedPreparation {
+        /// The occurrence elected and never published, where the decision has one.
+        event_id: Option<EventId>,
+        /// The Sealing stage whose publication slot is unresolved, for a stage's publication.
+        stage_id: Option<StageId>,
+    },
+
+    /// `stage-suffix-refused` (`ekr.store.StageSuffixRefused`): the stage's suffix did not
+    /// validate against the store; nothing was appended and the stage stays Sealing.
+    #[error("stage-suffix-refused: stage {stage_id}: {code}: {reason}")]
+    StageSuffixRefused {
+        /// The stage.
+        stage_id: StageId,
+        /// The refusal's code.
+        code: String,
+        /// What was refused.
+        reason: String,
+    },
+
+    /// `stage-unsupported-provider` (`ekr.store.StageUnsupportedProvider`): the provider admits
+    /// no stage. Nothing was recorded or copied.
+    #[error("stage-unsupported-provider: the {} provider admits no stage", .0.name())]
+    StageUnsupportedProvider(ProviderKind),
 
     /// An existing-only open found no store at the path: nothing there, an empty directory, an
     /// empty file, a symlink to nothing, a SQLite database without the owner tables, or a File
@@ -220,6 +358,22 @@ pub enum StoreError {
         /// The revision the caller asked to begin at.
         requested: RevisionNumber,
     },
+}
+
+/// What `unresolved-preparation` says: the stage to publish or abandon, or the occurrence to
+/// resolve with the command that elected it.
+fn unresolved(event_id: Option<EventId>, stage_id: Option<StageId>) -> String {
+    match (stage_id, event_id) {
+        (Some(stage), _) => format!(
+            "stage {stage} holds a publication elected and never appended; publish or abandon \
+             that stage"
+        ),
+        (None, Some(event)) => format!(
+            "occurrence {event} was elected and never published; resolve it with the command \
+             that elected it"
+        ),
+        (None, None) => "a decision was elected and never published".to_owned(),
+    }
 }
 
 impl From<eventlog_core::EventLogError> for StoreError {

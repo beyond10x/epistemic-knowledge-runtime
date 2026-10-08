@@ -91,3 +91,24 @@ components:
     publishes:
       events:
         - ekr.integrate.ExtractionApplied
+
+  - component: ekr
+    summary: >-
+      The command-line surface, the `ekr` binary (crates/ekr). It handles the stage commands of
+      design § 107 itself, because they run the kernel's preserving copy and its authority over a
+      store and its stage's tenant together; the stage they act on is ekr.store's.
+    owns:
+      domains:
+        - ekr.cli
+    accepts:
+      commands:
+        - ekr.cli.BeginStage
+        - ekr.cli.SealStage
+        - ekr.cli.PublishStage
+        - ekr.cli.AbandonStage
+    publishes:
+      events:
+        - ekr.store.StageBegun
+        - ekr.store.StageSealed
+        - ekr.store.StagePublished
+        - ekr.store.StageAbandoned

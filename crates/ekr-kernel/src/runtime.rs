@@ -1,11 +1,21 @@
 //! Kernel-owned provider opening for consumers which must never depend on the raw store.
-use crate::{AuthorityStateV1, BootstrapContext, Commit, SeedDocument, SeedError, SeedResultV1};
-use ekr_core::{ContentHash, RevisionNumber, Timestamp};
+//!
+//! Every opener here takes the tenant a host configuration names, and refuses one that carries
+//! the marker reserved to stage tenants (`stage-tenant-reserved`, design § 107.1) before it
+//! reads, creates or writes anything: no store's tenant is ever a stage's derived tenant.
+use crate::{
+    AuthorityStateV1, BootstrapContext, Commit, CommitError, SeedDocument, SeedError, SeedResultV1,
+    StageListing,
+};
+use ekr_core::{ContentHash, RevisionNumber, StageId, Timestamp};
 use ekr_graph::{CanonicalGraph, Root};
-use ekr_store::{FileStore, PostgresStore, SqliteStore, StoreError};
+use ekr_store::{
+    admit_store_tenant, FileStore, PostgresStore, ProviderKind, SqliteStore, StageResult,
+    StageState, StoreError,
+};
 
 pub use ekr_store::postgres::{PostgresConfiguration, PostgresPool};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// One event the provider log published, as [`Runtime::published_events`] returns it.
 pub use ekr_store::PublishedEvent;
@@ -13,11 +23,39 @@ pub use ekr_store::PublishedEvent;
 /// Public runtime facade over one private native provider and the shared kernel handlers.
 pub struct Runtime {
     backend: Backend,
+    /// Where the store is, so that a stage command can open the stage's tenant of the same store.
+    location: Location,
+    /// The store's own tenant, the one its host configuration names: also for a runtime joined to
+    /// a stage, whose handle reads and writes the stage's tenant.
+    tenant: String,
+    /// The stage this runtime is joined to (design § 107.3), if any.
+    joined: Option<StageId>,
 }
 enum Backend {
     File(Box<Commit<FileStore>>),
     Sqlite(Box<Commit<SqliteStore>>),
     Postgres(Box<Commit<PostgresStore>>),
+}
+/// Where a runtime's store is, and how it was opened.
+#[derive(Clone)]
+enum Location {
+    File,
+    Sqlite {
+        path: PathBuf,
+        open: SqliteOpen,
+    },
+    Postgres {
+        config: Box<PostgresConfiguration>,
+        reading: bool,
+    },
+}
+/// How a SQLite runtime opened its store: for writing, for a caller that only reads, or as one
+/// captured image.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SqliteOpen {
+    Existing,
+    Reading,
+    Image,
 }
 impl Runtime {
     /// Provisions the hosted provider's schema using separate schema-management credentials.
@@ -38,6 +76,7 @@ impl Runtime {
         anchor: AuthorityStateV1,
         reading: bool,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Postgres(Box::new(Commit::over_with_authority(
                 context,
@@ -47,6 +86,12 @@ impl Runtime {
                         .map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::Postgres {
+                config: Box::new(config.clone()),
+                reading,
+            },
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
 
@@ -60,6 +105,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -69,6 +115,12 @@ impl Runtime {
                         .map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::Sqlite {
+                path: path.to_owned(),
+                open: SqliteOpen::Image,
+            },
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Captures admitted graph, retained records and payloads at one verified history boundary.
@@ -201,12 +253,16 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::File(Box::new(Commit::over_with_authority(
                 context,
                 anchor,
                 |authority| FileStore::file(path, tenant, None).map(|store| store.under(authority)),
             )?)),
+            location: Location::File,
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Opens the SQLite provider under the explicit trusted host anchor.
@@ -218,6 +274,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -226,6 +283,12 @@ impl Runtime {
                     SqliteStore::sqlite(path, tenant, None).map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::Sqlite {
+                path: path.to_owned(),
+                open: SqliteOpen::Existing,
+            },
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Opens an already provisioned File store under the explicit trusted host anchor, creating
@@ -238,6 +301,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::File(Box::new(Commit::over_with_authority(
                 context,
@@ -246,6 +310,9 @@ impl Runtime {
                     FileStore::file_existing(path, tenant, None).map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::File,
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Opens an already provisioned SQLite store under the explicit trusted host anchor, creating
@@ -258,6 +325,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -267,6 +335,12 @@ impl Runtime {
                         .map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::Sqlite {
+                path: path.to_owned(),
+                open: SqliteOpen::Existing,
+            },
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Opens an already provisioned File store for a caller that only reads it, under the explicit
@@ -280,6 +354,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::File(Box::new(Commit::over_with_authority(
                 context,
@@ -288,6 +363,9 @@ impl Runtime {
                     FileStore::file_reading(path, tenant, None).map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::File,
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Opens an already provisioned SQLite store for a caller that only reads it, under the
@@ -301,6 +379,7 @@ impl Runtime {
         context: BootstrapContext,
         anchor: AuthorityStateV1,
     ) -> Result<Self, StoreError> {
+        admit_store_tenant(tenant)?;
         Ok(Self {
             backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
                 context,
@@ -310,6 +389,12 @@ impl Runtime {
                         .map(|store| store.under(authority))
                 },
             )?)),
+            location: Location::Sqlite {
+                path: path.to_owned(),
+                open: SqliteOpen::Reading,
+            },
+            tenant: tenant.to_owned(),
+            joined: None,
         })
     }
     /// Whether this runtime's store was opened read-only: every write through it is refused as
@@ -509,6 +594,323 @@ impl Runtime {
             Backend::File(kernel) => kernel.content(hash),
             Backend::Sqlite(kernel) => kernel.content(hash),
             Backend::Postgres(kernel) => kernel.content(hash),
+        }
+    }
+}
+
+/// A run staged and published whole, or dropped whole (design § 107). The four commands
+/// (`ekr.cli.BeginStage`, `SealStage`, `PublishStage`, `AbandonStage`) run on the store's own
+/// runtime; [`Runtime::join_stage`] gives the runtime every store verb of the run uses. Every
+/// refusal is a [`StoreError`] named in `systems/ekr/domains/store.yaml`, inside
+/// [`CommitError::Store`].
+impl Runtime {
+    /// The provider this runtime's store is on.
+    #[must_use]
+    pub const fn provider(&self) -> ProviderKind {
+        match self.backend {
+            Backend::File(_) => ProviderKind::File,
+            Backend::Sqlite(_) => ProviderKind::Sqlite,
+            Backend::Postgres(_) => ProviderKind::Postgres,
+        }
+    }
+    /// The stage this runtime is joined to ([`Runtime::join_stage`]), if any.
+    #[must_use]
+    pub const fn joined_stage(&self) -> Option<StageId> {
+        self.joined
+    }
+    /// The store's own tenant: for a runtime joined to a stage too.
+    #[must_use]
+    pub fn store_tenant(&self) -> &str {
+        &self.tenant
+    }
+    /// Refuses a stage command on a runtime joined to a stage: stage commands run on the store.
+    fn on_store(&self) -> Result<(), CommitError> {
+        match self.joined {
+            Some(stage) => Err(StoreError::Document(format!(
+                "stage-command-on-stage: this runtime is joined to stage {stage}; a stage command \
+                 runs on the store's own runtime"
+            ))
+            .into()),
+            None => Ok(()),
+        }
+    }
+    /// A SQLite handle on `tenant` of this runtime's database, under `kernel`'s context and anchor.
+    fn sqlite_kernel(
+        kernel: &Commit<SqliteStore>,
+        path: &Path,
+        tenant: &str,
+        open: SqliteOpen,
+    ) -> Result<Commit<SqliteStore>, StoreError> {
+        Commit::over_with_authority(
+            kernel.authority.context,
+            kernel.authority.anchor.clone(),
+            |authority| {
+                match open {
+                    SqliteOpen::Existing => SqliteStore::sqlite_existing(path, tenant, None),
+                    SqliteOpen::Reading => SqliteStore::sqlite_reading(path, tenant, None),
+                    SqliteOpen::Image => SqliteStore::sqlite_read_only(path, tenant, None),
+                }
+                .map(|store| store.under(authority))
+            },
+        )
+    }
+    /// A PostgreSQL handle on `tenant` at this runtime's location, under `kernel`'s context and
+    /// anchor.
+    fn postgres_kernel(
+        kernel: &Commit<PostgresStore>,
+        config: &PostgresConfiguration,
+        tenant: &str,
+        reading: bool,
+    ) -> Result<Commit<PostgresStore>, StoreError> {
+        Commit::over_with_authority(
+            kernel.authority.context,
+            kernel.authority.anchor.clone(),
+            |authority| {
+                PostgresStore::postgres(config, tenant, reading).map(|store| store.under(authority))
+            },
+        )
+    }
+    /// `ekr.cli.BeginStage`: mints a stage id, records the stage Begun at the store's head and
+    /// copies the store at that head into the stage's own tenant (design § 107.2). The store's
+    /// head and revision stream do not move.
+    /// # Errors
+    /// `stage-unsupported-provider` on File; [`CommitError::NotSeeded`];
+    /// `unresolved-preparation`; any refusal of the store's full replay or of the copy.
+    pub fn begin_stage(&self) -> Result<StageResult, CommitError> {
+        self.on_store()?;
+        match (&self.backend, &self.location) {
+            (Backend::Sqlite(kernel), Location::Sqlite { path, .. }) => {
+                let image = Self::sqlite_kernel(kernel, path, &self.tenant, SqliteOpen::Image)?;
+                kernel.begin_stage(&image, |tenant| {
+                    Self::sqlite_kernel(kernel, path, tenant, SqliteOpen::Existing)
+                })
+            }
+            (Backend::Postgres(kernel), Location::Postgres { config, .. }) => kernel
+                .begin_stage(kernel, |tenant| {
+                    Self::postgres_kernel(kernel, config, tenant, false)
+                }),
+            _ => Err(StoreError::StageUnsupportedProvider(self.provider()).into()),
+        }
+    }
+    /// `ekr.cli.SealStage`: seals a Begun stage whose copy is complete and which holds no decision
+    /// elected and never published, while the store's head is `expect_head` and the stage's base.
+    /// A stage already Sealing answers its original result.
+    /// # Errors
+    /// `stage-not-found`, `stage-head-moved`, `stage-incomplete`, `unresolved-preparation`, and
+    /// `stage-already-published` or `stage-already-abandoned`.
+    pub fn seal_stage(
+        &self,
+        stage: StageId,
+        expect_head: RevisionNumber,
+    ) -> Result<StageResult, CommitError> {
+        self.on_store()?;
+        match (&self.backend, &self.location) {
+            (Backend::Sqlite(kernel), Location::Sqlite { path, .. }) => {
+                kernel.seal_stage(stage, expect_head, |tenant| {
+                    Self::sqlite_kernel(kernel, path, tenant, SqliteOpen::Image)
+                })
+            }
+            (Backend::Postgres(kernel), Location::Postgres { config, .. }) => {
+                kernel.seal_stage(stage, expect_head, |tenant| {
+                    Self::postgres_kernel(kernel, config, tenant, false)
+                })
+            }
+            _ => Err(StoreError::StageUnsupportedProvider(self.provider()).into()),
+        }
+    }
+    /// `ekr.cli.PublishStage`: publishes a Sealing stage's suffix into the store in one append
+    /// group and forgets the stage's tenant; resumes an elected attempt after an unknown outcome;
+    /// returns the original result for a Published stage retried with the same expected head.
+    /// # Errors
+    /// `stage-not-found`, `stage-not-sealed`, `stage-already-abandoned` (also when an abandonment
+    /// landed meanwhile), `stage-already-published` for another expected head,
+    /// `stage-head-moved`, `stage-stream-moved`, `stage-object-moved`, `unresolved-preparation`,
+    /// `stage-incomplete` and `stage-suffix-refused`.
+    pub fn publish_stage(
+        &self,
+        stage: StageId,
+        expect_head: RevisionNumber,
+    ) -> Result<StageResult, CommitError> {
+        self.on_store()?;
+        match (&self.backend, &self.location) {
+            (Backend::Sqlite(kernel), Location::Sqlite { path, .. }) => {
+                kernel.publish_stage(stage, expect_head, |tenant| {
+                    Self::sqlite_kernel(kernel, path, tenant, SqliteOpen::Image)
+                })
+            }
+            (Backend::Postgres(kernel), Location::Postgres { config, .. }) => {
+                kernel.publish_stage(stage, expect_head, |tenant| {
+                    Self::postgres_kernel(kernel, config, tenant, false)
+                })
+            }
+            _ => Err(StoreError::StageUnsupportedProvider(self.provider()).into()),
+        }
+    }
+    /// `ekr stage publish <id> --expect-head <revision>` (design § 107.4): reads the stage's
+    /// record and runs [`Runtime::seal_stage`] then [`Runtime::publish_stage`] on a Begun stage,
+    /// and [`Runtime::publish_stage`] alone otherwise.
+    /// # Errors
+    /// What either command refuses.
+    pub fn seal_and_publish_stage(
+        &self,
+        stage: StageId,
+        expect_head: RevisionNumber,
+    ) -> Result<StageResult, CommitError> {
+        self.on_store()?;
+        match (&self.backend, &self.location) {
+            (Backend::Sqlite(kernel), Location::Sqlite { path, .. }) => kernel
+                .seal_and_publish_stage(stage, expect_head, |tenant| {
+                    Self::sqlite_kernel(kernel, path, tenant, SqliteOpen::Image)
+                }),
+            (Backend::Postgres(kernel), Location::Postgres { config, .. }) => kernel
+                .seal_and_publish_stage(stage, expect_head, |tenant| {
+                    Self::postgres_kernel(kernel, config, tenant, false)
+                }),
+            _ => Err(StoreError::StageUnsupportedProvider(self.provider()).into()),
+        }
+    }
+    /// `ekr.cli.AbandonStage`: records a Begun or Sealing stage Abandoned and forgets its tenant;
+    /// an Abandoned stage answers its original result and finishes the forgetting.
+    /// # Errors
+    /// `stage-not-found`, `stage-already-published`, `stage-unsupported-provider` on File.
+    pub fn abandon_stage(&self, stage: StageId) -> Result<StageResult, CommitError> {
+        self.on_store()?;
+        match &self.backend {
+            Backend::Sqlite(kernel) => kernel.abandon_stage(stage),
+            Backend::Postgres(kernel) => kernel.abandon_stage(stage),
+            Backend::File(_) => {
+                Err(StoreError::StageUnsupportedProvider(ProviderKind::File).into())
+            }
+        }
+    }
+    /// Every stage the store has recorded, in every state (`ekr.cli.Stages`).
+    /// # Errors
+    /// Provider failure or a record that does not read.
+    pub fn stages(&self) -> Result<Vec<StageListing>, CommitError> {
+        self.on_store()?;
+        match &self.backend {
+            Backend::Sqlite(kernel) => kernel.stages(),
+            Backend::Postgres(kernel) => kernel.stages(),
+            Backend::File(_) => Ok(Vec::new()),
+        }
+    }
+    /// How many events the tenant of `stage` holds, the tenant its `StageBegun` names: zero once
+    /// the stage is abandoned or published and its tenant forgotten (design §§ 107.6, 107.9). A
+    /// diagnostic of what a stage leaves behind, read through a handle on that tenant that holds
+    /// no kernel authority and appends no event: the provider log of one SQLite image, or one
+    /// PostgreSQL capture, never the change feed, which can withhold committed events (design
+    /// § 107.12). Test support, not part of a store's reading surface: it decides nothing.
+    ///
+    /// On PostgreSQL the capture first ensures the tenant's capture identity, as every capture from
+    /// a writing handle does: after the stage's tenant is forgotten it writes one row of provider
+    /// metadata for that tenant (eventlog-postgres `_identity`), and no event, object or blob. No
+    /// store reader sees it: every store verb reads the store's own tenant, where the stage's
+    /// record is, and a joined verb is refused before it reads the stage's tenant once the stage is
+    /// published or abandoned. A later forgetting of the tenant removes it with the rest.
+    /// # Errors
+    /// `stage-not-found`, `stage-unsupported-provider` on File, or provider failure.
+    #[doc(hidden)]
+    pub fn stage_tenant_events(&self, stage: StageId) -> Result<usize, CommitError> {
+        self.on_store()?;
+        let record = match &self.backend {
+            Backend::Sqlite(kernel) => ekr_store::StageLog::stage_record(&kernel.store, stage)?,
+            Backend::Postgres(kernel) => ekr_store::StageLog::stage_record(&kernel.store, stage)?,
+            Backend::File(_) => {
+                return Err(StoreError::StageUnsupportedProvider(ProviderKind::File).into())
+            }
+        }
+        .ok_or(StoreError::StageNotFound(stage))?;
+        let events = match &self.location {
+            Location::Sqlite { path, .. } => {
+                SqliteStore::sqlite_read_only(path, &record.tenant, None)?
+                    .published_events()?
+                    .len()
+            }
+            Location::Postgres { config, .. } => {
+                PostgresStore::postgres(config, &record.tenant, false)?
+                    .inventory()?
+                    .events
+            }
+            Location::File => {
+                return Err(StoreError::StageUnsupportedProvider(ProviderKind::File).into())
+            }
+        };
+        Ok(events)
+    }
+    /// The runtime of a verb joined to `stage` (design § 107.3): the stage's tenant of this store,
+    /// opened as this runtime's store is, which reads the stage's record in the store's tenant
+    /// before every read and write and again after every write lands, and refuses once the stage
+    /// is not Begun. Its reads see the store at the base and the run's own commits; its writes go
+    /// to the stage.
+    /// # Errors
+    /// `stage-not-found`, `stage-sealed`, `stage-already-published`, `stage-already-abandoned`,
+    /// `stage-incomplete` for a copy without its completion receipt, `stage-unsupported-provider`
+    /// on File.
+    pub fn join_stage(&self, stage: StageId) -> Result<Self, CommitError> {
+        self.on_store()?;
+        let record = match &self.backend {
+            Backend::Sqlite(kernel) => ekr_store::StageLog::stage_record(&kernel.store, stage)?,
+            Backend::Postgres(kernel) => ekr_store::StageLog::stage_record(&kernel.store, stage)?,
+            Backend::File(_) => {
+                return Err(StoreError::StageUnsupportedProvider(ProviderKind::File).into())
+            }
+        }
+        .ok_or(StoreError::StageNotFound(stage))?;
+        if record.state != StageState::Begun {
+            return Err(StoreError::StageStateConflict {
+                stage_id: stage,
+                state: record.state,
+            }
+            .into());
+        }
+        let backend = match (&self.backend, &self.location) {
+            (Backend::Sqlite(kernel), Location::Sqlite { path, open }) => {
+                Backend::Sqlite(Box::new(Commit::over_with_authority(
+                    kernel.authority.context,
+                    kernel.authority.anchor.clone(),
+                    |authority| {
+                        match open {
+                            SqliteOpen::Existing => {
+                                SqliteStore::sqlite_existing(path, &record.tenant, None)
+                            }
+                            SqliteOpen::Reading => {
+                                SqliteStore::sqlite_reading(path, &record.tenant, None)
+                            }
+                            SqliteOpen::Image => {
+                                SqliteStore::sqlite_read_only(path, &record.tenant, None)
+                            }
+                        }?
+                        .joined(&self.tenant, stage)
+                        .map(|store| store.under(authority))
+                    },
+                )?))
+            }
+            (Backend::Postgres(kernel), Location::Postgres { config, reading }) => {
+                Backend::Postgres(Box::new(Commit::over_with_authority(
+                    kernel.authority.context,
+                    kernel.authority.anchor.clone(),
+                    |authority| {
+                        PostgresStore::postgres(config, &record.tenant, *reading)?
+                            .joined(&self.tenant, stage)
+                            .map(|store| store.under(authority))
+                    },
+                )?))
+            }
+            _ => return Err(StoreError::StageUnsupportedProvider(self.provider()).into()),
+        };
+        let joined = Self {
+            backend,
+            location: self.location.clone(),
+            tenant: self.tenant.clone(),
+            joined: Some(stage),
+        };
+        match joined.head() {
+            Ok(Some(_)) => Ok(joined),
+            Ok(None) => Err(StoreError::StageIncomplete(stage).into()),
+            Err(StoreError::Document(code)) if code.starts_with("migrate-incomplete") => {
+                Err(StoreError::StageIncomplete(stage).into())
+            }
+            Err(error) => Err(error.into()),
         }
     }
 }
