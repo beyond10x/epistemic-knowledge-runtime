@@ -953,7 +953,13 @@ fn ekr_view_binding_is_explicit_and_defaults_to_loopback() {
         .filter(|flag| {
             !matches!(
                 *flag,
-                "--host" | "--store" | "--backend" | "--full-replay" | "--help" | "--version"
+                "--host"
+                    | "--store"
+                    | "--backend"
+                    | "--full-replay"
+                    | "--stage"
+                    | "--help"
+                    | "--version"
             )
         })
         .collect();
