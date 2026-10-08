@@ -20,10 +20,24 @@ use crate::{load, LoadedRevision, ProjectError};
 /// The format literal every answer carries in `meta.format`.
 pub const CODE_NAMES_FORMAT: &str = "ekr.code-names/1";
 
+/// Which source occurrences `FindCodeNames` examines.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub enum CodeNameMode {
+    /// Quoted literals, preserving the original document format.
+    #[default]
+    Literals,
+    /// Exact names bounded by characters other than Unicode alphanumerics or underscore.
+    Words,
+}
+
 /// The ESS domains of this runtime, `systems/ekr/domains/*.yaml`, by file name, as this crate was
 /// built from them: the source of [`runtime_vocabulary`]. `tests/code_names.rs` holds the list
 /// to the directory, so a domain file added there and not here is named.
-pub const EMBEDDED_DOMAINS: [(&str, &str); 7] = [
+pub const EMBEDDED_DOMAINS: [(&str, &str); 8] = [
+    (
+        "cli.yaml",
+        include_str!("../../../systems/ekr/domains/cli.yaml"),
+    ),
     (
         "graph.yaml",
         include_str!("../../../systems/ekr/domains/graph.yaml"),
@@ -302,6 +316,8 @@ struct Meta {
     exempt: u64,
     findings: u64,
     runtime_word_findings: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mode: Option<CodeNameMode>,
 }
 
 #[derive(Serialize)]
@@ -432,6 +448,18 @@ pub fn code_names(
     loaded: &LoadedRevision,
     sources: &[SourceText],
 ) -> Result<Answer<CodeNamesFound>, ProjectError> {
+    code_names_with_mode(loaded, sources, CodeNameMode::Literals)
+}
+
+/// [`code_names`] with an explicit occurrence mode.
+///
+/// # Errors
+/// [`ProjectError::Inconsistent`] when the document does not encode.
+pub fn code_names_with_mode(
+    loaded: &LoadedRevision,
+    sources: &[SourceText],
+    mode: CodeNameMode,
+) -> Result<Answer<CodeNamesFound>, ProjectError> {
     let (names, ids) = names(loaded);
     let mut given = std::collections::HashSet::with_capacity(sources.len());
     let mut read: Vec<&SourceText> = sources
@@ -443,7 +471,11 @@ pub fn code_names(
     let (mut literal_count, mut exempt_count) = (0_u64, 0_u64);
     let mut findings = Vec::new();
     for source in &read {
-        for literal in literals(&source.text) {
+        let candidates = match mode {
+            CodeNameMode::Literals => literals(&source.text),
+            CodeNameMode::Words => words(&source.text, names.keys().map(String::as_str)),
+        };
+        for literal in candidates {
             literal_count += 1;
             let Some((name, matched)) = names.get_key_value(&literal.text) else {
                 continue;
@@ -474,6 +506,7 @@ pub fn code_names(
                 .iter()
                 .filter(|finding| finding.runtime_word)
                 .count() as u64,
+            mode: (mode == CodeNameMode::Words).then_some(mode),
         },
         findings,
     };
@@ -521,4 +554,51 @@ pub fn find_code_names(
     sources: &[SourceText],
 ) -> Result<Answer<CodeNamesFound>, ProjectError> {
     code_names(&load(runtime, at)?, sources)
+}
+
+/// Loads the requested revision and examines sources with an explicit occurrence mode.
+///
+/// # Errors
+/// Whatever [`load`] or [`code_names_with_mode`] refuses.
+pub fn find_code_names_with_mode(
+    runtime: &Runtime,
+    at: Option<RevisionNumber>,
+    sources: &[SourceText],
+    mode: CodeNameMode,
+) -> Result<Answer<CodeNamesFound>, ProjectError> {
+    code_names_with_mode(&load(runtime, at)?, sources, mode)
+}
+
+fn words<'a>(text: &str, names: impl Iterator<Item = &'a str> + Clone) -> Vec<Literal> {
+    let word = |character: char| character.is_alphanumeric() || character == '_';
+    let mut found = BTreeSet::new();
+    for (line_index, line) in text.split('\n').enumerate() {
+        for name in names.clone() {
+            let mut from = 0;
+            while let Some(offset) = line[from..].find(name) {
+                let start = from + offset;
+                let end = start + name.len();
+                if !line[..start].chars().next_back().is_some_and(word)
+                    && !line[end..].chars().next().is_some_and(word)
+                {
+                    found.insert((
+                        line_index as u64 + 1,
+                        line[..start].chars().count() as u64 + 1,
+                        name.to_owned(),
+                    ));
+                }
+                // Advancing one scalar preserves overlapping names, including punctuation.
+                from = start
+                    + line[start..]
+                        .chars()
+                        .next()
+                        .expect("nonempty name")
+                        .len_utf8();
+            }
+        }
+    }
+    found
+        .into_iter()
+        .map(|(line, column, text)| Literal { line, column, text })
+        .collect()
 }

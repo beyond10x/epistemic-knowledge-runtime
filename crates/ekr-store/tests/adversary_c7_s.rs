@@ -156,6 +156,15 @@ impl Raced {
 /// `PRAGMA wal_checkpoint(PASSIVE)` throughout too. With `link`, both handles open the store
 /// through a symlink to the database file, and the checkpointer opens the file itself. No file is
 /// ever replaced.
+///
+/// With `opening`, the reading side opens the store again and again with
+/// `SqliteStore::sqlite_existing`, the open every `ekr` store verb makes on a store it may write
+/// (`Store::open_existing` in `crates/ekr/src/cli/mod.rs`). That open takes no write lock, so it
+/// never waits for the writer's
+/// ([`an_open_of_an_existing_store_does_not_wait_for_a_held_write_lock`]). `SqliteStore::sqlite`
+/// also creates the owner tables, so it takes the write lock on every open, and beside a writer
+/// that publishes back to back it can lose that lock for its whole retry window: an outcome of
+/// load, not of the replacement check these races are about.
 fn race(link: bool, checkpointer: bool, opening: bool, publications: u64, size: usize) -> Raced {
     let directory = TempDir::new().unwrap();
     let target = directory.path().join("state.db");
@@ -201,7 +210,7 @@ fn race(link: bool, checkpointer: bool, opening: bool, publications: u64, size: 
             while !done.load(Ordering::SeqCst) {
                 reads += 1;
                 let read = if opening {
-                    SqliteStore::sqlite(&path, TENANT, None).map(|_| ())
+                    SqliteStore::sqlite_existing(&path, TENANT, None).map(|_| ())
                 } else {
                     reader.history().map(|_| ())
                 };
@@ -274,6 +283,12 @@ fn adversary_c7_s_a_reader_beside_a_writer_that_checkpoints_itself_is_never_refu
 /// once (`EventlogStore::at`), so an open that meets the writer's checkpoint is refused as
 /// `store-replaced`, and that command fails. Measured red in 1 of 5 runs: 15937 of
 /// 18533 opens refused, in the package suite run.
+///
+/// The opens are `SqliteStore::sqlite_existing`, as [`race`] says. Opened with
+/// `SqliteStore::sqlite` on 2026-10-07, this case and its symlinked twin failed in 12 of 18 runs at
+/// load 27–40, every time with `database is locked` and never with an open refused as
+/// `store-replaced`; instrumented, each such open waited 5.0–5.3 s in `BEGIN IMMEDIATE` while the
+/// writer completed 7–47 publications.
 #[test]
 fn adversary_c7_s_an_open_beside_a_writer_that_checkpoints_itself_is_never_refused_as_replaced() {
     let raced = race(false, false, true, 400, 24 * 1024);
@@ -326,6 +341,38 @@ fn a_symlinked_store_opened_beside_a_checkpointing_writer_is_never_refused_as_re
     let raced = race(true, true, true, 150, 24 * 1024);
     if let Err(failure) = raced.verdict(150) {
         panic!("{failure}");
+    }
+}
+
+/// GUARD for the two opening races above, which count on it: opening an existing store, directly
+/// or through a symlink, takes no write lock. A plain connection holds the write lock
+/// (`BEGIN IMMEDIATE`) through each whole open, so an open that needed it would fail
+/// `database is locked` however long it waited, and one that does not answers.
+#[test]
+fn an_open_of_an_existing_store_does_not_wait_for_a_held_write_lock() {
+    let directory = TempDir::new().unwrap();
+    let target = directory.path().join("state.db");
+    let link = directory.path().join("linked.db");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let writer = sqlite(&target);
+    seeded(&writer, "write lock");
+    proposed(&writer, 1, 4096);
+    for path in [&target, &link] {
+        let holder = rusqlite::Connection::open(&target).unwrap();
+        holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let existing = SqliteStore::sqlite_existing(path, TENANT, None)
+            .map(|_| ())
+            .map_err(|error| error.to_string());
+        let reading = SqliteStore::sqlite_reading(path, TENANT, None)
+            .map(|_| ())
+            .map_err(|error| error.to_string());
+        holder.execute_batch("ROLLBACK").unwrap();
+        assert!(
+            existing.is_ok() && reading.is_ok(),
+            "beside a held write lock, opening {} answered {existing:?} for an existing store and \
+             {reading:?} for reading",
+            path.display()
+        );
     }
 }
 

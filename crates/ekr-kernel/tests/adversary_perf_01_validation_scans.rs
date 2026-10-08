@@ -217,6 +217,7 @@ fn accepted(rng: &mut Rng) -> Assessment {
 /// held or not, so the transaction's operations meet both.
 fn basis(rng: &mut Rng) -> CanonicalGraph {
     let mut graph = CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root(1),
             space: Space::Canonical,
@@ -579,6 +580,7 @@ const EDGE_CLAIM: u64 = 0;
 impl World {
     fn new() -> Self {
         let mut graph = CanonicalGraph {
+            attachments: Default::default(),
             root: GraphRoot {
                 id: root(1),
                 space: Space::Canonical,

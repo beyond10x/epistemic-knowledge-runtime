@@ -3,7 +3,7 @@
 //!
 //! The source is a store this binary writes itself — the seed and transaction examples, one
 //! transaction committed and one left proposed — so it is already `ekr-seed-envelope/3` and its
-//! history re-publishes record for record. The conversion of an `ekr-seed-envelope/2` store is
+//! history retains its identities while a fresh `/4` migration claim changes derived hashes. The conversion of an `ekr-seed-envelope/2` store is
 //! held by `crates/ekr-kernel/tests/migrate_store.rs`, which can write one: this crate declares no
 //! `ekr-store` and so cannot (AGENTS.md invariant 1).
 
@@ -104,8 +104,8 @@ fn migrate_writes_a_store_at_the_new_path_with_the_same_history_on_both_provider
             &["migrate", "--to", destination.to_str().unwrap()],
         ));
         assert_eq!(report["format"], "ekr.store-migration/1", "{backend}");
-        // A current store re-publishes record for record: nothing is replaced.
-        assert_eq!(
+        // Every copy binds a fresh claim; the report maps its derived lineage records.
+        assert_ne!(
             report["destination_seed_hash"], report["source_seed_hash"],
             "{backend}"
         );
@@ -117,7 +117,8 @@ fn migrate_writes_a_store_at_the_new_path_with_the_same_history_on_both_provider
         );
         for occurrence in occurrences {
             assert_eq!(
-                occurrence["source_record_hash"], occurrence["destination_record_hash"],
+                occurrence["source_record_hash"] == occurrence["destination_record_hash"],
+                occurrence["event"] == "ekr.kernel.TransactionProposed",
                 "{backend}: {occurrence}"
             );
         }
@@ -130,11 +131,20 @@ fn migrate_writes_a_store_at_the_new_path_with_the_same_history_on_both_provider
                 "{backend} {field}"
             );
         }
-        assert_eq!(
-            document(&run(&host, &destination, backend, &["head"])),
-            document(&run(&host, &source, backend, &["head"])),
-            "{backend}"
-        );
+        let copied_head = document(&run(&host, &destination, backend, &["head"]));
+        let original_head = document(&run(&host, &source, backend, &["head"]));
+        for field in [
+            "revision",
+            "knowledge_root",
+            "evidence_root",
+            "ontology_root",
+            "agent_root",
+        ] {
+            assert_eq!(
+                copied_head["root"][field], original_head["root"][field],
+                "{backend}: {field}"
+            );
+        }
         assert_eq!(
             document(&run(&host, &destination, backend, &["transactions"])),
             document(&run(&host, &source, backend, &["transactions"])),
@@ -297,7 +307,17 @@ fn a_store_holding_evidence_added_after_its_seed_migrates_on_both_providers() {
         );
 
         let after = document(&run(&host, &destination, backend, &explain));
-        assert_eq!(after, before, "{backend}");
+        let facts = |explanation: &serde_json::Value| -> Vec<serde_json::Value> {
+            explanation["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|link| link["kind"] == "Evidence" || link["kind"] == "Assertion")
+                .cloned()
+                .collect()
+        };
+        assert_eq!(facts(&after), facts(&before), "{backend}");
+        assert!(!facts(&after).is_empty());
         let texts: Vec<&str> = after["links"]
             .as_array()
             .unwrap()
@@ -318,11 +338,20 @@ fn a_store_holding_evidence_added_after_its_seed_migrates_on_both_providers() {
             snapshot["graph"],
             "{backend}"
         );
-        assert_eq!(
-            document(&run(&host, &destination, backend, &["head"])),
-            document(&run(&host, &source, backend, &["head"])),
-            "{backend}"
-        );
+        let copied_head = document(&run(&host, &destination, backend, &["head"]));
+        let original_head = document(&run(&host, &source, backend, &["head"]));
+        for field in [
+            "revision",
+            "knowledge_root",
+            "evidence_root",
+            "ontology_root",
+            "agent_root",
+        ] {
+            assert_eq!(
+                copied_head["root"][field], original_head["root"][field],
+                "{backend}: {field}"
+            );
+        }
     }
 }
 

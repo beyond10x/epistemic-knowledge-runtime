@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-08T03:23:24Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:a-run-is-staged-and-published-whole",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "wave/20261007c d8a5f48646: the story's acceptance cases pass on SQLite (ekr stage_cli 9) and PostgreSQL (ekr postgres_cli 13, ekr-kernel stage 36); CI provides no PostgreSQL, so its gate runs the SQLite half"
+  }
+}

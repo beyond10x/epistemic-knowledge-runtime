@@ -19,6 +19,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+#[path = "support/viewer_libraries.rs"]
+mod viewer_libraries;
+
 fn manifest_dir() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"))
 }
@@ -240,56 +243,12 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// The `Driven` harness of `view_page.rs`, copied (it is private to that file).
-struct Driven {
-    child: Child,
-    socket: TcpStream,
-    reader: BufReader<TcpStream>,
-    next: u64,
-    errors: Vec<Value>,
-    _profile: tempfile::TempDir,
-    _one: std::sync::MutexGuard<'static, ()>,
-}
-
-impl Driven {
-    /// Starts the browser, runs `init` in every document before its own scripts, and opens `url`.
-    fn launch(browser: &Path, url: &str, init: Option<&str>) -> Self {
-        let one = one_browser();
-        let profile = tempfile::tempdir().unwrap();
-        let mut child = Command::new(browser)
-            .args([
-                "--headless",
-                "--use-angle=swiftshader",
-                "--enable-unsafe-swiftshader",
-                "--no-sandbox",
-                "--no-first-run",
-                "--disable-extensions",
-                "--window-size=1600,1000",
-                "--remote-debugging-port=0",
-                &format!("--user-data-dir={}", profile.path().display()),
-                "about:blank",
-            ])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut lines = BufReader::new(child.stderr.take().unwrap());
-        let port: u16 = loop {
-            let mut line = String::new();
-            assert!(
-                lines.read_line(&mut line).unwrap() > 0,
-                "no DevTools address"
-            );
-            if let Some(rest) = line
-                .trim()
-                .strip_prefix("DevTools listening on ws://127.0.0.1:")
-            {
-                break rest.split('/').next().unwrap().parse().unwrap();
-            }
-        };
-        std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
+/// DevTools may announce its listener before the initial page target exists.
+fn page_target(port: u16) -> String {
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
         let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        list.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         write!(
             list,
             "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
@@ -316,9 +275,119 @@ impl Driven {
             .as_array()
             .unwrap()
             .iter()
-            .find(|target| target["type"] == "page")
-            .expect("a page target");
-        let address = target["webSocketDebuggerUrl"].as_str().unwrap();
+            .find(|target| target["type"] == "page");
+        if let Some(target) = target {
+            return target["webSocketDebuggerUrl"].as_str().unwrap().to_owned();
+        }
+        if std::time::Instant::now() >= deadline {
+            panic!("no page target within discovery deadline");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn discovery_waits_for_a_page_after_the_devtools_listener_is_ready() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let address = format!("ws://127.0.0.1:{port}/devtools/page/fixture");
+    let expected = address.clone();
+    let server = std::thread::spawn(move || {
+        for targets in [
+            json!([]),
+            json!([{"type": "service_worker"}]),
+            json!([{"type": "page", "webSocketDebuggerUrl": address}]),
+        ] {
+            let (mut connection, _) = listener.accept().unwrap();
+            let mut request = BufReader::new(connection.try_clone().unwrap());
+            let mut line = String::new();
+            request.read_line(&mut line).unwrap();
+            assert_eq!(line, "GET /json/list HTTP/1.1\r\n");
+            loop {
+                line.clear();
+                assert!(request.read_line(&mut line).unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            let body = targets.to_string();
+            write!(
+                connection,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        }
+    });
+    assert_eq!(page_target(port), expected);
+    server.join().unwrap();
+}
+
+struct BrowserChild(Child);
+
+impl Drop for BrowserChild {
+    fn drop(&mut self) {
+        self.0.kill().ok();
+        self.0.wait().ok();
+    }
+}
+
+/// The `Driven` harness of `view_page.rs`, copied (it is private to that file).
+struct Driven {
+    _child: BrowserChild,
+    socket: TcpStream,
+    reader: BufReader<TcpStream>,
+    next: u64,
+    errors: Vec<Value>,
+    _profile: tempfile::TempDir,
+    _one: std::sync::MutexGuard<'static, ()>,
+}
+
+impl Driven {
+    /// Starts the browser, runs `init` in every document before its own scripts, and opens `url`.
+    fn launch(browser: &Path, url: &str, init: Option<&str>) -> Self {
+        let one = one_browser();
+        let profile = tempfile::tempdir().unwrap();
+        let child = BrowserChild(
+            Command::new(browser)
+                .args([
+                    "--headless",
+                    "--use-angle=swiftshader",
+                    "--enable-unsafe-swiftshader",
+                    "--no-sandbox",
+                    "--no-first-run",
+                    "--disable-component-update",
+                    "--disable-background-networking",
+                    "--disable-extensions",
+                    viewer_libraries::UNRESOLVABLE,
+                    "--window-size=1600,1000",
+                    "--remote-debugging-port=0",
+                    &format!("--user-data-dir={}", profile.path().display()),
+                    "about:blank",
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap(),
+        );
+        let mut child = child;
+        let mut lines = BufReader::new(child.0.stderr.take().unwrap());
+        let port: u16 = loop {
+            let mut line = String::new();
+            assert!(
+                lines.read_line(&mut line).unwrap() > 0,
+                "no DevTools address"
+            );
+            if let Some(rest) = line
+                .trim()
+                .strip_prefix("DevTools listening on ws://127.0.0.1:")
+            {
+                break rest.split('/').next().unwrap().parse().unwrap();
+            }
+        };
+        std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
+        let address = page_target(port);
         let path = &address[address.find("/devtools/").unwrap()..];
         let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(
@@ -340,7 +409,7 @@ impl Driven {
             }
         }
         let mut driven = Self {
-            child,
+            _child: child,
             socket,
             reader,
             next: 0,
@@ -351,6 +420,7 @@ impl Driven {
         driven.call("Runtime.enable", json!({}));
         driven.call("Log.enable", json!({}));
         driven.call("Page.enable", json!({}));
+        viewer_libraries::serve(|method, params| driven.call(method, params));
         if let Some(source) = init {
             driven.call(
                 "Page.addScriptToEvaluateOnNewDocument",
@@ -423,6 +493,9 @@ impl Driven {
             if reply["id"] == id {
                 return reply;
             }
+            if reply["method"] == "Fetch.requestPaused" {
+                self.answer_paused(&reply["params"]);
+            }
             if reply["method"] == "Runtime.exceptionThrown"
                 || (reply["method"] == "Runtime.consoleAPICalled"
                     && reply["params"]["type"] == "error")
@@ -431,6 +504,16 @@ impl Driven {
             {
                 self.errors.push(reply["params"].clone());
             }
+        }
+    }
+
+    /// Answers a paused request to the libraries' host from the fixtures, without waiting for the
+    /// browser's reply: it is read, and passed over, as the next call reads on.
+    fn answer_paused(&mut self, paused: &Value) {
+        if let Some((method, params)) = viewer_libraries::answer(paused) {
+            self.next += 1;
+            let id = self.next;
+            self.send(&json!({"id": id, "method": method, "params": params}).to_string());
         }
     }
 
@@ -446,6 +529,9 @@ impl Driven {
         reply["result"]["result"]["value"].clone()
     }
 
+    /// Waits up to `seconds` for `expression` to be `true`. When it never is, the page's own state
+    /// and the errors it reported go to the case's output, so a red run names what the page was
+    /// doing.
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
         for _ in 0..seconds * 5 {
             if self.eval(&format!(
@@ -456,6 +542,18 @@ impl Driven {
             }
             std::thread::sleep(Duration::from_millis(200));
         }
+        let state = self.eval(
+            "(() => { const v = window.__viewer; return {
+               readyState: document.readyState, viewer: !!v,
+               layoutRunning: v ? v.layoutRunning : null, fg: v ? !!v.fg : null,
+               streamStop: !!document.querySelector('[data-act=stream-stop]'),
+               hud: document.getElementById('hud')?.textContent ?? null,
+               status: document.getElementById('status')?.textContent ?? null }; })()",
+        );
+        eprintln!(
+            "never true: {expression}\npage state: {state}\npage errors: {}",
+            serde_json::to_string_pretty(&self.errors).unwrap()
+        );
         false
     }
 
@@ -496,19 +594,73 @@ impl Driven {
         );
     }
 
+    /// Bounded browser-native observations; no additional page script is injected or evaluated.
+    fn sidebar_diagnostic(&mut self) -> Value {
+        self.call("DOM.enable", json!({}));
+        self.call("CSS.enable", json!({}));
+        let document = self.call("DOM.getDocument", json!({"depth": 0}));
+        let root = &document["result"]["root"]["nodeId"];
+        let mut nodes = Vec::new();
+        for selector in ["aside.left", "#panel", "#run", "#statusText", "#subline"] {
+            let found = self.call(
+                "DOM.querySelector",
+                json!({"nodeId": root, "selector": selector}),
+            );
+            let node = &found["result"]["nodeId"];
+            let computed = self.call("CSS.getComputedStyleForNode", json!({"nodeId": node}));
+            let styles: Vec<_> = computed["result"]["computedStyle"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|property| {
+                    matches!(
+                        property["name"].as_str(),
+                        Some(
+                            "display"
+                                | "width"
+                                | "height"
+                                | "font-family"
+                                | "font-size"
+                                | "line-height"
+                                | "overflow-x"
+                                | "overflow-y"
+                                | "overflow-anchor"
+                                | "scrollbar-width"
+                                | "scrollbar-gutter"
+                        )
+                    )
+                })
+                .cloned()
+                .collect();
+            nodes.push(json!({
+                "selector": selector,
+                "style": styles,
+                "box": self.call("DOM.getBoxModel", json!({"nodeId": node})),
+                "fonts": self.call("CSS.getPlatformFontsForNode", json!({"nodeId": node})),
+            }));
+        }
+        let accessibility = self.call("Accessibility.getFullAXTree", json!({}));
+        let focused: Vec<_> = accessibility["result"]["nodes"]
+            .as_array().into_iter().flatten()
+            .filter(|node| node["properties"].as_array().is_some_and(|properties| {
+                properties.iter().any(|property| property["name"] == "focused" && property["value"]["value"] == true)
+            }))
+            .map(|node| json!({"backendNode": node["backendDOMNodeId"], "role": node["role"]["value"]}))
+            .collect();
+        json!({
+            "browser": self.call("Browser.getVersion", json!({}))["result"],
+            "viewport": self.call("Page.getLayoutMetrics", json!({}))["result"],
+            "nodes": nodes,
+            "focused": focused,
+        })
+    }
+
     fn no_errors(&self) {
         assert!(
             self.errors.is_empty(),
             "the page reported errors: {:?}",
             self.errors
         );
-    }
-}
-
-impl Drop for Driven {
-    fn drop(&mut self) {
-        self.child.kill().ok();
-        self.child.wait().ok();
     }
 }
 
@@ -828,13 +980,179 @@ fn a_scrolled_sidebar_keeps_its_scroll_position_through_collapse_and_restore() {
         "(l => { l.scrollTop = 120; const r = document.getElementById('panel'); r.scrollTop = 40; return [l.scrollTop, r.scrollTop]; })(document.querySelector('aside.left'))",
     );
     assert_eq!(before, json!([120, 40]), "both sidebars scrolled");
+    // Keep the normal assertion path free of layout-forcing diagnostic calls.
+    let diagnostics = std::env::var_os("EKR_COMPACT_DIAGNOSTICS").is_some();
+    let diagnostic_before = diagnostics.then(|| driven.sidebar_diagnostic());
     driven.key("c", "KeyC", 0);
     measured_when(&mut driven, "m.left === 0 && m.right === 0", "collapsed");
+    let diagnostic_collapsed = diagnostics.then(|| driven.sidebar_diagnostic());
     driven.eval("document.getElementById('leftStrip').click(); document.getElementById('rightStrip').click()");
     measured_when(&mut driven, "m.left > 0 && m.right > 0", "restored");
     let after = driven.eval(
         "[document.querySelector('aside.left').scrollTop, document.getElementById('panel').scrollTop]",
     );
+    if after != before || diagnostics {
+        eprintln!(
+            "compact sidebar diagnostic: {}",
+            json!({
+                "before": before, "after": after,
+                "before_layout": diagnostic_before,
+                "collapsed_layout": diagnostic_collapsed,
+                "restored_layout": driven.sidebar_diagnostic(),
+            })
+        );
+    }
+    assert_eq!(
+        after, before,
+        "the sidebars' scroll positions [left, right] before the collapse and after the restore"
+    );
+    driven.no_errors();
+}
+
+/// Reproduce the wrap boundary across fonts, before assigning either sidebar's scroll position.
+/// The text fits without the scrollbar and wraps with it; neither a particular font nor a
+/// particular scrollbar width is assumed. All changes use declarative styles through native CDP.
+fn calibrate_roles_wrap_at_scrollbar(driven: &mut Driven) {
+    fn pixels(computed: &Value, name: &str) -> f64 {
+        computed["result"]["computedStyle"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|property| property["name"] == name)
+            .unwrap()["value"]
+            .as_str()
+            .unwrap()
+            .trim_end_matches("px")
+            .parse()
+            .unwrap()
+    }
+    fn width(quad: &Value) -> f64 {
+        quad[2].as_f64().unwrap() - quad[0].as_f64().unwrap()
+    }
+    fn style(driven: &mut Driven, node: &Value, value: &str) {
+        let reply = driven.call(
+            "DOM.setAttributeValue",
+            json!({"nodeId": node, "name": "style", "value": value}),
+        );
+        assert!(
+            reply.get("error").is_none(),
+            "apply layout precondition: {reply}"
+        );
+    }
+    driven.call("DOM.enable", json!({}));
+    driven.call("CSS.enable", json!({}));
+    let document = driven.call("DOM.getDocument", json!({"depth": 0}));
+    let root = &document["result"]["root"]["nodeId"];
+    let left = driven.call(
+        "DOM.querySelector",
+        json!({"nodeId": root, "selector": "aside.left"}),
+    )["result"]["nodeId"]
+        .clone();
+    let roles = driven.call(
+        "DOM.querySelector",
+        json!({"nodeId": root, "selector": "#run"}),
+    )["result"]["nodeId"]
+        .clone();
+    let box_model = driven.call("DOM.getBoxModel", json!({"nodeId": left}));
+    let model = &box_model["result"]["model"];
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": left}));
+    let narrow = width(&model["content"]);
+    let wide = width(&model["padding"])
+        - pixels(&computed, "padding-left")
+        - pixels(&computed, "padding-right");
+    assert!(
+        wide > narrow,
+        "the sidebar has a physical scrollbar: narrow={narrow}, wide={wide}"
+    );
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": roles}));
+    let original_size = pixels(&computed, "font-size");
+    style(
+        driven,
+        &roles,
+        "display:inline-block;white-space:nowrap;width:max-content",
+    );
+    let intrinsic = driven.call("DOM.getBoxModel", json!({"nodeId": roles}));
+    let intrinsic = width(&intrinsic["result"]["model"]["content"]);
+    let calibrated = original_size * (narrow + wide) / 2.0 / intrinsic;
+    style(driven, &roles, &format!("font-size:{calibrated}px"));
+
+    // Prove the actual layout crosses that boundary; font metric rounding cannot silently
+    // turn this into an ordinary nonwrapping case.
+    style(driven, &left, "overflow-y:hidden");
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": roles}));
+    let unwrapped = pixels(&computed, "height");
+    let line = pixels(&computed, "line-height");
+    assert!(
+        unwrapped < line * 1.5,
+        "without the scrollbar the roles text is one line: height={unwrapped}, line={line}"
+    );
+    let reply = driven.call(
+        "DOM.removeAttribute",
+        json!({"nodeId": left, "name": "style"}),
+    );
+    assert!(
+        reply.get("error").is_none(),
+        "restore original sidebar style: {reply}"
+    );
+    let computed = driven.call("CSS.getComputedStyleForNode", json!({"nodeId": roles}));
+    let wrapped = pixels(&computed, "height");
+    assert!(
+        wrapped > line * 1.5,
+        "with the scrollbar the roles text wraps: height={wrapped}, line={line}"
+    );
+}
+
+#[test]
+fn a_wrapped_roles_line_preserves_scroll_across_sidebar_restore() {
+    let browser = need_browser!();
+    let (_front, mut driven) = opened(&browser, "#view=2d", None);
+    let node = driven.eval("__viewer.graph.nodes().sort((a, b) => __viewer.graph.degree(b) - __viewer.graph.degree(a))[0]");
+    driven.eval(&format!(
+        "history.pushState(null, '', '#view=2d&node={}'); dispatchEvent(new PopStateEvent('popstate'))",
+        node.as_str().unwrap()
+    ));
+    assert!(
+        driven.wait_for("!!document.querySelector('#panel h1')", 30),
+        "a node is open"
+    );
+    // a short window, so both sidebars scroll
+    driven.metrics(1600, 260);
+    assert!(
+        driven.wait_for(
+            "(l => l.scrollHeight > l.clientHeight + 120)(document.querySelector('aside.left')) \
+             && (r => r.scrollHeight > r.clientHeight + 40)(document.getElementById('panel'))",
+            20
+        ),
+        "both sidebars overflow: {}",
+        driven.eval("[document.querySelector('aside.left').scrollHeight, document.querySelector('aside.left').clientHeight, document.getElementById('panel').scrollHeight, document.getElementById('panel').clientHeight]")
+    );
+    calibrate_roles_wrap_at_scrollbar(&mut driven);
+    let before = driven.eval(
+        "(l => { l.scrollTop = 120; const r = document.getElementById('panel'); r.scrollTop = 40; return [l.scrollTop, r.scrollTop]; })(document.querySelector('aside.left'))",
+    );
+    assert_eq!(before, json!([120, 40]), "both sidebars scrolled");
+    // Keep the normal assertion path free of layout-forcing diagnostic calls.
+    let diagnostics = std::env::var_os("EKR_COMPACT_DIAGNOSTICS").is_some();
+    let diagnostic_before = diagnostics.then(|| driven.sidebar_diagnostic());
+    driven.key("c", "KeyC", 0);
+    measured_when(&mut driven, "m.left === 0 && m.right === 0", "collapsed");
+    let diagnostic_collapsed = diagnostics.then(|| driven.sidebar_diagnostic());
+    driven.eval("document.getElementById('leftStrip').click(); document.getElementById('rightStrip').click()");
+    measured_when(&mut driven, "m.left > 0 && m.right > 0", "restored");
+    let after = driven.eval(
+        "[document.querySelector('aside.left').scrollTop, document.getElementById('panel').scrollTop]",
+    );
+    if after != before || diagnostics {
+        eprintln!(
+            "compact sidebar diagnostic: {}",
+            json!({
+                "before": before, "after": after,
+                "before_layout": diagnostic_before,
+                "collapsed_layout": diagnostic_collapsed,
+                "restored_layout": driven.sidebar_diagnostic(),
+            })
+        );
+    }
     assert_eq!(
         after, before,
         "the sidebars' scroll positions [left, right] before the collapse and after the restore"

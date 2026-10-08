@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T03:30:09Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 14,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Full combined candidate29ed6efc8 exposed an introduced compatibility regression: unchanged adversary_stream_pass1::sixty_four_concurrent_streams_each_deliver_the_whole_page failed reader16 with503 instead of200. Viewer queue16 was smaller than its existing64-connection stream contract. Correction gives the viewer a bounded64-slot queue while MCP retains16; original64-stream test remains unchanged. Red evidence retained; green pending.",
+    "reference": "<cache>/ekr-hosted-runtime/release-gate/test-before-viewer-capacity-fix.log"
+  }
+}

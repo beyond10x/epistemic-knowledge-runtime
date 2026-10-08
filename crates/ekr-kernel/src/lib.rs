@@ -20,6 +20,7 @@
 //! * [`authority`] — the host-supplied authority anchor and the two validation profiles.
 //! * [`commands`] and [`records`] — the durable command handlers and the strict retained records
 //!   they return.
+//! * [`stage`] — a run staged and published whole, or dropped whole (design § 107).
 //! * [`runtime`] — [`Runtime`], provider opening for consumers that must never depend on the raw
 //!   store.
 //! * [`legacy`] — frozen encodings for verifying history written before the current formats.
@@ -54,6 +55,7 @@
 //!
 //! let (root_id, schema, decision) = (GraphRootId::mint(), SchemaVersionId::mint(), TypeId::mint());
 //! let graph = CanonicalGraph {
+//!     attachments: Default::default(),
 //!     root: GraphRoot {
 //!         id: root_id,
 //!         space: Space::Canonical,
@@ -116,6 +118,7 @@ pub mod runtime;
 #[cfg(feature = "schema")]
 pub mod schema;
 pub mod seed;
+pub mod stage;
 pub mod transaction;
 pub mod validate;
 mod yaml;
@@ -132,17 +135,26 @@ pub use document::{
 };
 /// Typed persistence failures exposed without granting the caller storage or writer access.
 pub use ekr_store::StoreError as PersistenceError;
+/// The store's stage hook, test instrumentation as [`stream_reads`] is: a crate above the kernel
+/// interrupts a stage command at a named point of its own thread, as `ekr`'s CLI cases interrupt
+/// `ekr stage publish` after its append (design § 107.8). An interruption only returns an error
+/// where the command stands; it writes nothing and reaches no store.
+#[doc(hidden)]
+pub use ekr_store::{on_stage_point, StageHookGuard, StagePoint};
 /// The store's per-thread read counters, test instrumentation as [`graphs_applied`] is: they let a
 /// crate above the kernel count the provider reads one of its calls makes, which no clock under
 /// load can (`AGENTS.md`). They read counts; they reach no store.
 #[doc(hidden)]
 pub use ekr_store::{read_work, stream_reads, ReadWork, StreamReads};
+/// A stage's identity and what its commands answer (design § 107), re-exported so a consumer of
+/// the kernel needs no storage crate.
+pub use ekr_store::{ProviderKind, StageId, StageResult, StageState};
 pub use explain::{
-    ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed, ExplainedValidation,
-    ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
+    ExplainedAttachment, ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed,
+    ExplainedValidation, ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
-pub use migrate::{MigratedOccurrence, StoreMigrationV1};
+pub use migrate::{CapturedStore, MigratedOccurrence, StoreMigrationV1};
 pub use read::{SchemaHistory, VerifiedRead, VerifiedRevision};
 pub use records::{
     CommitReceiptV1, CreatedIdentitiesV1, ProposalRecordV1, RecordedValidationIssue,
@@ -152,10 +164,11 @@ pub use records::{
 pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMITS};
+pub use stage::StageListing;
 pub use transaction::{
-    AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation,
-    GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,
-    ValidatedTransaction,
+    AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment,
+    GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,
+    Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

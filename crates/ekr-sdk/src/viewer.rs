@@ -2,7 +2,9 @@
 //!
 //! [`Viewer::spawn`] starts `ekr view --port <port>` from the consumer's [`EkrBinary`], with the
 //! environment a session gets by default, and reads the one `{"url": …}` line the viewer prints
-//! before it serves (`docs/cli.md` § `ekr view`). The viewer serves until it is stopped or dropped.
+//! before it serves (`docs/cli.md` § `ekr view`). With EKR 0.0.28 or newer, it adds
+//! `--require-ready` so the URL still proves initial store admission; older binaries already
+//! open the store before announcing. The viewer serves until it is stopped or dropped.
 
 use std::io::{BufRead as _, BufReader};
 use std::process::{Child, Stdio};
@@ -11,7 +13,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use crate::binary::{spawn, EkrBinary};
+use crate::binary::{spawn, EkrBinary, Version};
 use crate::session::{command, SessionOptions, StderrTail, StoreConfig, STDERR_TAIL_BYTES};
 
 /// How long a viewer may take to print its URL: it opens the store first.
@@ -48,6 +50,8 @@ struct UrlLine {
 
 impl Viewer {
     /// Start `ekr view --port <port>` over `store`; `0` lets the viewer pick a free port.
+    /// EKR 0.0.28 and newer also receive `--require-ready`, requiring a seeded complete store
+    /// before the URL is announced. Earlier versions receive their original arguments.
     pub fn spawn(binary: &EkrBinary, store: &StoreConfig, port: u16) -> Result<Self, ViewerError> {
         let mut command = command(binary, store, &SessionOptions::default());
         command
@@ -55,6 +59,9 @@ impl Viewer {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        if binary.version() >= Version::new(0, 0, 28) {
+            command.arg("--require-ready");
+        }
         let mut child = spawn(&mut command)?;
         let stderr = StderrTail::collect(
             child.stderr.take().expect("stderr is piped"),

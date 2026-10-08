@@ -449,10 +449,34 @@ fn a_store_with_pending_validations_against_early_revisions_migrates() {
         );
         let into = tempfile::tempdir().unwrap();
         let destination = open(into.path(), into_file);
-        session.migrate_into(&destination).unwrap();
+        let report = session.migrate_into(&destination).unwrap();
         let migrated = open_in_full(into.path(), into_file).read(None).unwrap();
         let source = open_in_full(path, file).read(None).unwrap();
-        assert_eq!(migrated.root, source.root);
+        assert_eq!(source.seed.seed_hash, report.source_seed_hash);
+        assert_eq!(migrated.seed.seed_hash, report.destination_seed_hash);
+        assert_ne!(report.source_seed_hash, report.destination_seed_hash);
+        assert_eq!(migrated.revisions.len(), source.revisions.len());
+        let mut parent = None;
+        for (number, before) in &source.revisions {
+            let after = &migrated.revisions[number];
+            let mut expected = before.root;
+            expected.parent = parent;
+            if *number == RevisionNumber::SEED {
+                expected.transaction = report.destination_seed_hash;
+            }
+            assert_eq!(after.root, expected);
+            parent = Some(ContentHash::of(&after.root));
+            assert_eq!(after.event_id, before.event_id);
+            assert_eq!(after.revision_id, before.revision_id);
+            assert_eq!(after.committed_at, before.committed_at);
+            let mapping = report
+                .occurrences
+                .iter()
+                .find(|m| m.event_id == before.event_id)
+                .unwrap();
+            assert_eq!(mapping.source_record_hash, before.record_hash);
+            assert_eq!(mapping.destination_record_hash, after.record_hash);
+        }
         let states = |read: &VerifiedRead| {
             read.transactions
                 .iter()

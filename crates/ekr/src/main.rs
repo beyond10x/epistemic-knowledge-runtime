@@ -1,8 +1,10 @@
 //! The command-line surface of the Epistemic Knowledge Runtime.
 //!
-//! This binary implements no single ESS domain. It composes the four the runtime declares in
-//! `systems/ekr/components.yaml`, dispatching each verb it grows to the crate that owns the
-//! domain the command names. The surface is clap derive, as everywhere in the workspace.
+//! This binary is the component `ekr` of `systems/ekr/components.yaml`. It composes the domains
+//! the runtime declares there, dispatching each verb to the crate that owns the domain the command
+//! names, and handles the commands of the one domain that component owns, `ekr.cli` — the stage
+//! commands and the view of every stage, which `ekr stage` runs through the kernel (design § 107).
+//! The surface is clap derive, as everywhere in the workspace.
 
 use std::io::Write;
 use std::process::ExitCode;
@@ -29,7 +31,10 @@ fn remove_copies_when_terminated() {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    if matches!(cli.command, Command::View { .. } | Command::Mcp) {
+    if matches!(
+        cli.command,
+        Command::View { .. } | Command::Mcp | Command::McpHttp { .. }
+    ) {
         remove_copies_when_terminated();
     }
     let mut stdin = std::io::stdin().lock();

@@ -67,6 +67,111 @@ fn file(root: &Path) -> FileStore {
         .under(Touch)
 }
 
+/// An authority may need more than its replay hint named. The complete history decides both
+/// the successful answer and the exact refusal; a failed speculative load never decides either.
+#[test]
+fn an_incomplete_replay_hint_falls_back_to_the_complete_history() {
+    struct Hint(Option<ContentHash>);
+    impl CommitAuthority for Hint {
+        fn required_objects(
+            &self,
+            _: &RetainedHistory,
+        ) -> Result<BTreeSet<ContentHash>, StoreError> {
+            Ok(self.0.into_iter().collect())
+        }
+        fn replay_objects(&self, _: &RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError> {
+            Ok(BTreeSet::new())
+        }
+        fn replay(
+            &self,
+            history: &RetainedHistory,
+            _: Option<&Ontology>,
+            _: Option<RevisionNumber>,
+        ) -> Result<Option<AdmittedRevision>, StoreError> {
+            if let Some(hash) = self.0 {
+                history.content(hash, StorageClass::Provenance)?;
+            }
+            Ok(None)
+        }
+    }
+    fn exercise<S: RevisionLog + ObjectStore + Initialize>(
+        open: impl Fn(Option<ContentHash>) -> S,
+    ) {
+        let writer = open(None);
+        written(&writer, "replay fallback", 1);
+        let bytes = b"required even when the replay hint omits it";
+        let hash = writer
+            .put(StorageClass::Provenance, bytes, Timestamp::EPOCH)
+            .unwrap()
+            .content_hash;
+        let reader = open(Some(hash));
+        for _ in 0..2 {
+            let history = reader.replay_history().unwrap();
+            assert_eq!(
+                history.content(hash, StorageClass::Provenance).unwrap(),
+                bytes
+            );
+        }
+        let missing = open(Some(ContentHash::of_bytes(b"never retained")));
+        let full = missing.history().unwrap_err().to_string();
+        for _ in 0..2 {
+            assert_eq!(missing.replay_history().unwrap_err().to_string(), full);
+        }
+    }
+    let directory = TempDir::new().unwrap();
+    exercise(|hash| {
+        SqliteStore::sqlite(&directory.path().join("state.db"), TENANT, None)
+            .unwrap()
+            .under(Hint(hash))
+    });
+    let directory = TempDir::new().unwrap();
+    exercise(|hash| {
+        FileStore::file(directory.path(), TENANT, None)
+            .unwrap()
+            .under(Hint(hash))
+    });
+}
+
+/// A speculative hint that asks for nonexistent bytes must fall back just as an underspecified
+/// hint does. The caller must see the complete history's successful answer, repeatedly.
+#[test]
+fn adversary_a_spurious_missing_replay_object_cannot_refuse_a_valid_history() {
+    struct Extra;
+    impl CommitAuthority for Extra {
+        fn required_objects(
+            &self,
+            _: &RetainedHistory,
+        ) -> Result<BTreeSet<ContentHash>, StoreError> {
+            Ok(BTreeSet::new())
+        }
+        fn replay_objects(&self, _: &RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError> {
+            Ok(BTreeSet::from([ContentHash::of_bytes(
+                b"not retained and not needed",
+            )]))
+        }
+        fn replay(
+            &self,
+            history: &RetainedHistory,
+            ontology: Option<&Ontology>,
+            revision: Option<RevisionNumber>,
+        ) -> Result<Option<AdmittedRevision>, StoreError> {
+            Touch.replay(history, ontology, revision)
+        }
+    }
+    fn exercise<S: RevisionLog + ObjectStore + Initialize>(store: S) {
+        written(&store, "extra hint", 2);
+        let expected = store.history().unwrap().occurrences;
+        assert_eq!(expected.len(), 3);
+        for _ in 0..3 {
+            assert_eq!(store.replay_history().unwrap().occurrences, expected);
+        }
+    }
+    let directory = TempDir::new().unwrap();
+    exercise(sqlite(directory.path()).under(Extra));
+    let directory = TempDir::new().unwrap();
+    exercise(file(directory.path()).under(Extra));
+}
+
 /// Distinctive bytes, short enough that SQLite keeps them contiguous on one page.
 fn payload(label: &str) -> Vec<u8> {
     format!("history-cache {label} {} ", EventId::mint())
@@ -618,6 +723,13 @@ fn a_sqlite_store_overwritten_in_place_is_refused_as_replaced() {
             .collect();
         assert_ne!(fresh, observed, "precondition: a different history");
 
+        let replay = reader
+            .replay_history()
+            .map(|history| history.occurrences.len());
+        assert!(
+            matches!(replay, Err(StoreError::Replaced(_))),
+            "{later} later: the overwritten handle's replay history answered {replay:?}"
+        );
         let history = reader.history().map(|history| history.occurrences.len());
         assert!(
             matches!(history, Err(StoreError::Replaced(_))),

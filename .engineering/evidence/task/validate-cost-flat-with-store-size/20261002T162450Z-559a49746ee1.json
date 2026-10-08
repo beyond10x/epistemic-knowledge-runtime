@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T16:24:50Z",
+  "actor": "agent:codex-ekr-x7b-root",
+  "artifact": "task:validate-cost-flat-with-store-size",
+  "kind": "task",
+  "revision": 25,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Default-size SQLite commit_scaling on 570cb34cf157e0703d3a48c7ce6d102933cb380d after task check finished; exit 101; commit acceptance unmet",
+    "reference": "<cache>/ekr-extract-07b/w/controlled6/scaling.log"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-02T20:22:07Z",
+  "actor": "agent:codex-ekr-next-three-root",
+  "artifact": "task:every-yaml-reader-is-bounded",
+  "kind": "task",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "Original adversary counterexample now passes; exact correction target and clippy/fmt green",
+    "reference": "<cache>/ekr-next-three/input-08/yaml/correction-1/public-report.md; bc41079b2956acc206d83efe9acf23afa62be8e5",
+    "review": "review-result:adversary-input-08-yaml-pass-1",
+    "outcome": "fixed"
+  }
+}

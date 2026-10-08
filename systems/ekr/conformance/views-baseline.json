@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 76,
-  "answered_floor": 76,
+  "total": 84,
+  "answered_floor": 84,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -30,6 +30,7 @@
     "ekr.views.ExpandNeighbourhood/outcome/node-not-found",
     "ekr.views.ExpandNeighbourhood/outcome/not-found",
     "ekr.views.ExpandNeighbourhood/outcome/not-seeded",
+    "ekr.views.ExportOcel/outcome/event-time-invalid",
     "ekr.views.ExportOcel/outcome/event-type-not-found",
     "ekr.views.ExportOcel/outcome/exported",
     "ekr.views.ExportOcel/outcome/not-found",
@@ -44,6 +45,11 @@
     "ekr.views.ProjectOverview/outcome/not-found",
     "ekr.views.ProjectOverview/outcome/not-seeded",
     "ekr.views.ProjectOverview/outcome/overviewed",
+    "ekr.views.ProjectProcessMap/outcome/event-time-invalid",
+    "ekr.views.ProjectProcessMap/outcome/event-type-not-found",
+    "ekr.views.ProjectProcessMap/outcome/mapped",
+    "ekr.views.ProjectProcessMap/outcome/not-found",
+    "ekr.views.ProjectProcessMap/outcome/not-seeded",
     "ekr.views.ProjectTimeline/outcome/limit-exceeded",
     "ekr.views.ProjectTimeline/outcome/not-found",
     "ekr.views.ProjectTimeline/outcome/not-seeded",
@@ -64,6 +70,7 @@
     "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log",
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type",
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
@@ -85,6 +92,7 @@
     "ekr.views/authored/an-unknown-seed-is-refused-by-name",
     "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary",
+    "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision",
     "ekr.views/authored/seeded-evidence-is-projected-as-retained",
     "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges",
     "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
@@ -100,7 +108,7 @@
     },
     "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample": {
       "file": "a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample.yaml",
-      "digest": "sha256:19b2604310838934b9046d94b95493345c0417747c018f4bc0eecf36194d4de7"
+      "digest": "sha256:6b3d82dabca81934bc98f8d51ea48637eb7ec1d059e989e97a9e05b001d3b19c"
     },
     "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision": {
       "file": "a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision.yaml",
@@ -114,13 +122,17 @@
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
       "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227"
     },
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log": {
+      "file": "a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log.yaml",
+      "digest": "sha256:8d875c563d70a570d6e9ef1cd5bc1143978aedef3d266bab2f834106e32ad765"
+    },
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
       "file": "a-property-a-subtype-redeclares-is-projected-for-each-type.yaml",
       "digest": "sha256:3aa0e798160e5b6d878899c35d0d1fb3955798df252145b889a3dd137a4f7411"
     },
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
       "file": "a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
-      "digest": "sha256:63adb6d17e9872c8d85e029fa2ac88aa5a6d685e093e07758d9912fd536753af"
+      "digest": "sha256:984caec19ec913bb7b4de9c037301cf1c869dd24e6aed7e058983b665d6ee56d"
     },
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle": {
       "file": "a-retracted-assertion-is-projected-with-its-lifecycle.yaml",
@@ -196,7 +208,11 @@
     },
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary": {
       "file": "code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml",
-      "digest": "sha256:176a2065bf27c8ddc666f5f9c3352516023110f977e02403fcf4282d3ceb56ee"
+      "digest": "sha256:7945670923222b2be7dd69635a43c6a2c6d60941d61bc7424cf06397e7792517"
+    },
+    "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision": {
+      "file": "named-event-time-resolves-inherited-properties-at-the-requested-revision.yaml",
+      "digest": "sha256:788981ed7ea7d7b4e13cc0aa2488c80ae3a5d178b1977c0539d0f0e482f8867c"
     },
     "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
       "file": "seeded-evidence-is-projected-as-retained.yaml",
@@ -330,6 +346,13 @@
       "expect_no_event": 25,
       "expect_outcome": 1
     },
+    "ekr.views.ExportOcel/outcome/event-time-invalid": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 25,
+      "expect_outcome": 1
+    },
     "ekr.views.ExportOcel/outcome/event-type-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
@@ -421,6 +444,40 @@
       "execute_command": 1,
       "expect_event": 1,
       "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/event-time-invalid": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/event-type-not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/mapped": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 25,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
+      "expect_outcome": 1
+    },
+    "ekr.views.ProjectProcessMap/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 26,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/limit-exceeded": {
@@ -525,9 +582,9 @@
       "expect_outcome": 4
     },
     "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample": {
-      "execute_command": 5,
-      "expect_event": 5,
-      "expect_outcome": 5
+      "execute_command": 6,
+      "expect_event": 6,
+      "expect_outcome": 6
     },
     "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision": {
       "execute_command": 7,
@@ -546,15 +603,22 @@
       "expect_no_event": 2,
       "expect_outcome": 8
     },
+    "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log": {
+      "execute_command": 5,
+      "expect_error": 2,
+      "expect_event": 3,
+      "expect_no_event": 2,
+      "expect_outcome": 5
+    },
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
       "execute_command": 3,
       "expect_event": 3,
       "expect_outcome": 3
     },
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
-      "execute_command": 3,
-      "expect_event": 3,
-      "expect_outcome": 3
+      "execute_command": 5,
+      "expect_event": 5,
+      "expect_outcome": 5
     },
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle": {
       "execute_command": 3,
@@ -662,11 +726,18 @@
       "expect_outcome": 7
     },
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary": {
-      "execute_command": 4,
+      "execute_command": 5,
       "expect_error": 1,
-      "expect_event": 3,
+      "expect_event": 4,
       "expect_no_event": 1,
-      "expect_outcome": 4
+      "expect_outcome": 5
+    },
+    "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision": {
+      "execute_command": 8,
+      "expect_error": 6,
+      "expect_event": 2,
+      "expect_no_event": 6,
+      "expect_outcome": 8
     },
     "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
       "execute_command": 1,

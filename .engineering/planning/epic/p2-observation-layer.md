@@ -8,7 +8,7 @@ relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p1-kernel-ontology-core
 - serves: vision:o5
-revision: 4
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T18:16:19Z", actor: "agent:claude-coordinator", revision: 3}
 - {from: "proposed", to: "active", at: "2026-09-28T18:16:20Z", actor: "agent:claude-coordinator", revision: 4}
@@ -21,23 +21,21 @@ despite successful polls) sets the bar: a completed poll proves only its own win
 
 ## Outcome
 
-Crates `ekr-observe`, `ekr-adapters`, `ekr-import`:
-
-- `Observation` with `ContentHash`, `SourceRef`, `captured_at`; `ObservationContent` including
-  `Blob` (amendment 86, A12); `Evidence` (§ 16);
-- `SourceAdapter` over Connectors; per-unit checkpoints (§ 55); idempotency at the observation and
-  integration layers (§ 56); poll health with `checked_through` and
-  `attempt | complete | partial | failed` (A8);
-- credential redaction and privacy projection before any model input; PII and secret gates (A6);
-- adapters for Slack, GitLab, Jira, Confluence and GitHub, declarations lifted from
-  `org-brain-successor/adapters/*.yaml`;
-- raw importers: v1 `knowledge/raw/**/*.jsonl` and v2 `raw/` become observations.
+The engine owns the source-adapter trait, immutable content-addressed observations, per-unit
+checkpoints, idempotency, poll health and coverage, and redaction before model input. Consumers
+implement third-party connectors and own credentials and predecessor-specific raw importers.
+A fixture adapter exercises the engine contract. This replaces the earlier bundled-adapter and
+raw-import promises under accepted architecture-decision-record:0012-source-adapters-are-a-contract,
+Decision and Consequences. Existing observation, checkpoint and retention decision blockers remain.
 
 ## Acceptance
 
-The same Slack delta ingested twice produces zero new observations; a coverage report prints
-declared denominators and the checked-through cutoff per unit; the v1 and v2 raw imports
-reconcile against source file counts.
+A fixture adapter ingested twice produces no new observations. Coverage reports declare their
+denominators and checked-through cutoff per unit. Poll results distinguish attempt, complete,
+partial and failed; privacy projection precedes model input. The source-adapter contract and its
+named conformance scenarios own the executable acceptance as its open decisions are settled.
+Consumer connectors and predecessor raw-import reconciliation are outside this engine epic,
+as decided by architecture-decision-record:0012-source-adapters-are-a-contract.
 
 ## Carries
 

@@ -1,15 +1,15 @@
-//! `ekr view`: a read-only viewer for an existing store, served on 127.0.0.1 only
-//! (`story:ekr-view-server`).
+//! `ekr view`: a read-only viewer, served on loopback by default. External binding requires
+//! explicit admitted Host authorities (`story:hosted-read-serving`).
 //!
-//! The server is a [`TcpListener`] bound to 127.0.0.1, with `httparse` reading request heads; it
-//! is blocking, and no async runtime exists anywhere in the process. An accept thread hands each
+//! The server is a blocking [`TcpListener`], with `httparse` reading request heads; store work
+//! runs outside a Tokio context. An accept thread hands each
 //! connection to a short-lived thread of its own, at most 64 in flight; one more is answered 503
 //! `busy` at once and closed, unread. The connection's deadline is fixed at accept: its whole head
 //! must arrive within 5 s of it, every read waits only for what is left, and a head not complete
 //! by then is 400. The thread reads at most 16 KiB of request head and parses it; it never reads a
 //! body. It sends what it parsed over a channel to the one thread that opened the [`Runtime`],
 //! gets the answer back — a whole response, or the [`SlicePage`] of an `/expand` — writes it with
-//! `Connection: close` (each write waiting at most 5 s), and closes. So every store call runs on
+//! `Connection: close` (a whole response has a total write deadline of 5 s), and closes. So every store call runs on
 //! that one thread, outside any Tokio context, as
 //! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires. A stream is
 //! written by its own connection's thread, never by the store thread, so a slow reader of one
@@ -17,20 +17,24 @@
 //! or abandoned, and a client that closes the connection ends it at the next write.
 //!
 //! How long one connection holds one of the 64 places: a head not complete 5 s after accept is
-//! refused; the wait for the store thread, which answers one request at a time, has no bound of
-//! its own; a whole answer's writes each wait at most 5 s, so a client that reads nothing frees
-//! the place 5 s after the first write it does not take; and a stream holds its place for up to
-//! 65 s — the 5 s head deadline plus the 60 s [`STREAM_TIMEOUT`] — beyond that wait for the store
-//! thread, since a client reading a byte every few seconds keeps every write inside its 5 s.
+//! refused; the wait for the store thread, which answers one request at a time, ends 35 s after
+//! accept. The queue holds at most 64 jobs, and expired jobs are discarded before execution.
+//! A whole answer writes within 5 s; a stream within 60 s. A full queue returns 503 immediately.
+//! `/healthz` and the embedded page bypass the store queue. Store admission is lazy by default,
+//! so health remains available while a configured store is unavailable or incomplete. `/readyz` succeeds
+//! only when the admitted store has a seed, including revision zero. `--require-ready` instead
+//! admits a seeded complete store before announcing the URL, retaining that runtime for serving.
 //!
 //! Before any store call a request is refused unless it carries exactly one `Host` header naming
-//! this server, `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
+//! this server, by default `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
 //! `localhost` alone, as a browser sends it — (421 otherwise, so a page reached through DNS
-//! rebinding is served nothing), and unless it announces no body: any `Content-Length` above zero
+//! rebinding is served nothing). Explicit `--allow-host` replaces these defaults; forwarded
+//! headers never grant authority. Requests must announce no body: any `Content-Length` above zero
 //! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
-//! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`]),
+//! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`] and checks
+//! what it holds against [`ekr_views::Lineage`], which reads [`Runtime::transactions`]),
 //! [`ekr_views::Index::changes`] (which reads [`Runtime::head`], [`Runtime::transactions`] and
 //! [`Runtime::replay`]), [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is
 //! not an outward write (design § 82, § 83).
@@ -47,17 +51,24 @@
 //! `/roles` render from the index's loaded revision and also keep their rendered answers
 //! ([`Cache`]). A committed revision never changes and no answer names the head
 //! (`task:historical-projection-carries-the-head`), so a commit empties neither; the head is read
-//! on every request, so a request naming no revision reads the newest. At most [`CACHE_LIMIT`]
+//! on every request, so a request naming no revision reads the newest. Both keep what they hold
+//! under the revision's identity ([`ekr_views::RevisionIdentity`]), not its number alone: a store
+//! restored to an older snapshot — through SQLite's online backup, say — and committed to after
+//! holds another revision under a number already held, and each request drops what the store no
+//! longer holds ([`ekr_views::Lineage`]) before it answers. At most [`CACHE_LIMIT`]
 //! revisions are kept in [`Cache`]; the one used longest ago goes first.
 //!
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
+//! | `GET /find[?q=<text>][&revision=N]` | a script-free HTML search entry, at most 20 name/alias matches in index order, with graph and retained evidence links pinned to its revision; unavailable stores answer an HTML 503 |
+//! | `GET /healthz` | process liveness without store work, 200 |
+//! | `GET /readyz` | admitted seeded complete store, 200; unavailable, incomplete or unseeded, 503 |
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`ekr_views::Index::view_roles_document`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
-//! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
+//! | `GET /evidence/<evidence id>[?revision=N]` | that revision's evidence's retained bytes (head when absent), `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown revision, id or bytes not retained |
 //! | `GET /overview[?revision=N&limit=L]` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes, `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
@@ -65,7 +76,7 @@
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A]` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes: the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
-//! Those six read their query with [`Query`]: `name=value` pairs, each name one the path takes
+//! The bounded read endpoints read their query with [`Query`]: `name=value` pairs, each name one the path takes
 //! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. Then, in
 //! the order views.yaml gives: a revision since below 0 is 400 `ekr.views.SinceMalformed` and a
 //! bound out of range 400 `ekr.views.LimitExceeded`, before any store call; an unseeded store 404
@@ -88,17 +99,18 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::{PersistenceError, Runtime};
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded,
-    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SliceEdge, SliceMeta,
-    SliceNode, SlicePage, SliceRecord, TimelineRequest,
+    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded, Lineage,
+    OverviewRequest, ProjectError, QueryError, RevisionIdentity, SearchRequest, SinceKind,
+    SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
 };
+use serde::Deserialize;
 use serde::Serialize;
 
 use super::session::{Checked, Held, Replaced, STORE_REPLACED};
@@ -114,6 +126,7 @@ const CACHE_LIMIT: usize = 8;
 const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
 /// Refuses framing, so another page cannot overlay the viewer.
 const FRAME_POLICY: &str = "; frame-ancestors 'none'";
+const SEARCH_POLICY: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; object-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
 
 const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
@@ -137,7 +150,7 @@ const PROGRESS_EVERY: usize = 256;
 pub(super) const SEARCH_LIMIT: i64 = 20;
 
 /// One parsed request and where its answer goes: from a connection thread to the store thread.
-type Job = (Asked, Sender<Answered>);
+type Job = super::http::Job<Asked, Answered>;
 
 /// What the store thread hands back to a connection: a whole response, or the page an
 /// `/expand` streams, which the connection writes itself.
@@ -150,6 +163,7 @@ enum Answered {
 /// Everything the store thread keeps between requests.
 #[derive(Debug)]
 struct Memory {
+    help: super::agent_help::Config,
     /// The index every endpoint of a revision answers from.
     indexes: IndexCache,
     /// `/projection` and `/roles`, rendered.
@@ -159,44 +173,70 @@ struct Memory {
 impl Default for Memory {
     fn default() -> Self {
         Self {
+            help: super::agent_help::Config::default(),
             indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
             rendered: Cache::default(),
         }
     }
 }
 
-/// Opens the existing store `store` names, binds 127.0.0.1 on `port` (0 picks a free one),
+/// Binds the configured listener (`port` 0 picks a free one), admits the existing store lazily
+/// by default or before announcement when `require_ready` is set,
 /// prints `{"url": …}` as one JSON line on stdout, and answers requests until the process is
 /// interrupted.
 ///
 /// # Errors
 ///
-/// The store does not open, the address does not bind, stdout cannot be written, or the accept
-/// loop stops.
-pub(super) fn run(store: &Store, port: u16) -> Result<String, Failure> {
-    let mut held = Held::open(store.clone())?;
-    let listener = TcpListener::bind(("127.0.0.1", port))
-        .map_err(|error| Failure::fault(format!("binding 127.0.0.1:{port}: {error}")))?;
-    let address = listener
-        .local_addr()
-        .map_err(|error| Failure::fault(format!("reading the bound address: {error}")))?;
-    let line = serde_json::json!({ "url": format!("http://{address}/") });
-    let mut stdout = std::io::stdout().lock();
-    writeln!(stdout, "{line}")
-        .and_then(|()| stdout.flush())
-        .map_err(|error| Failure::fault(format!("writing the URL: {error}")))?;
-    drop(stdout);
-
-    let (jobs, store_thread) = channel::<Job>();
+/// The address does not bind, required startup admission fails, stdout cannot be written,
+/// or the accept loop stops.
+pub(super) fn run(
+    store: &Store,
+    bind: std::net::IpAddr,
+    port: u16,
+    hosts: Vec<String>,
+    require_ready: bool,
+    help: super::agent_help::Config,
+) -> Result<String, Failure> {
+    let (listener, authorities) = super::http::bind(bind, port, hosts)?;
+    let mut held = if require_ready {
+        let mut held = Held::open(store.clone())?;
+        let (Checked::Same(runtime) | Checked::Reopened(runtime)) = held
+            .current()
+            .map_err(|replaced| Failure::fault(replaced.message))?;
+        super::head::root(runtime)?;
+        Some(held)
+    } else {
+        None
+    };
+    super::http::announce(&listener)?;
+    // Preserve the viewer's admitted concurrent stream capacity while bounding pending work.
+    let (jobs, store_thread) = super::http::queue(IN_FLIGHT_LIMIT);
+    let connection_authorities = authorities.clone();
+    let connection_help = help.clone();
     std::thread::Builder::new()
         .name("ekr-view-accept".to_owned())
-        .spawn(move || accept(&listener, &jobs))
-        .map_err(|error| Failure::fault(format!("starting the accept thread: {error}")))?;
-    let port = address.port();
-    let mut memory = Memory::default();
-    for (asked, reply_to) in store_thread {
-        // A connection that timed out meanwhile is its own business.
-        let _ = reply_to.send(answer(&mut held, &mut memory, port, &asked));
+        .spawn(move || accept(&listener, &jobs, &connection_authorities, &connection_help))
+        .map_err(|_| Failure::fault("starting viewer accept thread failed"))?;
+    let mut memory = Memory {
+        help,
+        ..Memory::default()
+    };
+    for job in store_thread {
+        if !super::http::alive(&job, Instant::now()) {
+            continue;
+        }
+        if held.is_none() {
+            held = Held::open(store.clone()).ok();
+        }
+        let answered = match held.as_mut() {
+            Some(held) => answer_configured(held, &mut memory, &authorities, &job.request),
+            None => Answered::Whole(if let Some(query) = find_query(&job.request.target) {
+                find(None, &mut memory.indexes, &memory.help, query).unwrap_or_else(|reply| reply)
+            } else {
+                Reply::text(503, "store is not admitted, seeded and available")
+            }),
+        };
+        let _ = job.reply.try_send(answered);
     }
     Err(Failure::fault("the accept loop stopped"))
 }
@@ -225,7 +265,12 @@ impl Drop for InFlight {
 
 /// Hands every accepted connection to a short-lived thread of its own, at most
 /// [`IN_FLIGHT_LIMIT`] at a time; one over the cap is answered 503 at once and closed, unread.
-fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
+fn accept(
+    listener: &TcpListener,
+    jobs: &SyncSender<Job>,
+    authorities: &super::http::Authorities,
+    help: &super::agent_help::Config,
+) {
     let in_flight = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
         match stream {
@@ -244,12 +289,14 @@ fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
                     continue;
                 };
                 let jobs = jobs.clone();
+                let authorities = authorities.clone();
+                let help = help.clone();
                 // A thread that cannot start drops the connection and the count with it.
                 let _ = std::thread::Builder::new()
                     .name("ekr-view-connection".to_owned())
                     .spawn(move || {
                         let _counted = counted;
-                        connection(stream, deadline, &jobs);
+                        connection(stream, deadline, &jobs, &authorities, &help);
                     });
             }
             // Out of descriptors or a connection reset before accept: take the next one.
@@ -261,11 +308,16 @@ fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
 /// One connection: read and parse the head by `deadline`, get the answer from the store thread,
 /// write it — a stream from this thread, with the store thread already free — close. The body,
 /// if any, is never read.
-fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
+fn connection(
+    stream: TcpStream,
+    deadline: Instant,
+    jobs: &SyncSender<Job>,
+    authorities: &super::http::Authorities,
+    help: &super::agent_help::Config,
+) {
     if stream.set_write_timeout(Some(TIMEOUT)).is_err() {
         return;
     }
-    let mut stream = stream;
     let head = {
         let mut reader = &stream;
         read_head(&mut reader, || {
@@ -282,22 +334,42 @@ fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
     let answered = match head {
         Ok(asked) => {
             framing = asked.framing;
-            let (reply_to, reply) = channel();
-            if jobs.send((asked, reply_to)).is_err() {
-                return;
-            }
-            match reply.recv() {
-                Ok(answered) => answered,
-                Err(_) => return,
+            if let Some(reply) = immediate(&asked, authorities, help) {
+                Answered::Whole(reply)
+            } else {
+                let (reply_to, reply) = sync_channel(1);
+                let deadline = deadline + super::http::WAIT_TIMEOUT;
+                if jobs
+                    .try_send(Job {
+                        request: asked,
+                        reply: reply_to,
+                        deadline,
+                    })
+                    .is_err()
+                {
+                    Answered::Whole(Reply::text(503, "request queue is full"))
+                } else {
+                    reply
+                        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        .unwrap_or_else(|_| {
+                            Answered::Whole(Reply::text(503, "request deadline exceeded"))
+                        })
+                }
             }
         }
         Err(message) => Answered::Whole(Reply::text(400, format!("bad-request: {message}"))),
     };
     // A client that went away is its own business: the first failed write ends the answer.
     let _ = match answered {
-        Answered::Whole(reply) => stream
-            .write_all(&reply.into_bytes())
-            .and_then(|()| stream.flush()),
+        Answered::Whole(reply) => {
+            let mut writer = super::http::Deadlined {
+                stream: &stream,
+                deadline: Instant::now() + TIMEOUT,
+            };
+            writer
+                .write_all(&reply.into_bytes())
+                .and_then(|()| writer.flush())
+        }
         Answered::Stream(page) => write_stream(
             &mut Deadlined {
                 stream: &stream,
@@ -455,7 +527,7 @@ fn late() -> String {
     )
 }
 
-/// Reads one request head, at most [`HEAD_LIMIT`] bytes of it, and what [`answer`] needs of it.
+/// Reads one request head, at most [`HEAD_LIMIT`] bytes of it, and what [`answer_configured`] needs of it.
 /// `before_read` runs before every read: it gives the read what is left of the connection's
 /// deadline as its timeout, or refuses once the deadline has passed.
 fn read_head(
@@ -506,9 +578,9 @@ fn parse_head(head: &[u8]) -> Result<Option<Asked>, String> {
                     .map(|header| header.value)
                     .collect::<Vec<&[u8]>>()
             };
-            let announces_body = named("Content-Length")
-                .iter()
-                .any(|value| value.trim_ascii() != b"0")
+            let lengths = named("Content-Length");
+            let announces_body = lengths.len() > 1
+                || lengths.iter().any(|value| value.trim_ascii() != b"0")
                 || !named("Transfer-Encoding").is_empty();
             // A Host that is not UTF-8 names no server, and keeps its place so it still counts.
             let hosts = named("Host")
@@ -538,6 +610,7 @@ struct Reply {
     status: u16,
     content_type: &'static str,
     body: Vec<u8>,
+    policy: Option<&'static str>,
 }
 
 impl Reply {
@@ -546,6 +619,7 @@ impl Reply {
             status: 200,
             content_type,
             body,
+            policy: None,
         }
     }
 
@@ -556,6 +630,7 @@ impl Reply {
             status,
             content_type: TEXT,
             body,
+            policy: None,
         }
     }
 
@@ -566,6 +641,7 @@ impl Reply {
             status,
             content_type: JSON,
             body: body.to_string().into_bytes(),
+            policy: None,
         }
     }
 
@@ -587,7 +663,10 @@ impl Reply {
             ""
         };
         let policy = if self.content_type == HTML {
-            format!("Content-Security-Policy: {PAGE_POLICY}{FRAME_POLICY}\r\n")
+            format!(
+                "Content-Security-Policy: {}{FRAME_POLICY}\r\n",
+                self.policy.unwrap_or(PAGE_POLICY)
+            )
         } else {
             String::new()
         };
@@ -609,7 +688,9 @@ impl Reply {
 #[derive(Clone, Copy)]
 enum Route<'a> {
     Page,
+    Find,
     Head,
+    Ready,
     Projection,
     Roles,
     Evidence(&'a str),
@@ -628,7 +709,9 @@ fn route(path: &str) -> Option<Route<'_>> {
     };
     match path {
         "/" => Some(Route::Page),
+        "/find" => Some(Route::Find),
         "/head" => Some(Route::Head),
+        "/readyz" => Some(Route::Ready),
         "/projection" => Some(Route::Projection),
         "/roles" => Some(Route::Roles),
         "/overview" => Some(Route::Overview),
@@ -660,19 +743,9 @@ struct Asked {
 /// Whether `hosts` is exactly one `Host`, naming this server's own loopback authority. A page
 /// reached through DNS rebinding sends its own name, and is served nothing. On port 80 a browser
 /// leaves the port out, so there `127.0.0.1` and `localhost` alone are the server's own too.
+#[cfg(test)]
 fn own_host(hosts: &[String], port: u16) -> bool {
-    let [host] = hosts else {
-        return false;
-    };
-    let (name, given) = match host.rsplit_once(':') {
-        Some((name, given)) => (name, Some(given)),
-        None => (host.as_str(), None),
-    };
-    let names_port = match given {
-        Some(given) => given == port.to_string(),
-        None => port == 80,
-    };
-    matches!(name, "127.0.0.1" | "localhost") && names_port
+    super::http::Authorities::loopback(port).accepts(hosts)
 }
 
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
@@ -683,12 +756,93 @@ fn own_host(hosts: &[String], port: u16) -> bool {
 /// not open is 503 [`STORE_REPLACED`]. A request whose read through the held runtime fails because the history
 /// at the path diverged from it — a store replaced under the same device and inode — is answered
 /// again after one reopen.
+#[cfg(test)]
 fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Answered {
-    if !own_host(&asked.hosts, port) {
-        return Answered::Whole(Reply::text(
-            421,
-            format!("misdirected-request: Host must be 127.0.0.1:{port} or localhost:{port}"),
-        ));
+    answer_configured(
+        held,
+        memory,
+        &super::http::Authorities::loopback(port),
+        asked,
+    )
+}
+
+fn immediate(
+    asked: &Asked,
+    authorities: &super::http::Authorities,
+    help: &super::agent_help::Config,
+) -> Option<Reply> {
+    if !authorities.accepts(&asked.hosts) {
+        return Some(Reply::text(421, "misdirected-request: unapproved Host"));
+    }
+    let path = asked
+        .target
+        .split_once('?')
+        .map_or(asked.target.as_str(), |(path, _)| path);
+    if matches!(path, "/assets/search.js" | "/assets/search_bg.wasm") {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if asked.target != path {
+            Reply::text(400, "browser assets take no query")
+        } else if path == "/assets/search.js" {
+            Reply::ok(
+                "text/javascript; charset=utf-8",
+                include_bytes!(concat!(env!("OUT_DIR"), "/search.js")).to_vec(),
+            )
+        } else {
+            Reply::ok(
+                "application/wasm",
+                include_bytes!(concat!(env!("OUT_DIR"), "/search_bg.wasm")).to_vec(),
+            )
+        });
+    }
+    if matches!(path, "/agent-guide.md" | "/llms.txt") {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if asked.target != path {
+            Reply::text(400, "agent guidance takes no query")
+        } else {
+            let markdown = if path == "/agent-guide.md" {
+                help.guide()
+            } else {
+                help.llms()
+            };
+            Reply::ok("text/markdown; charset=utf-8", markdown.into_bytes())
+        });
+    }
+    if path == "/find" {
+        if asked.method != "GET" {
+            return Some(Reply::text(405, "only GET"));
+        }
+        if asked.announces_body {
+            return Some(Reply::text(413, "request-body-refused"));
+        }
+    }
+    if asked.target == "/healthz" || path == "/" {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if path == "/" {
+            Reply::ok(HTML, PAGE.as_bytes().to_vec())
+        } else {
+            Reply::ok(JSON, b"{\"healthy\":true}".to_vec())
+        });
+    }
+    None
+}
+
+fn answer_configured(
+    held: &mut Held,
+    memory: &mut Memory,
+    authorities: &super::http::Authorities,
+    asked: &Asked,
+) -> Answered {
+    if let Some(reply) = immediate(asked, authorities, &memory.help) {
+        return Answered::Whole(reply);
     }
     let target = asked.target.as_str();
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
@@ -724,7 +878,7 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
 /// refuses to answer from a SQLite database replaced in place ([`Held::reopens`]).
 fn answered_diverged(answered: &Answered, held: &Held) -> bool {
     match answered {
-        Answered::Whole(reply) => reply.status == 500 && held.reopens(),
+        Answered::Whole(reply) => matches!(reply.status, 500 | 503) && held.reopens(),
         Answered::Stream(_) => false,
     }
 }
@@ -742,19 +896,38 @@ fn route_answer(
         None => return Answered::Whole(Reply::ok(HTML, PAGE.as_bytes().to_vec())),
         Some(Ok(Checked::Same(runtime))) => runtime,
         Some(Ok(Checked::Reopened(runtime))) => {
-            *memory = Memory::default();
+            memory.indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+            memory.rendered = Cache::default();
             runtime
         }
         Some(Err(replaced)) => {
-            return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message))
+            if let Route::Find = route {
+                return Answered::Whole(
+                    find(None, &mut memory.indexes, &memory.help, query)
+                        .unwrap_or_else(|reply| reply),
+                );
+            }
+            return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message));
         }
     };
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
+        Route::Find => find(Some(runtime), &mut memory.indexes, &memory.help, query)
+            .unwrap_or_else(|reply| reply),
         Route::Head => head(runtime, query),
+        Route::Ready => {
+            if !query.is_empty() {
+                invalid_query("readiness takes no query")
+            } else {
+                match runtime.head() {
+                    Ok(Some(_)) => Reply::ok(JSON, b"{\"ready\":true}".to_vec()),
+                    _ => Reply::text(503, "store is not admitted, seeded and available"),
+                }
+            }
+        }
         Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
-        Route::Evidence(id) => evidence(runtime, id),
+        Route::Evidence(id) => evidence(runtime, &mut memory.indexes, id, query),
         Route::Overview => overview(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
         Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
@@ -948,6 +1121,148 @@ fn node(
 /// Why an id that is no node id names no node: [`NODE_NOT_FOUND`]'s message for it.
 pub(super) fn not_a_node_id(id: &str) -> String {
     format!("{id:?} is not a node id")
+}
+
+/// Recognizes the HTML entry when lazy store admission has not yet succeeded.
+fn find_query(target: &str) -> Option<&str> {
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    (path == "/find").then_some(query)
+}
+
+/// A plain GET search form; one existing index supplies ranking and evidence references.
+fn find(
+    runtime: Option<&Runtime>,
+    indexes: &mut IndexCache,
+    help: &super::agent_help::Config,
+    query: &str,
+) -> Result<Reply, Reply> {
+    use super::search_page::{self, EvidenceLink, Page, SearchResult, State};
+    let query = Query::parse(query, &["q", "revision"]).map_err(invalid_query)?;
+    let text = query.get("q").unwrap_or("");
+    if text.chars().count() > search_page::QUERY_LIMIT {
+        return Err(invalid_query("search text exceeds 2048 characters"));
+    }
+    let at = query.revision().map_err(invalid_query)?;
+    let html = |status, revision, state| Reply {
+        status,
+        content_type: HTML,
+        policy: Some(SEARCH_POLICY),
+        body: search_page::render(&Page {
+            guide_url: &help.guide_url,
+            query: text,
+            revision,
+            requested_revision: at.map(RevisionNumber::get),
+            state,
+        })
+        .into_bytes(),
+    };
+    let Some(runtime) = runtime else {
+        return Ok(html(503, None, State::Unavailable));
+    };
+    // The empty form needs a head, not an index of the graph.
+    if text.trim().is_empty() {
+        return Ok(match runtime.head() {
+            Ok(Some(head)) if at.is_none_or(|at| at <= head.revision) => {
+                html(200, Some(at.unwrap_or(head.revision).get()), State::Initial)
+            }
+            Ok(Some(_)) => html(404, None, State::MissingRevision),
+            _ => html(503, None, State::Unavailable),
+        });
+    }
+    let index = match indexes.index(runtime, at) {
+        Ok(index) => index,
+        Err(ProjectError::RevisionNotFound { .. }) => {
+            return Ok(html(404, None, State::MissingRevision))
+        }
+        Err(_) => return Ok(html(503, None, State::Unavailable)),
+    };
+    #[derive(Deserialize)]
+    struct Meta {
+        revision: u64,
+        total: u64,
+    }
+    #[derive(Deserialize)]
+    struct Hit {
+        id: NodeId,
+        name: String,
+        alias: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct Matches {
+        meta: Meta,
+        matches: Vec<Hit>,
+    }
+    let request = SearchRequest::new(
+        text.to_owned(),
+        i64::try_from(search_page::RESULT_LIMIT).expect("small result limit"),
+    )
+    .map_err(|error| limit_exceeded(&error))?;
+    let answer = index
+        .search(&request)
+        .map_err(|error| refused("find", error))?;
+    let answer: Matches = serde_json::from_slice(&answer.bytes)
+        .map_err(|_| Reply::text(500, "cannot read search result document"))?;
+    let loaded = index.loaded();
+    let mut evidence: std::collections::BTreeMap<NodeId, Vec<EvidenceId>> = answer
+        .matches
+        .iter()
+        .map(|hit| (hit.id, Vec::new()))
+        .collect();
+    // Scan the already loaded graph once, with bounded output; never fetch payload bytes to
+    // draw result cards, and never issue a provider read for every result.
+    for assertion in loaded.graph.assertions.values() {
+        let ekr_graph::Subject::Node(subject) = &assertion.subject else {
+            continue;
+        };
+        let Some(links) = evidence.get_mut(&subject.id()) else {
+            continue;
+        };
+        if links.len() == search_page::EVIDENCE_LIMIT {
+            continue;
+        }
+        for reference in &assertion.evidence {
+            let id = reference.id();
+            if !links.contains(&id)
+                && loaded
+                    .graph
+                    .evidence
+                    .get(&id)
+                    .is_some_and(|item| loaded.retained.contains(&item.content_hash))
+            {
+                links.push(id);
+                if links.len() == search_page::EVIDENCE_LIMIT {
+                    break;
+                }
+            }
+        }
+    }
+    let matches: Vec<_> = answer
+        .matches
+        .into_iter()
+        .map(|hit| SearchResult {
+            id: hit.id.to_string(),
+            name: hit.name,
+            alias: hit.alias,
+            evidence: evidence
+                .remove(&hit.id)
+                .unwrap_or_default()
+                .into_iter()
+                .enumerate()
+                .map(|(position, id)| EvidenceLink {
+                    id: id.to_string(),
+                    label: format!("Retained evidence {}", position + 1),
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(html(
+        200,
+        Some(answer.meta.revision),
+        State::Results {
+            matches: &matches,
+            total: answer.meta.total,
+        },
+    ))
 }
 
 /// `/search?q=<text>[&limit=L][&revision=N]`.
@@ -1158,30 +1473,50 @@ struct Answers {
     roles: Vec<u8>,
 }
 
-/// The answers of the revisions loaded so far, the one used most recently last. A committed
-/// revision never changes and neither answer names the head, so a new head keeps them.
+/// The answers of the revisions loaded so far, the one used most recently last, each kept under
+/// the identity of the revision it was rendered from. A committed revision never changes and
+/// neither answer names the head, so a new head keeps them; a store restored to an older snapshot
+/// and committed to after holds another revision under a number already kept, and
+/// [`Cache::retain`] drops what the store no longer holds.
 #[derive(Debug, Default)]
 struct Cache {
-    entries: Vec<(RevisionNumber, Answers)>,
+    entries: Vec<(RevisionIdentity, Answers)>,
 }
 
 impl Cache {
-    /// The answers of `revision`: from memory, else from `load`, which is kept when it succeeds
-    /// and not when it fails. Beyond [`CACHE_LIMIT`] entries the one used longest ago goes.
+    /// Whether it keeps no answers.
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Keeps only the answers of the revisions `holds` says the store still holds.
+    fn retain(&mut self, holds: impl Fn(&RevisionIdentity) -> bool) {
+        self.entries.retain(|(identity, _)| holds(identity));
+    }
+
+    /// The answers of `revision`: from memory, else from `load`, which is kept under the
+    /// identity it names when it succeeds and not when it fails. Beyond [`CACHE_LIMIT`] entries
+    /// the one used longest ago goes.
     fn get_or_load<E>(
         &mut self,
         revision: RevisionNumber,
-        load: impl FnOnce() -> Result<Answers, E>,
+        load: impl FnOnce() -> Result<(RevisionIdentity, Answers), E>,
     ) -> Result<&Answers, E> {
-        if let Some(at) = self.entries.iter().position(|(held, _)| *held == revision) {
+        if let Some(at) = self
+            .entries
+            .iter()
+            .position(|(held, _)| held.number == revision)
+        {
             let entry = self.entries.remove(at);
             self.entries.push(entry);
         } else {
-            let answers = load()?;
+            let (identity, answers) = load()?;
+            self.entries
+                .retain(|(held, _)| held.number != identity.number);
             if self.entries.len() >= CACHE_LIMIT {
                 self.entries.remove(0);
             }
-            self.entries.push((revision, answers));
+            self.entries.push((identity, answers));
         }
         Ok(&self
             .entries
@@ -1220,9 +1555,10 @@ pub(super) fn head_document(runtime: &Runtime) -> Result<Option<Vec<u8>>, Persis
 }
 
 /// `/projection` or `/roles` (`what`) of the revision the query names, the head when it names
-/// none: `pick` chooses which of the revision's [`Answers`]. The head is read on every request;
-/// the answers are rendered only when the cache does not hold them, from the index every other
-/// endpoint of the revision reads. Refused as before: 400 for a query that is not `revision=N`,
+/// none: `pick` chooses which of the revision's [`Answers`]. The head is read on every request,
+/// and while answers are kept the store's [`Lineage`] too, which drops those of a revision the
+/// store no longer holds; the answers are rendered only when the cache does not hold them, from
+/// the index every other endpoint of the revision reads. Refused as before: 400 for a query that is not `revision=N`,
 /// 404 `ekr.views.NotSeeded` or `ekr.views.RevisionNotFound`.
 fn rendered(
     runtime: &Runtime,
@@ -1235,11 +1571,12 @@ fn rendered(
         Ok(at) => at,
         Err(message) => return Reply::refusal(400, "invalid-query", message),
     };
-    let head = match runtime.head() {
-        Ok(Some(root)) => root.revision,
+    let root = match runtime.head() {
+        Ok(Some(root)) => root,
         Ok(None) => return refused(what, ProjectError::NotSeeded { requested: at }),
         Err(error) => return Reply::text(500, format!("{what}: reading the head: {error}")),
     };
+    let head = root.revision;
     let wanted = at.unwrap_or(head);
     if wanted > head {
         return refused(
@@ -1250,7 +1587,15 @@ fn rendered(
             },
         );
     }
-    let Memory { indexes, rendered } = memory;
+    let Memory {
+        indexes, rendered, ..
+    } = memory;
+    if !rendered.is_empty() {
+        match Lineage::read(runtime, root) {
+            Ok(lineage) => rendered.retain(|identity| lineage.holds(identity)),
+            Err(error) => return refused(what, error),
+        }
+    }
     match rendered.get_or_load(wanted, || load_answers(runtime, indexes, wanted)) {
         Ok(answers) => Reply::ok(JSON, pick(answers).clone()),
         Err(error) => refused(what, error),
@@ -1258,17 +1603,17 @@ fn rendered(
 }
 
 /// Renders both answers of revision `at` from its one index, loading it only when `indexes` does
-/// not hold it.
+/// not hold it, with the identity of the revision they were rendered from.
 fn load_answers(
     runtime: &Runtime,
     indexes: &mut IndexCache,
     at: RevisionNumber,
-) -> Result<Answers, ProjectError> {
+) -> Result<(RevisionIdentity, Answers), ProjectError> {
     let index = indexes.index(runtime, Some(at))?;
     let loaded = index.loaded();
     let projection = ekr_views::render(loaded)?.bytes;
     let roles = index.view_roles_document();
-    Ok(Answers { projection, roles })
+    Ok((index.identity(), Answers { projection, roles }))
 }
 
 /// A revision that could not be loaded or rendered: the named 404s, or a 500 for `what`.
@@ -1279,17 +1624,37 @@ fn refused(what: &str, error: ProjectError) -> Reply {
     }
 }
 
-/// The retained bytes of the evidence the head holds under `id`, never as HTML.
-fn evidence(runtime: &Runtime, id: &str) -> Reply {
+/// Retained evidence bytes from the requested revision (head when absent), never as HTML.
+fn evidence(runtime: &Runtime, indexes: &mut IndexCache, id: &str, query: &str) -> Reply {
+    let query = match Query::parse(query, &["revision"]) {
+        Ok(query) => query,
+        Err(error) => return invalid_query(error),
+    };
+    let at = match query.revision() {
+        Ok(at) => at,
+        Err(error) => return invalid_query(error),
+    };
     let not_found = || Reply::text(404, format!("evidence-not-found: {id}"));
     let Ok(id) = id.parse::<EvidenceId>() else {
         return not_found();
     };
-    let read = match runtime.read(None) {
-        Ok(read) => read,
-        Err(error) => return Reply::text(500, format!("reading the head: {error}")),
+    let index = match indexes.index(runtime, at) {
+        Ok(index) => index,
+        Err(ProjectError::RevisionNotFound { .. }) => {
+            return Reply::text(404, "evidence revision not found")
+        }
+        Err(ProjectError::NotSeeded { .. }) => {
+            return Reply::text(
+                500,
+                format!(
+                    "reading evidence revision: {}",
+                    ekr_kernel::CommitError::NotSeeded
+                ),
+            )
+        }
+        Err(error) => return Reply::text(500, format!("reading evidence revision: {error}")),
     };
-    let Some(item) = read.graph.evidence.get(&id) else {
+    let Some(item) = index.loaded().graph.evidence.get(&id) else {
         return not_found();
     };
     match runtime.content(&item.content_hash) {
@@ -1317,7 +1682,7 @@ fn content_type(bytes: &[u8]) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::super::session::fixture::{
-        replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS,
+        add_alias, replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS,
     };
     use super::super::session::{reader_work, ReaderWork};
     use super::*;
@@ -1334,6 +1699,358 @@ mod tests {
         match answer(held, memory, 9, &asked) {
             Answered::Whole(reply) => reply,
             Answered::Stream(_) => panic!("{target} answered a stream"),
+        }
+    }
+
+    fn cached_evidence_replays(revision: u64) {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().expect("a temporary directory");
+            let store = seeded_with_a_commit(directory.path(), backend, "store");
+            let mut held = Held::open(store).expect("the store opens");
+            let mut memory = Memory::default();
+            assert_eq!(get(&mut held, &mut memory, "/head").status, 200);
+            assert_eq!(
+                get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/overview?revision={revision}")
+                )
+                .status,
+                200
+            );
+            let index = memory.indexes.get(RevisionNumber::new(revision)).unwrap();
+            let (id, item) = index.loaded().graph.evidence.first_key_value().unwrap();
+            let (expected, before) = match held.current().unwrap() {
+                Checked::Same(runtime) | Checked::Reopened(runtime) => {
+                    let bytes = runtime.content(&item.content_hash).unwrap().unwrap();
+                    (bytes, runtime.seed_replays())
+                }
+            };
+            for _ in 0..2 {
+                let reply = get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/evidence/{id}?revision={revision}"),
+                );
+                assert_eq!(reply.status, 200, "{backend:?}");
+                assert_eq!(reply.content_type, content_type(&expected));
+                assert_eq!(reply.body, expected);
+            }
+            let after = match held.current().unwrap() {
+                Checked::Same(runtime) | Checked::Reopened(runtime) => runtime.seed_replays(),
+            };
+            assert_eq!(
+                after - before,
+                0,
+                "{backend:?}: cached revision {revision} evidence replayed the seed"
+            );
+        }
+    }
+
+    #[test]
+    fn evidence_reads_reuse_the_admitted_current_revision_without_seed_replay() {
+        cached_evidence_replays(1);
+    }
+
+    #[test]
+    fn evidence_reads_reuse_the_admitted_historical_revision_without_seed_replay() {
+        cached_evidence_replays(0);
+    }
+
+    #[test]
+    fn evidence_cache_keeps_historical_membership_after_new_evidence_commits() {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded(directory.path(), backend, "store");
+            let actor = store.host.context.operator;
+            let writer = store.open_existing(super::super::Access::Write).unwrap();
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=0").status,
+                200
+            );
+            let mut item = memory
+                .indexes
+                .get(RevisionNumber::SEED)
+                .unwrap()
+                .loaded()
+                .graph
+                .evidence
+                .values()
+                .next()
+                .unwrap()
+                .clone();
+            item.id = EvidenceId::mint();
+            let id = item.id;
+            let payload = b"retained delta evidence".to_vec();
+            item.content_hash = ekr_core::ContentHash::of_bytes(&payload);
+            let transaction = ekr_kernel::GraphTransaction {
+                id: ekr_core::TransactionId::mint(),
+                proposer: actor,
+                operations: vec![ekr_kernel::GraphOperation::AddEvidence(Box::new(
+                    ekr_kernel::EvidenceAddition {
+                        evidence: item,
+                        payload: payload.clone(),
+                    },
+                ))],
+                evidence: Default::default(),
+                schema_version: None,
+            };
+            #[derive(serde::Serialize)]
+            struct Wire<'a> {
+                format: &'static str,
+                transaction: &'a ekr_kernel::GraphTransaction,
+            }
+            let bytes = serde_yaml_ng::to_string(&Wire {
+                format: "ekr.transaction-document/2",
+                transaction: &transaction,
+            })
+            .unwrap();
+            let clock = || ekr_core::Timestamp::from_millis(10);
+            writer.propose(bytes.as_bytes(), actor, clock).unwrap();
+            assert!(matches!(
+                writer
+                    .validate(transaction.id, RevisionNumber::SEED, clock)
+                    .unwrap(),
+                ekr_kernel::ValidationCommandResult::Validated(_)
+            ));
+            assert!(matches!(
+                writer.commit(transaction.id, actor, clock).unwrap(),
+                ekr_kernel::CommitCommandResult::Committed(_)
+            ));
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=1").status,
+                200
+            );
+            assert_eq!(
+                get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/evidence/{id}?revision=0")
+                )
+                .status,
+                404
+            );
+            for query in ["", "?revision=1"] {
+                let reply = get(&mut held, &mut memory, &format!("/evidence/{id}{query}"));
+                assert_eq!(reply.status, 200);
+                assert_eq!(reply.body, payload);
+            }
+            for (target, status) in [
+                (format!("/evidence/{id}?revision=99"), 404),
+                (format!("/evidence/{}?revision=1", EvidenceId::mint()), 404),
+                ("/evidence/not-an-id".into(), 404),
+                (format!("/evidence/{id}?revision=1&revision=1"), 400),
+                (format!("/evidence/{id}?revision=-1"), 400),
+            ] {
+                assert_eq!(
+                    get(&mut held, &mut memory, &target).status,
+                    status,
+                    "{target}"
+                );
+            }
+        }
+    }
+
+    /// Copies the SQLite database at `from` into the one at `to` through SQLite's online backup,
+    /// the way `sqlite3 .backup` and `.restore` do, and truncates the target's write-ahead log.
+    fn online_backup(from: &std::path::Path, to: &std::path::Path) {
+        let source = rusqlite::Connection::open(from).unwrap();
+        let mut target = rusqlite::Connection::open(to).unwrap();
+        let step = rusqlite::backup::Backup::new(&source, &mut target)
+            .unwrap()
+            .step(-1)
+            .unwrap();
+        assert_eq!(step, rusqlite::backup::StepResult::Done);
+        target
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+            .unwrap();
+    }
+
+    /// Issue #74: `/projection` and `/roles` keep their answers under the identity of the
+    /// revision they were rendered from. A store restored to an older snapshot through SQLite's
+    /// online backup and committed to after holds another revision under the number they were
+    /// kept for, and that revision is what both answer.
+    #[test]
+    fn rendered_answers_follow_a_backup_restore_and_a_new_commit_of_the_same_number() {
+        let backend = super::super::Backend::Sqlite;
+        let directory = tempfile::tempdir().unwrap();
+        let store = seeded_with_a_commit(directory.path(), backend, "store");
+        let path = store.store.clone();
+        let snapshot = directory.path().join("snapshot.db");
+        online_backup(&path, &snapshot);
+        let mut held = Held::open(store).unwrap();
+        let mut memory = Memory::default();
+        add_alias(
+            directory.path(),
+            &path,
+            backend,
+            "00000000-0000-4000-8000-00000000f903",
+            "InitechDiscarded",
+        );
+        for target in ["/projection", "/roles"] {
+            let reply = get(&mut held, &mut memory, target);
+            assert_eq!(reply.status, 200, "{target}");
+        }
+        let discarded = get(&mut held, &mut memory, "/projection");
+        assert!(String::from_utf8_lossy(&discarded.body).contains("InitechDiscarded"));
+
+        online_backup(&snapshot, &path);
+        add_alias(
+            directory.path(),
+            &path,
+            backend,
+            "00000000-0000-4000-8000-00000000f904",
+            "InitechKept",
+        );
+        let fresh = Held::open(
+            super::super::Configured {
+                host: Some(directory.path().join("host.json")),
+                store: Some(path.clone()),
+                backend: Some(backend),
+                full_replay: false,
+                stage: None,
+                access: super::super::Access::Read,
+            }
+            .resolve("test")
+            .unwrap(),
+        )
+        .unwrap();
+        let mut fresh = (fresh, Memory::default());
+        for target in [
+            "/projection",
+            "/projection?revision=2",
+            "/roles",
+            "/roles?revision=2",
+        ] {
+            let reply = get(&mut held, &mut memory, target);
+            let expected = get(&mut fresh.0, &mut fresh.1, target);
+            assert_eq!(reply.status, 200, "{target}");
+            assert_eq!(
+                String::from_utf8_lossy(&reply.body),
+                String::from_utf8_lossy(&expected.body),
+                "{target}: not what a fresh reader answers"
+            );
+        }
+        let kept = get(&mut held, &mut memory, "/projection");
+        let kept = String::from_utf8_lossy(&kept.body);
+        assert!(kept.contains("InitechKept") && !kept.contains("InitechDiscarded"));
+    }
+
+    #[test]
+    fn evidence_cache_is_discarded_after_store_replacement() {
+        for (backend, inside) in [
+            (super::super::Backend::File, false),
+            (super::super::Backend::File, true),
+            (super::super::Backend::Sqlite, false),
+        ] {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded_with_a_commit(directory.path(), backend, "store");
+            let path = store.store.clone();
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=1").status,
+                200
+            );
+            let index = memory.indexes.get(RevisionNumber::new(1)).unwrap();
+            let id = *index.loaded().graph.evidence.keys().next().unwrap();
+            let target = format!("/evidence/{id}?revision=1");
+            assert_eq!(get(&mut held, &mut memory, &target).status, 200);
+            let next = seeded(directory.path(), backend, "next");
+            if inside {
+                replace_inside(&path, &next.store);
+            } else {
+                replace(&path, &directory.path().join("previous"), &next.store);
+            }
+            assert_eq!(
+                get(&mut held, &mut memory, &target).status,
+                404,
+                "{backend:?}, inside={inside}"
+            );
+            assert_eq!(
+                get(
+                    &mut held,
+                    &mut memory,
+                    &format!("/evidence/{id}?revision=0")
+                )
+                .status,
+                200
+            );
+        }
+    }
+
+    #[test]
+    fn evidence_cache_refuses_corrupted_or_missing_retained_payloads_after_replacement() {
+        for remove in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded(directory.path(), super::super::Backend::File, "store");
+            let path = store.store.clone();
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            assert_eq!(
+                get(&mut held, &mut memory, "/overview?revision=0").status,
+                200
+            );
+            let index = memory.indexes.get(RevisionNumber::SEED).unwrap();
+            let id = *index.loaded().graph.evidence.keys().next().unwrap();
+            let target = format!("/evidence/{id}?revision=0");
+            let before = get(&mut held, &mut memory, &target);
+            assert_eq!(before.status, 200);
+            let next = seeded(directory.path(), super::super::Backend::File, "next");
+            let blob = std::fs::read_dir(next.store.join("blobs"))
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .find(|path| std::fs::read(path).is_ok_and(|bytes| bytes == before.body))
+                .expect("fixture's retained payload is a physical blob");
+            if remove {
+                std::fs::remove_file(blob).unwrap();
+            } else {
+                std::fs::write(blob, b"corrupted retained payload").unwrap();
+            }
+            replace(&path, &directory.path().join("previous"), &next.store);
+            let refused = get(&mut held, &mut memory, &target);
+            assert_eq!(
+                refused.status,
+                503,
+                "remove={remove}: {}",
+                String::from_utf8_lossy(&refused.body)
+            );
+            assert_eq!(
+                serde_json::from_slice::<serde_json::Value>(&refused.body).unwrap()["refusal"],
+                "store-replaced"
+            );
+        }
+    }
+
+    #[test]
+    fn evidence_cache_preserves_the_unseeded_store_refusal() {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().unwrap();
+            let mut store = seeded(directory.path(), backend, "store");
+            store.store = directory.path().join("unseeded");
+            let host = store.host.clone();
+            let unseeded = match backend {
+                super::super::Backend::File => {
+                    Runtime::file(&store.store, &host.tenant, host.context, host.authority)
+                }
+                super::super::Backend::Sqlite => {
+                    Runtime::sqlite(&store.store, &host.tenant, host.context, host.authority)
+                }
+                super::super::Backend::Postgres => unreachable!(),
+            }
+            .unwrap();
+            assert!(unseeded.head().unwrap().is_none());
+            drop(unseeded);
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            let id = EvidenceId::mint();
+            for query in ["", "?revision=0"] {
+                let reply = get(&mut held, &mut memory, &format!("/evidence/{id}{query}"));
+                assert_eq!(reply.status, 500);
+                assert!(String::from_utf8_lossy(&reply.body).contains("the lineage has no seed"));
+            }
         }
     }
 
@@ -1593,7 +2310,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_eleven_routes_exist() {
+    fn only_the_declared_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/head"), Some(Route::Head)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
@@ -1900,6 +2617,24 @@ mod tests {
         }
     }
 
+    /// An identity for revision `n`, as a load names the revision it rendered.
+    fn identified(n: u64) -> RevisionIdentity {
+        let hash = ekr_core::ContentHash::of_bytes(&n.to_be_bytes());
+        RevisionIdentity {
+            number: RevisionNumber::new(n),
+            revision_id: ekr_core::RevisionId::mint(),
+            root: ekr_graph::Root {
+                revision: RevisionNumber::new(n),
+                parent: None,
+                ontology_root: hash,
+                knowledge_root: hash,
+                evidence_root: hash,
+                agent_root: hash,
+                transaction: hash,
+            },
+        }
+    }
+
     #[test]
     fn a_revision_is_loaded_once_and_served_from_memory_after() {
         let mut cache = Cache::default();
@@ -1908,7 +2643,7 @@ mod tests {
             let got = cache
                 .get_or_load(RevisionNumber::new(2), || {
                     loads += 1;
-                    Ok::<_, ()>(answers(2))
+                    Ok::<_, ()>((identified(2), answers(2)))
                 })
                 .unwrap();
             assert_eq!(got, &answers(2));
@@ -1924,13 +2659,15 @@ mod tests {
         let mut cache = Cache::default();
         let at = RevisionNumber::new(1);
         assert_eq!(
-            cache.get_or_load(at, || Err::<Answers, _>("refused")),
+            cache.get_or_load(at, || Err::<(RevisionIdentity, Answers), _>("refused")),
             Err("refused")
         );
         assert!(cache.entries.is_empty(), "a refusal is not cached");
-        cache.get_or_load(at, || Ok::<_, ()>(answers(1))).unwrap();
+        cache
+            .get_or_load(at, || Ok::<_, ()>((identified(1), answers(1))))
+            .unwrap();
         let got = cache
-            .get_or_load(at, || Err::<Answers, _>("loaded again"))
+            .get_or_load(at, || Err::<(RevisionIdentity, Answers), _>("loaded again"))
             .unwrap();
         assert_eq!(got, &answers(1));
         assert_eq!(cache.entries.len(), 1);
@@ -1943,18 +2680,26 @@ mod tests {
         for n in 0..CACHE_LIMIT {
             cache
                 .get_or_load(RevisionNumber::new(u64::try_from(n).unwrap()), || {
-                    Ok::<_, ()>(answers(tag(n)))
+                    Ok::<_, ()>((identified(u64::try_from(n).unwrap()), answers(tag(n))))
                 })
                 .unwrap();
         }
         // Revision 0 is used again, so revision 1 is now the one used longest ago.
         cache
-            .get_or_load(RevisionNumber::new(0), || Err::<Answers, _>(()))
+            .get_or_load(RevisionNumber::new(0), || {
+                Err::<(RevisionIdentity, Answers), _>(())
+            })
             .unwrap();
         cache
-            .get_or_load(RevisionNumber::new(99), || Ok::<_, ()>(answers(99)))
+            .get_or_load(RevisionNumber::new(99), || {
+                Ok::<_, ()>((identified(99), answers(99)))
+            })
             .unwrap();
-        let held: Vec<u64> = cache.entries.iter().map(|(n, _)| n.get()).collect();
+        let held: Vec<u64> = cache
+            .entries
+            .iter()
+            .map(|(identity, _)| identity.number.get())
+            .collect();
         assert_eq!(held.len(), CACHE_LIMIT);
         assert!(
             held.contains(&0) && !held.contains(&1) && held.contains(&99),
@@ -2098,6 +2843,7 @@ mod tests {
             store: directory.path().join("store"),
             backend: super::super::Backend::File,
             full_replay: false,
+            stage: None,
             access: super::super::Access::Read,
         };
         let runtime = Runtime::file(

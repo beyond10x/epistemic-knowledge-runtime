@@ -38,7 +38,9 @@
 //!
 //! **Reads only.** The store calls are [`IndexCache::index`] (which reads the head on every call,
 //! so a commit made by another process is what the next call reads, and loads a revision once,
-//! since no document names the head), [`ekr_views::Index::changes`] (which reads the head, the
+//! since no document names the head, while the store holds that revision: it reads the store's
+//! retained transactions to drop an index of a revision a restore to an older snapshot
+//! discarded), [`ekr_views::Index::changes`] (which reads the head, the
 //! retained transactions and the seed's replay), [`Runtime::head`], `explain::run` and
 //! `resolve::run`. Nothing here proposes,
 //! validates, commits or seeds. Record text is untrusted evidence (A14): it is returned as JSON string data, and the
@@ -551,17 +553,29 @@ impl Server {
     }
 
     /// What `ekr explain <assertion>` prints, byte for byte, or with `documents`, what
-    /// `ekr explain <assertion> --documents` prints.
+    /// `ekr explain <assertion> --documents [--offset N] [--limit N]` prints. `offset` and
+    /// `limit` without `documents`, and a `limit` of 0, are refused as the verb refuses them.
     fn explain(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let ExplainArguments {
             assertion,
             documents,
+            offset,
+            limit,
         } = decode(arguments)?;
+        if !documents && (offset.is_some() || limit.is_some()) {
+            return Err(Unanswered::params(
+                "`offset` and `limit` bound `documents`: they need `documents: true`",
+            ));
+        }
+        if limit == Some(0) {
+            return Err(Unanswered::params("`limit` is at least 1"));
+        }
         let id = assertion.parse::<AssertionId>().map_err(|_| {
             Unanswered::params(format!(
                 "the assertion {assertion:?} is not an assertion id"
             ))
         })?;
+        let documents = documents.then_some(super::explain::Bounds { offset, limit });
         Ok(super::render(&super::explain::run(self.read()?.0, id, documents)?)?.text()?)
     }
 
@@ -745,6 +759,10 @@ struct ExplainArguments {
     assertion: String,
     #[serde(default)]
     documents: bool,
+    #[serde(default)]
+    offset: Option<u64>,
+    #[serde(default)]
+    limit: Option<u64>,
 }
 
 /// A typed reference's fields and `at`. A missing field is named by the verb's own reference
@@ -939,12 +957,17 @@ fn tools() -> Vec<Value> {
             "Explain assertion",
             "What `ekr explain` prints: the assertion at the newest revision, where it came \
              from, what later changed it, and its evidence, each record by hash; with \
-             `documents`, also the whole records and the evidence text.",
+             `documents`, also the whole records and the evidence text, at most 64 KiB of each \
+             evidence record unless `limit` says otherwise.",
             object(
                 json!({
                     "assertion": {"type": "string", "description": "The assertion's id, as describe_node answers it."},
                     "documents": {"type": "boolean",
-                        "description": "Also answer the whole proposal records, commit receipts and evidence payloads (base64, and text when UTF-8), as `ekr explain --documents`; false when absent."},
+                        "description": "Also answer the whole proposal records, commit receipts and evidence payloads (base64, and text when UTF-8), as `ekr explain --documents`; false when absent. An evidence payload is bounded by `offset` and `limit`; when the answer is not the whole record its link carries `offset`, `record_length` (the whole record's bytes) and `truncated: true`."},
+                    "offset": bounded(0, None,
+                        "With `documents`, the first byte of each evidence payload to answer, a raw byte offset (`text` is absent when it falls inside a character); when absent, the window is centred on the cited text, or starts at 0."),
+                    "limit": bounded(1, None,
+                        "With `documents`, the most bytes of each evidence payload to answer; 65536 when absent. Read a whole record in steps: offset 0, then each answer's offset plus its bytes, until `record_length`."),
                 }),
                 &["assertion"],
             ),
@@ -966,6 +989,125 @@ fn tools() -> Vec<Value> {
             object(json!({}), &[]),
         ),
     ]
+}
+
+/// Stateless Streamable HTTP over the same read-only dispatcher as stdio.
+pub(super) fn run_http(
+    store: &super::Store,
+    bind: std::net::IpAddr,
+    port: u16,
+    hosts: Vec<String>,
+    origins: Vec<String>,
+) -> Result<String, Failure> {
+    let mut server = None;
+    let (listener, authorities) = super::http::bind(bind, port, hosts)?;
+    super::http::serve(listener, authorities, origins, move |request| {
+        if let Err(reply) = http_request(&request) {
+            return reply;
+        }
+        if server.is_none() {
+            server = Held::open(store.clone()).ok().map(Server::new);
+        }
+        match server.as_mut() {
+            Some(server) => server.http(request),
+            None => super::http::Reply::refusal(503, "store is not admitted, seeded and available"),
+        }
+    })
+}
+
+/// Transport refusals do not depend on whether store admission has succeeded yet.
+fn http_request(request: &super::http::Request) -> Result<(), super::http::Reply> {
+    use super::http::Reply;
+    if request.target == "/readyz" {
+        if request.method != "GET" {
+            return Err(Reply::method("GET"));
+        }
+        if !request.body.is_empty() {
+            return Err(Reply::refusal(400, "readiness request has a body"));
+        }
+        return Ok(());
+    }
+    if request.target != "/mcp" {
+        return Err(Reply::refusal(404, "unknown endpoint"));
+    }
+    if request.method != "POST" {
+        return Err(Reply::method("POST"));
+    }
+    match request.header("content-type") {
+        Ok(Some(value))
+            if value
+                .split(';')
+                .next()
+                .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("application/json")) => {}
+        _ => return Err(Reply::refusal(415, "MCP requires application/json")),
+    }
+    match request.header("accept") {
+        Ok(Some(value))
+            if value.split(',').any(|mime| {
+                matches!(
+                    mime.trim().split(';').next(),
+                    Some("application/json" | "*/*")
+                )
+            }) => {}
+        _ => {
+            return Err(Reply::refusal(
+                406,
+                "MCP requires accepting application/json",
+            ))
+        }
+    }
+    let parsed = serde_json::from_slice::<Value>(&request.body);
+    let initialize = parsed
+        .as_ref()
+        .ok()
+        .and_then(|value| value.get("method"))
+        .and_then(Value::as_str)
+        == Some("initialize");
+    match request.header("mcp-protocol-version") {
+        Ok(Some(version)) if PROTOCOLS.contains(&version) => {}
+        Ok(None) if initialize => {}
+        // Stateless serving cannot infer a prior negotiation. The standard's recommended
+        // absent-header fallback is 2025-03-26, which our non-batching dispatcher does not
+        // support. Require a supported explicit version after initialization.
+        _ => {
+            return Err(Reply::refusal(
+                400,
+                "a supported MCP-Protocol-Version is required after initialization",
+            ))
+        }
+    }
+    if request.body.iter().all(u8::is_ascii_whitespace) {
+        return Err(Reply::refusal(400, "MCP requires one JSON-RPC object"));
+    }
+    Ok(())
+}
+
+impl Server {
+    fn http(&mut self, request: super::http::Request) -> super::http::Reply {
+        use super::http::Reply;
+        if request.target == "/readyz" {
+            let mut head = self
+                .read()
+                .and_then(|(runtime, _)| runtime.head().map_err(Unanswered::internal));
+            if head.is_err() && self.store.reopens() {
+                self.store.forget();
+                head = self
+                    .read()
+                    .and_then(|(runtime, _)| runtime.head().map_err(Unanswered::internal));
+            }
+            return match head {
+                Ok(Some(_)) => Reply::json(200, b"{\"ready\":true}".to_vec()),
+                _ => Reply::refusal(503, "store is not admitted, seeded and available"),
+            };
+        }
+        match self.message(&request.body) {
+            Some(response) => match serde_json::to_vec(&response) {
+                Ok(body) => Reply::json(200, body),
+                Err(_) => Reply::refusal(500, "cannot serialize MCP response"),
+            },
+            None => Reply::json(202, Vec::new()),
+        }
+    }
 }
 
 #[cfg(test)]

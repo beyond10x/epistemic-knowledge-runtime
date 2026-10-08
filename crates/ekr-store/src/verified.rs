@@ -152,6 +152,9 @@ pub struct StreamReads {
     pub object: u64,
     /// Reads of the tenant log, looking for events on the streams of held objects.
     pub feed: u64,
+    /// Provider captures of the whole tenant (`ConsistentTenantCapture`): a PostgreSQL store's
+    /// inventory and its emptiness check each take one.
+    pub captures: u64,
 }
 
 thread_local! {
@@ -160,6 +163,7 @@ thread_local! {
         checkpoint: 0,
         object: 0,
         feed: 0,
+        captures: 0,
     }) };
 }
 
@@ -176,6 +180,26 @@ pub(crate) fn count_stream_read(add: impl FnOnce(&mut StreamReads)) {
         add(&mut now);
         reads.set(now);
     });
+}
+
+thread_local! {
+    static OBJECTS_LOADED: Cell<u64> = const { Cell::new(0) };
+}
+
+/// Retained objects the history loads on this thread placed into a history since the last call,
+/// which starts the count again: each counts once per history it is placed in, whether this
+/// handle read it from the provider or already held it verified.
+///
+/// Test instrumentation, as [`ReadWork`] is: it lets a test show that the objects a command loads
+/// do not grow with the evidence the store already holds.
+#[doc(hidden)]
+#[must_use]
+pub fn objects_loaded() -> u64 {
+    OBJECTS_LOADED.with(|loaded| loaded.replace(0))
+}
+
+pub(crate) fn count_objects_loaded(placed: usize) {
+    OBJECTS_LOADED.with(|loaded| loaded.set(loaded.get() + placed as u64));
 }
 
 #[cfg(test)]

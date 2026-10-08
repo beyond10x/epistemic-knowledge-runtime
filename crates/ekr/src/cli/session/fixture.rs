@@ -32,6 +32,7 @@ pub(in crate::cli) fn seeded(directory: &Path, backend: Backend, name: &str) -> 
     let backend_name = match backend {
         Backend::File => "file",
         Backend::Sqlite => "sqlite",
+        Backend::Postgres => panic!("local fixture requires a filesystem backend"),
     };
     run(&[
         "ekr",
@@ -49,6 +50,7 @@ pub(in crate::cli) fn seeded(directory: &Path, backend: Backend, name: &str) -> 
         store: Some(store),
         backend: Some(backend),
         full_replay: false,
+        stage: None,
         access: crate::cli::Access::Read,
     }
     .resolve("test")
@@ -76,13 +78,43 @@ pub(in crate::cli) fn seeded_with_a_commit(
         ),
     )
     .expect("writing the transaction");
+    committed(directory, &store.store, backend, transaction, &document);
+    store
+}
+
+/// Commits one more transaction, `transaction`, onto a store [`seeded_with_a_commit`] made at
+/// `store` in `directory`: the alias `alias` of the organization that commit created.
+pub(in crate::cli) fn add_alias(
+    directory: &Path,
+    store: &Path,
+    backend: Backend,
+    transaction: &str,
+    alias: &str,
+) {
+    let document = directory.join(format!("{transaction}.yaml"));
+    std::fs::write(
+        &document,
+        format!(
+            "format: ekr.transaction-document/2\ntransaction:\n  id: {transaction}\n  proposer: \
+             00000000-0000-4000-8000-000000000101\n  operations:\n  - !AddAlias\n    node: \
+             00000000-0000-4000-8000-00000000f901\n    alias: {alias}\n  evidence: []\n"
+        ),
+    )
+    .expect("writing the transaction");
+    committed(directory, store, backend, transaction, &document);
+}
+
+/// Proposes, validates and commits `transaction`, written at `document`, through the CLI onto
+/// the `backend` store at `store`, under the example host in `directory`.
+fn committed(directory: &Path, store: &Path, backend: Backend, transaction: &str, document: &Path) {
     let backend_name = match backend {
         Backend::File => "file",
         Backend::Sqlite => "sqlite",
+        Backend::Postgres => panic!("local fixture requires a filesystem backend"),
     };
     let host = directory.join("host.json");
     for verb in [
-        vec!["propose", text(&document)],
+        vec!["propose", text(document)],
         vec!["validate", transaction],
         vec!["commit", transaction],
     ] {
@@ -91,14 +123,13 @@ pub(in crate::cli) fn seeded_with_a_commit(
             "--host",
             text(&host),
             "--store",
-            text(&store.store),
+            text(store),
             "--backend",
             backend_name,
         ];
         argv.extend(verb);
         run(&argv);
     }
-    store
 }
 
 fn suffixed(path: &Path, suffix: &str) -> PathBuf {

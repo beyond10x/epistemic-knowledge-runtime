@@ -43,6 +43,8 @@ pub enum Backend {
     File,
     /// `sqlite`: a database file.
     Sqlite,
+    /// `postgres`: an `ekr.postgres/1` configuration file, containing credential file references.
+    Postgres,
 }
 
 impl Backend {
@@ -51,6 +53,7 @@ impl Backend {
         match self {
             Backend::File => "file",
             Backend::Sqlite => "sqlite",
+            Backend::Postgres => "postgres",
         }
     }
 }
@@ -60,7 +63,7 @@ impl Backend {
 pub struct StoreConfig {
     /// The host document, an `ekr.cli-host/1` file.
     pub host: PathBuf,
-    /// Where the data lives: a directory for `file`, a database file for `sqlite`.
+    /// A directory for `file`, database for `sqlite`, or `ekr.postgres/1` file for `postgres`.
     pub store: PathBuf,
     /// The provider.
     pub backend: Backend,

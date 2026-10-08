@@ -16,3 +16,4 @@ domains:
   - ekr.views
   - ekr.observe
   - ekr.integrate
+  - ekr.cli

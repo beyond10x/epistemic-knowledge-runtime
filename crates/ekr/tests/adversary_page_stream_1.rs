@@ -6,7 +6,8 @@
 //! by a probe script of the case's own (the page is not changed; the probe only reads the page's
 //! state and writes it into a `<pre id="probe-out">` the case reads off `--dump-dom`), and forwards
 //! every other request to `ekr view` unchanged — or, where a case says so, re-frames a streamed
-//! answer into chunks of a few bytes, or answers one address itself.
+//! answer into chunks of a few bytes, or answers one address itself. The page's graph libraries are
+//! served to the browser from `tests/fixtures/viewer-libraries/` (`support/viewer_libraries.rs`).
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -18,6 +19,9 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
+
+#[path = "support/viewer_libraries.rs"]
+mod viewer_libraries;
 
 const OPERATOR: &str = "00000000-0000-4000-8000-000000000101";
 const DAY: i64 = 86_400_000;
@@ -503,6 +507,28 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 
+/// Every request a front server took and when it finished answering it, in milliseconds since the
+/// first: the network log a browser run that stalls or fails prints (issue #81).
+static TRAFFIC: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn traffic(line: String) {
+    static ORIGIN: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let at = ORIGIN.get_or_init(Instant::now).elapsed().as_millis();
+    TRAFFIC
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(format!("{at:>8} ms {line}"));
+}
+
+/// Records the end of one request's answer, however [`front_answer`] returns.
+struct Answered(String);
+
+impl Drop for Answered {
+    fn drop(&mut self) {
+        traffic(format!("answered {}", self.0));
+    }
+}
+
 fn front_answer(mut stream: TcpStream, shared: &Shared) {
     stream.set_read_timeout(Some(Duration::from_secs(60))).ok();
     let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -520,6 +546,8 @@ fn front_answer(mut stream: TcpStream, shared: &Shared) {
     if std::env::var_os("EKR_ADVERSARY_TRACE").is_some() {
         eprintln!("front: {target}");
     }
+    traffic(format!("request  {target}"));
+    let _answered = Answered(target.clone());
     if target.split('?').next() == Some("/") {
         let head = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
@@ -633,23 +661,204 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// The DOM after `budget` ms of virtual time. Headless Chromium's virtual time now and then stalls
-/// with nothing loading and nothing running (seen twice in about twenty runs of these cases, and not
-/// tied to any one of them), so a run is killed after two minutes of real time and tried once more.
+/// The DOM after `budget` ms of virtual time, as `--dump-dom --virtual-time-budget` writes it.
+/// Headless Chromium's virtual time now and then stalls with nothing loading and nothing running
+/// (seen twice in about twenty runs of these cases, and not tied to any one of them), so a stalled
+/// run is ended and tried again, up to [`DUMP_ATTEMPTS`] runs.
+///
+/// A stall is told by the page's own state, not by how long the run takes (issue #81). The run is
+/// driven over the DevTools protocol under the same virtual-time policy `--virtual-time-budget`
+/// sets, and the page's clock (`performance.now()`, which reads virtual time) is watched: a run is
+/// stalled once that clock has not moved for [`STALL_WINDOW`] while no request is in flight at the
+/// front server. A slow run on a loaded machine (a CI runner, a gate at load 30–45) keeps moving
+/// its clock and is waited for up to [`DUMP_CEILING`]. The two-minute kill this replaces cut such
+/// runs short, and on 2026-10-06 a CI run failed on two of them in a row. Neither "no CPU" nor a
+/// CPU rate tells the two apart: measured that day, a stalled browser's processes used about 25
+/// clock ticks in 30 s, and a working one on a machine under `stress` as few as 7.
 fn dump(browser: &Path, url: &str, budget: u32) -> String {
     let _one = one_browser();
-    for _ in 0..2 {
+    for _ in 0..DUMP_ATTEMPTS {
         if let Some(dom) = dump_once(browser, url, budget) {
             return dom;
         }
     }
-    panic!("the browser stalled twice on {url}");
+    panic!("the browser stalled {DUMP_ATTEMPTS} times on {url}");
+}
+
+/// How many runs a dump gets before a stall fails the case.
+const DUMP_ATTEMPTS: usize = 3;
+/// How long the page's virtual clock may stand still, with nothing in flight, before the run is
+/// taken for stalled.
+const STALL_WINDOW: Duration = Duration::from_secs(30);
+/// The longest one run may take while its clock keeps moving.
+const DUMP_CEILING: Duration = Duration::from_secs(600);
+
+/// One DevTools protocol connection to a page, the events it has seen kept in order.
+struct Cdp {
+    socket: tungstenite::WebSocket<TcpStream>,
+    next: u64,
+    events: Vec<Value>,
+    /// The page's console messages, exceptions and log entries, one line each.
+    console: Vec<String>,
+}
+
+impl Cdp {
+    /// The reply to `method`, the events before it kept.
+    fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        self.next += 1;
+        let id = self.next;
+        let command = serde_json::json!({"id": id, "method": method, "params": params}).to_string();
+        self.socket
+            .send(tungstenite::Message::Text(command.into()))
+            .map_err(|error| format!("{method}: sending: {error}"))?;
+        loop {
+            let message = self
+                .socket
+                .read()
+                .map_err(|error| format!("{method}: reading: {error}"))?;
+            let tungstenite::Message::Text(text) = message else {
+                continue;
+            };
+            let value: Value = serde_json::from_str(&text).unwrap();
+            if value["id"] == id {
+                return match value.get("error") {
+                    Some(error) => Err(format!("{method}: {error}")),
+                    None => Ok(value["result"].clone()),
+                };
+            }
+            let params = &value["params"];
+            if value["method"] == "Fetch.requestPaused" {
+                // a library the page loads, answered from the fixtures; the reply is passed over
+                if let Some((answer, answered)) = viewer_libraries::answer(params) {
+                    self.console.push(format!(
+                        "library {answer} {}",
+                        params["request"]["url"].as_str().unwrap_or_default()
+                    ));
+                    self.next += 1;
+                    let command =
+                        serde_json::json!({"id": self.next, "method": answer, "params": answered});
+                    self.socket
+                        .send(tungstenite::Message::Text(command.to_string().into()))
+                        .map_err(|error| format!("{answer}: sending: {error}"))?;
+                }
+                continue;
+            }
+            if value.get("error").is_some() {
+                self.console.push(format!("protocol error: {value}"));
+            }
+            match value["method"].as_str() {
+                Some("Runtime.consoleAPICalled") => self.console.push(format!(
+                    "console.{}: {}",
+                    params["type"].as_str().unwrap_or(""),
+                    params["args"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|arg| arg.get("value").map_or_else(
+                            || arg["description"].as_str().unwrap_or("").to_owned(),
+                            ToString::to_string
+                        ))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                )),
+                Some("Runtime.exceptionThrown") => self.console.push(format!(
+                    "exception: {}",
+                    params["exceptionDetails"]["exception"]["description"]
+                        .as_str()
+                        .or_else(|| params["exceptionDetails"]["text"].as_str())
+                        .unwrap_or("")
+                )),
+                Some("Log.entryAdded") => self.console.push(format!(
+                    "log.{}: {} {}",
+                    params["entry"]["level"].as_str().unwrap_or(""),
+                    params["entry"]["text"].as_str().unwrap_or(""),
+                    params["entry"]["url"].as_str().unwrap_or("")
+                )),
+                _ => {}
+            }
+            self.events.push(value);
+        }
+    }
+
+    /// The value `expression` evaluates to in the page.
+    fn eval(&mut self, expression: &str) -> Result<Value, String> {
+        let result = self.call(
+            "Runtime.evaluate",
+            serde_json::json!({"expression": expression, "returnByValue": true}),
+        )?;
+        Ok(result["result"]["value"].clone())
+    }
+}
+
+/// The address of the DevTools socket of the browser's page target, once it has one.
+fn page_socket(port: u16) -> String {
+    let start = Instant::now();
+    loop {
+        let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        list.set_read_timeout(Some(Duration::from_secs(30)))
+            .unwrap();
+        write!(
+            list,
+            "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        // the DevTools server may keep the connection open: the body is read by its length
+        let mut listed = BufReader::new(list);
+        let mut length = 0;
+        loop {
+            let mut line = String::new();
+            listed.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                break;
+            }
+            if let Some((name, value)) = line.split_once(':') {
+                if name.eq_ignore_ascii_case("content-length") {
+                    length = value.trim().parse().unwrap();
+                }
+            }
+        }
+        let mut body = vec![0_u8; length];
+        listed.read_exact(&mut body).unwrap();
+        let targets: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+        if let Some(address) = targets
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|target| target["type"] == "page")
+            .and_then(|target| target["webSocketDebuggerUrl"].as_str())
+        {
+            return address.to_owned();
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(60),
+            "the browser listed no page target: {targets}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Requests the front server has taken since entry `from` of [`TRAFFIC`] and not finished
+/// answering.
+fn in_flight(from: usize) -> usize {
+    let traffic = TRAFFIC
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let taken = traffic[from..]
+        .iter()
+        .filter(|line| line.contains(" ms request "))
+        .count();
+    taken.saturating_sub(traffic.len() - from - taken)
 }
 
 fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
     let profile = tempfile::tempdir().unwrap();
-    let output = Command::new("taskset")
-        .args(["-c", "0-3", "nice", "-n", "19", "timeout", "-k", "5", "120"])
+    let from = TRAFFIC
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .len();
+    // `taskset` and `nice` exec the browser, so the child is the browser itself
+    let mut child = Command::new("taskset")
+        .args(["-c", "0-3", "nice", "-n", "19"])
         .arg(browser)
         .args([
             "--headless",
@@ -657,24 +866,110 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
             "--enable-unsafe-swiftshader",
             "--no-sandbox",
             "--no-first-run",
+            "--disable-component-update",
+            "--disable-background-networking",
             "--disable-extensions",
+            viewer_libraries::UNRESOLVABLE,
             "--window-size=1600,1000",
+            "--remote-debugging-port=0",
             &format!("--user-data-dir={}", profile.path().display()),
-            &format!("--virtual-time-budget={budget}"),
-            "--dump-dom",
-            url,
+            "about:blank",
         ])
         .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .unwrap();
-    // `timeout` answers 124, or 137 after its kill, when the browser outlived two minutes
-    if matches!(output.status.code(), Some(124 | 137) | None) {
-        eprintln!("the browser stalled on {url}; trying once more");
-        return None;
+    let mut lines = BufReader::new(child.stderr.take().unwrap());
+    let port: u16 = loop {
+        let mut line = String::new();
+        assert!(
+            lines.read_line(&mut line).unwrap() > 0,
+            "the browser printed no DevTools address"
+        );
+        if let Some(rest) = line
+            .trim()
+            .strip_prefix("DevTools listening on ws://127.0.0.1:")
+        {
+            break rest.split('/').next().unwrap().parse().unwrap();
+        }
+    };
+    std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
+    let address = page_socket(port);
+    let tcp = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
+    let (socket, _) = tungstenite::client(address, tcp).unwrap();
+    let mut cdp = Cdp {
+        socket,
+        next: 0,
+        events: Vec::new(),
+        console: Vec::new(),
+    };
+    let start = Instant::now();
+    // the page, its virtual clock held until it is there, then what `--virtual-time-budget` sets:
+    // a budget set on the idle blank page would run out before the page arrived
+    let ran = (|| -> Result<Result<String, String>, String> {
+        cdp.call("Runtime.enable", serde_json::json!({}))?;
+        cdp.call("Log.enable", serde_json::json!({}))?;
+        viewer_libraries::serve(|method, params| cdp.call(method, params))?;
+        cdp.call("Page.navigate", serde_json::json!({ "url": url }))?;
+        cdp.call(
+            "Emulation.setVirtualTimePolicy",
+            serde_json::json!({"policy": "pauseIfNetworkFetchesPending", "budget": budget}),
+        )?;
+        let (mut clock, mut moved) = (Value::Null, Instant::now());
+        loop {
+            if cdp
+                .events
+                .iter()
+                .any(|event| event["method"] == "Emulation.virtualTimeBudgetExpired")
+            {
+                return Ok(Ok(cdp
+                    .eval("document.documentElement.outerHTML")?
+                    .as_str()
+                    .unwrap_or("")
+                    .to_owned()));
+            }
+            let now = cdp.eval("performance.now()")?;
+            if now != clock || in_flight(from) > 0 {
+                (clock, moved) = (now, Instant::now());
+            }
+            if moved.elapsed() >= STALL_WINDOW {
+                return Ok(Err(format!(
+                    "the page's virtual clock stood at {clock} ms for {STALL_WINDOW:?} with no request in flight, {:?} into the run",
+                    start.elapsed()
+                )));
+            }
+            if start.elapsed() >= DUMP_CEILING {
+                return Ok(Err(format!(
+                    "the page's virtual clock was at {clock} ms of {budget} after {DUMP_CEILING:?}"
+                )));
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    })();
+    child.kill().ok();
+    child.wait().ok();
+    // what the run requested and the page logged
+    let log = || {
+        let traffic = TRAFFIC
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)[from..]
+            .join("\n");
+        format!(
+            "requests through the front server:\n{traffic}\nthe page's console ({} lines):\n{}",
+            cdp.console.len(),
+            cdp.console.join("\n")
+        )
+    };
+    match ran {
+        Ok(Ok(dom)) => Some(dom),
+        Ok(Err(stalled)) => {
+            eprintln!("the browser stalled on {url}: {stalled}\n{}", log());
+            None
+        }
+        Err(protocol) => panic!("the browser failed on {url}: {protocol}\n{}", log()),
     }
-    assert!(output.status.success(), "the browser failed on {url}");
-    Some(String::from_utf8(output.stdout).unwrap())
 }
 
 /// The page, then the probe `body` inside an async function with `out`, `sleep` and `until`; what

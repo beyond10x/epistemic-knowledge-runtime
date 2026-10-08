@@ -22,10 +22,10 @@ use ekr_graph::{
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 use ekr_store::{
-    AdmittedRevision, CommitAuthority, EventlogStore, FileStore, GraphDocument, Initialize,
-    NativeCommandMeta, NativePublicationRequest, ObjectStore, Publication, PublicationCommandKey,
-    PublicationCommandKind, PublicationObject, PublicationPreparationV1, RetainedHistory,
-    RevisionLog, SqliteStore, StorageClass, StoreError,
+    postgres::PostgresConfiguration, AdmittedRevision, CommitAuthority, EventlogStore, FileStore,
+    GraphDocument, Initialize, NativeCommandMeta, NativePublicationRequest, ObjectStore,
+    PostgresStore, Publication, PublicationCommandKey, PublicationCommandKind, PublicationObject,
+    PublicationPreparationV1, RetainedHistory, RevisionLog, SqliteStore, StorageClass, StoreError,
 };
 use eventlog_core::AtomicBlobEventStore;
 use tempfile::TempDir;
@@ -64,6 +64,7 @@ fn graph(ontology: &Ontology) -> CanonicalGraph {
         vec![CanonicalValue::Enum("canonical".to_owned())],
     );
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,
@@ -292,6 +293,27 @@ fn constructors_refuse_before_creating_paths() {
             "runtime-fixture",
             ontology(),
         ));
+        // Missing referenced files make the refusal order observable: neither credentials nor
+        // trust roots may be read before the ambient runtime has been refused.
+        let postgres = PostgresConfiguration {
+            format: "ekr.postgres/1".to_owned(),
+            connection_file: directory.path().join("absent-connection"),
+            ca_file: directory.path().join("absent-ca"),
+            password_file: None,
+            schema: "runtime_fixture".to_owned(),
+            database_connections: 8,
+            replicas: 1,
+            reserved_connections: 4,
+            pool: Default::default(),
+        };
+        refusal(PostgresStore::postgres_schema(&postgres));
+        for reading in [false, true] {
+            refusal(PostgresStore::postgres(
+                &postgres,
+                "runtime-fixture",
+                reading,
+            ));
+        }
         assert!(!sqlite_path.exists());
         assert!(!file_path.exists());
         assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
@@ -370,6 +392,7 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         );
         exercised.refuses("resume", store.resume(&unelected));
         exercised.refuses("history", store.history());
+        exercised.refuses("replay_history", store.replay_history());
         exercised.refuses("history_at", store.history_at(RevisionNumber::SEED));
         exercised.refuses("seed_bytes", store.seed_bytes());
         exercised.refuses("head", store.head());
@@ -448,6 +471,8 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
             "sqlite_read_only",
             "file_reading",
             "file_read_only",
+            "postgres",
+            "postgres_schema",
             "under",
             "set_full_replay",
             "is_read_only",

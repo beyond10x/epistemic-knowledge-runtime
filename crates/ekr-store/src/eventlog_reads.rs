@@ -28,6 +28,9 @@ use std::sync::{
     Arc,
 };
 
+#[path = "../tests/fixtures/replay_authority.rs"]
+mod replay_authority;
+
 /// The file provider, with every call into it counted, and its log feed refused while
 /// `refuse_feed` is set.
 struct Counting {
@@ -393,6 +396,7 @@ fn counted(path: &Path) -> (EventlogStore<Counting>, Arc<AtomicUsize>) {
         },
         TenantId::new("ekr").unwrap(),
         None,
+        ProviderKind::File,
     );
     (store, calls)
 }
@@ -589,4 +593,37 @@ fn a_feed_the_handle_cannot_read_has_every_held_object_read_again() {
         "the next load with the feed still refused did not read the held evidence again"
     );
     assert_eq!(again, first);
+}
+
+/// A replay hint can omit already verified evidence only while the feed proves its stream
+/// has not changed. An unavailable feed requires the complete payload set on every attempt.
+#[test]
+fn replay_without_a_readable_feed_keeps_the_complete_payload_set() {
+    let directory = tempfile::tempdir().unwrap();
+    written(directory.path(), 1);
+    let evidence = FileStore::file(directory.path(), "ekr", None)
+        .unwrap()
+        .put(
+            StorageClass::Provenance,
+            b"feed-dependent evidence",
+            Timestamp::EPOCH,
+        )
+        .unwrap()
+        .content_hash;
+    let (store, _) = counted(directory.path());
+    let store = store.under(replay_authority::NeedsEvidence(evidence));
+    let replay = || {
+        store
+            .replayed(|history| store.authority()?.verify(history, None, None))
+            .unwrap()
+            .0
+    };
+    assert!(replay().objects.contains_key(&evidence));
+    assert!(!replay().objects.contains_key(&evidence));
+    store.store.refuse_feed.store(true, Ordering::SeqCst);
+    for _ in 0..2 {
+        let _ = crate::verified::stream_reads();
+        assert!(replay().objects.contains_key(&evidence));
+        assert!(crate::verified::stream_reads().object > 0);
+    }
 }

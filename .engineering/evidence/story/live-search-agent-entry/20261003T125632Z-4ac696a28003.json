@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T12:56:32Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 20,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Complete local Taskfile gate passed across preserved same-source executions on 24f7714475c363701c93b07bf6782cc5ce46d9bf; local compact target passed but repeated required CI failure remains unresolved. Private final-report.md lists each command exit, prerequisite and explicit ignore.",
+    "reference": "release-gate/final-report.md"
+  }
+}

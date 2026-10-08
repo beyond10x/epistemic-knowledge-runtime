@@ -8,6 +8,8 @@
 //! `validate` and `commit` the [`Batcher`] makes. The acceptance is that a transaction at the end
 //! of the large delta costs at most [`BOUND`] times one at the end of the small delta, and that
 //! the last transactions of the large delta cost at most [`BOUND`] times its first.
+//! At the default sizes on SQLite, validation and commit also separately require first/last
+//! 15-transaction medians within 1.2x (`task:validate-cost-flat-with-store-size`).
 //!
 //! Ignored: it measures time, which a loaded machine distorts, and at the acceptance's sizes it
 //! takes about an hour ([`Sizes`]). Run it in release, where it builds a release `ekr`:
@@ -15,6 +17,7 @@
 //! ```text
 //! cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
 //! EKR_SCALING_QUICK=1 cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
+//! EKR_SCALING_PROVIDER=sqlite cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
 //! ```
 //!
 //! Synthetic data only: invented organisations and messages.
@@ -186,6 +189,7 @@ fn store(directory: &Path, backend: Backend) -> StoreConfig {
         store: match backend {
             Backend::File => directory.join("store"),
             Backend::Sqlite => directory.join("state.db"),
+            Backend::Postgres => panic!("local fixture requires a filesystem backend"),
         },
         backend,
     }
@@ -255,6 +259,7 @@ impl Cost {
 struct Timed<'s> {
     session: &'s mut ProcessSession,
     costs: Vec<Cost>,
+    input_bytes: Vec<usize>,
 }
 
 impl Transport for Timed<'_> {
@@ -263,10 +268,14 @@ impl Transport for Timed<'_> {
         let reply = self.session.request(request);
         let took = started.elapsed();
         match request.verb() {
-            "propose" => self.costs.push(Cost {
-                propose: took,
-                ..Cost::default()
-            }),
+            "propose" => {
+                self.costs.push(Cost {
+                    propose: took,
+                    ..Cost::default()
+                });
+                self.input_bytes
+                    .push(request.stdin.as_ref().map_or(0, String::len));
+            }
             "validate" => {
                 if let Some(cost) = self.costs.last_mut() {
                     cost.validate += took;
@@ -294,6 +303,7 @@ fn apply(directory: &Path, backend: Backend, first: usize, count: usize) -> Vec<
     let mut timed = Timed {
         session: &mut session,
         costs: Vec::new(),
+        input_bytes: Vec::new(),
     };
     let report = Batcher::new(operator())
         .with_limits(OPERATIONS, 8 << 20)
@@ -302,7 +312,14 @@ fn apply(directory: &Path, backend: Backend, first: usize, count: usize) -> Vec<
     assert!(report.rejected.is_empty(), "{:?}", report.rejected);
     assert!(report.refused.is_none(), "{:?}", report.refused);
     let costs = timed.costs;
+    let input_bytes = timed.input_bytes;
     session.close().unwrap();
+    for (index, bytes) in input_bytes.into_iter().enumerate() {
+        println!(
+            "facts {first}..{} transaction {index}: proposal_input_bytes={bytes}",
+            first + count
+        );
+    }
     costs
 }
 
@@ -317,6 +334,21 @@ fn mean(costs: &[Cost]) -> Cost {
         propose: sum.propose / n,
         validate: sum.validate / n,
         commit: sum.commit / n,
+    }
+}
+
+/// Independent medians of the verbs, for the validate/commit scaling task's 15-transaction
+/// measurement. These task assertions supplement the older whole-transaction assertions.
+fn median(costs: &[Cost]) -> Cost {
+    let field = |get: fn(&Cost) -> Duration| {
+        let mut values: Vec<_> = costs.iter().map(get).collect();
+        values.sort_unstable();
+        values[values.len() / 2]
+    };
+    Cost {
+        propose: field(|cost| cost.propose),
+        validate: field(|cost| cost.validate),
+        commit: field(|cost| cost.commit),
     }
 }
 
@@ -391,6 +423,36 @@ fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
         timed(&deltas[0], sizes.small),
         timed(&deltas[1], sizes.large),
     );
+    let mut wrong = Vec::new();
+    if large.len() >= 30 {
+        let first = median(&large[..15]);
+        let last = median(&large[large.len() - 15..]);
+        println!("{}", line(&format!("{backend:?} first 15 medians"), first));
+        println!("{}", line(&format!("{backend:?} last 15 medians"), last));
+        println!(
+            "{backend:?} median ratios: validate {:.3}x; commit {:.3}x; load {}",
+            last.validate.as_secs_f64() / first.validate.as_secs_f64(),
+            last.commit.as_secs_f64() / first.commit.as_secs_f64(),
+            std::fs::read_to_string("/proc/loadavg")
+                .unwrap_or_else(|_| "unavailable".into())
+                .trim(),
+        );
+        if matches!(backend, Backend::Sqlite)
+            && (sizes.base, sizes.small, sizes.large) == (20_000, 10_000, 80_000)
+        {
+            for (verb, first, last) in [
+                ("validate", first.validate, last.validate),
+                ("commit", first.commit, last.commit),
+            ] {
+                let ratio = last.as_secs_f64() / first.as_secs_f64();
+                if ratio > 1.2 {
+                    wrong.push(format!(
+                        "{backend:?}: {verb} last/first 15-transaction median {ratio:.3}x exceeds 1.2x"
+                    ));
+                }
+            }
+        }
+    }
     let small_end = mean(&small[small.len() - WINDOW..]);
     let large_start = mean(&large[..WINDOW]);
     let large_end = mean(&large[large.len() - WINDOW..]);
@@ -419,7 +481,6 @@ fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
     let within = large_end.total().as_secs_f64() / large_start.total().as_secs_f64();
     println!("{backend:?}: large/small {across:.2}x, large last/first {within:.2}x");
 
-    let mut wrong = Vec::new();
     if across > BOUND {
         wrong.push(format!(
             "{backend:?}: a transaction at the end of the large delta costs {across:.2}x one at the \
@@ -441,7 +502,14 @@ fn a_transaction_costs_the_same_in_a_large_delta_as_in_a_small_one() {
     let sizes = Sizes::from_environment();
     println!("{sizes:?} facts");
     let mut wrong = Vec::new();
-    for backend in [Backend::Sqlite, Backend::File] {
+    let providers = match std::env::var("EKR_SCALING_PROVIDER").as_deref() {
+        Ok("sqlite") => vec![Backend::Sqlite],
+        Ok("file") => vec![Backend::File],
+        Err(_) => vec![Backend::Sqlite, Backend::File],
+        Ok(other) => panic!("EKR_SCALING_PROVIDER={other}: expected sqlite or file"),
+    };
+    println!("Providers: {providers:?}");
+    for backend in providers {
         wrong.extend(measure(backend, sizes));
     }
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));

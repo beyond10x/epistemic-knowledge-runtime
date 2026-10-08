@@ -1,14 +1,15 @@
 //! Pure unordered application, reachable only with the kernel's private validated capability.
 use crate::replay::Revision;
 use crate::{GraphOperation, ValidatedTransaction};
-use ekr_core::{AgentId, ContentHash, Timestamp};
+use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, Timestamp};
 use ekr_graph::{
-    AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, Edge, Node, Root, TransactionTime,
+    AssertionLifecycle, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, Edge, Node,
+    Root, TransactionTime,
 };
 use ekr_store::{evidence_root, knowledge_root, StoreError};
 use std::cell::RefCell;
 use std::collections::BTreeSet;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 
 /// The root the last [`apply`] on this thread computed, with every input it is a function of.
 ///
@@ -56,19 +57,106 @@ impl Applied {
 }
 thread_local! {
     static APPLIED: RefCell<Option<Applied>> = const { RefCell::new(None) };
+    static RETIRED: RefCell<Weak<Mutex<Option<Retired>>>> = const { RefCell::new(Weak::new()) };
     static GRAPHS_APPLIED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
-/// How many times the calling thread has cloned a prior revision's graph and applied a
+#[cfg(test)]
+thread_local! {
+    pub(crate) static ASSERTIONS_COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times the calling thread has materialized a candidate graph and applied a
 /// transaction to it.
 ///
 /// Test instrumentation, as `ekr_store::knowledge_roots_hashed` is: it lets a test show that a
-/// commit clones and applies the head graph once. Counted per thread because every store and
+/// commit materializes and applies the head graph once. Counted per thread because every store and
 /// kernel call runs on its caller's thread, and tests in one binary run on several.
 #[doc(hidden)]
 #[must_use]
 pub fn graphs_applied() -> u64 {
     GRAPHS_APPLIED.with(std::cell::Cell::get)
+}
+
+/// An exclusively owned predecessor, captured only after confirmed publication. Advancing it
+/// through that publication reconstructs the next head without copying unchanged records.
+/// The weak target identifies the exact privately admitted graph, not merely equal root bytes.
+pub(crate) struct Retired {
+    graph: CanonicalGraph,
+    target: Weak<CanonicalGraph>,
+    target_root: Root,
+    target_id: RevisionId,
+    target_at: Timestamp,
+    bridge: Arc<ValidatedTransaction>,
+    validators: BTreeSet<AgentId>,
+}
+
+fn append_only(tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>) -> bool {
+    tx.schema_version.is_none()
+        && tx.operations.iter().all(|operation| match operation {
+            GraphOperation::CreateNode(_)
+            | GraphOperation::AddAssertion(_)
+            | GraphOperation::AddEvidence(_) => true,
+            GraphOperation::CreateEdge(_)
+            | GraphOperation::AttachEvidence(_)
+            | GraphOperation::UpdateProperty(_)
+            | GraphOperation::DeleteEdge(_)
+            | GraphOperation::AddAlias(_)
+            | GraphOperation::Invoke { .. }
+            | GraphOperation::RetractAssertion(_)
+            | GraphOperation::SupersedeAssertion(_)
+            | GraphOperation::MergeEntity(_)
+            | GraphOperation::DefineNodeType(_)
+            | GraphOperation::DefineEdgeType(_)
+            | GraphOperation::ModifyProperty(_)
+            | GraphOperation::WidenEdgeType(_) => false,
+        })
+}
+
+/// Called only by the cache after its exact confirmed prefix test succeeded. A reader, retained
+/// checkpoint or other cached state sharing either allocation prevents extraction altogether.
+pub(crate) fn retire(
+    owner: &Arc<Mutex<Option<Retired>>>,
+    state: Arc<crate::replay::ReplayState>,
+    target: &Revision,
+    transaction: ekr_core::TransactionId,
+) {
+    let captured = (|| {
+        let mut state = Arc::try_unwrap(state).ok()?;
+        let bridge = state.validated.remove(&transaction)?;
+        if !append_only(bridge.transaction()) {
+            return None;
+        }
+        let validators = state
+            .transactions
+            .get(&transaction)?
+            .validation
+            .as_ref()?
+            .validators
+            .clone();
+        let prior = state.head();
+        if target.root.parent != Some(ContentHash::of(&prior.root))
+            || target.root.revision != prior.root.revision.next()?
+            || target.root.transaction != ContentHash::of(bridge.transaction())
+        {
+            return None;
+        }
+        let number = prior.root.revision;
+        let graph = Arc::try_unwrap(state.revisions.get_mut(&number)?.graph.take()?).ok()?;
+        Some(Retired {
+            graph,
+            target: Arc::downgrade(target.graph.as_ref()?),
+            target_root: target.root,
+            target_id: target.revision_id,
+            target_at: target.committed_at,
+            bridge,
+            validators,
+        })
+    })();
+    if let Ok(mut retired) = owner.lock() {
+        *retired = captured;
+        RETIRED.with(|retired| *retired.borrow_mut() = Arc::downgrade(owner));
+    }
 }
 
 /// Whether the calling thread holds a graph a commit decision applied and no application has
@@ -177,21 +265,70 @@ pub(crate) fn apply(
     Ok((graph, root))
 }
 
+#[cfg(test)]
+pub(crate) fn forced_clone(
+    prior: &Revision,
+    validated: &ValidatedTransaction,
+    validators: &BTreeSet<AgentId>,
+    at: Timestamp,
+) -> Result<(CanonicalGraph, Root), StoreError> {
+    APPLIED.with(|applied| *applied.borrow_mut() = None);
+    RETIRED.with(|retired| *retired.borrow_mut() = Weak::new());
+    apply(prior, validated, validators, at)
+}
+
 /// The graph `tx` makes of `prior`'s graph, `held`.
 fn applied_graph(
     prior: &Revision,
-    held: &CanonicalGraph,
+    held: &Arc<CanonicalGraph>,
     tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>,
     validators: &BTreeSet<AgentId>,
     at: Timestamp,
 ) -> Result<CanonicalGraph, StoreError> {
     GRAPHS_APPLIED.with(|count| count.set(count.get() + 1));
-    let mut graph = held.clone();
-    graph.revision = prior
+    let retired = RETIRED
+        .with(|retired| {
+            retired
+                .borrow()
+                .upgrade()
+                .and_then(|owner| owner.lock().ok()?.take())
+        })
+        .filter(|retired| {
+            append_only(tx)
+                && std::ptr::eq(retired.target.as_ptr(), Arc::as_ptr(held))
+                && retired.target_root == prior.root
+                && retired.target_id == prior.revision_id
+                && retired.target_at == prior.committed_at
+        });
+    let graph = if let Some(retired) = retired {
+        apply_to_graph(
+            retired.graph,
+            prior.root.revision,
+            retired.bridge.transaction(),
+            &retired.validators,
+            retired.target_at,
+        )?
+    } else {
+        #[cfg(test)]
+        ASSERTIONS_COPIED.with(|count| count.set(count.get() + held.assertions.len()));
+        (**held).clone()
+    };
+    let revision = prior
         .root
         .revision
         .next()
         .ok_or_else(|| StoreError::Document("revision-overflow".into()))?;
+    apply_to_graph(graph, revision, tx, validators, at)
+}
+
+fn apply_to_graph(
+    mut graph: CanonicalGraph,
+    revision: RevisionNumber,
+    tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>,
+    validators: &BTreeSet<AgentId>,
+    at: Timestamp,
+) -> Result<CanonicalGraph, StoreError> {
+    graph.revision = revision;
     for op in &tx.operations {
         match op {
             GraphOperation::CreateNode(draft) => {
@@ -238,6 +375,22 @@ fn applied_graph(
                 };
                 assertion.transaction_time = TransactionTime::since(at);
                 graph.assertions.insert(assertion.id, assertion);
+            }
+            // Recorded beside the assertion, which is not changed; validation held it current and
+            // the evidence new to it (design § 103.3).
+            GraphOperation::AttachEvidence(attachment) => {
+                if !graph.assertions.contains_key(&attachment.assertion) {
+                    return Err(StoreError::Document("admitted-assertion-missing".into()));
+                }
+                let revision = graph.revision;
+                graph
+                    .attachments
+                    .entry(attachment.assertion)
+                    .or_default()
+                    .insert(AttachedEvidence {
+                        evidence: CanonicalRef::new(attachment.evidence),
+                        revision,
+                    });
             }
             // The entry joins retained evidence; its payload is published beside the commit
             // receipt as a Provenance object (`crate::commands`), never inside a record.
@@ -340,6 +493,7 @@ fn applied_graph(
             | GraphOperation::CreateNode(_)
             | GraphOperation::CreateEdge(_)
             | GraphOperation::AddAssertion(_)
+            | GraphOperation::AttachEvidence(_)
             | GraphOperation::AddEvidence(_) => {}
         }
     }

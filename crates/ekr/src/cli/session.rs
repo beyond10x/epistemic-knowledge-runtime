@@ -128,7 +128,7 @@ pub fn serve(
     let (configured, command) = Configured::split(cli);
     let create = matches!(command, Command::Session { create: true });
     let store = configured.resolve("session")?;
-    let opened = identity(&store.store);
+    let opened = store_identity(&store);
     let mut session = Session {
         runtime: store.open_if_any()?,
         store,
@@ -150,7 +150,7 @@ pub fn serve(
                 // when that head is past the retained one (design § 99.5) — into the store it
                 // opened only, never into one that replaced it at the path.
                 if let Some(runtime) = &session.runtime {
-                    if identity(&session.store.store) == watch.opened {
+                    if store_identity(&session.store) == watch.opened {
                         runtime.retain_checkpoint_at_rest();
                     }
                 }
@@ -170,10 +170,10 @@ pub fn serve(
             ))
         };
         let answer = match answered {
-            Ok(stdout) => Answer {
+            Ok((stdout, stderr)) => Answer {
                 exit: 0,
                 stdout,
-                stderr: String::new(),
+                stderr,
             },
             Err(failure) => Answer {
                 exit: failure.code(),
@@ -252,7 +252,7 @@ fn respond(
     session: &mut Session,
     watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
-) -> Result<Stdout, Failure> {
+) -> Result<(Stdout, String), Failure> {
     let request: Request = serde_json::from_slice(line).map_err(|error| {
         Failure::refused(
             MALFORMED,
@@ -268,13 +268,14 @@ fn answer(
     session: &mut Session,
     watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
-) -> Result<Stdout, Failure> {
+) -> Result<(Stdout, String), Failure> {
     let cli = match parse(&request.argv) {
         Ok(cli) => cli,
         // Not a one-shot verb: one of the `ekr.views` reads, or no verb at all.
         Err(unknown) if unknown.name() == Some(UNKNOWN) => {
             return match views::parse(&request.argv) {
-                Some(views) => read_views(&views?, session, watch).map(Stdout::Document),
+                Some(views) => read_views(&views?, session, watch)
+                    .map(|document| (Stdout::Document(document), String::new())),
                 None => Err(unknown),
             };
         }
@@ -327,7 +328,7 @@ fn answer(
     if seeds && session.runtime.is_none() {
         // Where this open fails, the seed's answer still stands and the session stays without a
         // store: each store verb then opens it as the one-shot verb does and says why it cannot.
-        let opened = identity(&session.store.store);
+        let opened = store_identity(&session.store);
         if let Ok(Some(runtime)) = session.store.open_if_any() {
             session.runtime = Some(runtime);
             watch.held = true;
@@ -337,7 +338,11 @@ fn answer(
     let document = match printed {
         super::Printed::Document(document) => document,
         // Only `fact-quality` prints raw, and it proposes, validates and commits nothing.
-        super::Printed::Raw(document) => return Ok(Stdout::Raw(document)),
+        super::Printed::Raw(document) => return Ok((Stdout::Raw(document), String::new())),
+        // OCEL reads only: diagnostics belong to this request, never global process stderr.
+        super::Printed::DocumentWithStderr { document, stderr } => {
+            return Ok((Stdout::Document(document), stderr))
+        }
         super::Printed::Text(_) => {
             return Err(Failure::fault("the verb printed text, not a JSON document"))
         }
@@ -359,7 +364,7 @@ fn answer(
         }
         Tracked::Validates(_) | Tracked::Commits(_) | Tracked::Nothing => {}
     }
-    Ok(Stdout::Document(document))
+    Ok((Stdout::Document(document), String::new()))
 }
 
 /// A views verb ([`views`]) against the session's store: refused as [`admit`] refuses a global
@@ -379,7 +384,7 @@ fn read_views(
         return Err(option_refused());
     }
     if session.runtime.is_none() {
-        let opened = identity(&session.store.store);
+        let opened = store_identity(&session.store);
         session.runtime = Some(session.store.open()?);
         watch.held = true;
         watch.opened = opened;
@@ -414,7 +419,7 @@ fn follow(session: &mut Session, watch: &mut Watch, diverged: bool) -> Result<()
     if !watch.held {
         return Ok(());
     }
-    let now = check(&session.store.store);
+    let now = check_store(&session.store);
     if !diverged && now == watch.opened {
         if let Some(runtime) = &session.runtime {
             // A store held read-only is a copy: once the files at the path change, it is taken
@@ -459,11 +464,15 @@ fn settle(runtime: &Runtime, proposed: &mut BTreeSet<TransactionId>) {
         return;
     }
     count(|work| work.settles += 1);
-    if let Ok(transactions) = runtime.transactions() {
+    if let Ok(states) = runtime.transaction_states(proposed.iter().copied()) {
         proposed.retain(|id| {
-            transactions
-                .get(id)
-                .is_none_or(|record| record.committed.is_none() && record.rejection.is_none())
+            states.get(id).is_none_or(|state| {
+                !matches!(
+                    state,
+                    ekr_kernel::TransactionState::Committed
+                        | ekr_kernel::TransactionState::Rejected
+                )
+            })
         });
     }
 }
@@ -548,6 +557,22 @@ fn check(path: &Path) -> Option<Identity> {
     identity(path)
 }
 
+fn store_identity(store: &Store) -> Option<Identity> {
+    if store.backend == super::Backend::Postgres {
+        None
+    } else {
+        identity(&store.store)
+    }
+}
+
+fn check_store(store: &Store) -> Option<Identity> {
+    if store.backend == super::Backend::Postgres {
+        None
+    } else {
+        check(&store.store)
+    }
+}
+
 /// Why a reader answered nothing from its store: the store at its path is not the one it opened
 /// and does not open. `message` names the path and why.
 #[derive(Debug)]
@@ -595,7 +620,7 @@ impl Held {
     ///
     /// What [`Store::open`] reports.
     pub(super) fn open(store: Store) -> Result<Self, Failure> {
-        let opened = identity(&store.store);
+        let opened = store_identity(&store);
         let runtime = store.open()?;
         Ok(Self {
             store,
@@ -611,7 +636,7 @@ impl Held {
     ///
     /// [`Replaced`] when that store does not open; the next call tries again.
     pub(super) fn current(&mut self) -> Result<Checked<'_>, Replaced> {
-        let now = check(&self.store.store);
+        let now = check_store(&self.store);
         // A store held read-only is a copy: once the files at the path change, it is opened again.
         let same = now == self.opened
             && self
@@ -695,15 +720,20 @@ fn help_refused() -> Failure {
 fn option_refused() -> Failure {
     Failure::refused(
         OPTION,
-        "--host, --store, --backend and --full-replay are the session's own, fixed when it \
-         started; a request carries none of them",
+        "--host, --store, --backend, --full-replay and --stage are the session's own, fixed when \
+         it started; a request carries none of them",
     )
 }
 
 /// Refuses a request that sets a global option, or names a verb the session does not serve:
 /// `seed` is served only by a session started with `--create`.
 fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
-    if cli.host.is_some() || cli.store.is_some() || cli.backend.is_some() || cli.full_replay {
+    if cli.host.is_some()
+        || cli.store.is_some()
+        || cli.backend.is_some()
+        || cli.full_replay
+        || cli.stage.is_some()
+    {
         return Err(option_refused());
     }
     match cli.command {
@@ -712,7 +742,10 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::View { .. } => Err(verb_refused("view")),
         Command::Session { .. } => Err(verb_refused("session")),
         Command::Mcp => Err(verb_refused("mcp")),
+        Command::McpHttp { .. } => Err(verb_refused("mcp-http")),
         Command::Migrate { .. } => Err(verb_refused("migrate")),
+        Command::PostgresSchema { .. } => Err(verb_refused("postgres-schema")),
+        Command::Stage { .. } => Err(verb_refused("stage")),
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
@@ -730,6 +763,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         | Command::CodeNames { .. }
         | Command::Quality { .. }
         | Command::Ocel { .. }
+        | Command::ProcessMap { .. }
         | Command::Sample { .. }
         | Command::FactQuality { .. }
         | Command::Schema { .. }
@@ -777,7 +811,7 @@ pub(super) struct InProcess<'a> {
 impl<'a> InProcess<'a> {
     /// A session over `runtime`, opened from `store`, answering with `now` as its clock.
     pub(super) fn new(store: Store, runtime: Runtime, now: &'a dyn Fn() -> Timestamp) -> Self {
-        let opened = identity(&store.store);
+        let opened = store_identity(&store);
         Self {
             session: Session {
                 store,
@@ -798,7 +832,7 @@ impl<'a> InProcess<'a> {
     /// the head it reached, into the store it opened only.
     pub(super) fn close(self) {
         if let Some(runtime) = &self.session.runtime {
-            if identity(&self.session.store.store) == self.watch.opened {
+            if store_identity(&self.session.store) == self.watch.opened {
                 runtime.retain_checkpoint_at_rest();
             }
         }
@@ -821,10 +855,10 @@ impl ekr_sdk::transport::Transport for InProcess<'_> {
         };
         Ok(
             match answer(&request, &mut self.session, &mut self.watch, self.now) {
-                Ok(Stdout::Document(Value::Null)) => reply(0, None, String::new()),
-                Ok(Stdout::Document(document)) => reply(0, Some(document), String::new()),
-                Ok(Stdout::Raw(document)) => {
-                    reply(0, serde_json::from_str(document.get()).ok(), String::new())
+                Ok((Stdout::Document(Value::Null), stderr)) => reply(0, None, stderr),
+                Ok((Stdout::Document(document), stderr)) => reply(0, Some(document), stderr),
+                Ok((Stdout::Raw(document), stderr)) => {
+                    reply(0, serde_json::from_str(document.get()).ok(), stderr)
                 }
                 Err(failure) => reply(i32::from(failure.code()), None, stderr(&failure)),
             },
@@ -839,3 +873,6 @@ pub(super) mod fixture;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod ocel_tests;

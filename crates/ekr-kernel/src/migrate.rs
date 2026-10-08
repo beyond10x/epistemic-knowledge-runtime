@@ -1,10 +1,10 @@
 //! The preserving store migration (design §§ 89, 90 and 100.3): a store's complete retained
-//! history, re-published into a new, empty store under `ekr-seed-envelope/3`.
+//! history, re-published into a new, empty store under `ekr-seed-envelope/4`.
 //!
 //! The source is only read. Its inventory is replayed in full through this kernel's authority
 //! before anything is written, so a source that does not verify refuses unchanged. The
 //! destination receives the seed's exact input, context, authority, identities and time under
-//! the `/3` envelope, then every later occurrence with its original event identity, revision
+//! the `/4` envelope, then every later occurrence with its original event identity, revision
 //! identity, actors and times: a proposal record byte for byte, and a record that names the seed
 //! envelope, a prior root or a prior record derived again for the destination's lineage by the
 //! same functions replay checks it with. Each is published through the destination's kernel
@@ -53,7 +53,7 @@ pub struct StoreMigrationV1 {
     pub format: String,
     /// The source's seed envelope.
     pub source_seed_hash: ContentHash,
-    /// The destination's `ekr-seed-envelope/3`.
+    /// The destination's `ekr-seed-envelope/4`.
     pub destination_seed_hash: ContentHash,
     /// Every occurrence, in stream order.
     pub occurrences: Vec<MigratedOccurrence>,
@@ -88,30 +88,87 @@ fn migration(code: &str, detail: impl std::fmt::Display) -> StoreError {
     StoreError::Document(format!("{code}: {detail}"))
 }
 
-/// The two markers a migration writes into its destination as Canonical objects (design §
-/// 100.3): the first before anything else, the second after everything else, the report included.
-/// Their content is fixed, so any reader finds them at their fixed addresses.
+/// The fixed legacy markers, retained for `/2` and `/3` reader compatibility only.
 const MARKERS: [&[u8]; 2] = [
     br#"{"format":"ekr.migration-started/1"}"#,
     br#"{"format":"ekr.migration-finished/1"}"#,
 ];
 
-/// The addresses of the two migration markers.
-pub(crate) fn markers() -> [ContentHash; 2] {
+/// The old fixed markers remain readable only for legacy envelopes. New migrations bind their
+/// claim in the seed itself, so ordinary content can never impersonate start or completion.
+fn legacy_markers() -> [ContentHash; 2] {
     MARKERS.map(ContentHash::of_bytes)
 }
 
-/// Refuses `history` as `migrate-incomplete` where it holds a migration's started marker without
-/// its finished one, unless `authority` is the one publishing that migration. A store with a
-/// history and no unfinished migration never gains one, so once this authority has seen such a
-/// history it stops asking for the markers.
+pub(crate) fn completion(claim: EventId, seed_hash: ContentHash) -> Result<Vec<u8>, StoreError> {
+    #[derive(Serialize)]
+    struct Completed {
+        format: &'static str,
+        migration: EventId,
+        seed_hash: ContentHash,
+    }
+    serde_json::to_vec(&Completed {
+        format: "ekr.migration-finished/2",
+        migration: claim,
+        seed_hash,
+    })
+    .map_err(|error| StoreError::Document(error.to_string()))
+}
+
+pub(crate) fn required_markers(
+    authority: &crate::KernelAuthority,
+    history: &RetainedHistory,
+) -> Result<BTreeSet<ContentHash>, StoreError> {
+    let Some(first) = history.occurrences.first() else {
+        return Ok(BTreeSet::new());
+    };
+    let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+        return Err(StoreError::NotSeeded);
+    };
+    let envelope = authority.seed_envelope(history, seed_hash)?;
+    if let Some(claim) = envelope.migration {
+        return Ok(BTreeSet::from([ContentHash::of_bytes(&completion(
+            claim, seed_hash,
+        )?)]));
+    }
+    // Legacy control markers were Canonical objects. An evidence payload is never control,
+    // even when a separate object writer has raised its retention to Canonical.
+    let mut evidence = envelope.input.payload_keys();
+    evidence.extend(authority.added_evidence_required(history, false)?);
+    Ok(legacy_markers()
+        .into_iter()
+        .filter(|hash| !evidence.contains(hash))
+        .collect())
+}
+
+/// Refuses an unfinished copy before any replay, including a cached or checkpointed replay.
 pub(crate) fn finished(
     authority: &crate::KernelAuthority,
     history: &RetainedHistory,
 ) -> Result<(), StoreError> {
-    let [started, finished] = markers();
-    let unfinished =
-        history.objects.contains_key(&started) && !history.objects.contains_key(&finished);
+    if history.occurrences.is_empty() || authority.cache()?.migration_settled {
+        return Ok(());
+    }
+    let wanted = required_markers(authority, history)?;
+    let first = &history.occurrences[0];
+    let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+        return Err(StoreError::NotSeeded);
+    };
+    let envelope = authority.seed_envelope(history, seed_hash)?;
+    let canonical = |hash: &ContentHash| {
+        history
+            .objects
+            .get(hash)
+            .is_some_and(|held| held.metadata.storage_class == StorageClass::Canonical)
+    };
+    let unfinished = if envelope.migration.is_some() {
+        wanted.iter().any(|hash| !canonical(hash))
+    } else {
+        let [started, finished] = legacy_markers();
+        wanted.contains(&started)
+            && canonical(&started)
+            && !(wanted.contains(&finished) && canonical(&finished))
+    };
     let mut cache = authority.cache()?;
     if unfinished {
         if cache.migrating {
@@ -123,38 +180,91 @@ pub(crate) fn finished(
              Remove it and migrate again",
         ));
     }
-    if !history.occurrences.is_empty() {
-        cache.migration_settled = true;
-    }
+    cache.migration_settled = true;
     Ok(())
 }
 
+/// A decision a capture found elected and never published.
+pub(crate) enum Unresolved {
+    /// A `/1`–`/3` preparation's occurrence.
+    Occurrence(EventId),
+    /// A stage whose publication slot is unresolved, and the first occurrence it elected.
+    Stage(ekr_core::StageId, Option<EventId>),
+}
+
+impl Unresolved {
+    /// `unresolved-preparation`, naming the stage or the occurrence.
+    pub(crate) fn refusal(self) -> StoreError {
+        match self {
+            Self::Occurrence(event) => StoreError::UnresolvedPreparation {
+                event_id: Some(event),
+                stage_id: None,
+            },
+            Self::Stage(stage, event) => StoreError::UnresolvedPreparation {
+                event_id: event,
+                stage_id: Some(stage),
+            },
+        }
+    }
+}
+
+/// A store read once for a preserving copy (design §§ 105.2, 107.2): its inventory, taken in one
+/// read of the provider — the image a read-only SQLite store holds, or one PostgreSQL capture —
+/// and replayed in full through the kernel's authority.
+///
+/// Everything a copy publishes comes from this value; [`CapturedStore::copy_into`] reads nothing
+/// more of the source. A commit to the source after the capture is therefore in no copy of it, and
+/// the capture's [`head`](CapturedStore::head) is the head every copy of it holds: a stage's base.
+/// Holding one grants nothing but copying.
+pub struct CapturedStore<'a, S: RevisionLog + ObjectStore> {
+    /// The store it was read from, whose authority decodes its seed envelope.
+    source: &'a Commit<S>,
+    inventory: ekr_store::StoreInventory,
+    history: RetainedHistory,
+    /// The inventory replayed in full: what every copy is compared with.
+    state: std::sync::Arc<ReplayState>,
+}
+
 impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
-    /// Migrates this store into `destination`, a store that holds nothing yet, opened under the
-    /// same host anchor. This store is only read.
+    /// Reads this store once for a preserving copy: its inventory ([`Inventory::inventory`], one
+    /// provider capture on PostgreSQL), checked for an elected decision never published, and
+    /// replayed in full. Writes nothing.
     ///
     /// # Errors
-    /// `migrate-destination-not-empty` for a destination that holds any event;
-    /// `migrate-unresolved-preparation` for a source preparation whose decision was never
-    /// published; any refusal of the source's full replay; `migrate-verification-disagrees` where
-    /// the destination's full replay does not reach the source's state.
-    pub fn migrate_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
-        &self,
-        destination: &Commit<D>,
-    ) -> Result<StoreMigrationV1, CommitError> {
-        let held = destination.store.inventory()?;
-        if held.events != 0 {
-            return Err(migration(
-                "migrate-destination-not-empty",
-                format!(
-                    "the destination holds {} events; a migration writes only into a store \
-                     that holds nothing",
-                    held.events
+    /// `migrate-unresolved-preparation` for a preparation whose decision was never published; any
+    /// refusal of the inventory or of the full replay, `migrate-incomplete` included;
+    /// [`CommitError::NotSeeded`] for a store with no seed.
+    pub fn capture(&self) -> Result<CapturedStore<'_, S>, CommitError> {
+        self.capture_with(|pending| {
+            let detail = match pending {
+                Unresolved::Stage(stage, _) => format!(
+                    "stage {stage} holds a publication elected and never appended; publish or \
+                     abandon that stage before migrating"
                 ),
-            )
-            .into());
-        }
+                Unresolved::Occurrence(event) => format!(
+                    "occurrence {event} was elected and never published; resolve it with the \
+                     command that elected it before migrating"
+                ),
+            };
+            migration("migrate-unresolved-preparation", detail).into()
+        })
+    }
+
+    /// [`Self::capture`], refusing a preparation whose decision was never published with
+    /// `unresolved`: a stage's begin, seal and publication name it
+    /// [`StoreError::UnresolvedPreparation`]. A stage's publication slot that is not resolved
+    /// (design § 107.5) is named by its stage, before any other preparation.
+    pub(crate) fn capture_with(
+        &self,
+        unresolved: impl FnOnce(Unresolved) -> CommitError,
+    ) -> Result<CapturedStore<'_, S>, CommitError> {
         let inventory = self.store.inventory()?;
+        if let Some((stage, occurrences)) = inventory.unresolved_stages.iter().next() {
+            return Err(unresolved(Unresolved::Stage(
+                *stage,
+                occurrences.first().copied(),
+            )));
+        }
         let published: BTreeSet<EventId> = inventory
             .occurrences
             .iter()
@@ -165,14 +275,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .iter()
             .find(|event_id| !published.contains(event_id))
         {
-            return Err(migration(
-                "migrate-unresolved-preparation",
-                format!(
-                    "occurrence {pending} was elected and never published; resolve it with the \
-                     command that elected it before migrating"
-                ),
-            )
-            .into());
+            return Err(unresolved(Unresolved::Occurrence(*pending)));
         }
         let history = RetainedHistory {
             occurrences: inventory.occurrences.clone(),
@@ -182,34 +285,137 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 .map(|(hash, held)| (*hash, held.object.clone()))
                 .collect(),
         };
-        let source = self
+        let state = self
             .authority
             .reconstruct_in_full(&history)?
             .ok_or(CommitError::NotSeeded)?;
+        Ok(CapturedStore {
+            source: self,
+            inventory,
+            history,
+            state,
+        })
+    }
 
-        // From here the destination holds the unfinished marker until the finished one is written
-        // last: every read of it but this handle's refuses `migrate-incomplete` meanwhile, so a
+    /// Migrates this store into `destination`, a store that holds nothing yet, opened under the
+    /// same host anchor: [`Commit::capture`], then [`CapturedStore::copy_into`]. This store is
+    /// only read.
+    ///
+    /// # Errors
+    /// `migrate-destination-not-empty` for a destination that holds any event;
+    /// `migrate-unresolved-preparation` for a source preparation whose decision was never
+    /// published; any refusal of the source's full replay; `migrate-verification-disagrees` where
+    /// the destination's full replay does not reach the source's state.
+    pub fn migrate_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
+        empty(destination)?;
+        self.capture()?.copy_unchecked(destination)
+    }
+}
+
+/// Refuses a destination that holds anything.
+fn empty<D: RevisionLog + ObjectStore + Inventory>(
+    destination: &Commit<D>,
+) -> Result<(), CommitError> {
+    if destination.store.is_empty()? {
+        Ok(())
+    } else {
+        Err(migration(
+            "migrate-destination-not-empty",
+            "a migration writes only into a store that holds nothing",
+        )
+        .into())
+    }
+}
+
+impl<S: RevisionLog + ObjectStore + Inventory> CapturedStore<'_, S> {
+    /// The captured head: the head every copy of this capture holds, whatever the source has
+    /// committed since.
+    #[must_use]
+    pub fn head(&self) -> ekr_graph::Root {
+        self.state.head().root
+    }
+
+    /// The identity of the captured head revision.
+    #[must_use]
+    pub(crate) fn head_revision(&self) -> ekr_core::RevisionId {
+        self.state.head().revision_id
+    }
+
+    /// The captured inventory.
+    pub(crate) const fn inventory(&self) -> &ekr_store::StoreInventory {
+        &self.inventory
+    }
+
+    /// The captured history, every object of the inventory held.
+    pub(crate) const fn history(&self) -> &RetainedHistory {
+        &self.history
+    }
+
+    /// The inventory replayed in full.
+    pub(crate) fn state(&self) -> &ReplayState {
+        &self.state
+    }
+
+    /// Copies the captured store into `destination`, a store that holds nothing yet, opened under
+    /// the same host anchor — a new store, or a stage's own tenant of the same store (design
+    /// § 107.2) — and verifies the copy there. Reads nothing more of the source.
+    ///
+    /// The destination's seed binds a fresh claim under `ekr-seed-envelope/4` and its completion
+    /// receipt is written last, so a copy interrupted at any point leaves a destination every
+    /// other reader refuses as `migrate-incomplete`. A capture can be copied more than once, each
+    /// copy under its own claim.
+    ///
+    /// # Errors
+    /// `migrate-destination-not-empty`; any refusal of the destination's writes or replay;
+    /// `migrate-verification-disagrees` where the destination's full replay does not reach the
+    /// captured state.
+    pub fn copy_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
+        empty(destination)?;
+        self.copy_unchecked(destination)
+    }
+
+    /// [`Self::copy_into`] after its destination was found empty.
+    fn copy_unchecked<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
+        // The seed atomically binds a fresh claim to this copy. Until the
+        // completion receipt is written last, other readers refuse `migrate-incomplete`, so a
         // migration interrupted at any point leaves no store that answers as the migrated one.
-        destination.authority.cache()?.migrating = true;
+        {
+            let mut cache = destination.authority.cache()?;
+            cache.migration_settled = false;
+            cache.migrating = true;
+        }
         let outcome = (|| {
-            let [started, finished] = MARKERS;
-            let _ = destination.store.put(
-                StorageClass::Canonical,
-                started,
-                source.seed.committed_at,
+            let claim = EventId::mint();
+            let report = self.source.publish_into(
+                destination,
+                &self.history,
+                &self.inventory,
+                &self.state,
+                claim,
             )?;
-            let report = self.publish_into(destination, &history, &inventory, &source)?;
+            let finished = completion(claim, report.destination_seed_hash)?;
             let _ = destination.store.put(
                 StorageClass::Canonical,
-                finished,
-                source.head().committed_at,
+                &finished,
+                self.state.head().committed_at,
             )?;
             Ok(report)
         })();
         destination.authority.cache()?.migrating = false;
         outcome
     }
+}
 
+impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     /// Publishes the verified `source` history, `inventory` and `history` of this store into
     /// `destination`, verifies it there and retains the report.
     fn publish_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
@@ -218,9 +424,11 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
         history: &RetainedHistory,
         inventory: &ekr_store::StoreInventory,
         source: &ReplayState,
+        claim: EventId,
     ) -> Result<StoreMigrationV1, CommitError> {
         let mut occurrences = Vec::with_capacity(history.occurrences.len());
         let mut replaced = BTreeMap::new();
+        let mut published_objects = BTreeSet::new();
         for (position, occurrence) in history.occurrences.iter().enumerate() {
             let event = &occurrence.event;
             let stored_at = history
@@ -234,8 +442,8 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 bytes,
             };
             let publication = if let RevisionPayload::Seeded { seed_hash, .. } = event.payload {
-                let (publication, envelope_hash) =
-                    self.migrated_seed(history, inventory, occurrence, seed_hash, stored_at)?;
+                let (publication, envelope_hash) = self
+                    .migrated_seed(history, inventory, occurrence, seed_hash, stored_at, claim)?;
                 if envelope_hash != seed_hash {
                     replaced.insert(seed_hash, envelope_hash);
                 }
@@ -308,47 +516,51 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 source_record_hash: event.record_hash,
                 destination_record_hash: publication.event.record_hash,
             });
+            published_objects.extend(publication.objects.keys().copied());
             let _published = if position == 0 {
-                destination.store.initialize(&publication)?
+                // The migration claim is part of the atomic seed.
+                // A competing initializer cannot observe a seed without its claim, and a
+                // losing migration cannot poison a seed that won first. Identical seed retries
+                // are not migration ownership: only the handle that writes continues the copy.
+                let initialized = destination.store.initialize(&publication);
+                match initialized {
+                    Ok(ekr_store::Appended::Written) => ekr_store::Appended::Written,
+                    Err(error) if destination.store.is_empty()? => return Err(error.into()),
+                    Ok(ekr_store::Appended::AlreadyRecorded) | Err(_) => {
+                        return Err(migration(
+                            "migrate-destination-not-empty",
+                            "another initializer claimed the destination",
+                        )
+                        .into())
+                    }
+                }
             } else {
                 destination.store.publish(&publication)?
             };
         }
 
         // Every other object: carried with its class, retention raises and stored_at.
-        let present = destination.store.inventory()?.objects;
         let mut carried_objects = Vec::new();
         let mut legacy_objects = Vec::new();
         for (hash, held) in &inventory.objects {
             if held.legacy {
                 legacy_objects.push(*hash);
             }
-            // The markers are the migration's own, written by it in their order.
-            if replaced.contains_key(hash)
-                || MARKERS
-                    .iter()
-                    .any(|marker| *hash == ContentHash::of_bytes(marker))
-            {
+            // Prior migration receipts and fixed legacy marker bytes are ordinary carried
+            // objects: only the fresh claim bound in this destination seed controls admission.
+            if replaced.contains_key(hash) {
                 continue;
             }
             let at = held.object.metadata.stored_at;
             let bytes = &held.object.bytes;
-            match present.get(hash) {
-                Some(there)
-                    if there.object.metadata.storage_class.retention_rank()
-                        >= held.object.metadata.storage_class.retention_rank() => {}
-                Some(_) => {
-                    destination
-                        .store
-                        .put(held.object.metadata.storage_class, bytes, at)?;
-                }
-                None => {
-                    destination.store.put(held.stored_as, bytes, at)?;
-                    for class in &held.raised_to {
-                        destination.store.put(*class, bytes, at)?;
-                    }
-                    carried_objects.push(*hash);
-                }
+            // Replaying each original retention level is idempotent when publication already
+            // stored this object. It avoids a feed inventory whose watermark could hide it.
+            destination.store.put(held.stored_as, bytes, at)?;
+            for class in &held.raised_to {
+                destination.store.put(*class, bytes, at)?;
+            }
+            if !published_objects.contains(hash) {
+                carried_objects.push(*hash);
             }
         }
 
@@ -391,7 +603,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     }
 
     /// The destination's seed publication: the source seed's input, context, authority and time
-    /// under `ekr-seed-envelope/3`, its payloads as Provenance objects with their source
+    /// under `ekr-seed-envelope/4`, its payloads as Provenance objects with their source
     /// `stored_at`, and its result record for that envelope, with the source's identities.
     fn migrated_seed(
         &self,
@@ -400,11 +612,12 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
         occurrence: &ekr_store::RecordedOccurrence,
         seed_hash: ContentHash,
         stored_at: ekr_core::Timestamp,
+        claim: EventId,
     ) -> Result<(Publication, ContentHash), CommitError> {
         let source = self.authority.seed_envelope(history, seed_hash)?;
         let payloads = source.payload_bytes(history)?;
         let envelope = SeedEnvelope {
-            format: seed::ENVELOPE_FORMAT.into(),
+            format: seed::MIGRATION_ENVELOPE_FORMAT.into(),
             input: RetainedSeedInput {
                 format: source.input.format.clone(),
                 ontology: source.input.ontology.clone(),
@@ -414,6 +627,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             context: source.context,
             authority: source.authority.clone(),
             committed_at: source.committed_at,
+            migration: Some(claim),
         };
         let envelope_bytes = envelope
             .to_bytes()
@@ -487,7 +701,7 @@ impl<D: RevisionLog + ObjectStore> Commit<D> {
     /// what precedes it: the same identities, actors and times; a proposal record byte for byte;
     /// and a record naming the lineage derived again against `state` by the functions replay
     /// checks it with.
-    fn migrated_decision(
+    pub(crate) fn migrated_decision(
         &self,
         state: &ReplayState,
         event: &RevisionEvent,

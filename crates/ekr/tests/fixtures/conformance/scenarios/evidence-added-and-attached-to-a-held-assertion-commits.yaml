@@ -1,0 +1,70 @@
+# story:evidence-attaches-to-a-held-assertion, acceptance 1.
+#
+# The target has committed revision 1 before the first act: assertion 85f861a70a8d, Alice CEO of
+# Acme, citing the seed's evidence 0401. One transaction (fixture `attach-evidence.yaml`) carries
+# an AddEvidence of evidence 0404 with its 37 payload bytes, the exact message the claim rests on,
+# and an AttachEvidence of 0404 to that assertion, which revision 1 holds accepted and active. It
+# is proposed, validated against revision 1 and committed as revision 2.
+#
+# Afterwards evidence 0404 is retained with its payload held at its content hash. That the
+# assertion is unchanged, and that `ekr explain` lists the attachment from revision 2 on and not
+# at revision 1, is held on both providers by crates/ekr-kernel/tests/attach_evidence.rs.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: evidence-added-and-attached-to-a-held-assertion-commits
+summary: A transaction that adds evidence and attaches it to an assertion an earlier revision holds validates and commits, and the evidence is then retained with its payload held at its content hash.
+
+arrange:
+  - instance: attachment
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: attachment
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: attachment, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: attachment}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: attachment}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: attachment}
+      state: Committed
+      validated_against: 1
+
+  - view: ekr.kernel.CurrentRevision
+    contains:
+      number: 2
+
+  - view: ekr.kernel.RetainedEvidence
+    contains:
+      evidence_id: 00000000-0000-4000-8000-000000000404
+      content_hash: 59b6ffb6dfddf47d6b0d2a9483a863c0f93905605c380883735f59d8aa1beb07
+      extracted_by: 00000000-0000-4000-8000-000000000101

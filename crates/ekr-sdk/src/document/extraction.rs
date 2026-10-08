@@ -17,9 +17,10 @@
 //! reader's checks of the document alone ([`ExtractionDocument::check`]): a fact citing an id no
 //! evidence item carries, two evidence items under one id, a payload that does not hash to its
 //! entry. An evidence item whose source is not a `!HumanStatement` is refused as the reader refuses
-//! it, `extraction-evidence-kind-unsupported`. What the document names against a store is
-//! checked by `ekr apply-extraction` before it applies anything, and by
-//! [`crate::extraction::apply`] before it writes anything.
+//! it, `extraction-evidence-kind-unsupported`. [`ExtractionDocument::decode`] decodes alike and
+//! makes none of those checks, for [`crate::extraction::apply`], which skips a fact they refuse.
+//! What the document names against a store is checked by `ekr apply-extraction` before it applies
+//! anything, and by [`crate::extraction::apply`] before it writes anything.
 
 use std::collections::BTreeMap;
 
@@ -49,6 +50,10 @@ pub(crate) mod code {
     pub(crate) const MALFORMED: &str = "extraction-document-malformed";
     pub(crate) const WITHOUT_IDENTITY: &str = "reference-without-identity";
     pub(crate) const HAS_SUBTYPES: &str = "reference-type-has-subtypes";
+    pub(crate) const TYPE_UNDECLARED: &str = "extraction-type-undeclared";
+    pub(crate) const PROPERTY_UNDECLARED: &str = "extraction-property-undeclared";
+    pub(crate) const RELATION_ENDS: &str = "extraction-relation-ends";
+    pub(crate) const WITHOUT_EVIDENCE: &str = "fact-without-evidence";
     pub(crate) const EVIDENCE_UNLISTED: &str = "fact-evidence-unlisted";
     pub(crate) const DUPLICATE_IDENTITY: &str = "duplicate-identity";
     pub(crate) const EVIDENCE_KIND: &str = "extraction-evidence-kind-unsupported";
@@ -102,6 +107,11 @@ pub struct PropertyFact {
     /// The ids of the evidence items it rests on.
     #[serde(default)]
     pub evidence: Vec<EvidenceId>,
+    /// Whether the value replaces the active value of the same subject and property: applying the
+    /// fact supersedes that assertion (`story:extraction-supersession`). `false` when absent, and
+    /// then not written.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub replaces: bool,
 }
 
 /// `!Relation`: a relation read between two named things, by edge type name.
@@ -196,6 +206,18 @@ impl ExtractionDocument {
     /// # Errors
     /// [`ExtractionRefusal`], with the reader's code.
     pub fn from_yaml(text: &str) -> Result<Self, ExtractionRefusal> {
+        let document = Self::decode(text)?;
+        document.check()?;
+        Ok(document)
+    }
+
+    /// Decodes one document, refusing what the engine's reader refuses while decoding, and makes
+    /// none of [`Self::check`]'s checks: a document for [`crate::extraction::apply`], which skips
+    /// a fact the checks refuse and applies the rest (`story:extraction-partial-apply`).
+    ///
+    /// # Errors
+    /// [`ExtractionRefusal`], with the reader's code.
+    pub fn decode(text: &str) -> Result<Self, ExtractionRefusal> {
         use ekr_core::decode::{observe_yaml, YamlRefusal};
 
         observe_yaml(text, EXTRACTION_INPUT_BYTES, EXTRACTION_DEPTH).map_err(|bound| {
@@ -207,12 +229,10 @@ impl ExtractionDocument {
             };
             ExtractionRefusal::new(code, bound.to_string())
         })?;
-        let document: Self = serde_yaml_ng::from_str(text).map_err(|error| {
+        serde_yaml_ng::from_str(text).map_err(|error| {
             unsupported_source(text)
                 .unwrap_or_else(|| ExtractionRefusal::new(code::MALFORMED, error.to_string()))
-        })?;
-        document.check()?;
-        Ok(document)
+        })
     }
 
     /// The engine reader's checks of the document alone, in its order: every id a fact cites
@@ -225,16 +245,43 @@ impl ExtractionDocument {
     /// # Errors
     /// The first [`ExtractionRefusal`].
     pub fn check(&self) -> Result<(), ExtractionRefusal> {
+        if let Some((_, refusal)) = self.unlisted().into_iter().next() {
+            return Err(refusal);
+        }
+        self.check_evidence()
+    }
+
+    /// [`Self::check`], a fact at a time: a fact citing an id no evidence item carries is that
+    /// fact's refusal (`fact-evidence-unlisted`), under its index; two evidence items under one id
+    /// or a payload that does not hash to its entry refuses the document whole.
+    ///
+    /// # Errors
+    /// The refusal of the document as a whole.
+    pub fn check_facts(&self) -> Result<BTreeMap<usize, ExtractionRefusal>, ExtractionRefusal> {
+        self.check_evidence()?;
+        Ok(self.unlisted())
+    }
+
+    /// Every fact citing an id no evidence item carries, under its index: `fact-evidence-unlisted`
+    /// naming `facts[<index>]: <id>`, the first such id.
+    fn unlisted(&self) -> BTreeMap<usize, ExtractionRefusal> {
         let listed: std::collections::BTreeSet<EvidenceId> =
             self.evidence.iter().map(|item| item.evidence.id).collect();
-        for (at, fact) in self.facts.iter().enumerate() {
-            if let Some(id) = fact.evidence().iter().find(|id| !listed.contains(id)) {
-                return Err(ExtractionRefusal::new(
-                    code::EVIDENCE_UNLISTED,
-                    format!("facts[{at}]: {id}"),
-                ));
-            }
-        }
+        self.facts
+            .iter()
+            .enumerate()
+            .filter_map(|(at, fact)| {
+                let id = fact.evidence().iter().find(|id| !listed.contains(id))?;
+                Some((
+                    at,
+                    ExtractionRefusal::new(code::EVIDENCE_UNLISTED, format!("facts[{at}]: {id}")),
+                ))
+            })
+            .collect()
+    }
+
+    /// Each evidence item's id held by no earlier item, and its payload hashing to its entry.
+    fn check_evidence(&self) -> Result<(), ExtractionRefusal> {
         let mut ids = std::collections::BTreeSet::new();
         for item in &self.evidence {
             let id = item.evidence.id;

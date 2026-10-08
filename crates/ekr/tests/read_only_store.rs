@@ -303,7 +303,8 @@ fn write_verbs_on_a_read_only_store_are_refused_by_name_with_exit_2() {
 /// exits, prints and reports exactly as on a writable store — a refusal such as
 /// `ekr.kernel.AssertionNotFound` included. `ekr view`, which serves until interrupted, opens
 /// through the same reader as `ekr mcp` (`session.rs`, `Held`); `session`, `mcp` and `migrate`
-/// have cases or columns of their own.
+/// have cases or columns of their own. The long-running HTTP commands have real read-only
+/// process cases in `hosted_http.rs`.
 #[test]
 fn every_verb_the_page_says_writes_is_refused_and_every_one_that_reads_answers_as_writable() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -341,7 +342,7 @@ fn every_verb_the_page_says_writes_is_refused_and_every_one_that_reads_answers_a
                 "resolve" => &["resolve", "-"],
                 "code-names" => &["code-names", &source],
                 "sample" => &["sample", "--seed", "1", "--size", "3"],
-                "view" => return None,
+                "view" | "mcp-http" => return None,
                 verb => &[verb],
             };
             Some(args.iter().map(|arg| (*arg).to_owned()).collect())

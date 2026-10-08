@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-06T06:05:48Z",
+  "actor": "agent:claude",
+  "artifact": "story:extraction-partial-apply",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check in CI on wave/20261005b (Repository correctness, pass)",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37419743657"
+  }
+}

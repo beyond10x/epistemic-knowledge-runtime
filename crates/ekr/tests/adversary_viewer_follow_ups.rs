@@ -21,6 +21,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+#[path = "support/viewer_libraries.rs"]
+mod viewer_libraries;
+
 fn manifest_dir() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"))
 }
@@ -263,7 +266,10 @@ impl Driven {
             "--enable-unsafe-swiftshader".to_owned(),
             "--no-sandbox".to_owned(),
             "--no-first-run".to_owned(),
+            "--disable-component-update".to_owned(),
+            "--disable-background-networking".to_owned(),
             "--disable-extensions".to_owned(),
+            viewer_libraries::UNRESOLVABLE.to_owned(),
             format!("--window-size={},{}", size.0, size.1),
             "--remote-debugging-port=0".to_owned(),
             format!("--user-data-dir={}", profile.path().display()),
@@ -354,6 +360,7 @@ impl Driven {
         driven.call("Runtime.enable", json!({}));
         driven.call("Log.enable", json!({}));
         driven.call("Page.enable", json!({}));
+        viewer_libraries::serve(|method, params| driven.call(method, params));
         driven.call("Page.navigate", json!({ "url": url }));
         driven
     }
@@ -420,6 +427,9 @@ impl Driven {
             if reply["id"] == id {
                 return reply;
             }
+            if reply["method"] == "Fetch.requestPaused" {
+                self.answer_paused(&reply["params"]);
+            }
             if reply["method"] == "Runtime.exceptionThrown"
                 || (reply["method"] == "Runtime.consoleAPICalled"
                     && reply["params"]["type"] == "error")
@@ -428,6 +438,16 @@ impl Driven {
             {
                 self.errors.push(reply["params"].clone());
             }
+        }
+    }
+
+    /// Answers a paused request to the libraries' host from the fixtures, without waiting for the
+    /// browser's reply: it is read, and passed over, as the next call reads on.
+    fn answer_paused(&mut self, paused: &Value) {
+        if let Some((method, params)) = viewer_libraries::answer(paused) {
+            self.next += 1;
+            let id = self.next;
+            self.send(&json!({"id": id, "method": method, "params": params}).to_string());
         }
     }
 

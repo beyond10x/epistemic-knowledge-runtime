@@ -28,6 +28,7 @@
 
 mod checks;
 mod kernel;
+mod ocel;
 mod one_shot;
 mod views;
 
@@ -40,16 +41,21 @@ use crate::session::{SessionOptions, StoreConfig};
 use crate::transport::{Request, Transport, TransportError};
 
 pub use checks::{
-    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNames, CodeNamesMeta,
-    PropertyQuality, QualityMeta, RejectedTransaction, RejectionIssue, Rejections, SharedName,
-    StoreQuality,
+    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNameMode, CodeNames,
+    CodeNamesMeta, PropertyQuality, QualityMeta, RejectedTransaction, RejectionIssue, Rejections,
+    SharedName, StoreQuality,
 };
 pub use kernel::{
-    ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
-    OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType,
-    RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
-    SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
-    TransactionState, Transactions, ValidTime,
+    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction,
+    NamedType, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty,
+    OntologyValueType, RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment,
+    SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode,
+    SnapshotPredicate, SnapshotRoot, SnapshotSubject, TransactionState, Transactions, ValidTime,
+};
+pub use ocel::{
+    OcelCounts, OcelDocument, OcelEvent, OcelEventAttribute, OcelExport, OcelLog, OcelMeta,
+    OcelName, OcelNames, OcelObject, OcelObjectAttribute, OcelQuery, OcelRelationship, OcelType,
+    OcelTypeAttribute,
 };
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,
@@ -267,7 +273,14 @@ impl<T: Transport> Reader<T> {
 
     /// Sends `argv` and reads the exit-0 document as `V`.
     fn read<V: DeserializeOwned>(&mut self, argv: Argv) -> Result<V, ReadError> {
-        let request = Request::new(argv.0);
+        self.read_request(Request::new(argv.0))
+    }
+
+    /// The same typed reply handling for calls carrying stdin.
+    pub(crate) fn read_request<V: DeserializeOwned>(
+        &mut self,
+        request: Request,
+    ) -> Result<V, ReadError> {
         let verb = request.verb().to_owned();
         let reply = self.transport.request(&request)?;
         match reply.answer() {
@@ -499,7 +512,7 @@ impl<T: Transport> Iterator for ExpandPages<'_, T> {
 /// `options.timeout`.
 #[derive(Debug)]
 pub struct OneShotReader {
-    reader: Reader<one_shot::OneShot>,
+    pub(crate) reader: Reader<one_shot::OneShot>,
 }
 
 impl OneShotReader {

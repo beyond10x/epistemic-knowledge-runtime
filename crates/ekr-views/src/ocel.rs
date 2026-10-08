@@ -35,7 +35,7 @@ const FIRST_WRITABLE_MS: i64 = -62_167_219_200_000;
 const LAST_WRITABLE_MS: i64 = 253_402_300_799_999;
 
 /// What one export returned, counted over the document: `ekr.views.OcelExported`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct OcelExported {
     /// `meta.revision`.
     pub revision: u64,
@@ -79,6 +79,16 @@ pub enum OcelError {
     EventTypeNotFound {
         /// The name, as requested.
         name: String,
+        /// The revision read.
+        revision: RevisionNumber,
+    },
+    /// A malformed, absent, ambiguous or conflicting event-time selector or value.
+    #[error("event time {selector:?} at revision {revision}: {reason}")]
+    EventTimeInvalid {
+        /// The requested selector.
+        selector: String,
+        /// Why it could not select one timestamp.
+        reason: String,
         /// The revision read.
         revision: RevisionNumber,
     },
@@ -220,8 +230,91 @@ pub fn export_ocel(
 /// [`ProjectError::Inconsistent`] for an edge whose end the revision does not hold, which a
 /// revision the kernel admitted never has, or a document that does not encode.
 pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, OcelError> {
+    ocel_with_event_time(index, events, &[])
+}
+
+/// Export using named Timestamp properties, resolved against the requested revision.
+///
+/// # Errors
+/// [`OcelError`] when the revision, selector or timestamp is unavailable or ambiguous.
+pub fn export_ocel_with_event_time(
+    runtime: &Runtime,
+    at: Option<RevisionNumber>,
+    events: &[String],
+    event_time: &[String],
+) -> Result<Answer<OcelExported>, OcelError> {
+    ocel_with_event_time(&Index::load(runtime, at)?, events, event_time)
+}
+
+fn time_properties(
+    index: &Index,
+    events: &[String],
+    selectors: &[String],
+) -> Result<BTreeMap<TypeId, (PropertyId, String)>, OcelError> {
     let graph = &index.loaded.graph;
     let declared = graph.ontology.to_document();
+    let mut mappings = BTreeMap::new();
+    for selector in selectors {
+        let invalid = |reason: &str| OcelError::EventTimeInvalid {
+            selector: selector.clone(),
+            reason: reason.to_owned(),
+            revision: graph.revision,
+        };
+        if !events.is_empty() {
+            return Err(invalid("event_time and events cannot be combined"));
+        }
+        let (name, property_name) = selector
+            .rsplit_once('.')
+            .filter(|(name, property)| !name.is_empty() && !property.is_empty())
+            .ok_or_else(|| invalid("expected TypeName.propertyName"))?;
+        let types: Vec<_> = declared
+            .node_types
+            .iter()
+            .filter(|kind| kind.name == name)
+            .collect();
+        if types.len() != 1 {
+            return Err(invalid("type name must identify exactly one node type"));
+        }
+        let type_id = types[0].id;
+        let properties = graph.ontology.properties_of(type_id);
+        let found: Vec<_> = properties
+            .values()
+            .filter(|property| property.name == property_name)
+            .collect();
+        if found.len() != 1 {
+            return Err(invalid(
+                "property name must identify exactly one effective property",
+            ));
+        }
+        let property = found[0];
+        if property.value_type != ValueType::Timestamp {
+            return Err(invalid("event-time property must be Timestamp-valued"));
+        }
+        if let Some((previous, _)) = mappings.get(&type_id) {
+            if *previous != property.id {
+                return Err(invalid(
+                    "one type cannot select different event-time properties",
+                ));
+            }
+        } else {
+            mappings.insert(type_id, (property.id, selector.clone()));
+        }
+    }
+    Ok(mappings)
+}
+
+/// The pure half of [`export_ocel_with_event_time`]; empty selectors preserve [`ocel`] bytes.
+///
+/// # Errors
+/// [`OcelError`] for an invalid selector or timestamp and the errors [`ocel`] names.
+pub fn ocel_with_event_time(
+    index: &Index,
+    events: &[String],
+    event_time: &[String],
+) -> Result<Answer<OcelExported>, OcelError> {
+    let graph = &index.loaded.graph;
+    let declared = graph.ontology.to_document();
+    let selected = time_properties(index, events, event_time)?;
 
     // Every declared node type and every type a node has, by id text.
     let mut types: BTreeMap<String, TypeId> = declared
@@ -236,7 +329,9 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
     }
 
     // The event types: those named, or the one rule's.
-    let event_types: BTreeSet<TypeId> = if events.is_empty() {
+    let event_types: BTreeSet<TypeId> = if !event_time.is_empty() {
+        selected.keys().copied().collect()
+    } else if events.is_empty() {
         index.event_types()
     } else {
         let mut named = BTreeSet::new();
@@ -268,16 +363,38 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
             let role = if !event_types.contains(&type_id) {
                 Role::Object
             } else {
-                match index.node_time[at] {
-                    Some((time, _)) if (FIRST_WRITABLE_MS..=LAST_WRITABLE_MS).contains(&time) => {
+                let time = if let Some((property, selector)) = selected.get(&type_id) {
+                    let times: BTreeSet<_> = graph.nodes[node]
+                        .properties
+                        .get(property)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|value| match value {
+                            CanonicalValue::Timestamp(time) => Some(time.millis()),
+                            _ => None,
+                        })
+                        .collect();
+                    if times.len() > 1 {
+                        return Err(OcelError::EventTimeInvalid {
+                            selector: selector.clone(),
+                            reason: format!("node {node} has multiple distinct timestamps"),
+                            revision: graph.revision,
+                        });
+                    }
+                    times.first().copied()
+                } else {
+                    index.node_time[at].map(|(time, _)| time)
+                };
+                match time {
+                    Some(time) if (FIRST_WRITABLE_MS..=LAST_WRITABLE_MS).contains(&time) => {
                         Role::Event(time)
                     }
                     _ => Role::Undated,
                 }
             };
-            (*node, role)
+            Ok((*node, role))
         })
-        .collect();
+        .collect::<Result<_, OcelError>>()?;
 
     // Each type's attributes: its properties, its ancestors' included, by id.
     let declarations: BTreeMap<TypeId, BTreeMap<PropertyId, &PropertyDefinition>> = types

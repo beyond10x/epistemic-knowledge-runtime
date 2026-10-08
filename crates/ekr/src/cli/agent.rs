@@ -34,6 +34,10 @@ CONFIGURATION (every store verb)
   --full-replay                  or EKR_FULL_REPLAY=1: replay the whole history from the seed
                                  instead of continuing from the store's replay checkpoint;
                                  the answer is the same
+  --stage <stage id>             or EKR_STAGE: join the stage `ekr stage begin` printed (sqlite
+                                 or postgres): every store verb reads and writes the stage, not
+                                 the store, until `ekr stage publish <id> --expect-head <head>`
+                                 lands the run whole or `ekr stage abandon <id>` drops it
 
 WORKFLOW
   1. ekr example ekr.cli-host/1 > host.json       a host document to start from
@@ -61,21 +65,31 @@ WORKFLOW
      ekr rejections [--from N] [--to M]            rejected transactions and their issues, by the
                                                    revision each was validated against
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
-     ekr explain <assertion_id> [--documents]      why an assertion is what it is
+     ekr explain <assertion_id> [--documents]      why an assertion is what it is; --documents
+                                                   adds the records and 64 KiB of each evidence
+                                                   record, --offset N --limit N for other bytes
      ekr quality [--revision N]                    the store's quality beyond its size:
-                                                   evidenced assertions, constrained
-                                                   properties, names shared within a type
+                                                   evidenced assertions (seed and item),
+                                                   constrained properties and declaring types,
+                                                   names shared within a type
      ekr ocel [--revision N] [--events <type>...]  one revision as an OCEL 2.0 event log
                                                    (its `ocel` member), types and attributes by
                                                    id, `names` naming them; event types the
-                                                   viewer's unless --events names them
-     ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
+                                                   viewer's unless --events names them;
+                                                   --event-time Type.property selects timestamps,
+                                                   counts are one JSON line on stderr
+     ekr process-map [--revision N] [--events <type>...]
+                                                   that log as a process: per object type its
+                                                   variants with their case counts and its
+                                                   directly-follows edges with their counts
+     ekr view [--port N]                          a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,
                                                    expand, timeline, explain, resolve
      ekr code-names <file>... [--at N]             which store names your code quotes as literals:
                                                    file, line and kind; exit 0, the count is
-                                                   meta.findings
+                                                   meta.findings; --words includes bare words
+                                                   in identifiers and comments
      ekr sample --seed S --size N [--type <id>] [--revision N]
                                                    a reproducible sample of facts, each with its
                                                    evidence bytes, for you to judge
@@ -156,9 +170,10 @@ WHERE VALUES COME FROM
   revision numbers ekr head; a commit prints its revision
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
-  evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
-                   and each must be retained (seeded, or added by an earlier commit) or be added
-                   by an AddEvidence of the same transaction (see ADDING EVIDENCE)
+  evidence         a transaction's `evidence` list is exactly the evidence its assertions cite
+                   and its AttachEvidence operations attach, and each must be retained (seeded,
+                   or added by an earlier commit) or be added by an AddEvidence of the same
+                   transaction (see ADDING EVIDENCE)
   content hashes   ekr hash <file | ->
 
 RESOLVE BEFORE YOU CREATE: ekr resolve
@@ -193,11 +208,15 @@ EXTRACTION DOCUMENTS
   extraction-value-mismatch, extraction-relation-ends, reference-without-identity,
   reference-type-has-subtypes (a named thing whose type is abstract or has a subtype),
   fact-without-evidence (every fact cites at least one evidence item), fact-evidence-unlisted,
-  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code.
+  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code. A code met in
+  one fact skips that fact, listed under rejected with its code, and the rest applies;
+  --strict refuses the whole document instead.
   ekr apply-extraction doc.yaml applies it: the missing ontology as one schema change, each named
   thing resolved (named things sharing an alias are one; created where the store holds none;
   ambiguous ones listed, nothing chosen), each fact as an assertion with the evidence it cites,
-  unless the store already asserts it. It prints committed, rejected, ambiguous, held and stopped;
+  valid from that evidence's observed_at, and a !Relation fact also as a CreateEdge, unless the
+  store already asserts it. A !Property fact with `replaces: true` supersedes the active value of
+  its subject and property instead of adding a second one. It prints committed, rejected, ambiguous, held and stopped;
   applying a document twice adds nothing. Every write is a propose, validate and commit as the
   host operator, in this process.
 
@@ -209,6 +228,9 @@ ADDING EVIDENCE
   (evidence-unsupported-source) and extracted_by the host operator (propose refuses otherwise,
   as ekr.kernel.ProposalAttribution). The commit stores the payload; explain --documents
   prints it.
+  Evidence for an assertion the store already holds is attached with AttachEvidence
+  (`ekr operations AttachEvidence`) rather than by superseding the assertion: the assertion is
+  unchanged, and explain lists the attachment from the revision that made it on.
 
 ADDING EVIDENCE TO A SEED
   Evidence the seed's own assertions cite enters with the seed, before `ekr seed`. To add a new
@@ -247,7 +269,10 @@ OUTPUT
   with --documents: `ekr explain --documents` adds two fields to each Evidence link, `payload`,
   the evidence's retained bytes as one base64 string, and `text`, the same bytes as a string
   when they are valid UTF-8 (absent otherwise), a `record` to each Proposal link and a `receipt`
-  to each commit. No other verb prints a payload.
+  to each commit. A payload is bounded: at most 64 KiB of each record, centred on the cited
+  text; --offset N and --limit N (raw bytes) print any other range, and a link printing less
+  than its whole record carries offset, record_length and truncated: true. No other verb prints
+  a payload.
 ";
 
 /// One `ekr.kernel.OperationKind`: a `GraphOperation` variant, by its YAML tag.
@@ -284,6 +309,8 @@ pub enum OperationKind {
     WidenEdgeType,
     /// `!AddAlias`.
     AddAlias,
+    /// `!AttachEvidence`.
+    AttachEvidence,
 }
 
 impl OperationKind {
@@ -307,6 +334,7 @@ impl OperationKind {
             GraphOperation::AddEvidence(_) => Self::AddEvidence,
             GraphOperation::WidenEdgeType(_) => Self::WidenEdgeType,
             GraphOperation::AddAlias(_) => Self::AddAlias,
+            GraphOperation::AttachEvidence(_) => Self::AttachEvidence,
         }
     }
 
@@ -327,6 +355,7 @@ impl OperationKind {
             Self::AddEvidence => "AddEvidence",
             Self::WidenEdgeType => "WidenEdgeType",
             Self::AddAlias => "AddAlias",
+            Self::AttachEvidence => "AttachEvidence",
         }
     }
 
@@ -344,7 +373,8 @@ impl OperationKind {
             | Self::Invoke
             | Self::SupersedeAssertion
             | Self::AddEvidence
-            | Self::AddAlias => Applied::Always,
+            | Self::AddAlias
+            | Self::AttachEvidence => Applied::Always,
             Self::DefineNodeType
             | Self::DefineEdgeType
             | Self::ModifyProperty
@@ -567,7 +597,8 @@ impl OperationKind {
                              one byte more). Put a larger statement in the seed with
                              ekr seed --evidence <file>, or split it into several entries.
   An AddAssertion in the same or a later transaction may cite the id; list it in
-  transaction.evidence only when an assertion of that transaction cites it.",
+  transaction.evidence only when an assertion of that transaction cites it or an
+  AttachEvidence of it attaches it.",
                 "- !AddEvidence
   evidence:
     id: 00000000-0000-4000-8000-000000000403
@@ -609,6 +640,24 @@ impl OperationKind {
                 "- !AddAlias
   node: 00000000-0000-4000-8000-000000000303
   alias: Acme Corporation",
+            ),
+            Self::AttachEvidence => (
+                "attach evidence to an assertion the store holds, leaving the assertion unchanged",
+                "  assertion  AssertionId  an accepted, active assertion: ekr snapshot (unresolved-assertion
+                         if the store holds none, an assertion of the same transaction included;
+                         assertion-not-active if retracted or superseded, or if the same
+                         transaction retracts or supersedes it)
+  evidence   EvidenceId   retained, or added by an AddEvidence of the same transaction
+                         (unresolved-evidence otherwise); not one the assertion cites or has
+                         attached, nor attached to it twice (evidence-already-attached)
+  List the evidence id in transaction.evidence. The attachment is a record of its own: the
+  assertion's claim, valid time, lifecycle and evidence stay as they are. ekr explain lists
+  it, with the revision that attached it, from that revision on; a supersession does not
+  carry it to the replacement. First commit the AddEvidence example; this example attaches
+  the evidence it adds.",
+                "- !AttachEvidence
+  assertion: 00000000-0000-4000-8000-000000000511
+  evidence: 00000000-0000-4000-8000-000000000403",
             ),
         }
     }
@@ -665,6 +714,11 @@ the shape only and is not accepted today.";
 pub(super) fn operation(kind: OperationKind) -> String {
     let (summary, fields, example) = kind.text();
     let (status, heading) = match kind.applied() {
+        Applied::Always if matches!(kind, OperationKind::AttachEvidence) => (
+            String::new(),
+            "Example (assertion ids from ekr example ekr-seed/2; validates against a store seeded \
+             from it after committing the AddEvidence example):",
+        ),
         Applied::Always => (
             String::new(),
             "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it):",

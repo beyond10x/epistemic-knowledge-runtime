@@ -7,6 +7,114 @@ use ekr_core::{
 };
 use serde::{Deserialize, Deserializer};
 
+#[test]
+fn adversary_input08_alias_accounting_counts_utf8_and_keys_at_inclusive_bounds() {
+    use ekr_core::decode::yaml::{self, Expansion, Past, Tally};
+    // Root map and four scalar occurrences: two keys, one anchored value, one alias.
+    // UTF-8 byte lengths are 2 + 4 + 1 + 4 = 11, not four characters.
+    let mut documents = yaml::load("{é: &v '😀', b: *v}", 1).unwrap();
+    let document = documents.next_document().unwrap();
+    document.check().unwrap();
+    let exact = Expansion {
+        depth: 1,
+        nodes: 5,
+        text_bytes: 11,
+    };
+    yaml::expand(&document, exact, &mut Tally::default()).unwrap();
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion {
+                text_bytes: 10,
+                ..exact
+            },
+            &mut Tally::default()
+        ),
+        Err(Past::Text(11))
+    ));
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion { nodes: 4, ..exact },
+            &mut Tally::default()
+        ),
+        Err(Past::Nodes(5))
+    ));
+}
+
+#[test]
+fn adversary_input08_an_alias_at_a_deeper_site_counts_its_whole_height() {
+    use ekr_core::decode::yaml::{self, Expansion, Past, Tally};
+    let mut documents = yaml::load("[&a [[x]], [[*a]]]", 5).unwrap();
+    let document = documents.next_document().unwrap();
+    document.check().unwrap();
+    let exact = Expansion {
+        depth: 5,
+        nodes: 9,
+        text_bytes: 2,
+    };
+    yaml::expand(&document, exact, &mut Tally::default()).unwrap();
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion { depth: 4, ..exact },
+            &mut Tally::default()
+        ),
+        Err(Past::Depth)
+    ));
+}
+
+#[test]
+fn shared_yaml_observation_bounds_loading_and_counts_aliases_across_documents() {
+    use ekr_core::decode::yaml::{self, Expansion, Past, Tally};
+    let limits = Expansion {
+        depth: 3,
+        nodes: 8,
+        text_bytes: 3,
+    };
+    let mut documents = yaml::load("[&a [x], *a]", limits.depth).unwrap();
+    let document = documents.next_document().unwrap();
+    yaml::expand(&document, limits, &mut Tally::default()).unwrap();
+    document.check().unwrap();
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion { nodes: 4, ..limits },
+            &mut Tally::default()
+        ),
+        Err(Past::Nodes(5))
+    ));
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion {
+                text_bytes: 1,
+                ..limits
+            },
+            &mut Tally::default()
+        ),
+        Err(Past::Text(2))
+    ));
+
+    let mut documents = yaml::load("[[[[[[]]]]]]", limits.depth).unwrap();
+    let document = documents.next_document().unwrap();
+    assert_eq!(document.event_count(), 4);
+    assert!(matches!(
+        yaml::expand(&document, limits, &mut Tally::default()),
+        Err(Past::Depth)
+    ));
+    assert!(document.check().is_err());
+    assert!(documents.next_document().is_none());
+
+    let mut documents = yaml::load("one\n---\ntwo\n", limits.depth).unwrap();
+    let mut tally = Tally::default();
+    yaml::expand(&documents.next_document().unwrap(), limits, &mut tally).unwrap();
+    assert!(matches!(
+        yaml::expand(&documents.next_document().unwrap(), limits, &mut tally),
+        Err(Past::Text(6))
+    ));
+}
+
 const ID: &str = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa";
 
 #[test]

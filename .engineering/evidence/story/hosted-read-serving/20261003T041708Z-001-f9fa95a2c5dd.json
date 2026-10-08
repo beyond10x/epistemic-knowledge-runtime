@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T04:17:08Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 15,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "SDK startup correction 2134133d13: 120 passed, 0 failed, 2 existing ignored across affected SDK/CLI targets. Original missing-store test unchanged; version arguments, eager refusal and default lazy recovery checked. Package clippy and format exited 0. Full combined gate remains required.",
+    "reference": "<cache>/ekr-hosted-runtime/sdk-viewer/final-report.md"
+  }
+}

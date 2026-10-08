@@ -4,6 +4,251 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.33] — 2026-10-08
+
+### Added
+
+- A run can be staged: `ekr stage begin` copies the store at its head into a stage of its own and
+  prints the stage id; `--stage <id>` or `EKR_STAGE=<id>` joins every verb that opens an existing
+  store to that stage; `ekr stage publish <id> --expect-head <revision>` appends the stage's
+  revisions to the store in one append group, or refuses by name and changes nothing; `ekr stage
+  abandon <id>` drops the stage; `ekr stage list` lists a store's stages. After a publication or
+  an abandonment the stage's tenant holds nothing. A retried publish returns the first one's
+  result and appends nothing twice. Stages run on SQLite and PostgreSQL; the File provider
+  refuses them. `docs/cli.md` lists the verbs and their refusals.
+- A PostgreSQL store's inventory is read under one provider capture, so a stage can be begun from
+  a PostgreSQL store. `ekr migrate` still refuses a PostgreSQL source.
+
+### Changed
+
+- Every store opener refuses a tenant containing `ekr.stage:` as `stage-tenant-reserved`; that
+  marker names stage tenants only.
+- A stage publication is elected through a new retained format,
+  `ekr.publication-preparation/4`. A store holding one is refused by earlier binaries as
+  `inventory-preparation-unreadable`.
+- The Eventlog crates move from 0.5.0 to 0.8.1. The File provider's appends and in-window reads
+  no longer grow with the journal's size.
+
+## [0.0.32] — 2026-10-06
+
+### Changed
+
+- `ekr explain --documents` and the MCP `explain` tool with `documents: true` answer at most
+  64 KiB of each evidence record, centred on the cited text (the first string value of an
+  assertion on the chain that the record holds), instead of the whole record. A link that answers
+  less than its whole record carries `offset`, `record_length` and `truncated: true`; a record
+  within the bound is answered whole and unchanged. Proposal records and commit receipts are
+  still answered whole.
+
+### Added
+
+- `ekr explain --documents --offset N --limit N`, and `offset` and `limit` on the MCP `explain`
+  tool, read any byte range of each evidence record. Offsets are raw byte offsets: a range that
+  cuts a character answers `payload` without `text`. Steps of `limit` from offset 0 to
+  `record_length` reassemble the record byte for byte. Both refuse without `documents`, and a
+  `limit` of 0 is refused.
+- An `ekr.postgres/1` configuration takes an optional `password_file` holding exactly
+  `{"password": "..."}`, the document a saved PostgreSQL connection hands a launched program, so
+  the connection file and the configuration directory hold no secret. An absolute path such as
+  `/proc/self/fd/3` is used as written. A connection file that already carries a password, a
+  document with another field or a non-string password, and a document over 64 KiB are refused
+  as `postgres-configuration` without echoing the value.
+
+### Fixed
+
+- A running `ekr mcp`, `ekr view` or `ekr session` no longer answers a discarded revision after
+  its SQLite store is restored to an older snapshot through SQLite's online backup and a new
+  commit reuses the revision number. Their indexes and `/projection` and `/roles` answers are
+  kept under the revision's identity — its revision id and root — and each read drops one the
+  store no longer holds, so `search`, `overview`, `describe_node`, `expand`, `timeline` and
+  `changes_since` answer the new revision. While anything is kept, a read also reads the store's
+  retained transaction records. `ekr_views::LoadedRevisionEntry` carries each revision's
+  `revision_id` and `root`; `ekr_views::RevisionIdentity` and `ekr_views::Lineage` are new.
+
+## [0.0.31] — 2026-10-06
+
+### Changed
+
+- `ekr apply-extraction` skips a fact the reader refuses alone — a dangling evidence id, an
+  undeclared property or type, a value its property does not hold, a relation between the wrong
+  types — and applies the rest of the document. The skipped fact is listed under `rejected` as
+  `facts[<index>]` with the refusal `<code>: <name>`, and nothing only it names is created or
+  added. A defect of the ontology, an entity or an evidence item still refuses the whole document.
+  `--strict` keeps the whole-document refusal. The SDK's `extraction::apply` skips alike;
+  `extraction::apply_with` with `ApplyOptions::strict` refuses, and
+  `ExtractionDocument::decode` reads a document without the per-fact checks `from_yaml` makes.
+  The engine reader's `ExtractionDocument::check_facts` reports each fact's refusal by index.
+  The SDK routine refuses a relation between the wrong types itself too
+  (`extraction-relation-ends`), before it creates either end.
+- A fact applied through extraction is valid from the earliest `observed_at` of the evidence it
+  cites, not from an unbounded past, so timeline reads can order facts by when they were said.
+  A fact is held when an assertion of its claim cites all its evidence and holds from no later
+  than the fact, so a claim stored from an unbounded past before this change, or a fact citing
+  part of an earlier claim's evidence, is held rather than asserted a second time.
+- A `!Relation` fact applied through extraction also writes a `CreateEdge`, in the same
+  transaction as its assertion, so `search` counts it in a node's `degree` and `expand` walks it.
+  No edge is written when one of that type already joins the two nodes. An edge validation
+  refuses — its endpoint types, or a second edge out of one node for a `One` edge type — now
+  rejects that fact with the validator's issue. Stores built by extraction before this release
+  are not backfilled.
+
+### Added
+
+- `ekr process-map` prints a revision's OCEL 2.0 log as a process, `ekr.process-map/1`: per object type its variants with their case counts and its directly-follows edges with their counts, derived from the `ekr.ocel/1` document `ekr ocel` prints for the same options, whose output is unchanged.
+- An extraction document's `!Property` fact can carry `replaces: true`: applying it adds the new
+  assertion and supersedes every active assertion of the same subject and property from the new
+  one's valid time on, in one transaction, so exactly one stays active. A replacement with nothing
+  active to replace is rejected for that fact alone, as `replacement-without-active-assertion`,
+  before anything it names is created. A replacement already asserted is held and still
+  supersedes the other active values. Facts that depend on an earlier fact of the document are
+  applied once that fact has committed or been rejected, so a rejected fact never leaves a later
+  one asserted without its edge or superseding an assertion that does not exist.
+- `ekr seed --if-absent` (`Runtime::seed_if_absent`) seeds only if the store has no seed: any seed already there, the identical document included, is refused as `ekr.kernel.AlreadySeeded`, and of two callers seeding one store at once on any provider exactly one exits 0.
+
+## [0.0.30] — 2026-10-03
+
+### Added
+
+- Search results at `/find` update while typing without moving focus or replacing
+  the search field. Superseded reads cannot overwrite the current query; input
+  composition, clearing, failures and Enter are handled explicitly. The ordinary
+  GET form remains usable with browser scripting disabled.
+- The search page links to connection instructions and `/llms.txt`. Operators can
+  advertise an explicit MCP endpoint with `view --mcp-url` and link additional
+  instructions with `--agent-guide-url`. These options describe connections; they
+  do not start an MCP server or change authentication.
+- The browser adapter is Rust compiled to WebAssembly, with local embedded assets
+  and bindings generated by pinned tooling. Installing the native CLI requires no
+  separate browser build toolchain. The repository gate rebuilds the checked
+  artifact from two independent source paths and compares the resulting bytes.
+
+### Compatibility
+
+- Search ranking, result limits, revision-pinned graph and evidence links, store
+  formats and the read-only MCP tool set are unchanged.
+
+### Fixed
+
+- Restoring the graph viewer's left sidebar preserves its scroll position when
+  text wraps at the scrollbar boundary.
+
+## [0.0.29] — 2026-10-03
+
+### Fixed
+
+- Retained-evidence links reuse the viewer's already verified revision index instead
+  of replaying that revision from the seed on every request. Historical membership,
+  store replacement checks and the existing verified payload read remain in place.
+  Loading a revision for the first time still performs its normal admission work.
+
+### Compatibility
+
+- No store format, copy protocol, provider or HTTP deadline changes. Existing stores
+  supported by 0.0.28 remain readable without another copy.
+
+## [0.0.28] — 2026-10-03
+
+### Added
+
+- **Search-first browser entry** at `/find` uses a plain HTML form, bounded name/alias
+  results and revision-pinned graph and evidence links, without loading graph libraries.
+  Historical evidence requests accept `revision`; the existing graph and JSON routes remain.
+- **Read-only HTTP MCP** is available through `ekr mcp-http`, alongside existing stdio
+  tools. The viewer and HTTP MCP support explicit listeners and exact Host/Origin admission,
+  bounded connections and request queues, and separate liveness and store readiness endpoints.
+  External authentication and private routing remain operator responsibilities.
+- **Hosted PostgreSQL stores** are available through the runtime, SDK and CLI. An
+  `ekr.postgres/1` file references connection credentials and trusted CA certificates;
+  connections verify the server name and certificate and use bounded pools and deadlines.
+  `ekr postgres-schema` initializes provider tables under separate schema-management
+  credentials. Application opens require the provider's restricted-role admission.
+- **Initial SQLite-to-PostgreSQL copy** uses one captured SQLite image and the existing
+  preserving-copy authority. `ekr migrate --to-backend postgres --to <config>` preserves
+  logical revision roots, schema history, identities and retained evidence. Occupied
+  destinations are refused; interrupted destinations remain unreadable. PostgreSQL source
+  inventory/copy is explicitly unsupported until a consistent capture API is exposed.
+
+### Compatibility
+
+- Viewer listeners start independently of store availability by default. Use
+  `view --require-ready` to require a seeded complete store before its URL is announced.
+  The SDK requests this option with EKR 0.0.28 and newer, preserving startup refusal for an
+  unavailable store while retaining compatible arguments for older engines.
+- Preserving copies now write `ekr-seed-envelope/4`, with a fresh copy identity and a
+  completion receipt bound to that identity and the destination seed. Readers from earlier
+  releases refuse this format. Ordinary seeds remain `/3`, and existing `/2` and `/3` stores
+  remain readable. Copy reports map rewritten physical record hashes; logical content roots
+  and retained evidence remain unchanged. Copy into a fresh destination and retain the source
+  when planning rollback; changing the binary does not downgrade a `/4` store.
+
+### Fixed
+
+- **Ontology YAML is bounded before decoding.** `Ontology::from_yaml` caps input at 16 MiB,
+  nesting at 64 containers, expanded nodes at 33,554,432 and expanded scalar/key text at
+  16 MiB. Bounded aliases remain supported. Ontology, seed and transaction readers share
+  the existing bounded loader and alias accounting.
+- **Identity coverage follows the ESS domain files.** The guard discovers domain documents
+  instead of relying on a fixed filename list. Existing observation identities
+  `SourceUnitId` and `SourceCheckpointId` gain the same public UUID carriers and shared
+  serialization/minting coverage as the other identities.
+
+## [0.0.27] — 2026-10-02
+
+### Added
+
+- **Evidence attaches to an assertion the store already holds** (`docs/cli.md`, Evidence
+  attached to a held assertion; design § 103). `!AttachEvidence {assertion, evidence}`,
+  operation index 15, attaches retained evidence, or evidence an `!AddEvidence` of the same
+  transaction adds, to an accepted and active assertion, under every validation profile. The
+  assertion is not changed: the attachment is its own record (which assertion, which evidence,
+  which revision), kept by the canonical graph beside its assertions and listed by `ekr snapshot`
+  under `attachments`. `ekr explain` lists it as an `Attachment` link with the attaching commit,
+  and the evidence among its `Evidence` links, from that revision on; a supersession leaves it
+  with the superseded assertion. `ekr quality` counts attached evidence in `with_evidence` and
+  `with_item_evidence`. Refused by name: `unresolved-assertion`, `unresolved-evidence`, and the
+  new `assertion-not-active` and `evidence-already-attached`; the attached id is listed in
+  `transaction.evidence`. A graph with no attachment keeps its knowledge root and graph document
+  bytes, so no store's recorded roots move. The SDK gains `Operation::AttachEvidence`
+  (`EvidenceAttachment`), reads the link and the snapshot field typed, and its builder and batcher
+  count attached evidence in the manifest.
+
+- **Typed SDK fact checks** draw reproducible samples, report judged samples and run an injected
+  judge in ordered batches. A failed batch or a mismatched result count returns an error without
+  a partial judgement set.
+- **OCEL exports report counts** as one JSON line on stderr; sessions and SDK transports keep
+  those counts with the request. Existing stdout documents remain unchanged. Repeatable
+  `--event-time Type.property` selectors resolve inherited Timestamp properties at the requested
+  revision, with named refusals for ambiguous or invalid selections. SDK selectors preserve
+  leading dashes, spaces and equals signs in admitted names.
+- **`ekr code-names --words`** matches whole words with Unicode alphanumeric and underscore
+  boundaries, preserving locations, exemptions and the default literal matching mode.
+- **Quality reports add seed-evidence and constrained-type counts**: active assertions citing or
+  attached to retained seed evidence count once; each node or edge type directly declaring a
+  constrained property counts once. Existing counts and integer basis-point shares are unchanged.
+
+### Fixed
+
+- **Warm append-only commits can reuse privately owned graph storage.** Prefix hashes,
+  immutable transaction records and unchanged validation indexes also reuse verified inputs.
+  A runtime may retain one additional predecessor graph as a buffer; held readers and checkpoints
+  prevent its extraction, and unsupported operations or mismatched histories use the existing
+  clone path. Closing the runtime releases the buffer. Canonical encodings and retained formats
+  are unchanged (design § 104).
+- **Checkpoint output avoids copying complete graph record maps.** The store exposes
+  `GraphDocument::serialize_graph` for borrowed output in the existing document format; checkpoint
+  decoding is unchanged. Hash text formatting also avoids repeated writes of individual bytes.
+- **An empty judged sample has an explicit empty interval**: `rate` is null and the Wilson bounds
+  are 0 and 1. Nonempty report bytes are unchanged.
+- **Duplicate evidence attachments in a stored graph are refused**, including different JSON
+  spellings that decode to the same attachment, rather than silently collapsing records.
+
+### Known limitations
+
+- SQLite commit scaling remains above the performance target: the default-size measurement
+  recorded a last/first commit median ratio of 1.321 against the 1.2 limit. Validation passed
+  at 0.979. The reviewed optimizations ship in this release, while
+  `task:validate-cost-flat-with-store-size` remains open with its original acceptance bounds.
+
 ## [0.0.26] — 2026-10-02
 
 A store that took evidence after its seed migrates; the extraction verb applies a document once and

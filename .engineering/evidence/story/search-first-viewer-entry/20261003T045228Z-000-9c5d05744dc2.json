@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T04:52:28Z",
+  "actor": "agent:codex",
+  "artifact": "story:search-first-viewer-entry",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Full combined release gate at 70761eaed64e3d5893a93d8ae3d5552c874a9987: 2189 passed, 0 failed, 13 ignored; required PostgreSQL and previous-release probes enabled; all recorded steps exit zero",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37096359423"
+  }
+}

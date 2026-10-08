@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T18:31:17Z",
+  "actor": "agent:codex-ekr-public-docs",
+  "artifact": "story:simplified-public-site",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "deployment_result",
+    "source": "Live HTML and CSS match merged source b081e387f47f09fafc67a6524a607db5523d5383; both live provenance manifests match that source and pinned publisher fb4024ef7846729e5456591b9070db3d48c87e64",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37047719370"
+  }
+}

@@ -45,7 +45,11 @@ types:
   # transaction naming its schema_version, and refused under v1 as unsupported-operation. AddAlias
   # is index 14 (story:node-gains-an-alias): data, not a schema change, applied under every
   # validation profile; it appends one alias to a node that exists
-  # (ekr.kernel.AliasAdditionProjection).
+  # (ekr.kernel.AliasAdditionProjection). AttachEvidence is index 15
+  # (story:evidence-attaches-to-a-held-assertion, design § 103): data, applied under every
+  # validation profile; it attaches evidence canonical state retains, or an AddEvidence of the
+  # same transaction adds, to an accepted and active assertion canonical state holds, as an
+  # ekr.graph.EvidenceAttachment (ekr.kernel.EvidenceAttachmentProjection).
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -64,6 +68,7 @@ types:
       - AddEvidence
       - WidenEdgeType
       - AddAlias
+      - AttachEvidence
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -299,22 +304,37 @@ types:
       - name: committed_at
         type: Timestamp
 
-  # Design §100.3: the report of the preserving migration (`ekr migrate --to <path>`). The source
-  # store is only read: nothing in it is deleted, rewritten or reinterpreted. The destination is a
-  # new store at a new path that must hold nothing. It is seeded with the source seed's exact input,
-  # context, authority, identities and time under ekr-seed-envelope/3, and every later occurrence
-  # is published again with its original event identity, revision identity, actors and times.
+  # Design §§ 100.3 and 105.2: the report of the preserving migration (`ekr migrate --to <path>`,
+  # `Commit::migrate_into`). The source store is only read: nothing in it is deleted, rewritten or
+  # reinterpreted. The destination is a store that must hold nothing: a new store at a new path
+  # for `ekr migrate`, or, for a stage (design § 107), the stage's own tenant of the same store. It
+  # is seeded with the source seed's exact input, context, authority, identities and time under
+  # ekr-seed-envelope/4, which binds a fresh migration claim, and every later occurrence is
+  # published again with its original event identity, revision identity, actors and times.
   # Proposal records are carried byte for byte; a record naming the seed envelope, a prior root or
   # a prior record is derived again by the kernel for the destination lineage, and the map below
   # says which. Every other object the source holds is carried with its class and stored_at, and a
   # legacy ObjectStored/schema1 inline object is verified under its frozen shape and carried as
   # ObjectStored/schema2 metadata and a provider blob. The destination is published only through
   # the real kernel authority and is replayed in full before the report is returned; the report is
-  # also retained in it, as a Canonical object at map_hash. Before its first write the migration
-  # retains the fixed Canonical object {"format":"ekr.migration-started/1"} in the destination, and
-  # after its last, the report included, {"format":"ekr.migration-finished/1"}; every replay of a
-  # store holding the first without the second refuses `migrate-incomplete`, except the migrating
-  # handle's own. The CLI refuses a destination that is, lies inside or contains the source
+  # also retained in it, as a Canonical object at map_hash. The claim is atomic with the seed, and
+  # after the last write, the report included, the migration writes the Canonical
+  # {"format":"ekr.migration-finished/2"} receipt naming the claim and the destination seed hash;
+  # every replay of a store whose `/4` seed has no matching receipt refuses `migrate-incomplete`,
+  # except the migrating handle's own. The fixed `ekr.migration-started/1` and
+  # `ekr.migration-finished/1` markers are read for `/2` and `/3` seeds only. A copied `/4` source
+  # is copied again under another fresh claim. Executed by `crates/ekr-kernel/tests/migrate_store.rs`
+  # on File and SQLite, and by `interrupted_postgres_copy_is_unreadable_after_reopen` and
+  # `a_claimed_copy_can_be_captured_and_copied_again` in `crates/ekr-kernel/tests/hosted_postgres.rs`
+  # where the PostgreSQL tests run. A stage's tenant as the destination (2026-10-08, unit C): the
+  # source is read once, under one SQLite image or one PostgreSQL capture (`Commit::capture`), and
+  # the capture is copied into the stage's tenant of the same store (`CapturedStore::copy_into`),
+  # held by `a_postgres_store_is_copied_into_a_stage_under_one_capture`,
+  # `a_sqlite_store_is_copied_into_a_stage_under_one_image`,
+  # `a_commit_racing_the_capture_is_not_in_the_stage` and
+  # `an_interrupted_stage_copy_is_refused_as_incomplete_on_postgres` (and `_on_sqlite`) in the
+  # same file; the stage record and begin itself are unexecuted. The CLI
+  # refuses a destination that is, lies inside or contains the source
   # (`migrate-destination-is-source`, `-inside-source`, `-contains-source`) before creating it.
   - name: ekr.kernel.MigratedOccurrence
     kind: struct
@@ -662,6 +682,26 @@ types:
       - name: alias
         type: String
 
+  # `AttachEvidence` in the canonical operation: the assertion, then the evidence, in this order.
+  # Commit records an ekr.graph.EvidenceAttachment of the evidence to the assertion at the revision
+  # it produces; the assertion itself, its evidence included, is unchanged. The attached evidence
+  # is part of what the transaction rests on, so its id is in the transaction's evidence set
+  # (evidence-set-mismatch, Structural, otherwise). Validation looks the assertion up by id and
+  # refuses, as named issues of a Rejected transaction: an assertion canonical state does not hold
+  # (unresolved-assertion, Reference), an assertion the same transaction adds among them; evidence
+  # canonical state does not retain and no AddEvidence of the transaction adds
+  # (unresolved-evidence, Reference); an assertion that is not accepted and active, or that the
+  # same transaction retracts or supersedes (assertion-not-active, Structural); and evidence the
+  # assertion already cites, already has attached, or that the transaction attaches to it twice
+  # (evidence-already-attached, Structural).
+  - name: ekr.kernel.EvidenceAttachmentProjection
+    kind: struct
+    fields:
+      - name: assertion
+        type: ekr.graph.AssertionId
+      - name: evidence
+        type: ekr.graph.EvidenceId
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -711,6 +751,7 @@ types:
       AddEvidence: ekr.kernel.EvidenceAdditionProjection
       WidenEdgeType: ekr.kernel.EdgeWideningProjection
       AddAlias: ekr.kernel.AliasAdditionProjection
+      AttachEvidence: ekr.kernel.EvidenceAttachmentProjection
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct
@@ -969,6 +1010,26 @@ types:
       - name: commit
         type: ekr.kernel.ExplainedCommit
 
+  # One ekr.graph.EvidenceAttachment of an explained assertion, with the commit that attached it
+  # by reference (story:evidence-attaches-to-a-held-assertion). Listed after the assertion's
+  # lifecycle changes, in evidence-id order, only for attachments the captured revision holds:
+  # an explanation at a revision before the attachment does not list it. The attached evidence is
+  # one of the chain's Evidence links; the attaching commit's other evidence is not. The commit's
+  # document is read and must attach exactly this evidence to this assertion
+  # (attachment-disagrees otherwise). Added to ekr.explanation/2 without a version bump: a reader
+  # that does not know the kind skips the link.
+  - name: ekr.kernel.ExplainedAttachment
+    kind: struct
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: evidence_id
+        type: ekr.graph.EvidenceId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: commit
+        type: ekr.kernel.ExplainedCommit
+
   - name: ekr.kernel.ExplanationLink
     kind: union
     tag: kind
@@ -980,6 +1041,7 @@ types:
       Commit: ekr.kernel.ExplainedCommit
       Lifecycle: ekr.kernel.ExplainedLifecycle
       Evidence: ekr.graph.EvidenceRecord
+      Attachment: ekr.kernel.ExplainedAttachment
 
   - name: ekr.kernel.ExplanationResult
     kind: struct
@@ -1254,6 +1316,11 @@ errors:
 
 commands:
   # Design § 8. The seed is the minimal trusted starting state; loading it produces revision 0.
+  # story:seed-if-absent: a caller may ask for the seed only if the lineage has none (`ekr seed
+  # --if-absent`, `Runtime::seed_if_absent`). Then any retained or elected seed, the identical one
+  # included, answers already-seeded, and so does losing the store's conditional election for the
+  # Bootstrap slot to another caller; retained-seed is never its answer. The mode is a host flag,
+  # not a declared input: every generated scenario runs the command without it.
   - name: ekr.kernel.Seed
     naming:
       wire: seed
@@ -1294,11 +1361,11 @@ commands:
             seed_hash: {generated: true}
         summary: Revision0 and its complete retained seed result exist atomically; real ontology and authority roots have no placeholders.
       - name: already-seeded
-        external: a retained seed exists and its parsed full Seed2 input or actual BootstrapContext or trusted host AuthorityStateV1 anchor differs
+        external: a retained seed exists and its parsed full Seed2 input or actual BootstrapContext or trusted host AuthorityStateV1 anchor differs, or the caller asked for the seed only if absent and a seed is retained or elected, or another caller wins the Bootstrap slot election during this call
         error: ekr.kernel.AlreadySeeded
-        summary: Nothing was written; compare retained typed input and actual trusted context before allocating an occurrence or sampling time. YAML whitespace alone is not a different logical seed.
+        summary: No seed of this call was written; compare retained typed input and actual trusted context before allocating an occurrence or sampling time. YAML whitespace alone is not a different logical seed. In the if-absent mode an identical seed refuses too, and an elected seed another call left unpublished is published first, as its own retry would, so the lineage is seeded when the refusal is made.
       - name: retained-seed
-        external: a retained seed has the same full parsed Seed2 input, actual BootstrapContext and trusted host AuthorityStateV1 anchor
+        external: a retained seed has the same full parsed Seed2 input, actual BootstrapContext and trusted host AuthorityStateV1 anchor, and the caller did not ask for the seed only if absent
         replays: seeded
         summary: Return the original SeedResultV1 and preserve its original Revision, including after head advancement; allocate no new occurrence, sample no new time and write nothing.
       - name: invalid-seed
@@ -1473,6 +1540,10 @@ commands:
             number: {generated: true}
             knowledge_root: {generated: true}
         summary: A new immutable revision exists whose parent is the one validated against.
+      - name: retained-commit
+        when_subject_state: Committed
+        replays: committed
+        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: stale
         external: the canonical revision moved since the transaction was validated
         moves: ekr.kernel.GraphTransaction.stale
@@ -1498,10 +1569,6 @@ commands:
             validated_against: {generated: true}
             current: {generated: true}
         summary: Canonical state moved since validation; nothing committed and the transaction is Stale.
-      - name: retained-commit
-        when_subject_state: Committed
-        replays: committed
-        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: transaction-not-found
         external: no retained transaction carries input.transaction_id
         error: ekr.kernel.TransactionNotFound

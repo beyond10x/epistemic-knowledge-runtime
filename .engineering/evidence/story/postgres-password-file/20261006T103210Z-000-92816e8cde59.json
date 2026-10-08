@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-06T10:32:10Z",
+  "actor": "agent:claude",
+  "artifact": "story:postgres-password-file",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:security-wave-20261006a-a",
+    "review": "review-result:security-wave-20261006a-a",
+    "outcome": "no-op"
+  }
+}

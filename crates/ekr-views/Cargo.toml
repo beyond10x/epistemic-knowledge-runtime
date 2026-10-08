@@ -23,6 +23,7 @@ thiserror.workspace = true
 ess-conformance.workspace = true
 ess-primitives.workspace = true
 process_mining = { version = "0.6.2", default-features = false }
+rusqlite = { workspace = true, features = ["backup"] }
 tempfile.workspace = true
 
 [features]

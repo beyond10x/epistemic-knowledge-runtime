@@ -62,6 +62,12 @@
 //!   `!HumanStatement`, the one source the kernel admits as evidence today;
 //! * `evidence-payload-mismatch` — an evidence item whose payload does not hash to its entry.
 //!
+//! [`ExtractionDocument::check_facts`] makes the same checks a fact at a time
+//! (`story:extraction-partial-apply`): a code from `reference-without-identity` to
+//! `fact-evidence-unlisted` met in `facts[<index>]` refuses that fact alone, and the rest of the
+//! document is checked on; one met in the ontology, in `entities` or in an evidence item refuses
+//! the document whole. `ekr apply-extraction` reads a document so unless it is run `--strict`.
+//!
 //! Nothing here writes: AGENTS.md invariant 1.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -233,6 +239,11 @@ pub struct PropertyFact {
     #[serde(default)]
     #[cfg_attr(feature = "schema", schemars(length(min = 1)))]
     pub evidence: Vec<EvidenceId>,
+    /// Whether the value replaces the active value of the same subject and property: applying the
+    /// fact supersedes that assertion (`story:extraction-supersession`). `false` when absent, and
+    /// then not written.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub replaces: bool,
 }
 
 /// `ekr.integrate.RelationFact`: a relation read between two named things.
@@ -563,6 +574,34 @@ impl ExtractionDocument {
     /// # Errors
     /// The first [`ExtractionRefusal`] the [module](self) documentation lists under checking.
     pub fn check(&self, store: &Ontology) -> Result<(), ExtractionRefusal> {
+        self.checked(store, true).map(drop)
+    }
+
+    /// [`Self::check`], a fact at a time (`story:extraction-partial-apply`). What refuses one
+    /// fact — a reference of its subject or object, its property, its value, its relation's ends
+    /// or the evidence it cites (`reference-without-identity`, `extraction-type-undeclared`,
+    /// `reference-type-has-subtypes`, `extraction-property-undeclared`,
+    /// `extraction-value-mismatch`, `extraction-relation-ends`, `fact-without-evidence`,
+    /// `fact-evidence-unlisted`) — is that fact's refusal, under its index, and the rest of the
+    /// document is checked on. What refuses the document — its ontology, a named thing of
+    /// `entities` or an evidence item — refuses it whole, as [`Self::check`] does.
+    ///
+    /// # Errors
+    /// The first refusal of the document as a whole, in document order.
+    pub fn check_facts(
+        &self,
+        store: &Ontology,
+    ) -> Result<BTreeMap<usize, ExtractionRefusal>, ExtractionRefusal> {
+        self.checked(store, false)
+    }
+
+    /// The checks of [`Self::check`]; a fact's refusal ends them when `strict`, and is collected
+    /// under its index otherwise.
+    fn checked(
+        &self,
+        store: &Ontology,
+        strict: bool,
+    ) -> Result<BTreeMap<usize, ExtractionRefusal>, ExtractionRefusal> {
         use ExtractionRefusalCode as Code;
 
         let held = Names::of_store(store);
@@ -660,7 +699,7 @@ impl ExtractionDocument {
 
         let listed: BTreeSet<EvidenceId> =
             self.evidence.iter().map(|item| item.evidence.id).collect();
-        for (at, fact) in self.facts.iter().enumerate() {
+        let check_fact = |at: usize, fact: &ExtractedFact| -> Result<(), ExtractionRefusal> {
             match fact {
                 ExtractedFact::Property(fact) => {
                     reference(format!("facts[{at}].subject"), &fact.subject)?;
@@ -711,6 +750,16 @@ impl ExtractionDocument {
                     format!("facts[{at}]: {id}"),
                 ));
             }
+            Ok(())
+        };
+        let mut refused = BTreeMap::new();
+        for (at, fact) in self.facts.iter().enumerate() {
+            if let Err(refusal) = check_fact(at, fact) {
+                if strict {
+                    return Err(refusal);
+                }
+                refused.insert(at, refusal);
+            }
         }
 
         let mut ids = BTreeSet::new();
@@ -729,7 +778,7 @@ impl ExtractionDocument {
                 return Err(refusal(Code::EvidencePayloadMismatch, id.to_string()));
             }
         }
-        Ok(())
+        Ok(refused)
     }
 }
 

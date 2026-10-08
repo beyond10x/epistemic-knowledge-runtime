@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-08T03:23:24Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "task:stage-specified",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "unit 3359dc47d6 (+ kernel.yaml reorder 7a2756fab6): ess 0.36.0/0.55.0/0.56.0 specify validate --path systems/ekr: ekr v1 — 10 file(s), valid on each; ekr conformance 7, conformance_integrate 5, ekr-views conformance 4, code_names 6, ekr-store domain_projection 8, adversary_p1_14_store_bindings 2, ekr-core identity_serde 54 passed, 0 failed, on wave/20261007c d8a5f48646's tree"
+  }
+}

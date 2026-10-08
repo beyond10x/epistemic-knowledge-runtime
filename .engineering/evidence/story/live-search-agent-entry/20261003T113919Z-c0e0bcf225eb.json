@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T11:39:19Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 17,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Integrated candidate 6b1b3e91: fmt-check, search-web-check and Clippy passed; pr-guards exit 101 on unreferenced unrestricted guide/llms declarations; remaining full-gate lanes not run",
+    "reference": "private-release-gate/attempt-1/pr-guards.log"
+  }
+}

@@ -15,7 +15,7 @@ const TICK: Duration = Duration::from_millis(10);
 /// Runs each request as `binary --host … --store … --backend … <argv>`, started as a session's
 /// processes are, and returns what it exits with and prints.
 #[derive(Debug)]
-pub(super) struct OneShot {
+pub(crate) struct OneShot {
     pub(super) binary: EkrBinary,
     pub(super) store: StoreConfig,
     pub(super) options: SessionOptions,

@@ -19,9 +19,9 @@ use ekr_graph::{
 };
 use ekr_kernel::{
     Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EdgeWidening,
-    EvidenceAddition, GraphOperation, GraphTransaction, NodeDraft, PropertyModification,
-    PropertyMutation, Retraction, Runtime, SeedDocument, Supersession, ValidationCommandResult,
-    ValidationProfileV1,
+    EvidenceAddition, EvidenceAttachment, GraphOperation, GraphTransaction, NodeDraft,
+    PropertyModification, PropertyMutation, Retraction, Runtime, SeedDocument, Supersession,
+    ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
@@ -291,6 +291,28 @@ const O_EVIDENCE: u64 = 0xe8_0300;
 /// Assertions a1 to a7 are `O_ASSERTIONS + 1` to `+ 7`.
 pub const O_ASSERTIONS: u64 = 0xe8_0400;
 
+// `process-map`: a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log.yaml
+// and `tests/process_map.rs`, which state what the store holds ([`build_process_map`]).
+/// The object types `ticket` and `reviewer`; the event types `opened`, `reviewed` and `closed`.
+pub const PM_TICKET: u64 = 0xe9_0001;
+pub const PM_REVIEWER: u64 = 0xe9_0002;
+pub const PM_OPENED: u64 = 0xe9_0003;
+pub const PM_REVIEWED: u64 = 0xe9_0004;
+pub const PM_CLOSED: u64 = 0xe9_0005;
+/// The edge types `concerns` (an event → ticket) and `by` (reviewed → reviewer).
+pub const PM_CONCERNS: u64 = 0xe9_0010;
+pub const PM_BY: u64 = 0xe9_0011;
+/// Each event type's `at` (Timestamp): opened's, reviewed's and closed's.
+pub const PM_OPENED_AT: u64 = 0xe9_0020;
+pub const PM_REVIEWED_AT: u64 = 0xe9_0021;
+pub const PM_CLOSED_AT: u64 = 0xe9_0022;
+/// Tickets t1 to t3 are `PM_NODES + 1` to `+ 3` and the reviewer r1 `+ 9`; opened o1 to o3
+/// `+ 0x11` to `+ 0x13`; reviewed v1 and v2 `+ 0x21` and `+ 0x22`, and v3, created at revision
+/// 1, `+ 0x23`; closed x1 to x3 `+ 0x31` to `+ 0x33`.
+pub const PM_NODES: u64 = 0xe9_0100;
+/// Edges are `PM_EDGES + 1` onwards; revision 1's is `PM_EDGES + 0x20`.
+pub const PM_EDGES: u64 = 0xe9_0200;
+
 /// The first instant a fixture's host clock reads; each sample adds a millisecond. A seed reads
 /// one sample and every commit three (propose, validate, commit), so a fixture's revision `n > 0`
 /// is committed at `CLOCK_START_MS + 1 + 3n` and its seed at `CLOCK_START_MS + 1`.
@@ -337,10 +359,19 @@ pub enum Fixture {
     /// two constrained property declarations, names shared within a type, a retraction and a
     /// supersession ([`build_quality`]).
     Quality,
+    /// Quality's item-only assertion gains two seed attachments at revision 4.
+    QualitySeedAttachment,
+    /// Several constrained properties, an inheriting node type and a constrained edge type.
+    QualityConstraints,
     /// Events, objects and the edges between them over two revisions after the seed: a step
     /// whose time moves at revision 1 and stays at 2, when the fact moving it is retracted
     /// ([`build_ocel`]).
     Ocel,
+    /// Inherited timestamp selection, a historical property rename, and ambiguous values.
+    NamedEventTime,
+    /// Three tickets following two variants at the seed, and one variant from revision 1, when
+    /// the third ticket is reviewed too ([`build_process_map`]).
+    ProcessMap,
     /// Four schema changes after the seed, each its own version: version 1 as
     /// [`Fixture::SchemaEvolution`]'s (revision 1); `observes` widened, its source gaining `Subject`
     /// and its target `Observation` (revision 2); `label` on `Subject` renamed `title` and made
@@ -369,7 +400,11 @@ impl Fixture {
             "subjects" => Self::Subjects,
             "changes" => Self::Changes,
             "quality" => Self::Quality,
+            "quality-seed-attachment" => Self::QualitySeedAttachment,
+            "quality-constraints" => Self::QualityConstraints,
             "ocel" => Self::Ocel,
+            "ocel-named-time" => Self::NamedEventTime,
+            "process-map" => Self::ProcessMap,
             "schema-changes" => Self::SchemaChanges,
             "property-redeclared" => Self::PropertyRedeclared,
             _ => return None,
@@ -463,7 +498,49 @@ impl Fixture {
                 writer.commit(retraction(CHANGED_NODE_CLAIM), None);
             }
             Self::Quality => build_quality(&mut writer),
+            Self::QualitySeedAttachment => {
+                build_quality(&mut writer);
+                writer.commit(
+                    [Q_EVIDENCE, Q_EVIDENCE + 1]
+                        .into_iter()
+                        .map(|evidence| {
+                            GraphOperation::AttachEvidence(EvidenceAttachment {
+                                assertion: id(Q_ASSERTIONS + 4),
+                                evidence: id(evidence),
+                            })
+                        })
+                        .collect(),
+                    None,
+                );
+            }
+            Self::QualityConstraints => {
+                let mut document = empty_seed();
+                let mut parent = NodeType::new(id(0xfb_0010), "Parent");
+                for number in [0xfb_0020, 0xfb_0021] {
+                    let mut property = PropertyDefinition::new(
+                        id(number),
+                        format!("p{number}"),
+                        ValueType::String,
+                    );
+                    property.constraints.push("matches [A-Z]+".into());
+                    parent.properties.insert(property.id, property);
+                }
+                let mut child = NodeType::new(id(0xfb_0011), "Child");
+                child.parents.insert(parent.id);
+                let mut edge = EdgeType::new(id(0xfb_0012), "Relation");
+                edge.source_types.insert(parent.id);
+                edge.target_types.insert(parent.id);
+                let mut property =
+                    PropertyDefinition::new(id(0xfb_0022), "label", ValueType::String);
+                property.constraints.push("matches [A-Z]+".into());
+                edge.properties.insert(property.id, property);
+                document.ontology.node_types.extend([parent, child]);
+                document.ontology.edge_types.push(edge);
+                writer.seed(document);
+            }
             Self::Ocel => build_ocel(&mut writer),
+            Self::NamedEventTime => build_named_event_time(&mut writer),
+            Self::ProcessMap => build_process_map(&mut writer),
             Self::SchemaChanges => build_schema_changes(&mut writer),
             Self::PropertyRedeclared => {
                 writer.seed(seed(0, false, false, 1));
@@ -730,6 +807,29 @@ pub fn commit_later_quality(runtime: &Runtime) {
     );
 }
 
+/// Commits one more transaction onto a built [`Fixture::Quality`] store, as revision 4: X2, an
+/// item statement added after the seed, attached to a3, which cites only the seed's E1
+/// (`story:evidence-attaches-to-a-held-assertion`). a3 is unchanged; it is item-evidenced from
+/// revision 4 on.
+pub fn commit_attachment_quality(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS + 2_000_000,
+        transactions: TRANSACTIONS + 0x4000,
+    };
+    let x2 = Q_EVIDENCE + 0x12;
+    writer.commit(
+        vec![
+            added_statement(x2),
+            GraphOperation::AttachEvidence(EvidenceAttachment {
+                assertion: id(Q_ASSERTIONS + 3),
+                evidence: id(x2),
+            }),
+        ],
+        None,
+    );
+}
+
 /// One `ocel` node: its offset from `O_NODES`, its type, its name and its property values.
 type OcelNode = (u64, u64, &'static str, Vec<(u64, Vec<Value>)>);
 
@@ -753,6 +853,73 @@ fn ocel_fact(
         Some(valid_from),
         id(O_EVIDENCE),
     )
+}
+
+/// An inherited timestamp renamed at revision 1 and made ambiguous at revision 2.
+fn build_named_event_time(writer: &mut Writer<'_>) {
+    let mut document = empty_seed();
+    let mut parent = NodeType::new(id(0xfa_0010), "Parent");
+    let mut at = PropertyDefinition::new(id(0xfa_0020), "at", ValueType::Timestamp);
+    at.cardinality = Cardinality::Many;
+    parent.properties.insert(at.id, at.clone());
+    let earlier = PropertyDefinition::new(id(0xfa_0021), "earlier_at", ValueType::Timestamp);
+    parent.properties.insert(earlier.id, earlier);
+    let label = PropertyDefinition::new(id(0xfa_0022), "label", ValueType::String);
+    parent.properties.insert(label.id, label);
+    for number in [0xfa_0023, 0xfa_0024] {
+        let ambiguous = PropertyDefinition::new(id(number), "ambiguous", ValueType::Timestamp);
+        parent.properties.insert(ambiguous.id, ambiguous);
+    }
+    let mut child = NodeType::new(id(0xfa_0011), "Child.Kind");
+    child.parents.insert(parent.id);
+    document.ontology.node_types.extend([
+        parent,
+        child,
+        NodeType::new(id(0xfa_0012), "Thing"),
+        NodeType::new(id(0xfa_0013), "same"),
+        NodeType::new(id(0xfa_0014), "same"),
+    ]);
+    for (number, kind) in [
+        (0xfa_0100, 0xfa_0011),
+        (0xfa_0101, 0xfa_0011),
+        (0xfa_0102, 0xfa_0012),
+    ] {
+        let mut node = Node::<Value>::new(
+            id(number),
+            document.graph.root.id,
+            id(kind),
+            format!("node-{number}"),
+        );
+        if number == 0xfa_0100 {
+            node.properties
+                .insert(at.id, vec![Value::Timestamp(Timestamp::from_millis(2000))]);
+            node.properties.insert(
+                id(0xfa_0021),
+                vec![Value::Timestamp(Timestamp::from_millis(1000))],
+            );
+        }
+        document.graph.nodes.insert(node.id, node);
+    }
+    writer.seed(document);
+    at.name = "happened_at".to_owned();
+    writer.commit(
+        vec![GraphOperation::ModifyProperty(PropertyModification {
+            owner: Some(id(0xfa_0010)),
+            property: at,
+        })],
+        Some(id(0xfa_0300)),
+    );
+    writer.commit(
+        vec![GraphOperation::UpdateProperty(PropertyMutation {
+            node: id(0xfa_0100),
+            property: id(0xfa_0020),
+            values: vec![
+                Value::Timestamp(Timestamp::from_millis(2000)),
+                Value::Timestamp(Timestamp::from_millis(3000)),
+            ],
+        })],
+        None,
+    );
 }
 
 /// The `ocel` store, as an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml
@@ -936,6 +1103,125 @@ fn build_ocel(writer: &mut Writer<'_>) {
     writer.commit(retraction(O_ASSERTIONS + 6), None);
 }
 
+/// The `process-map` store, as a-process-map-counts-the-variants-and-directly-follows-edges-of-
+/// the-log.yaml states it. Times count from `JANUARY_FIRST_0900_MS` (T0), one hour apart.
+///
+/// Seed: tickets t1, t2 and t3 and the reviewer r1, objects; each event a node whose `at` is its
+/// time, with one `concerns` edge to its ticket. t1 is opened (o1, T0), reviewed (v1, T0 + 1 h)
+/// and closed (x1, T0 + 2 h); t2 likewise at T0 + 3 h to T0 + 5 h (o2, v2, x2); t3 is opened
+/// (o3, T0 + 6 h) and closed (x3, T0 + 8 h). v1 and v2 each have a `by` edge to r1. The seed
+/// holds no assertion and no evidence.
+/// Revision 1: v3, t3 reviewed at T0 + 7 h, and its `concerns` edge to t3.
+///
+/// Under the overview's rule opened, reviewed and closed are the event types — every node of
+/// each is timestamped, so judged and instant — and ticket and reviewer the object types.
+fn build_process_map(writer: &mut Writer<'_>) {
+    let t0 = JANUARY_FIRST_0900_MS;
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let mut event_type = |type_id: u64, name: &str, at: u64| {
+        let mut declared = NodeType::new(id(type_id), name);
+        declared.properties.insert(
+            id(at),
+            PropertyDefinition::new(id(at), "at", ValueType::Timestamp),
+        );
+        document.ontology.node_types.push(declared);
+    };
+    event_type(PM_OPENED, "opened", PM_OPENED_AT);
+    event_type(PM_REVIEWED, "reviewed", PM_REVIEWED_AT);
+    event_type(PM_CLOSED, "closed", PM_CLOSED_AT);
+    document.ontology.node_types.extend([
+        NodeType::new(id(PM_TICKET), "ticket"),
+        NodeType::new(id(PM_REVIEWER), "reviewer"),
+    ]);
+    let mut concerns = EdgeType::new(id(PM_CONCERNS), "concerns");
+    concerns.source_types = [PM_OPENED, PM_REVIEWED, PM_CLOSED]
+        .into_iter()
+        .map(id)
+        .collect();
+    concerns.target_types = [id(PM_TICKET)].into_iter().collect();
+    concerns.cardinality = Cardinality::Many;
+    let mut by = EdgeType::new(id(PM_BY), "by");
+    by.source_types = [id(PM_REVIEWED)].into_iter().collect();
+    by.target_types = [id(PM_REVIEWER)].into_iter().collect();
+    by.cardinality = Cardinality::Many;
+    document.ontology.edge_types.extend([concerns, by]);
+
+    let objects: [(u64, u64, &str); 4] = [
+        (1, PM_TICKET, "t1"),
+        (2, PM_TICKET, "t2"),
+        (3, PM_TICKET, "t3"),
+        (9, PM_REVIEWER, "r1"),
+    ];
+    for (node, type_id, name) in objects {
+        let held = Node::<Value>::new(id(PM_NODES + node), root, id(type_id), name);
+        document.graph.nodes.insert(held.id, held);
+    }
+    // (node, type, its `at` property, name, hours after T0, ticket)
+    let events: [(u64, u64, u64, &str, i64, u64); 8] = [
+        (0x11, PM_OPENED, PM_OPENED_AT, "o1", 0, 1),
+        (0x21, PM_REVIEWED, PM_REVIEWED_AT, "v1", 1, 1),
+        (0x31, PM_CLOSED, PM_CLOSED_AT, "x1", 2, 1),
+        (0x12, PM_OPENED, PM_OPENED_AT, "o2", 3, 2),
+        (0x22, PM_REVIEWED, PM_REVIEWED_AT, "v2", 4, 2),
+        (0x32, PM_CLOSED, PM_CLOSED_AT, "x2", 5, 2),
+        (0x13, PM_OPENED, PM_OPENED_AT, "o3", 6, 3),
+        (0x33, PM_CLOSED, PM_CLOSED_AT, "x3", 8, 3),
+    ];
+    let mut edges: Vec<(u64, u64, u64)> = Vec::new();
+    for (node, type_id, at, name, hours, ticket) in events {
+        let mut held = Node::<Value>::new(id(PM_NODES + node), root, id(type_id), name);
+        held.properties.insert(
+            id(at),
+            vec![Value::Timestamp(Timestamp::from_millis(
+                t0 + hours * HOUR_MS,
+            ))],
+        );
+        document.graph.nodes.insert(held.id, held);
+        edges.push((PM_CONCERNS, node, ticket));
+    }
+    edges.extend([(PM_BY, 0x21, 9), (PM_BY, 0x22, 9)]);
+    for (n, (type_id, source, target)) in (1..).zip(edges) {
+        let edge = Edge::<Value> {
+            id: id(PM_EDGES + n),
+            root_id: root,
+            type_id: id(type_id),
+            source: id(PM_NODES + source),
+            target: id(PM_NODES + target),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    writer.seed(document);
+
+    writer.commit(
+        vec![
+            GraphOperation::CreateNode(NodeDraft {
+                id: id(PM_NODES + 0x23),
+                root_id: root,
+                type_id: id(PM_REVIEWED),
+                canonical_name: "v3".into(),
+                properties: [(
+                    id(PM_REVIEWED_AT),
+                    vec![Value::Timestamp(Timestamp::from_millis(t0 + 7 * HOUR_MS))],
+                )]
+                .into_iter()
+                .collect(),
+                aliases: Vec::new(),
+            }),
+            GraphOperation::CreateEdge(EdgeDraft {
+                id: id(PM_EDGES + 0x20),
+                root_id: root,
+                type_id: id(PM_CONCERNS),
+                source: id(PM_NODES + 0x23),
+                target: id(PM_NODES + 3),
+                properties: BTreeMap::new(),
+            }),
+        ],
+        None,
+    );
+}
+
 /// A node type name no fixture declares: the `event-type-not-found` control's name.
 pub const UNDECLARED_TYPE_NAME: &str = "no such node type";
 
@@ -1105,6 +1391,9 @@ impl Writer<'_> {
             .iter()
             .filter_map(|operation| match operation {
                 GraphOperation::AddAssertion(assertion) => Some(assertion.evidence.clone()),
+                GraphOperation::AttachEvidence(attachment) => {
+                    Some(BTreeSet::from([attachment.evidence]))
+                }
                 _ => None,
             })
             .flatten()

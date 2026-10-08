@@ -9,11 +9,13 @@ use ekr_core::{ContentHash, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, RevisionEvent, RevisionPayload, Root};
 use ekr_ontology::Ontology;
 use eventlog_core::{
-    AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CommandMeta, EventLogError,
-    EventStore, Expected, NewEvent, Read, ReadResult, RecordedEvent, StreamAppend, StreamId,
-    StreamSlice, TenantId, MAX_READ_LIMIT,
+    AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CaptureError, CaptureLimits,
+    CommandMeta, ConsistentTenantCapture, EventLogError, EventStore, Expected, NewEvent, Read,
+    ReadResult, RecordedEvent, StreamAppend, StreamId, StreamSlice, TenantCapture, TenantId,
+    MAX_READ_LIMIT,
 };
 use eventlog_file::FileEventStore;
+use eventlog_postgres::PostgresEventStore;
 use eventlog_sqlite::SqliteEventStore;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -30,6 +32,13 @@ const OBJECT_STREAM_TYPE: &str = "ekr.store.object";
 const OBJECT_STORED: &str = "ekr.store.ObjectStored";
 const OBJECT_RETENTION_RAISED: &str = "ekr.store.ObjectRetentionRaised";
 const WRITER: &str = "ekr.store";
+/// The stream family of a stage's record in the store's own tenant (design § 107.1); the stream
+/// id is the stage id. Not the revision stream, so writing it never moves `ekr head`.
+const STAGE_STREAM_TYPE: &str = "ekr.stage";
+const STAGE_BEGUN: &str = "ekr.store.StageBegun";
+const STAGE_SEALED: &str = "ekr.store.StageSealed";
+const STAGE_PUBLISHED: &str = "ekr.store.StagePublished";
+const STAGE_ABANDONED: &str = "ekr.store.StageAbandoned";
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "preparation.rs"]
@@ -38,6 +47,11 @@ mod preparation;
 mod read_only;
 #[path = "replaced.rs"]
 mod replaced;
+#[path = "stage_preparation.rs"]
+mod stage_preparation;
+#[path = "stage_record.rs"]
+mod stage_record;
+use crate::{ProviderKind, StageId, StageState};
 pub use inventory::{InventoriedObject, Inventory, StoreInventory};
 pub use preparation::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
@@ -46,6 +60,9 @@ pub use preparation::{
     StagedPublicationObject,
 };
 pub use read_only::remove_read_only_copies;
+pub use stage_preparation::{
+    PublicationPreparationV4, StagePublication, StagePublicationCommandKey, StagePublicationObject,
+};
 #[cfg(test)]
 #[path = "eventlog_reads.rs"]
 mod reads;
@@ -54,6 +71,14 @@ mod reads;
 pub type SqliteStore = EventlogStore<SqliteEventStore>;
 /// File-backed synchronous runtime storage.
 pub type FileStore = EventlogStore<FileEventStore>;
+/// Hosted PostgreSQL-backed synchronous runtime storage.
+pub type PostgresStore = EventlogStore<PostgresEventStore>;
+
+/// Provider-specific authoritative tenant emptiness check.
+type EmptyCheck<S> = fn(&S, &Runtime, &TenantId) -> Result<bool, StoreError>;
+/// Provider-specific capture of one tenant's whole history and bound content in one observation;
+/// the flag says whether the handle only reads.
+type CaptureTenant<S> = fn(&S, &Runtime, &TenantId, bool) -> Result<TenantCapture, StoreError>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -126,6 +151,10 @@ pub struct EventlogStore<S: EventStore> {
     /// the log from it finds every event appended to a held stream since that object was
     /// verified.
     log_seen: std::sync::Mutex<Option<u64>>,
+    /// Tenant feed position preceding the most recent successful command replay. A cold handle
+    /// verifies the complete payload set once; later changes to existing object streams are
+    /// checked before it may reuse a replay that omits those payloads.
+    replay_checked: std::sync::Mutex<Option<u64>>,
     /// The revision stream's prefix this handle has read and checked. The stream is append-only,
     /// so a later read fetches only the occurrences after it.
     revisions: std::sync::Mutex<HeldRevisions>,
@@ -148,9 +177,30 @@ pub struct EventlogStore<S: EventStore> {
     /// read and write (`replaced.rs`). A file replaced in place is refused as
     /// [`StoreError::Replaced`].
     at_path: Option<replaced::AtPath>,
+    /// Hosted read handles refuse all mutations, including replay checkpoints.
+    hosted_read_only: bool,
+    /// Where a provider's change feed can withhold committed events (PostgreSQL), the inventory
+    /// is one provider capture of the tenant instead of reads of the feed and its streams.
+    capture: Option<CaptureTenant<S>>,
+    /// Provider-specific bounded shutdown, before dropping the runtime that drives its clients.
+    shutdown: Option<fn(&S, &Runtime)>,
+    /// Authoritative emptiness where a provider feed can temporarily withhold committed events.
+    empty: Option<EmptyCheck<S>>,
+    /// The provider this store is on.
+    provider: ProviderKind,
+    /// For a handle joined to a stage (design § 107.3): the stage and its record's stream in the
+    /// store's tenant, read before every read and write and again after every write lands.
+    joined: Option<Joined>,
     /// Set when the store was opened read-only: every write is refused and no checkpoint is
     /// written. Last, so that a File store's private copy is removed after the provider over it.
     read_only: Option<read_only::ReadOnly>,
+}
+/// What a handle joined to a stage checks: the stage, the store's tenant and the record's stream
+/// in it.
+struct Joined {
+    stage: StageId,
+    store_tenant: TenantId,
+    record: StreamId,
 }
 /// One verified object as a handle keeps it: its metadata, and its bytes shared with the process's
 /// registry of verified bytes.
@@ -250,7 +300,13 @@ impl EventlogStore<SqliteEventStore> {
         let store =
             waiting_out_the_lock(|| runtime.block_on(SqliteEventStore::open(&named, "ekr")))?;
         Self::at(
-            Self::assemble(runtime, store, tenant, ontology.into()),
+            Self::assemble(
+                runtime,
+                store,
+                tenant,
+                ontology.into(),
+                ProviderKind::Sqlite,
+            ),
             path,
         )
     }
@@ -285,7 +341,13 @@ impl EventlogStore<SqliteEventStore> {
             error => error.into(),
         })?;
         Self::at(
-            Self::assemble(runtime, store, tenant, ontology.into()),
+            Self::assemble(
+                runtime,
+                store,
+                tenant,
+                ontology.into(),
+                ProviderKind::Sqlite,
+            ),
             path,
         )
     }
@@ -325,7 +387,13 @@ impl EventlogStore<SqliteEventStore> {
         let image = read_only::sqlite_image(path, "ekr_events")?
             .ok_or_else(|| StoreError::NoStore(path.display().to_string()))?;
         let store = runtime.block_on(SqliteEventStore::from_image("ekr", image))?;
-        let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
+        let mut opened = Self::assemble(
+            runtime,
+            store,
+            tenant,
+            ontology.into(),
+            ProviderKind::Sqlite,
+        );
         opened.read_only = Some(read_only::ReadOnly {
             path: path.to_owned(),
             signature,
@@ -453,7 +521,13 @@ impl EventlogStore<FileEventStore> {
         let tenant = TenantId::new(tenant)?;
         std::fs::create_dir_all(path).map_err(|e| StoreError::Backend(e.to_string()))?;
         let store = runtime.block_on(FileEventStore::open(path))?;
-        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+        Ok(Self::assemble(
+            runtime,
+            store,
+            tenant,
+            ontology.into(),
+            ProviderKind::File,
+        ))
     }
     /// Opens an already provisioned File store, creating no directory, lock or manifest: a path
     /// holding none is refused and left as it was. A store this process may not write — its
@@ -475,7 +549,13 @@ impl EventlogStore<FileEventStore> {
             return Err(read_only::denied(path, &denied));
         }
         let store = runtime.block_on(FileEventStore::open_existing(path))?;
-        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+        Ok(Self::assemble(
+            runtime,
+            store,
+            tenant,
+            ontology.into(),
+            ProviderKind::File,
+        ))
     }
     /// Opens an already provisioned File store for a caller that only reads it: as
     /// [`EventlogStore::file_existing`] where this process may write the store, and otherwise as
@@ -512,7 +592,8 @@ impl EventlogStore<FileEventStore> {
         let signature = read_only::Signature::file(path);
         let copy = read_only::copy_file_store(path)?;
         let store = runtime.block_on(FileEventStore::open_existing(copy.path()))?;
-        let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
+        let mut opened =
+            Self::assemble(runtime, store, tenant, ontology.into(), ProviderKind::File);
         opened.read_only = Some(read_only::ReadOnly {
             path: path.to_owned(),
             signature,
@@ -522,6 +603,96 @@ impl EventlogStore<FileEventStore> {
         Ok(opened)
     }
 }
+impl EventlogStore<PostgresEventStore> {
+    /// Applies the provider schema with separately supplied schema-management credentials.
+    /// # Errors
+    /// Invalid configuration, TLS verification, incompatible schema or provider failure.
+    pub fn postgres_schema(
+        config: &crate::postgres::PostgresConfiguration,
+    ) -> Result<(), StoreError> {
+        let runtime = new_runtime()?;
+        runtime.block_on(PostgresEventStore::migrate(
+            config.provider()?,
+            config.options(),
+            &[],
+        ))?;
+        Ok(())
+    }
+
+    /// Opens an existing hosted owner schema, with verified TLS and bounded application-role
+    /// admission. It never provisions schema. A read handle refuses every store mutation.
+    /// # Errors
+    /// Invalid anchor inputs, configuration, role, budget, schema or provider failure.
+    pub fn postgres(
+        config: &crate::postgres::PostgresConfiguration,
+        tenant: &str,
+        reading: bool,
+    ) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
+        let store = runtime.block_on(PostgresEventStore::open(
+            config.provider()?,
+            config.options(),
+            config.database_connections,
+            config.replicas,
+            config.reserved_connections,
+        ))?;
+        let mut opened = Self::assemble(runtime, store, tenant, None, ProviderKind::Postgres);
+        opened.hosted_read_only = reading;
+        opened.capture = Some(|store, runtime, tenant, reading| {
+            // The inventory holds every event and object of the tenant by contract — it is what a
+            // preserving copy reads — so the capture carries no cap below the tenant's own size.
+            // The provider's operation deadline still bounds it.
+            let limits = CaptureLimits {
+                max_events: u64::MAX,
+                max_blobs: u64::MAX,
+                max_projection_rows: 0,
+                max_payload_bytes: u64::MAX,
+            };
+            // Provider publication does not itself allocate the capture identity, so a writing
+            // handle ensures it as the emptiness check does; this metadata is not canonical
+            // history. A reading handle allocates nothing.
+            if !reading {
+                runtime.block_on(store.stream_identity(tenant))?;
+            }
+            crate::verified::count_stream_read(|reads| reads.captures += 1);
+            match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
+                Ok(captured) => Ok(captured),
+                Err(CaptureError::Store(error)) => Err(error.into()),
+                Err(CaptureError::TenantIdentityMissing) if reading => Err(StoreError::ReadOnly(
+                    "a tenant inventory requires capture metadata a reading handle does not write"
+                        .into(),
+                )),
+                Err(error) => Err(StoreError::Document(format!("postgres-capture: {error}"))),
+            }
+        });
+        opened.empty = Some(|store, runtime, tenant| {
+            // A zero cap checks existence without loading arbitrary tenant payloads. Native
+            // capture waits for committed publishers, unlike the watermark-filtered feed.
+            let limits = CaptureLimits {
+                max_events: 0,
+                max_blobs: 0,
+                max_projection_rows: 0,
+                max_payload_bytes: 0,
+            };
+            // Provider publication does not itself allocate the capture identity. Ensure it
+            // exists before taking absence as evidence; this metadata is not canonical history.
+            runtime.block_on(store.stream_identity(tenant))?;
+            crate::verified::count_stream_read(|reads| reads.captures += 1);
+            match runtime.block_on(store.capture_tenant(tenant, &[], limits)) {
+                Ok(_) => Ok(true),
+                Err(CaptureError::LimitExceeded { .. }) => Ok(false),
+                Err(CaptureError::Store(error)) => Err(error.into()),
+                Err(error) => Err(StoreError::Document(format!("postgres-capture: {error}"))),
+            }
+        });
+        opened.shutdown = Some(|store, runtime| {
+            let _ = runtime.block_on(store.shutdown());
+        });
+        Ok(opened)
+    }
+}
+
 fn ensure_sync_context() -> Result<(), StoreError> {
     if Handle::try_current().is_ok() {
         Err(StoreError::RuntimeContext)
@@ -541,6 +712,8 @@ impl<S: EventStore> Drop for EventlogStore<S> {
         if let Some(runtime) = self.runtime.take() {
             if Handle::try_current().is_ok() {
                 runtime.shutdown_background();
+            } else if let Some(shutdown) = self.shutdown {
+                shutdown(&self.store, &runtime);
             }
         }
     }
@@ -549,14 +722,23 @@ impl<S: EventStore> EventlogStore<S> {
     fn runtime(&self) -> &Runtime {
         self.runtime.as_ref().expect("runtime is owned until drop")
     }
-    fn assemble(runtime: Runtime, store: S, tenant: TenantId, ontology: Option<Ontology>) -> Self {
+    fn assemble(
+        runtime: Runtime,
+        store: S,
+        tenant: TenantId,
+        ontology: Option<Ontology>,
+        provider: ProviderKind,
+    ) -> Self {
         Self {
+            provider,
+            joined: None,
             runtime: Some(runtime),
             store,
             tenant,
             ontology,
             authority: None,
             verified: std::sync::Mutex::default(),
+            replay_checked: std::sync::Mutex::default(),
             log_seen: std::sync::Mutex::default(),
             revisions: std::sync::Mutex::default(),
             checkpoints: true,
@@ -564,6 +746,10 @@ impl<S: EventStore> EventlogStore<S> {
             authorized: std::sync::Mutex::default(),
             pointer: std::sync::Mutex::default(),
             at_path: None,
+            hosted_read_only: false,
+            capture: None,
+            shutdown: None,
+            empty: None,
             read_only: None,
         }
     }
@@ -571,22 +757,22 @@ impl<S: EventStore> EventlogStore<S> {
     /// async runtime, and a SQLite database replaced in place since this handle opened it.
     fn entered(&self) -> Result<(), StoreError> {
         ensure_sync_context()?;
-        let Some(at_path) = &self.at_path else {
-            return Ok(());
-        };
-        at_path.check(|position| {
-            let page = self.runtime().block_on(self.store.read_feed(
-                &self.tenant,
-                position.saturating_sub(1),
-                1,
-            ))?;
-            Ok(page
-                .events
-                .into_iter()
-                .next()
-                .filter(|event| event.global_seq == position)
-                .map(|event| event.event_id))
-        })
+        if let Some(at_path) = &self.at_path {
+            at_path.check(|position| {
+                let page = self.runtime().block_on(self.store.read_feed(
+                    &self.tenant,
+                    position.saturating_sub(1),
+                    1,
+                ))?;
+                Ok(page
+                    .events
+                    .into_iter()
+                    .next()
+                    .filter(|event| event.global_seq == position)
+                    .map(|event| event.event_id))
+            })?;
+        }
+        self.check_joined()
     }
     /// `opened`, recording the database file at `path` it opened and checking it once.
     fn at(mut opened: Self, path: &Path) -> Result<Self, StoreError> {
@@ -603,7 +789,7 @@ impl<S: EventStore> EventlogStore<S> {
     /// [`EventlogStore::sqlite_read_only`]): every write through it is refused.
     #[must_use]
     pub fn is_read_only(&self) -> bool {
-        self.read_only.is_some()
+        self.hosted_read_only || self.read_only.is_some()
     }
     /// Whether this store was opened read-only and the files at its path have changed since it
     /// read them — another process committed, say. A long-lived reader then opens the store
@@ -687,6 +873,7 @@ impl<S: EventStore> EventlogStore<S> {
     #[must_use]
     pub fn under(mut self, authority: impl CommitAuthority + 'static) -> Self {
         self.authority = Some(Box::new(authority));
+        self.replay_checked = std::sync::Mutex::default();
         self
     }
     fn authority(&self) -> Result<&dyn CommitAuthority, StoreError> {
@@ -721,6 +908,7 @@ impl<S: EventStore> EventlogStore<S> {
         let mut events: Vec<PublishedEvent> = Vec::new();
         let mut after = 0;
         loop {
+            crate::verified::count_stream_read(|reads| reads.feed += 1);
             let page = self.runtime().block_on(self.store.read_feed(
                 &self.tenant,
                 after,
@@ -1276,6 +1464,9 @@ impl<S: EventStore> EventlogStore<S> {
     /// Drops everything this handle holds: the revision prefix and every verified object.
     fn forget_everything(&self, revisions: &mut HeldRevisions) {
         *revisions = HeldRevisions::default();
+        if let Ok(mut checked) = self.replay_checked.lock() {
+            *checked = None;
+        }
         let seen = self.log_seen.lock();
         if let Ok(mut held) = self.verified.lock() {
             held.clear();
@@ -1348,7 +1539,9 @@ impl<S: EventStore> EventlogStore<S> {
         if missing.is_empty() {
             return Ok(());
         }
-        for (hash, object) in missing.iter().zip(self.required(&missing)?) {
+        let objects = self.required(&missing)?;
+        crate::verified::count_objects_loaded(objects.len());
+        for (hash, object) in missing.iter().zip(objects) {
             history.objects.insert(*hash, object);
         }
         Ok(())
@@ -1361,6 +1554,105 @@ impl<S: EventStore> EventlogStore<S> {
         self.load_history_requiring(limit, selected, |history| {
             self.authority()?.required_objects(history)
         })
+    }
+    /// The head history for a caller that only has the authority replay it, holding the objects
+    /// [`CommitAuthority::replay_objects`] names, and `replayed`'s answer over it. Where loading
+    /// or replaying that history is refused, the complete history is loaded and replayed instead,
+    /// and its answer returned: the one the complete history gives.
+    ///
+    /// Every payload an earlier commit added is required of a complete history, so loading it
+    /// costs every command the evidence count; a replay continuing from a state the authority
+    /// reached reads only the payloads of the occurrences after it.
+    fn replayed<T>(
+        &self,
+        replayed: impl Fn(&RetainedHistory) -> Result<T, StoreError>,
+    ) -> Result<(RetainedHistory, T), StoreError> {
+        let (boundary, complete) = self.replay_boundary()?;
+        let partial = self
+            .load_history_requiring(MAX_READ_LIMIT, None, |history| {
+                if complete {
+                    self.authority()?.required_objects(history)
+                } else {
+                    self.authority()?.replay_objects(history)
+                }
+            })
+            .and_then(|history| replayed(&history).map(|answer| (history, answer)));
+        let answer = match partial {
+            Ok(answer) => answer,
+            Err(_) => {
+                let history = self.load_history(MAX_READ_LIMIT, None)?;
+                let answer = replayed(&history)?;
+                (history, answer)
+            }
+        };
+        if !answer.0.occurrences.is_empty() {
+            self.remember_replayed(boundary)?;
+        }
+        Ok(answer)
+    }
+    /// Look from the last successful replay through the tenant feed, before loading its history.
+    /// A first object event creates immutable bytes; later events can withdraw or change their
+    /// retention, including for payloads a cached replay no longer loads. Changed objects are
+    /// checked again; a refusal requires the complete history, preserving its refusal ordering
+    /// and ignoring damage to objects that history does not require. Unreadable or inconsistent feeds
+    /// also require the complete history and cannot advance this cursor. It advances only after
+    /// successful verification, so a refusal remains a refusal on every retry.
+    fn replay_boundary(&self) -> Result<(Option<u64>, bool), StoreError> {
+        let prior = *self
+            .replay_checked
+            .lock()
+            .map_err(|_| StoreError::Document("replay-feed-position-poisoned".into()))?;
+        let mut complete = prior.is_none();
+        let mut after = prior.unwrap_or(0);
+        let mut changed = BTreeSet::new();
+        loop {
+            crate::verified::count_stream_read(|reads| reads.feed += 1);
+            let Ok(page) =
+                self.runtime()
+                    .block_on(self.store.read_feed(&self.tenant, after, MAX_READ_LIMIT))
+            else {
+                return Ok((None, true));
+            };
+            for event in &page.events {
+                if event.tenant != self.tenant || event.global_seq <= after {
+                    return Ok((None, true));
+                }
+                after = event.global_seq;
+                if event.stream_type == OBJECT_STREAM_TYPE
+                    && (event.version != 1
+                        || event.name != OBJECT_STORED
+                        || event.schema_version != 1
+                        || event.is_redacted())
+                {
+                    if let Ok(hash) = event.stream_id.parse::<ContentHash>() {
+                        changed.insert(hash);
+                    } else {
+                        complete = true;
+                    }
+                }
+            }
+            if !page.has_more {
+                if !complete && !changed.is_empty() {
+                    complete = self
+                        .required(&changed.into_iter().collect::<Vec<_>>())
+                        .is_err();
+                }
+                return Ok((Some(after), complete));
+            }
+            if page.events.is_empty() {
+                return Ok((None, true));
+            }
+        }
+    }
+    fn remember_replayed(&self, boundary: Option<u64>) -> Result<(), StoreError> {
+        if let Some(boundary) = boundary {
+            let mut checked = self
+                .replay_checked
+                .lock()
+                .map_err(|_| StoreError::Document("replay-feed-position-poisoned".into()))?;
+            *checked = Some(checked.map_or(boundary, |prior| prior.max(boundary)));
+        }
+        Ok(())
     }
     fn load_history_requiring(
         &self,
@@ -1401,6 +1693,31 @@ impl<S: EventStore> EventlogStore<S> {
         self.load_objects(history, required)?;
         let wanted = authority.objects_if_held(history)?;
         self.load_present(history, wanted)
+    }
+    /// Has the authority verify `history`, holding the objects
+    /// [`CommitAuthority::replay_objects`] names; where that is refused, it loads everything
+    /// [`Self::load_authority_objects`] loads and verifies again, returning that answer: the one
+    /// the complete history gives. As in [`Self::replayed`].
+    pub(super) fn verify_replayed(&self, history: &mut RetainedHistory) -> Result<(), StoreError> {
+        let (boundary, complete) = self.replay_boundary()?;
+        let partial = self.authority().and_then(|authority| {
+            let required = if complete {
+                authority.required_objects(history)?
+            } else {
+                authority.replay_objects(history)?
+            };
+            self.load_objects(history, required)?;
+            let wanted = authority.objects_if_held(history)?;
+            self.load_present(history, wanted)?;
+            authority.verify(history, self.ontology.as_ref(), None)
+        });
+        if partial.is_ok() {
+            return self.remember_replayed(boundary);
+        }
+        self.load_authority_objects(history)?;
+        self.authority()?
+            .verify(history, self.ontology.as_ref(), None)?;
+        self.remember_replayed(boundary)
     }
     /// Loads each object of `hashes` the history does not hold yet and the store holds an object
     /// for, as [`Self::load_objects`] loads it; one with no object stream is left out.
@@ -1550,21 +1867,42 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     ) -> Result<eventlog_core::AppendGroupResult, StoreError> {
         // Every publication, object, preparation and checkpoint write reaches the provider here:
         // on a store opened read-only it is refused before anything is written, to the copy too.
+        if self.hosted_read_only {
+            return Err(StoreError::ReadOnly("hosted read handle".into()));
+        }
         if let Some(read_only) = &self.read_only {
             return Err(read_only.refusal());
+        }
+        // A write joined to a stage was checked when it entered; a test interleaves here.
+        if self.joined.is_some() {
+            crate::stage::reached(crate::StagePoint::JoinedWrite)?;
         }
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
         for _ in 0..16 {
-            match self
-                .runtime()
-                .block_on(AtomicBlobEventStore::append_group_with_blobs(
-                    &self.store,
-                    request,
-                )) {
+            // A group that binds no blob (a stage record's move, or a publication of a suffix
+            // with no object) is the provider's plain atomic group: a blob group must bind one.
+            let appended = if request.blobs.is_empty() {
+                self.runtime()
+                    .block_on(eventlog_core::AtomicEventStore::append_group(
+                        &self.store,
+                        &request.group,
+                    ))
+            } else {
+                self.runtime()
+                    .block_on(AtomicBlobEventStore::append_group_with_blobs(
+                        &self.store,
+                        request,
+                    ))
+            };
+            match appended {
                 Err(EventLogError::UnknownCommit) => continue,
-                result => return result.map_err(StoreError::from),
+                Ok(result) => {
+                    self.landed(&request.group)?;
+                    return Ok(result);
+                }
+                Err(error) => return Err(error.into()),
             }
         }
         Err(StoreError::UnknownCommit)
@@ -1606,6 +1944,17 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                 .verify(&history, self.ontology.as_ref(), None)?;
         }
         Ok(history)
+    }
+    fn replay_history(&self) -> Result<RetainedHistory, StoreError> {
+        self.entered()?;
+        self.replayed(|history| {
+            if history.occurrences.is_empty() {
+                return Ok(());
+            }
+            self.authority()?
+                .verify(history, self.ontology.as_ref(), None)
+        })
+        .map(|(history, ())| history)
     }
     fn publish(&self, publication: &Publication) -> Result<Appended, StoreError> {
         self.entered()?;
@@ -1735,12 +2084,14 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         }
         // No pointer names every occurrence — after a proposal or a validation none does (design
         // § 99) — so the head is replayed, and only its root is asked for.
-        let history = self.load_history(MAX_READ_LIMIT, None)?;
-        if history.occurrences.is_empty() {
-            return Ok(None);
-        }
-        self.authority()?
-            .replay_root(&history, self.ontology.as_ref(), None)
+        self.replayed(|history| {
+            if history.occurrences.is_empty() {
+                return Ok(None);
+            }
+            self.authority()?
+                .replay_root(history, self.ontology.as_ref(), None)
+        })
+        .map(|(_, root)| root)
     }
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
         self.entered()?;
@@ -1771,7 +2122,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         self.entered()?;
         // A checkpoint is a cache of verified work: a store opened read-only keeps none, and a
         // read on it is answered exactly as without one.
-        if self.read_only.is_some() {
+        if self.is_read_only() {
             return Ok(false);
         }
         // This handle's own last append names the newest pointer and the stream's length, unless
@@ -1884,8 +2235,8 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     &self.store,
                     &request.group,
                 ))
-                .map(|_| ())
                 .map_err(StoreError::from)
+                .and_then(|_| self.landed(&request.group))
         } else {
             self.atomic(&request).map(|_| ())
         };

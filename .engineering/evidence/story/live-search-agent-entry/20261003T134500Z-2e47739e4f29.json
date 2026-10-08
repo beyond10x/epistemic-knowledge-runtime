@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-03T13:45:00Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 20,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Integrated browser acceptance on ab8a98b29 fails an immediate cancellation-event assertion; matching request canceled event arrives later in a bounded native-CDP probe. Preserve the assertion while waiting for that exact request event."
+  }
+}

@@ -142,6 +142,7 @@ impl World {
         let store = match self.backend {
             Backend::File => "store",
             Backend::Sqlite => "state.db",
+            Backend::Postgres => panic!("local fixture requires a filesystem backend"),
         };
         StoreConfig {
             host: self.directory.path().join("host.json"),
@@ -445,7 +446,8 @@ fn revision_u64_max_is_refused_or_selected_not_a_fault() {
 // ---- a share left out, from real ekr -------------------------------------------------------------
 
 /// `docs/cli.md`: a `_share` "is left out when the whole is `0`". A store whose schema declares
-/// no property prints `properties` as `{"constrained": 0, "declared": 0}`; the typed value reads
+/// no property prints `properties` as `{"constrained": 0, "constrained_types": 0, "declared": 0}`;
+/// the typed value reads
 /// it with `constrained_share` `None` and writes back exactly the CLI's bytes, through a session
 /// and one-shot on both providers. The unit reads this shape from the `hub` fixture at revision 0
 /// only, through the engine; this reads it from real `ekr`.
@@ -463,15 +465,16 @@ fn a_store_declaring_no_property_reads_without_constrained_share() {
         let document: Value = serde_json::from_str(&cli).unwrap();
         assert_eq!(
             document["properties"],
-            serde_json::json!({"constrained": 0, "declared": 0}),
+            serde_json::json!({"constrained": 0, "constrained_types": 0, "declared": 0}),
             "{on}: {cli}"
         );
         assert_eq!(
             (
                 typed.properties.declared,
+                typed.properties.constrained_types,
                 typed.properties.constrained_share
             ),
-            (0, None),
+            (0, 0, None),
             "{on}"
         );
         assert_eq!(

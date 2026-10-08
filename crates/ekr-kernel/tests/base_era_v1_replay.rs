@@ -262,12 +262,14 @@ fn every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes() {
             GraphOperation::AddEvidence(_) => "AddEvidence",
             GraphOperation::WidenEdgeType(_) => "WidenEdgeType",
             GraphOperation::AddAlias(_) => "AddAlias",
+            GraphOperation::AttachEvidence(_) => "AttachEvidence",
         })
         .collect();
     assert_eq!(kinds.len(), 12, "{kinds:?}");
     assert!(!kinds.contains("AddEvidence"), "{kinds:?}");
     assert!(!kinds.contains("WidenEdgeType"), "{kinds:?}");
     assert!(!kinds.contains("AddAlias"), "{kinds:?}");
+    assert!(!kinds.contains("AttachEvidence"), "{kinds:?}");
     let canonical =
         GraphTransaction::<CanonicalValue>::try_from(parsed.transaction().clone()).unwrap();
     assert_eq!(

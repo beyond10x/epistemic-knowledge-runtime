@@ -5,6 +5,7 @@ tasks:
     desc: The full gate; land nothing until it exits zero
     cmds:
       - task: fmt-check
+      - task: search-web-check
       - task: clippy
       - task: test
       - task: doc-check
@@ -12,6 +13,25 @@ tasks:
       - task: spec-check
       - task: conform-fresh
       - task: plan-check
+      - task: site-check
+
+  site-check:
+    desc: Validate the public project's document, anchors and asset routes
+    cmds:
+      - cargo run --locked -p xtask --bin ekr-docs -- check
+
+  search-web-check:
+    desc: Reproduce browser Rust bytes and check the separate target without changing native install prerequisites
+    cmds:
+      - cargo run --locked -p xtask --bin xtask -- search-web --check
+      - cargo fmt --manifest-path crates/ekr-search-web/Cargo.toml -- --check
+      - cargo test --locked --manifest-path crates/ekr-search-web/Cargo.toml
+      - cargo clippy --locked --manifest-path crates/ekr-search-web/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+  site-build:
+    desc: Build the static public site with exact source provenance
+    cmds:
+      - cargo run --locked -p xtask --bin ekr-docs -- build --out website/build --commit "$(git rev-parse HEAD)"
 
   fmt-check:
     desc: rustfmt, check only

@@ -47,19 +47,25 @@ Copy it onto your `PATH`; the rest of this page calls it `ekr`.
 
 ## Configuration
 
-Verbs that read or write a store need three settings, and take a fourth. Each is a flag or an
+Verbs that read or write a store need three settings, and take two more. Each is a flag or an
 environment variable; the flag wins, and an empty variable counts as unset.
 
 | flag | variable | value |
 |---|---|---|
 | `--host` | `EKR_HOST` | path to the trusted host document, an `ekr.cli-host/1` JSON file (below) |
-| `--store` | `EKR_STORE` | where the data lives: a directory for `file`, a database file for `sqlite` |
-| `--backend` | `EKR_BACKEND` | `file` or `sqlite`, lowercase |
+| `--store` | `EKR_STORE` | a directory for `file`, database file for `sqlite`, configuration file for `postgres` |
+| `--backend` | `EKR_BACKEND` | `file`, `sqlite` or `postgres`, lowercase |
 | `--full-replay` | `EKR_FULL_REPLAY` | optional: replay from the seed (below); the variable is `1` or `true` for on, `0` or `false` for off |
+| `--stage` | `EKR_STAGE` | optional: a stage id, as [`ekr stage begin`](#ekr-stage) prints it. Every verb that opens an existing store joins that stage: it reads and writes the stage, not the store |
 
 The store need not exist before `ekr seed`: the file provider creates the directory and any missing
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
 `example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
+
+`--stage` and `EKR_STAGE` are the one pair where the flag does not simply win: the two naming
+different stages is a usage error (exit 2). `seed` and `migrate`, which create a store, refuse
+either as a usage error. The [`ekr stage`](#ekr-stage) verbs run on the store itself: they ignore
+`EKR_STAGE`, so a run can export it and still publish, and refuse `--stage` as a usage error.
 
 A store this process may read but not write — on a read-only mount, or owned by another user —
 still answers every verb that only reads it. Such a verb opens the store read-only, writes nothing
@@ -72,7 +78,7 @@ prints on a writable store. A verb that writes is refused `store-read-only` (exi
   shared lock on its `writer.lock` that excludes every writer. The copy is a directory
   `ekr-read-only-<pid>-…` in the temporary directory (`TMPDIR`, else `/tmp`), which needs free space
   for one more copy of the store for each process reading it. It is removed when the verb ends;
-  `ekr view` and `ekr mcp` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
+  `ekr view`, `ekr mcp` and `ekr mcp-http` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
   128 plus the signal's number. A copy left by a process that was killed outright is removed by the
   next read-only open in the same temporary directory.
 - **A SQLite database** is read into memory through a read-only connection, and no `-shm` file is
@@ -84,7 +90,7 @@ prints on a writable store. A verb that writes is refused `store-read-only` (exi
   are those beside the file a symlinked database path names. One file can appear: where this
   process may write the database's directory and a writer closes during the read, SQLite itself
   can create an empty `-wal` there, which holds nothing and which the next writer uses.
-- **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp` — checks the store's files before
+- **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp`, `ekr mcp-http` — checks the store's files before
   each request that reads it (a file store's `events.jsonl`, `manifest.json` and `blobs`; a SQLite
   database and its `-wal`), and when they have changed since it read them, it reads the store
   again, as it does for a store replaced at its path. A commit another process made is what the
@@ -136,7 +142,7 @@ exactly that.
 |---|---|---|
 | 0 | a declared outcome | one JSON document on stdout. A validation that rejects (`"kind": "Rejected"`) and a commit that finds the head moved (`"kind": "Stale"`) are outcomes too: read `kind` |
 | 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
-| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, or clap's usage message |
+| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, `ekr: <name>: <reason>` for a refusal of a stage ([`ekr stage`](#ekr-stage)), or clap's usage message |
 
 `guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
@@ -147,14 +153,14 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 
 | verb | store | input | prints |
 |---|---|---|---|
-| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable | the seed result: `result.revision` is `0` |
+| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable; `--if-absent` | the seed result: `result.revision` is `0` |
 | `ekr propose` | writes | an `ekr.transaction-document/2` file, or `-` | the proposal record: `transaction_id` |
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
+| `ekr explain` | reads | an assertion id; `--documents`, `--offset`, `--limit` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too, at most 64 KiB of each evidence record unless `--limit` says otherwise |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
-| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
+| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-`; `--strict` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -162,6 +168,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
+| `ekr process-map` | reads | `--revision <revision>`, `--events <type name>...`, `--event-time <type.property>...` | the `ekr.process-map/1` document: that log as a process, per object type its variants with their case counts and its directly-follows edges with their counts |
 | `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
 | `ekr fact-quality` | none | an `ekr.fact-judgements/1` file, or `-`; `--confidence <basis points>` | the `ekr.fact-quality/1` document: the judged sample's pass rate and its Wilson interval |
 | `ekr guide` | none | none | the workflow, as text |
@@ -170,18 +177,22 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
-| `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
+| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>`, `--require-ready`, optional `--mcp-url <URL>` and `--agent-guide-url <URL>` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
-| `ekr migrate` | reads, and writes a new store | `--to <path>`: where the migrated store is written, holding no store yet | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
+| `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
+| `ekr migrate` | reads, and writes a new store | `--to <path>`, optional `--to-backend <provider>`: empty destination; PostgreSQL uses an application configuration file | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
+| `ekr postgres-schema` | provisions provider tables | `--config <file>`: schema-management configuration | `ekr.postgres-schema/1` with `ready: true`; no knowledge is seeded |
+| `ekr stage` | writes; `list` reads | `begin`; `publish <stage id> --expect-head <revision>`; `abandon <stage id>`; `list` | the stage as the verb left it: `stage_id`, `state`, `base` and, once published, `published_first` and `published_last`; `list` prints every stage the store has had |
 
 Every verb has `--help`.
 
 The `store` column is the binary's own: on a store this process may not write, a verb that `writes`
 is refused `store-read-only` (exit 2) and one that `reads` answers as on a writable store
 ([Configuration](#configuration)). `crates/ekr/tests/read_only_store.rs` runs every verb of both
-kinds but `view`, which serves until interrupted, on a read-only store of each provider against
-this table, and `session` and `migrate` on one too.
+kinds but the HTTP listeners, which serve until interrupted, on a read-only store of each provider
+against this table, and `session` and `migrate` on one too. `hosted_http.rs` checks both HTTP
+listeners on read-only stores.
 
 ### `ekr seed`
 
@@ -189,6 +200,22 @@ Writes revision 0 from an `ekr-seed/2` document: the schema, the initial graph a
 payloads. The seed is validated like a transaction first; a seed that does not validate is refused as
 `ekr.kernel.InvalidSeed` with the reason. Seeding the same document again returns the original result
 (exit 0); a different document on a seeded store is refused as `ekr.kernel.AlreadySeeded`.
+
+`--if-absent` seeds only if the store has no seed, so exit 0 means this call wrote it. Any seed
+already there is refused as `ekr.kernel.AlreadySeeded`, exit 2, the identical document included.
+A seed another caller was elected for and stopped before publishing is published first, as that
+caller's own retry would, and then refused, so after the refusal the store always holds a seed.
+Two callers that seed one store at once, on any provider, cannot both exit 0: the store elects one
+seed in the write itself, and the other caller is refused. A host creating a store it must own
+uses it. A retry of an `--if-absent` call whose answer was lost is refused the same way, since it
+cannot be told apart from another caller; `ekr seed` without the flag returns the existing result
+instead. A host that needs to tell the two apart reads `ekr head` and the seed result (`ekr seed`
+without the flag) after the refusal.
+
+```console
+ekr seed --if-absent seed.yaml                    # exit 0: this call created the store
+ekr seed --if-absent seed.yaml                    # exit 2: ekr.kernel.AlreadySeeded
+```
 
 Evidence payloads can come from files instead of the document. `--evidence <file>`, repeatable, adds
 the file's exact bytes to `evidence_payloads` under their content hash — the `content_hash` that
@@ -245,7 +272,9 @@ head. Committing a transaction that is not `Validated` is refused as
 ### `ekr snapshot`
 
 Prints the graph at the head, or at `--at N`: `root` (with `revision`), and `graph.graph` with
-`nodes`, `edges`, `assertions` and `evidence`, each a map keyed by id. A plain snapshot returns every
+`nodes`, `edges`, `assertions` and `evidence`, each a map keyed by id, and `attachments` when
+any assertion has evidence attached: assertion id → a list of `{evidence, revision}` in evidence id
+order, absent when there is none. A plain snapshot returns every
 assertion, including retracted and superseded ones, with `matching_assertions: null`. With
 `--valid-at` (milliseconds since the Unix epoch, or `YYYY-MM-DD` for midnight UTC),
 `matching_assertions` lists the ids of the assertions believed at that instant: accepted, not
@@ -267,13 +296,32 @@ receipt, an evidence payload — are named by their hash, not printed:
 | `Validation` | that transaction's validation receipt | with `Proposal` |
 | `Commit` | that transaction's commit: `transaction_id`, `revision_id`, `event_id`, `committer`, `committed_at`, `result` (the root it produced, `result.revision` its number), `result_hash`, `record_hash` (the receipt's hash), `proposal_record_hash` and `validation_record_hash` | with `Proposal` |
 | `Lifecycle` | a later committed retraction or supersession of it: `assertion_id`, `lifecycle`, and `commit`, that change's commit in the shape of a `Commit` link | once per such change |
-| `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+| `Attachment` | evidence attached to it after it was added (`!AttachEvidence`): `assertion_id`, `evidence_id`, `revision` (the revision that attached it), and `commit`, the attaching commit in the shape of a `Commit` link | after its `Lifecycle` links, once per attachment the revision read holds, in evidence id order; an explanation at a revision before the attachment does not list it |
+| `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain, attached to one, or listed in the `evidence` of a transaction that added or changed one |
 
 With `--documents`, each link also carries the whole record it names, read from the same revision:
 a `Proposal` link the proposal record as `record` (its `document_bytes` one base64 string), a
-`Commit` link and a `Lifecycle` link's `commit` the commit receipt as `receipt`, and an `Evidence`
+`Commit` link and a `Lifecycle` or `Attachment` link's `commit` the commit receipt as `receipt`, and an `Evidence`
 link `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are
 UTF-8). Without it the answer's size does not follow the size of the transactions on the chain.
+
+An evidence payload is bounded. `--documents` prints at most 64 KiB (65,536 bytes) of each
+evidence record, centred on the cited text — the first string value of an assertion on the chain,
+in chain order, that the record holds — and from its first byte when the record holds none.
+Evidence names no span of its record, so the cited text is found by its bytes. Two options read
+any other part, and need `--documents`:
+
+- `--offset N`: the first byte to print, counted from 0 in the record's raw bytes;
+- `--limit N`: the most bytes to print, at least 1; 65,536 when absent.
+
+Offsets are raw byte offsets, not character offsets: `--offset 0 --limit 1000` prints exactly the
+record's first 1,000 bytes. When such a range cuts a character, `payload` holds it and `text` is
+absent. The default window, which `ekr explain` places itself, moves its ends inward to character
+boundaries when the record is UTF-8, so its `text` is present. When the bytes printed are not the
+whole record, the `Evidence` link also carries `offset` (the first byte printed), `record_length`
+(the whole record's bytes) and `truncated: true`; a link without them printed the whole record, as
+before. To read a whole record, start at `--offset 0` and add each answer's byte count to the next
+offset until it reaches `record_length`: the pieces reassemble the record byte for byte.
 
 Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry:
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
@@ -335,8 +383,13 @@ its extractor and hands the engine the document it wrote.
 
 First the engine's reader checks the document against the ontology of the store's head. A document
 it refuses is refused by the reader's code (exit 2, `ekr: <code>: <reason>`, the codes in
-[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written.
-Then, in order:
+[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written. A
+fact it refuses — a code met in `facts[<index>]`, from `reference-without-identity` to
+`fact-evidence-unlisted` — is skipped instead: it is listed under `rejected` as `facts[<index>]`
+with the refusal `<code>: <name>`, nothing only it names (a named thing, an evidence item) is
+created or added, and the rest of the document applies. A refusal of the ontology, of an entity or
+of an evidence item still refuses the whole document. `--strict` refuses the whole document for a
+bad fact too, as the reader's first refusal in document order. Then, in order:
 
 1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
    (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
@@ -350,21 +403,51 @@ Then, in order:
    the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
    applied;
 3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
-   with the object node. Each evidence item a fact cites is added by `!AddEvidence` with the first
+   with the object node, valid from the earliest `observed_at` of the evidence items the fact
+   cites, with no end. Each evidence item a fact cites is added by `!AddEvidence` with the first
    assertion citing it, unless the store already holds its id. An item no fact cites is not added.
+   A `!Relation` fact also writes a `!CreateEdge` of its edge type from the subject to the object,
+   in the same transaction as its assertion, so `search` counts it in each end's `degree` and
+   `expand` walks it; none when the store, or an earlier fact that committed, already joins the
+   two nodes by an edge of that type. An edge validation refuses (its endpoint types, its type's
+   cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
+   those relations as assertions only; applying the document again holds them and adds no edge.
+   A `!Property` fact marked `replaces: true` also supersedes every active assertion of its
+   subject and property — the store's, or an earlier committed fact's — with a
+   `!SupersedeAssertion` from the new assertion's valid time on, in the same transaction, so
+   afterwards one assertion of that subject and property is active. When neither the store nor an
+   earlier fact of the document holds a value of that property for its subject, it is refused
+   before anything is resolved, so nothing only it names is created; when the earlier fact that
+   set one is rejected, it is refused then. Either way it is listed under `rejected` with the
+   refusal `replacement-without-active-assertion: facts[<index>]: …` — with or without `--strict`,
+   since it depends on the store — and the rest of the document applies. A superseded assertion
+   valid from later than the replacement is rejected by validation (`invalid-supersession`).
+   Facts are committed in rounds: a fact that depends on an earlier one — it repeats that fact's
+   claim citing no evidence the earlier one does not, it is a relation whose edge the earlier one
+   proposes, or it is on the same subject and property where either replaces — is tried once that
+   one has committed or been rejected, so a fact is never planned on a change that did not commit,
+   and one repeating a rejected fact is tried and reported on its own. Any other corroboration of
+   a claim commits in the same round.
    A rejected transaction is split and submitted again, down to the one fact validation refuses.
    A fact is held, not asserted, when an assertion making its claim — the same subject,
-   predicate, object and valid time — cites every evidence item the fact cites: one the store
-   holds active, one an earlier fact of the document made, or one the store holds retracted or
-   superseded, which asserting it again from the same evidence would undo (a superseded
-   assertion's valid time ends where its replacement starts; the fact's reaches that far). So
-   applying the same document a second time adds no node, evidence entry or assertion, and its
-   report lists every fact under `held`. A fact citing evidence no such assertion cited is
-   asserted.
+   predicate and object — cites every evidence item the fact cites and holds from no later than
+   the fact does: one the store holds active, one an earlier fact of the document committed, or
+   one the store holds retracted or superseded, which asserting it again from the same evidence
+   would undo (a superseded assertion's valid time ends where its replacement starts; the fact's
+   reaches that far). So applying the same document a second time adds no node, evidence entry or
+   assertion, and its report lists every fact under `held`; a fact citing part of an earlier
+   claim's evidence is held too. An assertion valid from an unbounded past, as this verb wrote one
+   in earlier releases, holds from before every fact, so a document applied then is held too. A
+   held fact marked `replaces: true` still supersedes every other active value of its subject and
+   property, by the assertion that holds it; it is listed under `held` once that supersession
+   commits, and only under `rejected` if validation rejects it. A fact citing evidence no such
+   assertion cited is asserted.
 
 Every write goes through `propose`, `validate` and `commit`, the same requests a consumer sends
 running the SDK's `ekr_sdk::extraction::apply` over an `ekr session`: the verb runs that routine,
-over the session's own dispatch in this process. A session does not serve the verb itself
+over the session's own dispatch in this process. The routine skips a bad fact the same way:
+`ExtractionDocument::decode` reads a document without refusing one, and
+`ApplyOptions::strict` asks for the whole-document refusal. A session does not serve the verb itself
 (`session-verb-refused`).
 
 It prints the `ekr.integrate.ExtractionReport`:
@@ -372,7 +455,7 @@ It prints the `ekr.integrate.ExtractionReport`:
 | key | holds |
 |---|---|
 | `committed` | each transaction committed, in order, as `transaction_id` and `revision`: the schema change, the new nodes, the facts |
-| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, or a named thing the fact rests on that was not created |
+| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, a named thing the fact rests on that was not created, the reader's refusal of a skipped fact, `<code>: <name>`, or `replacement-without-active-assertion` for a `replaces` fact with nothing active to replace |
 | `ambiguous` | each named thing the store answers with more than one node: `reference`, its node type and every alias of the named things that share one, the name first, and `candidates`, the nodes in id order |
 | `held` | each fact not asserted, as `item` (`facts[<index>]`) and `reason`: `asserted` (the store holds the claim active), `repeated` (an earlier fact of the document asserted it), `retracted` or `superseded` (an operator retracted or superseded the claim, and the fact brings no evidence it did not cite) |
 | `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on. `committed` then lists every transaction committed until then, those of the batch that stopped included |
@@ -425,6 +508,14 @@ as for `ekr snapshot --at`.
 `ekr code-names <file>... [--at N]` checks that code which reads a store stays generic over any
 ontology: it reports every literal in the given source files that equals one of the store's names,
 at the head or as of revision `N`. It reads the files and the store and writes nothing.
+
+`ekr code-names --words <file>...` also finds names used as bare identifiers or in comments.
+A match is exact and case-sensitive, with neither adjacent character a Unicode alphanumeric
+character or underscore; `ZORBED_BY` matches while `ZORBED_BY_suffix` does not. Names may contain
+spaces and punctuation. In this mode `column` points to the first matched character (counted
+in Unicode scalar values), `meta.mode` is `Words`, and the existing `literals` count counts
+candidate name occurrences before exemptions. Without `--words`, the literal scan and its
+document bytes remain unchanged, and `meta.mode` is absent.
 
 - **A literal** is the text between two quotes of the same character — `"`, `'` or a backtick — on
   one line, with `\` escaping the character after it. Each line is scanned twice and a literal either
@@ -492,7 +583,8 @@ ekr quality --revision 1
     "with_evidence": 4,
     "with_evidence_share": 10000,
     "with_item_evidence": 1,
-    "with_item_evidence_share": 2500
+    "with_item_evidence_share": 2500,
+    "with_seed_evidence": 3
   },
   "meta": {
     "format": "ekr.store-quality/1",
@@ -501,6 +593,7 @@ ekr quality --revision 1
   "properties": {
     "constrained": 0,
     "constrained_share": 0,
+    "constrained_types": 0,
     "declared": 1
   },
   "shared_names": [
@@ -523,12 +616,16 @@ ekr quality --revision 1
 | `assertions.with_evidence` | of those, the ones citing at least one evidence entry the store holds with its bytes. Every assertion the kernel admits cites evidence, so this equals `active` in a store `ekr` wrote |
 | `assertions.with_item_evidence` | of those, the ones citing at least one evidence entry added after the seed by an `AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)): the figure counts when evidence entered, not how finely it was cut: a seed that carries one evidence entry per assertion still reports `0` here |
 | `properties.declared` | the property declarations of the revision's schema: each property each node type and edge type declares itself |
+| `assertions.with_seed_evidence` | active assertions citing or attached to at least one seed evidence entry whose bytes remain retained; seed and item counts can overlap, and several citations or attachments count one assertion |
 | `properties.constrained` | of those, the ones declaring at least one entry in `constraints` |
+| `properties.constrained_types` | node and edge types directly declaring at least one constrained property; multiple such properties count one type, and inheritance adds no declaring type |
 | `shared_names` | every name — a canonical name or an alias, compared exactly as text — that two or more nodes of one type hold: the `type`, the `name` and the `nodes`, by id. Ordered by type id, then name; the empty name is never listed |
 | `sharing_nodes` | the distinct nodes `shared_names` lists |
 
 A `_share` is basis points: 10000 times the count divided by its whole, rounded down, so `10000` is
-all of it; it is left out when the whole is `0`. The document is printed as every verb prints its
+all of it; divide by `10000` for a proportion (for example, `2500 / 10000 = 0.25`). It is left out
+when the whole is `0`. Counts come from retained store history and never require a corpus file.
+The document is printed as every verb prints its
 JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.
@@ -545,7 +642,25 @@ member is what an OCEL 2.0 reader reads; write it to a file of its own, for exam
 ```console
 ekr ocel --revision 0
 ekr ocel --events Person
+ekr ocel --event-time Alert.fired_at --event-time Incident.reported_at
 ```
+
+On success stderr contains exactly one compact JSON line with the engine's `OcelExported`
+summary: `revision`, `event_types`, `object_types`, `events`, `objects`,
+`event_object_relationships`, `object_object_relationships`, `edges_between_events`,
+`undated_events`, `edges_of_undated_events`, `parallel_edges_merged`,
+`attribute_values_out_of_range` and `ocel_hash`. The hash covers the compact engine document,
+before CLI pretty printing. A session carries the same line in that request's `stderr` member.
+
+Repeat `--event-time TypeName.propertyName` to select event types and the `Timestamp` property
+that supplies each event's time. Selectors split at the last dot, so type names may contain dots;
+property names containing dots cannot be selected by this spelling. Names resolve in the
+requested revision, including inherited properties. Only selected types become events, and a
+node missing that property is omitted and counted in `undated_events`. A node with several
+distinct timestamps, an ambiguous name, an absent or non-Timestamp property, or two different
+properties selected for one type is refused as `ekr.views.EventTimeInvalid`; repeated identical
+selectors deduplicate. `--events` and `--event-time` cannot be combined. Without `--event-time`,
+the existing default and `--events` document bytes are unchanged.
 
 The event types are EKR's one event-type rule, the same types the overview marks as events
 (`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks
@@ -671,6 +786,135 @@ A known departure from OCEL 2.0: its Definition 2 makes an attribute name one ty
 property a type inherits is an attribute of that type and of every type inheriting it, under one
 property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
 accept such a log.
+
+### `ekr process-map`
+
+Prints the store's OCEL 2.0 event log at the head, or at `--revision N`, as a process: the
+`ekr.process-map/1` document (`ekr.views.ProjectProcessMap`). Per object type it lists the
+variants, each a distinct sequence of event types with the number of objects following it, and
+the directly-follows graph, each pair of event types that follow one another with how often they
+do. The map is derived from the `ekr.ocel/1` document `ekr ocel` prints for the same
+`--revision`, `--events` and `--event-time`, which select the log as they do there and are refused
+as they are refused there; `meta.ocel_hash` is that document's hash, the `ocel_hash` `ekr ocel`
+reports. Two reads of one request print the same bytes, before and after any later commit.
+
+```console
+ekr process-map
+ekr process-map --revision 0 --events Opened Closed
+ekr process-map --event-time Opened.at --event-time Closed.at
+```
+
+| `ekr.process-map/1` | what it holds |
+|---|---|
+| case | each object of the log, of its object type |
+| trace | the `type` of every event with a relationship to the case, in the log's order: by time, then id. An event related to one object under two qualifiers is one step, and an object no event relates to is no case |
+| `object_types[]` | one entry per object type of the log, by id, one with no case included: `objects` its objects, `cases` those with a trace |
+| `variants[]` | per object type, each distinct trace: `activities`, its event type ids in order, and `cases`, how many of the type's cases follow it; the most followed first, then by `activities` |
+| `directly_follows[]` | per object type, each pair of event type ids, `from` and `to`, that a trace holds as consecutive steps; `count` is how many times over all of the type's traces, a trace holding a pair twice counting two. Ordered by `from`, then `to`; a type may follow itself |
+| `names.node_types` | the log's `names.node_types`: each type id with its name |
+
+Types are named by id, as in `ekr.ocel/1`; `names` maps each back. Object-to-object relationships
+do not enter the map. A store whose log has three tickets — T-1 and T-2 opened, reviewed and
+closed, T-3 opened and closed, and both reviews by one reviewer — prints two ticket variants, with
+2 and 1 cases, and the reviewer's one, reviewed twice:
+
+```json
+{
+  "meta": {
+    "format": "ekr.process-map/1",
+    "ocel_hash": "fa4794bccf22016fac3d7e07628ede31818535c84261b0104321addf744cb4a4",
+    "revision": 0
+  },
+  "names": {
+    "node_types": [
+      {
+        "id": "00000000-0000-4000-8000-00000000c201",
+        "name": "Ticket"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c202",
+        "name": "Reviewer"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c203",
+        "name": "Opened"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c204",
+        "name": "Reviewed"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000c205",
+        "name": "Closed"
+      }
+    ]
+  },
+  "object_types": [
+    {
+      "cases": 3,
+      "directly_follows": [
+        {
+          "count": 2,
+          "from": "00000000-0000-4000-8000-00000000c203",
+          "to": "00000000-0000-4000-8000-00000000c204"
+        },
+        {
+          "count": 1,
+          "from": "00000000-0000-4000-8000-00000000c203",
+          "to": "00000000-0000-4000-8000-00000000c205"
+        },
+        {
+          "count": 2,
+          "from": "00000000-0000-4000-8000-00000000c204",
+          "to": "00000000-0000-4000-8000-00000000c205"
+        }
+      ],
+      "object_type": "00000000-0000-4000-8000-00000000c201",
+      "objects": 3,
+      "variants": [
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c203",
+            "00000000-0000-4000-8000-00000000c204",
+            "00000000-0000-4000-8000-00000000c205"
+          ],
+          "cases": 2
+        },
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c203",
+            "00000000-0000-4000-8000-00000000c205"
+          ],
+          "cases": 1
+        }
+      ]
+    },
+    {
+      "cases": 1,
+      "directly_follows": [
+        {
+          "count": 1,
+          "from": "00000000-0000-4000-8000-00000000c204",
+          "to": "00000000-0000-4000-8000-00000000c204"
+        }
+      ],
+      "object_type": "00000000-0000-4000-8000-00000000c202",
+      "objects": 1,
+      "variants": [
+        {
+          "activities": [
+            "00000000-0000-4000-8000-00000000c204",
+            "00000000-0000-4000-8000-00000000c204"
+          ],
+          "cases": 1
+        }
+      ]
+    }
+  ]
+}
+```
+
+`ekr session` serves the verb too; its refusals are `ekr ocel`'s.
 
 ### `ekr sample`
 
@@ -798,7 +1042,8 @@ binary64 value. `ekr session` embeds those bytes in its answer as they are.
 points from 1 to 9999 (9500, 95 %, when absent), with `z` the standard normal quantile at
 `(1 + confidence / 10000) / 2`: `(2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²))` for `k` passed of
 `n` judged. `lower` is exactly `0` when nothing passed and `upper` exactly `1` when everything did;
-the three are left out when nothing was judged. Compare `lower` with your bar to say, at that
+when nothing was judged, `rate` is explicitly `null`, `lower` is `0` and `upper` is `1` (the
+vacuous interval). Compare `lower` with your bar to say, at that
 confidence, that the pass rate is above it. The arithmetic uses only the operations IEEE 754
 rounds exactly, so every host prints the same numbers.
 
@@ -814,9 +1059,11 @@ how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the fifteen operation kinds, one per line, marking the four schema
+Without an argument, lists the sixteen operation kinds, one per line, marking the four schema
 changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
 kind (`ekr operations AddAssertion`), prints its fields and an example operation.
+The `AttachEvidence` example requires committing the `AddEvidence` example first, as its page
+states; its assertion comes from the example seed and its evidence comes from that commit.
 
 ### `ekr example`
 
@@ -868,25 +1115,88 @@ The printed `description` names every place the schema and the reader differ:
 
 ### `ekr view`
 
-Serves a read-only viewer of an existing store on 127.0.0.1 — never another address — until the
-process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. A store
+Serves a read-only viewer of an existing store until the process is interrupted:
+`ekr view --port 8080`, or `--port 0` (the default) for a free port. The default bind is
+`127.0.0.1`; `--bind <IP>` chooses another address. Non-loopback binding requires at least one
+`--allow-host <authority>`, repeatable. Explicit authorities replace the loopback defaults and
+include the port when clients send it. Forwarded headers never grant authority. A store
 this process may not write it opens read-only, as every verb that reads does, and reads again once
-its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy. It prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`,
-then answers:
+its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy.
+It prints one JSON line naming its bound address, such as `{"url": "http://127.0.0.1:<port>/"}`,
+then answers. By default, the URL is announced before lazy store admission, allowing liveness
+checks while the store is unavailable. `--require-ready` instead admits a seeded complete store
+before announcing; missing, unseeded, incomplete or unavailable stores exit without a URL. This
+option retains the admitted store for serving and is used by SDK viewer startup. Then it answers:
 
 | request | answer |
 |---|---|
+| `GET /find[?q=<text>][&revision=N]` | an HTML search form and at most 20 matching nodes, using the same name/alias ranking as `/search`; no JavaScript or external assets required. An empty query shows the form; a missing revision returns 404 and an unavailable store returns 503, both with a useful HTML page |
+| `GET /agent-guide.md` | static Markdown connection and read-only tool guidance, including the explicitly configured MCP URL; no query parameters or store reads |
+| `GET /llms.txt` | a small Markdown agent entry following the llms.txt v2 convention, with guide and optional MCP links; no query parameters, store reads or knowledge exports |
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
+| `GET /healthz` | `{"healthy":true}`, process liveness with no store work, 200 |
+| `GET /readyz` | `{"ready":true}`, 200 only after admitting a seeded complete store, including seed revision zero; unavailable, unseeded or incomplete stores return 503 |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
-| `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
+| `GET /evidence/<evidence id>[?revision=N]` | that evidence's retained bytes at revision `N` (the head when absent): `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an absent revision, an id that revision does not hold or bytes the store did not retain |
 | `GET /overview[?revision=N&limit=L]` | the `ekr.graph-overview/1` document of revision `N` (the head when absent), listing the `L` highest-degree nodes (1 to 500, 300 when absent), `application/json` |
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
 | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) — nodes of an event type, by the one rule in § `ekr ocel` — counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
+
+Open `/find` for a text-first entry. It searches parts of names and aliases, including folded
+case matches, and does not search evidence text or generate answers. Search text is limited to
+2,048 characters. The page displays its revision and pins graph detail and evidence links to
+that revision; an explicit `revision` also stays on the form when searching again. Each result
+shows at most three retained evidence links from that node's assertion history at the displayed
+revision. These links do not imply that a historical assertion is currently accepted. The page
+renders result cards with escaped text and fixed local links, with no evidence previews or per-result payload reads.
+Names and aliases are shortened to 256 characters for display; matching uses their full values.
+The graph remains at `/` and the JSON API remains at `/search`.
+
+With browser scripting enabled, the local Rust/WebAssembly client updates just the results and
+revision region while you type. It waits 180 ms after input, defers composed input until committed,
+and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
+in the search field. Clearing the field or a failed read clears old results; failures retain the
+query and offer an explicit retry, with no background retry loop. Enter searches immediately.
+Without scripting, the same GET form continues to work. Both paths use the same Rust renderer,
+ranking, bounds and revision-pinned links.
+
+`/assets/search.js` and `/assets/search_bg.wasm` are local embedded assets. The module is generated
+by pinned wasm-bindgen tooling from Rust, with no authored JavaScript bootstrap or CDN. The search
+page permits same-origin scripts and reads plus the specific `wasm-unsafe-eval` CSP allowance;
+general `unsafe-eval` and inline scripts remain refused. Static assets pass the viewer's normal
+authority, method and body checks and work even when the store is unavailable.
+
+Installing a tagged CLI uses native Rust only: its build script generates the embedded bindings
+from the checked raw `crates/ekr/assets/search.wasm` artifact. Contributors changing the browser
+Rust need the pinned `rust-toolchain.toml` toolchain's `wasm32-unknown-unknown` target. Run
+`cargo xtask search-web` to regenerate, and `task search-web-check` to compare two independent
+source/build paths against the artifact, check for private build paths, test and lint the browser
+crate. Its separate lockfile and exact binding versions keep native installation independent of
+the browser compiler target; generated JavaScript remains in Cargo's output directory.
+
+The **Connect an agent** link opens `/agent-guide.md` by default. `--agent-guide-url` replaces
+that link with an operator-provided guide; the local guide remains available. `--mcp-url`
+advertises an explicit MCP Streamable HTTP endpoint in the local guide and `/llms.txt`.
+Neither option starts an MCP server, checks its availability or changes authentication,
+Host or Origin admission. Without `--mcp-url`, the guide says that the endpoint is not configured;
+it never assumes the viewer's origin also serves `/mcp`. Configure the remote server URL in
+a compatible MCP client and follow the operator's access instructions. The guide displays the
+URL as data, not a shell command.
+
+Both options accept absolute ASCII HTTP(S) URLs of at most 4,096 bytes with a valid authority,
+without embedded credentials, whitespace, control characters or malformed percent escapes.
+Use percent encoding for characters outside URI syntax. HTML links are escaped and Markdown
+link delimiters encoded. `/find` discovers `/llms.txt` with `rel="describedby"`; this is guidance,
+not a promise that every agent client discovers it automatically. Both Markdown resources
+remain available when the store is missing or unavailable, after the same Host, method and
+request-body checks as the viewer. They return `text/markdown; charset=utf-8`, `no-store` and
+`nosniff`, and contain no records, evidence payloads or inventories. Explicit `--require-ready`
+still requires a ready store before starting the listener.
 
 **A property two types define differently.** A type may redeclare a property it inherits with
 another name or value kind; a `ModifyProperty` on a child type does. The projection and the
@@ -902,17 +1212,25 @@ Any other method is 405 and any other path 404. A request that announces a body 
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
 head that does not parse, or is not complete within 16 KiB or 5 seconds of the connection being
 accepted, is 400. At most 64 connections are served at once; one more is answered 503 (`busy`) at
-once and closed. A request whose `Host` header is not exactly `127.0.0.1:<port>` or
+once and closed. At most 64 requests wait for the store thread; a full queue returns 503. Each
+wait ends 35 seconds after accept, and expired jobs are discarded before execution. Whole
+responses have a total write deadline of 5 seconds. Health and the embedded page bypass the
+store queue. With the default authority policy, a request whose `Host` header is not exactly `127.0.0.1:<port>` or
 `localhost:<port>` (on port 80 also `127.0.0.1` or `localhost` alone), or that has none, is 421
 and is served nothing, so a web page that reaches the port under another name through DNS
 rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff`,
 `Cache-Control: no-store` and `Connection: close`, and none sets a cookie or allows another
 origin. Evidence text is
-never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
-none is `store-not-found`, exit 1) and writes nothing to it.
+never served as HTML. By default, `ekr view` binds and announces before lazy store admission.
+A missing or unavailable store leaves health available and readiness at 503; the next store request retries
+admission. The listener never creates a store or records canonical changes. File and SQLite
+providers may maintain operational files on writable stores; physically read-only stores remain
+unchanged under the read-only rules above. Existing hosted admission is reused
+between readiness requests; readiness does not rebuild the graph index.
 
-<a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp` and
-`ekr session` open the store when they start and keep it open. Before each request that reads
+<a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp-http`, `ekr mcp` and
+`ekr session` keep the store open once admitted. The HTTP listeners admit it lazily unless
+`view --require-ready` is set; stdio readers open it at startup. Before each request that reads
 the store, each compares what is at `--store` now with the store it opened — the device and
 inode of the file store's directory or of the SQLite database file, one `stat` of the path and no
 read of the store. When a host has replaced the store there, by renaming another one into place,
@@ -927,10 +1245,11 @@ it then opens the store at the path once and answers the request from it. A SQLi
 over the file in place, which keeps its device and inode too, is refused by the reader as
 `store-replaced` — its log, read from the file, is not the one the reader opened — and is followed
 the same way. `ekr view` answers
-`store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` reads no store and is
+`store-replaced` 503 with `{"refusal": "store-replaced", …}` (the `/find` entry instead renders
+its unavailable HTML page); `GET /` reads no store and is
 served throughout. Move or copy a SQLite database together with its `-wal` and `-shm` files.
 
-The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
+The query of `/find`, `/evidence/<id>`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
 percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`,
 `depth` and `limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by
@@ -994,10 +1313,18 @@ that revision, whichever path, reads the store's head and answers from that inde
 answer (a revision's first `/timeline` also ranks its row types once; `/changes` also reads the
 store's retained transaction records and parses the transactions of the revisions it chooses,
 and replays the seed only when it chooses the seed). The
-indexes of the 3 revisions used most recently are kept. A committed revision never changes and no
+indexes of the 3 revisions used most recently are kept. `/evidence/<id>` resolves membership
+through that same admitted revision index, then reads the retained bytes through the kernel's
+content verification. A cached evidence request does not replay the selected revision from the
+seed; its first request may load the index. A committed revision never changes and no
 answer names the head, so a commit loads nothing again; a request naming no revision reads the
 new head. `/projection` and `/roles` also keep their rendered answers, byte for byte what the first
-answer was, for at most 8 revisions, the one used longest ago going first.
+answer was, for at most 8 revisions, the one used longest ago going first. What is kept is kept
+under the revision's identity — its revision id and root — not its number alone: while anything is
+kept, each request also reads the store's retained transaction records, and drops what was kept of
+a revision the store no longer holds. A store restored to an older snapshot (through SQLite's
+online backup, say) and committed to after holds a new revision under a number already served;
+that revision is loaded and answered, never the discarded one.
 
 The page reads `/head`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
 `/evidence/<id>` and nothing else, never `/projection`: the overview once per revision and the
@@ -1117,7 +1444,7 @@ creates nothing there by starting. It serves `mint`, `hash` and `schema` exactly
 verbs do, and answers each store verb as the one-shot verb answers on that path —
 `store-not-found`, `"exit": 1` — then reads the next line. Started as `ekr session --create`, it
 also serves `seed`, with the arguments and document `ekr seed` takes: `--evidence <file>`,
-repeatable, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
+repeatable, `--if-absent`, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
 session holding it, opened once as a session opens an existing store when it starts, and every
 verb after it is served over that store. A seed on a store that exists — a second seed in the
 same session, or one in a `--create` session started on an existing store — answers what
@@ -1133,7 +1460,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `process-map`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 
@@ -1142,7 +1469,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `mcp-http`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
@@ -1213,6 +1540,55 @@ database over it, for example when restoring a backup. A host that held the repl
 and reopens as above, but when it closes its old connection SQLite can write that connection's
 write-ahead log into the file now at the path (`task:replaced-store-close-keeps-the-restored-file`).
 
+### `ekr mcp-http`
+
+Serves the same nine read-only tools as `ekr mcp` using
+[MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+The default listener is `127.0.0.1` on a free port. `--bind <IP>`, `--port <port>` and repeatable
+`--allow-host <authority>` use the viewer's authority policy; a non-loopback bind requires
+explicit authorities. Every present `Origin` must exactly match a repeatable
+`--allow-origin <http-or-https-origin>`, else 403; clients without Origin are accepted.
+The listener provides no authentication or TLS termination: an operator supplies a trusted
+private routing or external authentication boundary. Authority and Origin checks do not sign
+users in. No CORS headers are emitted.
+
+For example, with the global store configuration supplied:
+
+```sh
+ekr view --bind 0.0.0.0 --port 8800 --allow-host reader.example.invalid --allow-host localhost:8800
+ekr mcp-http --bind 0.0.0.0 --port 8801 --allow-host reader.example.invalid --allow-host localhost:8801 --allow-origin https://reader.example.invalid
+```
+
+These are separate processes. An external router can direct `/mcp` to the MCP listener and
+viewer paths to the viewer. Health probes send an admitted Host such as `localhost:8800` or
+`localhost:8801`; explicit allowlists do not implicitly add loopback authorities.
+
+`POST /mcp` accepts one JSON-RPC object with `Content-Type: application/json` and an Accept
+header including `application/json` (MCP clients should also list `text/event-stream`). Requests
+receive a JSON response with status 200. Accepted notifications and responses receive 202
+with an empty body. `GET /mcp` and `DELETE /mcp` return 405: this transport has no SSE stream,
+session identifier, replay cursor or server-initiated request. It never exposes writer tools.
+
+Initialization negotiates the same `2025-11-25` and `2025-06-18` revisions as stdio. Its first
+request may omit `MCP-Protocol-Version`. Every subsequent request must carry one of those
+supported values; missing, duplicate or unsupported headers return 400. The specification's
+recommended absent-header fallback, `2025-03-26`, supports batches this dispatcher does not
+implement, so an absent header is not silently interpreted as the newest revision.
+
+`GET /healthz` and `GET /readyz` have the viewer's liveness and readiness semantics. Binding and
+announcement precede store admission, so temporary store failure does not make process health
+depend on it. Readiness and tool calls use one held admitted store, follow external commits,
+and retain immutable historical documents. Failed initial admission and failed readiness return
+503. After admission, accepted tool calls retain stdio's JSON-RPC/tool-error behavior with HTTP
+200 when a store read fails; clients inspect the result's error fields. Unknown paths,
+unsupported methods and invalid transport headers are refused before initial store admission.
+
+The listener bounds headers to 16 KiB and 64 fields, the body to 6 MiB + 65,536 bytes, active
+connections to 64, and queued requests to 16. It refuses transfer encoding, duplicate content
+lengths and duplicate Host headers. A whole request must arrive within 5 seconds; its store
+wait ends 35 seconds after accept, and its whole response has a 5-second write deadline.
+Expired jobs are discarded before execution. Store operations remain outside any async runtime.
+
 ### `ekr mcp`
 
 Serves the store's canonical state to an agent as read-only [MCP](https://modelcontextprotocol.io)
@@ -1259,7 +1635,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
-| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents` prints | `ekr explain [--documents]` |
+| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N]` prints | `ekr explain [--documents [--offset N] [--limit N]]` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
@@ -1315,18 +1691,20 @@ content hash instead and retains its bytes once; `ekr migrate` gives an existing
 same shape in a new store.
 
 ```console
-ekr migrate --to library-v3                       # the --store, --backend and --host of every verb
+ekr migrate --to library-copy                       # the --store, --backend and --host of every verb
 ```
 
 It only reads `--store`, so a store this process may not write migrates too, opened read-only
 ([Configuration](#configuration)); `--to` must be writable.
 
-`--to` is a directory for `file` and a database file for `sqlite`, of the same backend as
-`--store`, and must hold no store. The migration reads the whole store and replays it from its
+`--to` is a directory for `file`, a database file for `sqlite`, or an application configuration
+file for `postgres`. The destination defaults to the source backend; `--to-backend` selects another.
+The destination must hold no store. SQLite sources are always captured as a consistent in-memory
+image. The migration reads the whole captured store and replays it from its
 seed first, so a store that does not verify is refused and nothing is written. It then seeds the
-new store with the same seed — the same input, identities and time, the envelope naming its
-payloads — and publishes every later proposal, validation, rejection, commit and stale decision
-again with its original identity, actors and times. A proposal record is copied byte for byte; a
+new store with the same seed input, identities and time, its `/4` envelope naming the
+payloads and binding a fresh migration claim, and publishes every later proposal, validation,
+rejection, commit and stale decision again with its original identity, actors and times. A proposal record is copied byte for byte; a
 record that names the seed envelope or an earlier root is derived again for the new lineage, so
 its content hash changes. Every other object is copied with its class and time, and an object an
 old store holds inline in its log is written as a blob. The new store is replayed in full and
@@ -1357,11 +1735,101 @@ for a decision a command elected and never published — run that command again 
 
 A migration that stops after it began writing — `migrate-verification-disagrees`, a new store
 that does not replay to the old one's state, a full disk, an interrupted process — leaves the store
-at `--to` as it is, and that store is not the migrated one: the migration marks it as begun before
-its first write and as finished after its last, the report included, and every verb refuses a
+at `--to` as it is, and that store is not the migrated one: the migration marks it as begun atomically
+in its copied seed and writes the matching completion receipt after its last write, the report included, and every verb refuses a
 store marked begun and not finished as `migrate-incomplete` (exit 1). A second `ekr migrate` to
 the same path refuses it as `migrate-destination-not-empty`: remove it, then migrate again.
 `ekr migrate` is not served in `ekr session`.
+
+### `ekr postgres-schema`
+
+`ekr postgres-schema --config owner.json` provisions provider tables through a separately supplied
+schema-management connection, using verified TLS. It prints `ekr.postgres-schema/1` with
+`ready: true` on success and seeds no knowledge. It needs no `--host`, `--store` or `--backend`,
+and is refused inside a session. See [Hosted PostgreSQL](#hosted-postgresql) for configuration,
+role separation, pool bounds and initial copying.
+
+### `ekr stage`
+
+Makes a run all or nothing. A run is the separate `ekr` processes a batch makes — `ontology`,
+`apply-extraction`, `snapshot`, `mint`, `propose`, `validate`, `commit` — followed by a gate such
+as `ekr quality`. In a stage, the run's commits go to the stage, never to the store; the run reads
+them back; and the stage is then published into the store whole, or dropped whole. A run whose
+gate fails leaves `ekr head` exactly where it was. Stages need a SQLite or PostgreSQL store; a File
+store refuses them, `stage-unsupported-provider`.
+
+```console
+ekr head                                          # the store's head the run begins from: "revision": 4
+ekr stage begin                                   # prints the stage, Begun at revision 4
+export EKR_STAGE=<the stage_id it printed>
+ekr apply-extraction extraction.yaml              # every verb now reads and writes the stage
+ekr propose run.yaml && ekr validate <id> && ekr commit <id>
+ekr quality                                       # the gate, on the stage
+ekr stage publish "$EKR_STAGE" --expect-head 4    # passed: the run lands in the store at once
+ekr stage abandon "$EKR_STAGE"                    # failed: the stage is dropped, the store untouched
+unset EKR_STAGE
+```
+
+- **`ekr stage begin`** mints the stage's id, records the stage at the store's head and copies the
+  store into the stage's own tenant of the same database. It prints the stage: `stage_id`,
+  `state` (`Begun`), `base` (the store's head) and `base_revision`. The store's head and history
+  do not move. The copy is the store's preserving copy, as [`ekr migrate`](#ekr-migrate) writes
+  one: a joined `ekr head` names the same revision and the same knowledge, evidence, ontology and
+  authority roots, and its `transaction` is the stage's own seed claim.
+- **Joining.** Every verb that opens an existing store joins the stage `--stage <id>` or
+  `EKR_STAGE=<id>` names ([Configuration](#configuration)), `ekr session`, `ekr mcp` and
+  `ekr view` included. Its reads see the store at the stage's base and the run's own commits,
+  numbered on from the base; its writes go to the stage. Before every read and write it reads the
+  stage's record, and once the stage is not `Begun` it is refused: `stage-sealed`,
+  `stage-already-published` or `stage-already-abandoned`. A write that passed that check and
+  landed after the stage was sealed is refused `stage-write-landed` and is not reported
+  successful; its occurrences, which the message names, are in the store only if the stage's
+  publication holds them. `seed` and `migrate` refuse a stage as a usage error. A session request
+  carries no `--stage` (`session-option-refused`) and a session does not serve `ekr stage`.
+- **`ekr stage publish <stage id> --expect-head <revision>`** seals the stage, so no joined write
+  lands any more, then publishes it: every proposal, validation, rejection and commit the run made
+  is appended to the store in one group, derived again for the store's lineage, and the stage's
+  tenant is emptied. It prints the stage, `Published`, with `published_first` and
+  `published_last`, the first and last revision it added (`null` when the run committed nothing),
+  and `occurrences`. Afterwards `ekr head` is the stage's last revision — the same number,
+  identity and roots — and the store replays from its seed (`--full-replay`). The store's head
+  must be `--expect-head` and the stage's base: otherwise it is refused `stage-head-moved` and
+  nothing changes, and the run is made again in a new stage; a stage is never rebased. Another
+  writer's proposals, validations and rejections in the store meanwhile do not refuse it; another
+  commit does.
+- **A publish retried** after it was interrupted finishes it. It reads the stage's record and seals
+  only a `Begun` stage: retried after the seal, it publishes; retried after the append, with the
+  same `--expect-head`, it prints the original result, appends nothing and empties what is left of
+  the stage's tenant. With another `--expect-head` it is refused `stage-already-published`.
+- **`ekr stage abandon <stage id>`** records the stage `Abandoned` and empties its tenant. The
+  store's head and history do not move. Retried, it prints the original result and finishes the
+  emptying. A published stage is refused `stage-already-published`, after it empties what an
+  interrupted publication left of the stage's tenant.
+- **`ekr stage list`** prints every stage the store has had, in every state, as a list of
+  `stage_id`, `store` (the store's tenant), `base`, `base_revision`, `published_revisions` and
+  `state`. A stage's record stays after its tenant is emptied. A `Begun` stage whose
+  `ekr stage begin` answer was lost is found here, then joined or abandoned; nothing abandons an
+  unclaimed stage by itself, and its tenant holds a copy of the store until it is.
+
+The stage verbs run on the store, never on a stage: they ignore `EKR_STAGE` and refuse `--stage`
+as a usage error. `begin`, `publish` and `abandon` write the store and are refused
+`store-read-only` on a store this process may not write; `list` only reads.
+
+Each refusal of a stage is a named refusal, exit 2, `ekr: <name>: <reason>`, and the verb it
+refuses changed nothing. Those a run meets in the ordinary course are rows of
+[Common refusals](#common-refusals). The others arise only when another process interleaves, or
+after an interruption:
+
+| refusal | what it means | what to do |
+|---|---|---|
+| `stage-stream-moved` | another writer's proposal, validation or rejection landed in the store between the publication's capture and its append; the stage stays `Sealing` | publish again with the same `--expect-head` |
+| `stage-object-moved` | the same, for an object the publication stores | publish again with the same `--expect-head` |
+| `stage-suffix-refused` | the kernel refused the run against the store; the stage stays `Sealing` | abandon it and make the run again |
+| `unresolved-preparation` | the stage holds a decision a joined command elected and never published | run that command again in the stage, or abandon it |
+| `stage-incomplete` | a begin stopped before its copy finished; nothing joins or publishes the stage | abandon it and begin another |
+| `stage-sealed` | a verb joined to a stage that is being published | wait for the publish, or make the write in a new stage |
+| `stage-write-landed` | a joined write landed after the stage was sealed; it is not reported successful | read the store for the occurrences it names once the stage is published |
+| `stage-not-sealed` | a `Begun` stage published without its seal, which `ekr stage publish` never does | — |
 
 ## The workflow
 
@@ -1649,7 +2117,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are fifteen kinds. Ten are applied under every validation profile. Four are **schema
+There are sixteen kinds. Eleven are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1667,6 +2135,7 @@ parses but is **refused** under either profile, with the same code.
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
 | `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
 | `AddAlias` | applied | appends one alias to a node that exists, so that [`ekr resolve`](#ekr-resolve) finds it by that alias from the next revision on: `node` (a node id from `ekr snapshot`, or one a `CreateNode` of the same transaction creates) and `alias` (a non-empty string). Refused: an alias that node or another node of its type already holds (`alias-already-exists`), one alias given twice for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`), a node that does not exist (`unresolved-node`). No operation removes an alias |
+| `AttachEvidence` | applied | attaches evidence to an assertion the store holds, accepted and active, leaving the assertion unchanged: `assertion` (an assertion id from `ekr snapshot`) and `evidence` (an evidence id the store retains, or one an `AddEvidence` of the same transaction adds), listed in `transaction.evidence`. [Rules below](#evidence-attached-to-a-held-assertion) |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
@@ -1749,7 +2218,8 @@ transaction:
 ```
 
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
-`transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
+`transaction.evidence` only in a transaction whose assertions cite it or whose `!AttachEvidence`
+attaches it ([below](#evidence-attached-to-a-held-assertion)). Committing applies the entry
 and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
 `ekr explain --documents` prints it for every assertion that cites it, and
 [`/changes`](#changes-since) lists the entry once, as an `EvidenceAdded` of the revision that
@@ -1766,11 +2236,58 @@ committed it, whether or not an assertion cites it. Validation refuses, as named
 An entry whose `extracted_by` is not the host operator is refused by `ekr propose` as
 `ekr.kernel.ProposalAttribution`, exit 2, and nothing is recorded.
 
+### Evidence attached to a held assertion
+
+`!AttachEvidence` attaches evidence to an assertion the store already holds, for example the
+exact message a claim rests on where it first cited a whole file. The assertion is not changed —
+its subject, predicate, object, valid time, lifecycle and the evidence it was added with stay as
+they are — and no supersession is needed. The attachment is a record of its own: which assertion,
+which evidence, which revision. [`ekr explain`](#ekr-explain) lists it as an `Attachment` link,
+and the evidence among its `Evidence` links, from the revision that attached it on;
+[`ekr snapshot`](#ekr-snapshot) lists it under `attachments`; [`ekr quality`](#ekr-quality)
+counts it as it counts cited evidence. A supersession does not carry it to the replacement: it
+stays with the assertion it was attached to.
+
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000799        # a fresh transaction id: ekr mint transaction
+  proposer: 00000000-0000-4000-a000-000000000011  # the host operator
+  operations:
+  - !AddEvidence
+    evidence:
+      id: 00000000-0000-4000-a000-000000000410    # a fresh evidence id: ekr mint evidence
+      source: !HumanStatement
+        identity: Runtime operator
+      content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+      extracted_by: 00000000-0000-4000-a000-000000000011
+      observed_at: 1773273600000
+      confidence: 10000
+    payload: [66, 111, 98, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]
+  - !AttachEvidence
+    assertion: 00000000-0000-4000-a000-000000000521  # an assertion id from ekr snapshot
+    evidence: 00000000-0000-4000-a000-000000000410
+  evidence:
+  - 00000000-0000-4000-a000-000000000410          # attached evidence is listed, as cited evidence is
+```
+
+Evidence the store already retains is attached without an `!AddEvidence`. Validation refuses, as
+named issues:
+
+| issue | validator | when |
+|---|---|---|
+| `unresolved-assertion` | Reference | the store holds no such assertion; an assertion the same transaction adds is not held — cite the evidence on it instead |
+| `unresolved-evidence` | Reference | the evidence is neither retained nor added by an `!AddEvidence` of the transaction |
+| `assertion-not-active` | Structural | the assertion is not accepted and active, or the same transaction retracts or supersedes it |
+| `evidence-already-attached` | Structural | the assertion already cites the evidence or has it attached, or the transaction attaches it twice |
+| `evidence-set-mismatch` | Structural | `transaction.evidence` leaves the attached id out |
+
 ### Relations: assertion, edge or both
 
 A relation can be recorded two ways, and often both are wanted. The assertion is the claim, with
 evidence and valid time. `!CreateEdge` is the structural record: no evidence, no valid time, held to
 the edge type's endpoint types and cardinality, and visible to a reader of the graph's edges.
+[`ekr apply-extraction`](#ekr-apply-extraction) writes both for a `!Relation` fact.
 
 ## Extraction documents (`ekr.extraction-document/1`)
 
@@ -1837,7 +2354,7 @@ evidence:
 | `format` | exactly `ekr.extraction-document/1` |
 | `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types), written as one is (`parameters: {variants: [...]}` for an `Enum`), except that a `NodeRef` names its node types in `parameters: {allowed_types: [...]}` rather than listing their ids. An `Enum`'s variants and a `NodeRef`'s types are at least one, each once; a `Record` field is written once. A type the store lacks is added; one it holds by that name is kept |
 | `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
-| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
+| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one; optional `replaces: true`, the value replacing the active one of that subject and property) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
 | `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
 
 The reader refuses, by code, a document it cannot read:
@@ -1849,7 +2366,9 @@ The reader refuses, by code, a document it cannot read:
 | `extraction-yaml-alias` | a YAML alias (`*name`): write each value out |
 | `extraction-document-malformed` | anything else that is not one document of the format: another `format`, an unknown or missing key, a mapping key written twice, a fact written other than as a `!Property` or `!Relation` tag, an alias that is not a YAML string (`~`, `true`, `1.0` and `0x10` are not; quote them), a second document |
 
-Against the ontology of the store it is read for it refuses, naming the first in document order:
+Against the ontology of the store it is read for it refuses, naming the first in document order.
+A code met in a fact, `facts[<index>]`, refuses that fact alone when
+[`ekr apply-extraction`](#ekr-apply-extraction) is run without `--strict`:
 
 | code | when |
 |---|---|
@@ -1859,7 +2378,7 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
 | `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
 | `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
-| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document is refused before anything is written. Name the concrete type |
+| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document — or, for a fact, that fact — is refused before anything is written. Name the concrete type |
 | `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
 | `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
 | `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
@@ -2743,7 +3262,8 @@ There are three forms, and the `exit` column says which one each refusal takes:
 
 - **A named refusal, exit 2.** Nothing was recorded. stderr is `ekr: ekr.kernel.<Name>: <reason>`.
   A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes. A
-  write to a store this process may not write is `ekr: store-read-only: <reason>`.
+  write to a store this process may not write is `ekr: store-read-only: <reason>`, and a refusal of a
+  stage is `ekr: <name>: <reason>` ([`ekr stage`](#ekr-stage)).
 - **A fault, exit 1.** stderr is `ekr: <message>`. A host document the kernel does not accept is
   reported while the provider is opened, as `ekr: opening the provider: invalid seed: <code>`.
 - **A validation issue, exit 0.** `ekr validate` records `"kind": "Rejected"`, and each issue carries
@@ -2751,16 +3271,18 @@ There are three forms, and the `exit` column says which one each refusal takes:
   `ekr.kernel.InvalidSeed: <code>: <detail>`, exit 2.
 
 The `where` column names the verbs that report a refusal; `any store verb` means every verb that
-opens the store. `crates/ekr/tests/docs_cli.rs` triggers every row that is not a validation issue
+opens the store, and `any joined verb` every such verb joined to a stage with `--stage` or
+`EKR_STAGE`. `crates/ekr/tests/docs_cli.rs` triggers every row that is not a validation issue
 against the worked example's files, through each verb its `where` cell names (two different store
-verbs for `any store verb`), and checks the exit status in this table and that stderr names the
-refusal in the form above. For a validation-issue row it checks that the code is a whole string a
-validator in `crates/ekr-kernel/src/validate` raises, or, for a schema change, one of the ontology's
-own codes that validator raises as they are. It does not run those rows, except the schema-change
-rows: it lists every code a schema change can be refused with and checks that each is a row here or
-one no transaction document can reach, and it draws each of those rows from the worked seed under
-validation profile v2. The worked example itself produces `inadmissible-value` and
-`unsupported-operation`.
+verbs for `any store verb`, two different joined verbs for `any joined verb`; a stage row on a
+SQLite store unless it is about the File provider), and checks the exit status in this
+table and that stderr names the refusal in the form above. For a validation-issue row it checks
+that the code is a whole string a validator in `crates/ekr-kernel/src/validate` raises, or,
+for a schema change, one of the ontology's own codes that validator raises as they are. It does
+not run those rows, except the schema-change rows: it lists every code a schema change can be
+refused with and checks that each is a row here or one no transaction document can reach, and it
+draws each of those rows from the worked seed under validation profile v2. The worked example
+itself produces `inadmissible-value` and `unsupported-operation`.
 
 | refusal | where | exit | what it means | what to fix |
 |---|---|---|---|---|
@@ -2785,6 +3307,12 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `store-read-only` | seed, propose, validate, commit | 2 | this process may not write the store at `--store` — a file store's directory, `writer.lock`, `events.jsonl` or `blobs`; a SQLite database, its directory or its `-wal` or `-shm` file — so the verb, which writes, is refused before it opens anything and nothing is written. The verbs that only read answer on the same store ([Configuration](#configuration)) | run the verb as a user that may write the store, or on a writable copy of it |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
+| `stage-tenant-reserved` | any store verb | 1 | the host document's `tenant` contains `ekr.stage:`, the marker reserved to a stage's own tenant, so no store is opened under it; nothing is read, created or written | choose a tenant without `ekr.stage:` |
+| `stage-unsupported-provider` | stage, any joined verb | 2 | the store is a File store, which admits no stage: `ekr stage begin`, `publish` and `abandon` are refused, and so is every verb joined to a stage (`ekr stage list` lists none) | use a SQLite or PostgreSQL store, or drop `--stage` and `EKR_STAGE` |
+| `stage-not-found` | stage, any joined verb | 2 | no stage of this store has that id | take the `stage_id` `ekr stage begin` printed, or find it with `ekr stage list` |
+| `stage-head-moved` | stage | 2 | `ekr stage publish`: the store's head is not `--expect-head`, or not the stage's base, because another commit landed in the store since the stage began; nothing was sealed or published | pass the head the run began from; if the store moved, abandon the stage and make the run again in a new one |
+| `stage-already-published` | stage, any joined verb | 2 | the stage is published: a verb joined to it, `ekr stage abandon`, or `ekr stage publish` with another `--expect-head` | read the store, where the run now is; begin a new stage for the next run |
+| `stage-already-abandoned` | stage, any joined verb | 2 | the stage is abandoned: a verb joined to it, or `ekr stage publish` | begin a new stage and make the run again |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer`, an assertion's `proposed_by` or an added evidence entry's `extracted_by` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
@@ -2818,15 +3346,17 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
 | `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
-| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite retained evidence, or add it with `!AddEvidence` |
+| `unresolved-evidence` | validation issue | 0 | an assertion cites, or an `AttachEvidence` attaches, evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite or attach retained evidence, or add it with `!AddEvidence` |
+| `assertion-not-active` | validation issue | 0 | an `AttachEvidence` names an assertion that is not accepted and active, or one the same transaction retracts or supersedes | attach only to current assertions; check `lifecycle` in `ekr snapshot` |
+| `evidence-already-attached` | validation issue | 0 | an `AttachEvidence` attaches evidence the assertion already cites or already has attached, or attaches it twice in one transaction | attach each piece of evidence to an assertion once |
 | `unresolved-edge` | validation issue | 0 | an edge id (`!DeleteEdge`, an `!Edge` subject) that does not exist | take ids from `ekr snapshot` |
-| `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist | take ids from `ekr snapshot`, or add the replacement in the same transaction |
+| `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist, or an `AttachEvidence` names one the store does not hold (one the same transaction adds included) | take ids from `ekr snapshot`, or add the replacement in the same transaction; cite evidence on an assertion you add rather than attaching it |
 | `unresolved-graph-root` | validation issue | 0 | an entity's `root_id` is not the graph root | use the root id from `ekr snapshot` (`root_id` of any node) |
 | `assertion-lifecycle-state` | validation issue | 0 | a retraction or supersession of an assertion that is not accepted and active, for example one already retracted or superseded | act only on current assertions; check `lifecycle` in `ekr snapshot` |
 | `conflicting-assertion-lifecycle` | validation issue | 0 | one transaction retracts or supersedes the same assertion twice | one lifecycle change per assertion per transaction |
 | `invalid-supersession` | validation issue | 0 | a [supersession rule](#supersession) fails, most often a replacement `valid_time.from` that is not exactly `effective_from` | set the replacement's `from` to `effective_from` |
 | `supersession-cycle` | validation issue | 0 | supersessions would lead back to the assertion they started from | supersede toward a new assertion |
-| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
+| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite and the `AttachEvidence` operations attach | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
@@ -2843,3 +3373,116 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `missing-argument` | validation issue | 0 | `!Invoke` omits a declared argument | pass every declared argument |
 | `undeclared-argument` | validation issue | 0 | `!Invoke` passes an argument the operation does not declare | remove it |
 | `unsupported-constraint` | validation issue | 0 | the affected type has property `constraints`, or the operation has `preconditions` or `emits` | keep them `[]` in the seed. Under profile v2 a `ModifyProperty` can set a property's `constraints` to `[]` while its type has no instances (`constraint-changed` once it has any); `preconditions` and `emits` belong to a type's operations, which no operation changes after the type is declared |
+
+## Hosted PostgreSQL
+
+`--backend postgres --store postgres.json` uses an `ekr.postgres/1` configuration:
+
+```json
+{
+  "format": "ekr.postgres/1",
+  "connection_file": "secrets/application.dsn",
+  "ca_file": "secrets/database-ca.pem",
+  "schema": "ekr_owner",
+  "database_connections": 32,
+  "replicas": 2,
+  "reserved_connections": 4,
+  "pool": { "max_connections": 4, "max_waiters": 32 }
+}
+```
+
+The connection file contains a PostgreSQL connection string, including its password when used.
+An optional `password_file` takes the password from a separate file instead, so neither the
+connection file nor the configuration directory holds a secret:
+
+```json
+{
+  "format": "ekr.postgres/1",
+  "connection_file": "application.dsn",
+  "password_file": "/proc/self/fd/3",
+  "ca_file": "database-ca.pem",
+  "schema": "ekr_owner",
+  "database_connections": 32,
+  "replicas": 2,
+  "reserved_connections": 4
+}
+```
+
+The password file holds exactly the JSON document `{"password": "..."}`, the document a saved
+PostgreSQL connection hands a launched program on file descriptor 3. Its value is used as written,
+without trimming. A document with any other field, a password that is not a string, or more than
+64 KiB is refused, and so is a connection file that already carries a password, in any form. The
+password is added to the connection string in its own syntax, key/value or URL. An absolute
+`password_file` such as `/proc/self/fd/3` is used as written.
+
+Relative file references resolve beside the configuration file. Mount secret files with access
+limited to the service account. The CLI and SDK pass only configuration paths, never connection
+strings or passwords. Configuration and connection files are capped at 64 KiB, CA files at 1 MiB;
+invalid inputs produce sanitized `postgres-configuration` diagnostics. The provider verifies the
+server certificate and hostname against the supplied PEM trust roots; no plaintext or insecure
+verification option exists.
+
+Create the database schema and roles separately. The schema-management role owns the schema and
+provider tables; the application role has schema USAGE and table DML permissions, no object
+ownership, privileged role attributes or role memberships, and a finite CONNECTION LIMIT no larger
+than `replicas * pool.max_connections`. Grant default table permissions before provisioning tables.
+`replicas * pool.max_connections + reserved_connections` must fit `database_connections`.
+The provider checks CREATE authority on the configured current schema. Operators must also revoke
+unwanted CREATE grants on other schemas, including legacy PUBLIC grants on `public`; admission
+does not audit every schema in the database.
+
+Run `ekr postgres-schema --config owner.json` with a separate configuration referencing the
+schema-management connection file. It applies the eventlog provider schema and creates no knowledge.
+Normal application opens validate the existing schema and application authority; they never run DDL.
+The application configuration references only application credentials.
+
+Pool defaults are four connections and 32 waiters. Optional millisecond fields inside `pool` are
+`acquisition_timeout_ms` (2000), `connect_timeout_ms` (2000), `statement_timeout_ms` (5000),
+`lock_timeout_ms` (2000), `transaction_timeout_ms` (10000), and `shutdown_timeout_ms` (5000).
+Each duration is positive and at most one day. Read-only commands, viewer and MCP handles reject
+store mutations, including checkpoint writes. A session retains ordinary proposal/validation/commit
+semantics and opens an application writer. Hosted readers follow database revisions, not configuration
+file inode changes; restart them to adopt changed configuration. Pool shutdown is bounded on normal
+runtime drop.
+
+Initialize an empty hosted store from one captured SQLite image:
+
+```console
+ekr --host host.json --backend sqlite --store source.db migrate --to-backend postgres --to postgres.json
+```
+
+SQLite capture is forced even when the source is writable: later source commits cannot mix into the
+copy. It requires memory for the SQLite image and replay state. Both stores use the same host anchor
+and tenant. The destination must contain no events or objects. Its copied seed binds a fresh
+migration claim atomically; competing initializers cannot take over that copy. An interrupted copy is refused as
+`migrate-incomplete` after reopen and must be retained for diagnosis or replaced with a separately
+provisioned empty destination; there is no automatic deletion or resume. The completion receipt is
+written only after full replay and verification of the copied history and retained report.
+The destination emptiness check uses a native consistent provider capture, never a temporarily
+lagging change feed. It may allocate provider tenant-identity metadata; it publishes no domain event.
+
+Ordinary seeds still use `ekr-seed-envelope/3`. Every new migration uses
+`ekr-seed-envelope/4` with a fresh `migration` identity. Its Canonical
+`ekr.migration-finished/2` receipt binds both that identity and the destination seed hash.
+Evidence or carried objects containing old fixed marker bytes confer no completion authority on
+this format. Copying a completed `/4` source creates another fresh claim. Older EKR versions
+reject `/4`; use this release or later to read migrated stores, and retain the original for rollback.
+Migrated histories use `ekr.replay-checkpoint-binding/2`, including checkpoints written after later
+commits. This prevents older fast-head readers from bypassing envelope admission. Current readers
+also take the checked replay/restore path for a migrated head, verifying the completion receipt;
+the constant-work legacy fast-head shortcut remains available for ordinary `/3` seeds. A migrated
+cold head therefore reads more retained material, though its replay checkpoint can still be used.
+Legacy `/2` and `/3` envelopes retain fixed-marker compatibility; referenced evidence is never
+interpreted as legacy control, even if its retention was raised to Canonical.
+
+The `ekr.store-migration/1` report maps every retained occurrence's source and destination record
+hash and identifies carried objects. Logical knowledge, evidence, ontology and authority roots,
+revision identities and retained evidence bytes are preserved. The fresh migration claim changes
+the seed hash and derived physical record/root hashes; the report names those changes. PostgreSQL as a migration source is
+refused (`migrate-source-not-supported`); this command provides initial snapshot copying; atomic
+incremental publication into a served store is [`ekr stage`](#ekr-stage). Low-level PostgreSQL inventory reads the
+tenant under one provider capture, never its change feed, which is not a complete source snapshot.
+
+SDK callers use the existing `StoreConfig { host, store, backend }` construction, setting
+`backend: Backend::Postgres` and `store` to the configuration file. Existing File/SQLite
+configuration remains unchanged.

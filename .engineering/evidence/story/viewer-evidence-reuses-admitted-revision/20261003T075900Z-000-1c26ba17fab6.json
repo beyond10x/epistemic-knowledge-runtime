@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T07:59:00Z",
+  "actor": "agent:codex",
+  "artifact": "story:viewer-evidence-reuses-admitted-revision",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Corrected candidate full repository gate: ten steps exited zero; 2198 passed, zero failed, thirteen existing ignores",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37106583962"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T09:32:01Z",
+  "actor": "agent:search-agents-coordinator",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test -p ekr --test search_page --locked: 16 passed, 0 failed, 0 ignored, exit 0. Static guidance and existing search regression target; not the full repository gate or live-typing acceptance.",
+    "reference": "local:ekr-search-agents-unit/search-test-resumed.log"
+  }
+}

@@ -14,6 +14,8 @@ ekr-ontology.workspace = true
 eventlog-core.workspace = true
 eventlog-file.workspace = true
 eventlog-sqlite.workspace = true
+eventlog-postgres.workspace = true
+rustls.workspace = true
 rusqlite.workspace = true
 rustix.workspace = true
 serde.workspace = true
@@ -22,6 +24,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
+tokio-postgres.workspace = true
 
 [dev-dependencies]
 serde_yaml_ng.workspace = true

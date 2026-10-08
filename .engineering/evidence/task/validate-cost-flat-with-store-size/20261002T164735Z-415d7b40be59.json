@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T16:47:35Z",
+  "actor": "agent:codex-ekr-x7b-root",
+  "artifact": "task:validate-cost-flat-with-store-size",
+  "kind": "task",
+  "revision": 27,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator instruction: cut new version; following the explicit W acceptance failure and release-scope options",
+    "reference": "Release 0.0.27 with W target carried forward; no claim of W acceptance"
+  }
+}

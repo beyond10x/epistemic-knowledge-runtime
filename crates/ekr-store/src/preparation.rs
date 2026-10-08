@@ -29,6 +29,9 @@ pub enum PublicationCommandKind {
     Validate,
     /// One slot per retained validation.
     Commit,
+    /// One slot per stage: a stage's publication (design § 107.5). Admitted only in a
+    /// [`crate::StagePublicationCommandKey`], under `ekr.publication-preparation/4`.
+    PublishStage,
 }
 impl PublicationCommandKey {
     fn check(&self) -> Result<(), StoreError> {
@@ -48,6 +51,8 @@ impl PublicationCommandKey {
                     && self.predecessor_event_id.is_some()
                     && self.predecessor_record_hash.is_some()
             }
+            // A stage's publication is keyed by its stage, never by this key: `/4` only.
+            PublicationCommandKind::PublishStage => false,
         };
         require(valid, "preparation-command-key")
     }
@@ -570,19 +575,19 @@ impl PreparationRead {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Selection {
-    preparation_hash: ContentHash,
-    attempt_number: u64,
-    previous_attempt_hash: Option<ContentHash>,
+pub(super) struct Selection {
+    pub(super) preparation_hash: ContentHash,
+    pub(super) attempt_number: u64,
+    pub(super) previous_attempt_hash: Option<ContentHash>,
 }
-fn require(condition: bool, code: &str) -> Result<(), StoreError> {
+pub(super) fn require(condition: bool, code: &str) -> Result<(), StoreError> {
     if condition {
         Ok(())
     } else {
         Err(StoreError::Document(code.into()))
     }
 }
-fn private_key(hash: ContentHash) -> String {
+pub(super) fn private_key(hash: ContentHash) -> String {
     format!("ekr.private.preparation.{hash}")
 }
 /// The preparation's record of an expectation. Eventlog 0.4.0 adds a merge expectation for forked
@@ -613,7 +618,7 @@ pub(super) fn native_expected(value: Expected) -> Result<NativeExpected, StoreEr
     })
 }
 impl NativeCommandMeta {
-    fn capture(meta: &CommandMeta) -> Result<Self, StoreError> {
+    pub(super) fn capture(meta: &CommandMeta) -> Result<Self, StoreError> {
         let CommandMeta {
             idempotency_key,
             request_hash,
@@ -671,7 +676,7 @@ impl NativeCommandMeta {
     }
 }
 impl NativePublicationRequest {
-    fn capture(request: &BlobAppendGroup) -> Result<Self, StoreError> {
+    pub(super) fn capture(request: &BlobAppendGroup) -> Result<Self, StoreError> {
         Ok(Self {
             tenant: request.group.tenant.to_string(),
             appends: request
@@ -711,7 +716,7 @@ impl NativePublicationRequest {
                 .collect(),
         })
     }
-    fn restore(&self) -> Result<BlobAppendGroup, StoreError> {
+    pub(super) fn restore(&self) -> Result<BlobAppendGroup, StoreError> {
         let tenant = TenantId::new(self.tenant.clone())?;
         let appends = self
             .appends
@@ -1061,11 +1066,14 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             }
         }
         self.load_objects(&mut history, required)?;
-        if !history.occurrences.is_empty() {
-            self.load_authority_objects(&mut history)?;
+        // Both admissions only replay, so each history holds what that replay reads
+        // (`verify_replayed`), and the complete one where it is refused.
+        if history.occurrences.is_empty() {
+            self.authority()?
+                .verify(&history, self.ontology.as_ref(), None)?;
+        } else {
+            self.verify_replayed(&mut history)?;
         }
-        self.authority()?
-            .verify(&history, self.ontology.as_ref(), None)?;
         for (hash, object) in &decision.objects {
             history.objects.insert(
                 *hash,
@@ -1086,9 +1094,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             event: decision.event.clone(),
         });
         self.load_object(&mut history, decision.event.record_hash)?;
-        self.load_authority_objects(&mut history)?;
-        self.authority()?
-            .verify(&history, self.ontology.as_ref(), None)?;
+        self.verify_replayed(&mut history)?;
         Ok(request)
     }
     /// A retained preparation record, each object a `/3` record names read back from the binding
@@ -1124,7 +1130,11 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             (Err(error), None) => Err(json_error(error)),
         }
     }
-    fn retention_at(&self, hash: ContentHash, version: u64) -> Result<StorageClass, StoreError> {
+    pub(super) fn retention_at(
+        &self,
+        hash: ContentHash,
+        version: u64,
+    ) -> Result<StorageClass, StoreError> {
         let events = self.read_until(&self.object_stream(hash)?, 1, |record| {
             record.version == version
         })?;

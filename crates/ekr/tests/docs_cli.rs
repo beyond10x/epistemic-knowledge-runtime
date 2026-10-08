@@ -188,7 +188,7 @@ fn code(cell: &str) -> Option<&str> {
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_ekr"));
-    for var in ["EKR_HOST", "EKR_STORE", "EKR_BACKEND"] {
+    for var in ["EKR_HOST", "EKR_STORE", "EKR_BACKEND", "EKR_STAGE"] {
         command.env_remove(var);
     }
     command
@@ -610,7 +610,7 @@ fn the_configuration_table_equals_the_global_options_and_names_their_variables()
     let flags = help_flags(&stdout(&["--help"]));
     assert_eq!(
         flags,
-        ["backend", "full-replay", "host", "store"]
+        ["backend", "full-replay", "host", "stage", "store"]
             .map(str::to_owned)
             .into(),
         "ekr --help"
@@ -679,7 +679,7 @@ const KIND_PREFIXES: [&str; 11] = [
 fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
     let page = page();
     let binary = binary_kinds();
-    assert_eq!(binary.len(), 15, "ekr operations: {binary:?}");
+    assert_eq!(binary.len(), 16, "ekr operations: {binary:?}");
 
     let table: BTreeMap<String, &'static str> = rows(section(&page, "### Operation kinds"))
         .iter()
@@ -926,20 +926,27 @@ fn every_refusal_the_page_names_is_a_whole_name_the_runtime_emits() {
     assert!(emits(&source, "wrong-type") && !emits(&source, "wrong-typ"));
 }
 
-/// The worked example's files, in one fresh directory, driven on the file provider.
+/// The worked example's files, in one fresh directory, driven on the file provider or, for a
+/// stage, on SQLite.
 struct Lab {
     directory: tempfile::TempDir,
+    backend: &'static str,
 }
 
 impl Lab {
     fn new(page: &str) -> Self {
+        Self::on(page, "file")
+    }
+
+    /// The worked example's files, driven on `backend`.
+    fn on(page: &str, backend: &'static str) -> Self {
         let directory = tempfile::tempdir().unwrap();
         for block in blocks(page) {
             if let Some(name) = block.attribute("file") {
                 std::fs::write(directory.path().join(name), &block.body).unwrap();
             }
         }
-        Self { directory }
+        Self { directory, backend }
     }
 
     fn read(&self, name: &str) -> String {
@@ -954,24 +961,56 @@ impl Lab {
     }
 
     fn run(&self, host: &str, verb: &[&str]) -> Output {
+        self.command(host, verb).output().unwrap()
+    }
+
+    fn command(&self, host: &str, verb: &[&str]) -> std::process::Command {
         let at = self.directory.path();
-        ekr()
+        let mut command = ekr();
+        command
             .current_dir(at)
             .arg("--host")
             .arg(at.join(host))
             .arg("--store")
-            .arg(at.join("store"))
-            .args(["--backend", "file"])
-            .args(verb)
+            .arg(at.join(match self.backend {
+                "file" => "store",
+                _ => "store.db",
+            }))
+            .args(["--backend", self.backend])
+            .args(verb);
+        command
+    }
+
+    /// `verb`, joined to `stage` by `EKR_STAGE`.
+    fn joined(&self, stage: &str, verb: &[&str]) -> Output {
+        self.command("host.json", verb)
+            .env("EKR_STAGE", stage)
             .output()
             .unwrap()
     }
 
     fn seeded(page: &str) -> Self {
-        let lab = Self::new(page);
+        Self::seeded_on(page, "file")
+    }
+
+    fn seeded_on(page: &str, backend: &'static str) -> Self {
+        let lab = Self::on(page, backend);
         let output = lab.run("host.json", &["seed", "seed.yaml"]);
         assert_eq!(output.status.code(), Some(0), "the worked seed seeds");
         lab
+    }
+
+    /// A stage begun on this lab's store: the id `ekr stage begin` printed.
+    fn begun(&self) -> String {
+        let output = self.run("host.json", &["stage", "begin"]);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let begun: Value = serde_json::from_slice(&output.stdout).unwrap();
+        begun["stage_id"].as_str().unwrap().to_owned()
     }
 }
 
@@ -1016,16 +1055,28 @@ fn set_tree_modes(at: &Path, directory: u32, file: u32) {
 const TX_WROTE: &str = "00000000-0000-4000-a000-000000000701";
 const TX_UNKNOWN: &str = "00000000-0000-4000-a000-000000000799";
 
-/// One refused command: the verb it ran and what the binary returned.
+/// One refused command: the verb it ran, whether it ran joined to a stage, and what the binary
+/// returned.
 struct Ran {
     verb: String,
+    joined: bool,
     output: Output,
 }
 
 fn ran(lab: &Lab, host: &str, verb: &[&str]) -> Ran {
     Ran {
         verb: verb[0].to_owned(),
+        joined: false,
         output: lab.run(host, verb),
+    }
+}
+
+/// `verb` joined to `stage` by `EKR_STAGE`.
+fn ran_joined(lab: &Lab, stage: &str, verb: &[&str]) -> Ran {
+    Ran {
+        verb: verb[0].to_owned(),
+        joined: true,
+        output: lab.joined(stage, verb),
     }
 }
 
@@ -1220,6 +1271,91 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
             );
             ran
         }
+        "stage-tenant-reserved" => {
+            let lab = Lab::new(page);
+            lab.edit(
+                "host.json",
+                "other.json",
+                "\"tenant\": \"",
+                "\"tenant\": \"ekr.stage:",
+            );
+            let ran = vec![
+                ran(&lab, "other.json", &["seed", "seed.yaml"]),
+                ran(&lab, "other.json", &["head"]),
+            ];
+            assert!(
+                !lab.directory.path().join("store").exists(),
+                "stage-tenant-reserved: a refused verb created the store"
+            );
+            ran
+        }
+        "stage-unsupported-provider" => {
+            let lab = Lab::seeded(page);
+            let stage = ekr_core::StageId::mint().to_string();
+            vec![
+                ran(&lab, "host.json", &["stage", "begin"]),
+                ran(&lab, "host.json", &["stage", "abandon", &stage]),
+                ran_joined(&lab, &stage, &["head"]),
+                ran_joined(&lab, &stage, &["propose", "wrote.yaml"]),
+            ]
+        }
+        "stage-not-found" => {
+            let lab = Lab::seeded_on(page, "sqlite");
+            let stage = ekr_core::StageId::mint().to_string();
+            vec![
+                ran(
+                    &lab,
+                    "host.json",
+                    &["stage", "publish", &stage, "--expect-head", "0"],
+                ),
+                ran(&lab, "host.json", &["stage", "abandon", &stage]),
+                ran_joined(&lab, &stage, &["head"]),
+                ran_joined(&lab, &stage, &["propose", "wrote.yaml"]),
+            ]
+        }
+        "stage-head-moved" => {
+            let lab = Lab::seeded_on(page, "sqlite");
+            let stage = lab.begun();
+            vec![ran(
+                &lab,
+                "host.json",
+                &["stage", "publish", &stage, "--expect-head", "1"],
+            )]
+        }
+        "stage-already-published" => {
+            let lab = Lab::seeded_on(page, "sqlite");
+            let stage = lab.begun();
+            let published = lab.run(
+                "host.json",
+                &["stage", "publish", &stage, "--expect-head", "0"],
+            );
+            assert_eq!(published.status.code(), Some(0));
+            vec![
+                ran(&lab, "host.json", &["stage", "abandon", &stage]),
+                ran(
+                    &lab,
+                    "host.json",
+                    &["stage", "publish", &stage, "--expect-head", "1"],
+                ),
+                ran_joined(&lab, &stage, &["head"]),
+                ran_joined(&lab, &stage, &["propose", "wrote.yaml"]),
+            ]
+        }
+        "stage-already-abandoned" => {
+            let lab = Lab::seeded_on(page, "sqlite");
+            let stage = lab.begun();
+            let abandoned = lab.run("host.json", &["stage", "abandon", &stage]);
+            assert_eq!(abandoned.status.code(), Some(0));
+            vec![
+                ran(
+                    &lab,
+                    "host.json",
+                    &["stage", "publish", &stage, "--expect-head", "0"],
+                ),
+                ran_joined(&lab, &stage, &["head"]),
+                ran_joined(&lab, &stage, &["snapshot"]),
+            ]
+        }
         _ => return None,
     };
     Some(outputs)
@@ -1228,8 +1364,11 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
 /// The `where` cell meaning every verb that opens the store.
 const ANY_STORE_VERB: &str = "any store verb";
 
+/// The `where` cell's term for every store verb joined to a stage (`--stage`, `EKR_STAGE`).
+const ANY_JOINED_VERB: &str = "any joined verb";
+
 /// Verbs that open the store.
-const STORE_VERBS: [&str; 10] = [
+const STORE_VERBS: [&str; 11] = [
     "seed",
     "propose",
     "validate",
@@ -1240,6 +1379,7 @@ const STORE_VERBS: [&str; 10] = [
     "transactions",
     "ontology",
     "resolve",
+    "stage",
 ];
 
 /// Whether `stderr` is `form` followed by `": "` or the end of the line: the refusal's whole name,
@@ -1263,7 +1403,33 @@ fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
             untriggered.push(row.name.clone());
             continue;
         };
-        let verbs: BTreeSet<&str> = outputs.iter().map(|r| r.verb.as_str()).collect();
+        let verbs: BTreeSet<&str> = outputs
+            .iter()
+            .filter(|r| !r.joined)
+            .map(|r| r.verb.as_str())
+            .collect();
+        let joined: BTreeSet<&str> = outputs
+            .iter()
+            .filter(|r| r.joined)
+            .map(|r| r.verb.as_str())
+            .collect();
+        let mut named: BTreeSet<&str> = row.at.split(", ").collect();
+        if named.remove(ANY_JOINED_VERB) {
+            assert!(
+                joined.len() >= 2 && joined.iter().all(|verb| STORE_VERBS.contains(verb)),
+                "{}: `{ANY_JOINED_VERB}` is triggered through two store verbs joined to a stage, \
+                 not {joined:?}",
+                row.name
+            );
+        } else {
+            assert!(
+                joined.is_empty(),
+                "{}: triggered joined to a stage ({joined:?}), which its where cell {:?} does \
+                 not name",
+                row.name,
+                row.at
+            );
+        }
         if row.at == ANY_STORE_VERB {
             assert!(
                 verbs.len() >= 2 && verbs.iter().all(|verb| STORE_VERBS.contains(verb)),
@@ -1271,7 +1437,6 @@ fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
                 row.name
             );
         } else {
-            let named: BTreeSet<&str> = row.at.split(", ").collect();
             assert!(
                 named.iter().all(|verb| STORE_VERBS.contains(verb)),
                 "{}: where {:?} names a verb that is not a store verb",
@@ -1284,7 +1449,7 @@ fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
                 row.name
             );
         }
-        for Ran { verb, output } in outputs {
+        for Ran { verb, output, .. } in outputs {
             let stderr = String::from_utf8_lossy(&output.stderr);
             assert_eq!(
                 output.status.code(),
@@ -1338,8 +1503,25 @@ fn the_readme_first_run_runs_as_written_on_both_providers() {
         .into_iter()
         .find(|block| block.info.first().is_some_and(|w| w == "console"))
         .expect("README.md § First run has a console block");
-    let commands: Vec<&str> = block
-        .body
+    run_first_example(&block.body);
+}
+
+#[test]
+fn the_public_site_first_run_runs_as_written_on_both_providers() {
+    let html = read("website/index.html");
+    let commands = html
+        .split_once("<code id=\"quickstart-commands\">")
+        .expect("the public page marks its runnable example")
+        .1
+        .split_once("</code>")
+        .expect("the example has a closing code element")
+        .0
+        .replace("&gt;", ">");
+    run_first_example(&commands);
+}
+
+fn run_first_example(body: &str) {
+    let commands: Vec<&str> = body
         .lines()
         .map(|line| line.split(" #").next().unwrap().trim())
         .filter(|line| !line.is_empty())
@@ -1372,7 +1554,7 @@ fn the_readme_first_run_runs_as_written_on_both_providers() {
             };
             let words: Vec<&str> = command
                 .strip_prefix("ekr ")
-                .unwrap_or_else(|| panic!("README first run: {command:?} is not an ekr command"))
+                .unwrap_or_else(|| panic!("first run: {command:?} is not an ekr command"))
                 .split_whitespace()
                 .collect();
             let output = ekr()
@@ -2073,7 +2255,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the latest release, 0.0.26: its status table is headed by it, lists schema
+/// `README.md` separates available capabilities from unsupported work and lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
 /// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
 /// called a later phase or unreleased. A stale header is matched with its closing ` |`, so
@@ -2102,9 +2284,9 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     }
     let header = readme
         .lines()
-        .find(|line| line.starts_with("| works in "))
+        .find(|line| line.starts_with("| available |"))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.26 |"), "{header}");
+    assert_eq!(header, "| available | not yet supported |");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -2122,7 +2304,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     ] {
         assert!(
             table.contains(needle),
-            "the 0.0.26 table lacks {needle:?}: {table}"
+            "the current capabilities table lacks {needle:?}: {table}"
         );
     }
     // The link lands: the page has that heading.

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T03:32:16Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-read-serving",
+  "kind": "story",
+  "revision": 14,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Viewer capacity correction933928f08 passed96 affected cases (61 library,5 unchanged streamed-view adversary,13 HTTP,9 search,8 streamed-view cases), zero failures/ignores, commandexit0. Queue remains bounded at viewer own64-connection cap; MCP retains16. Separate corrected read-only cleanup target passed10/10, including real readiness200 before copy and post-TERM zero-copy assertions.",
+    "reference": "<cache>/ekr-hosted-runtime/release-gate/viewer-capacity-green.log"
+  }
+}

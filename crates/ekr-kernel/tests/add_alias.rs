@@ -371,3 +371,76 @@ fn a_held_alias_a_repeated_alias_and_an_unknown_node_are_each_refused_by_name() 
         }
     }
 }
+
+/// The command lookup follows peer publication and an old-basis validation without changing
+/// either the refusal text or an alias index a public reader already captured.
+#[test]
+fn alias_refusals_follow_peer_and_historical_revisions() {
+    for (_, authority) in profiles() {
+        for file in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let seed = imported();
+            let kernel = open(directory.path(), file, authority.clone());
+            kernel
+                .seed(seed.document.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            let warm = transaction(vec![add_alias(seed.first, "warm")]);
+            assert!(matches!(
+                submit(&kernel, &warm, 20),
+                ValidationCommandResult::Validated(_)
+            ));
+            let captured = kernel.read(None).unwrap();
+            assert!(captured.aliases().nodes(seed.repository, KEY).is_empty());
+            let peer = open(directory.path(), file, authority.clone());
+            assert!(matches!(
+                submit(&peer, &transaction(vec![add_alias(seed.first, KEY)]), 30),
+                ValidationCommandResult::Validated(_)
+            ));
+
+            let reject = |tx: &GraphTransaction, at| {
+                let expected = ekr_kernel::Pipeline::deterministic(context().validator)
+                    .validate(&ekr_graph::GraphSnapshot::of(&peer.snapshot().unwrap()), tx)
+                    .unwrap_err();
+                let ValidationCommandResult::Rejected(found) = submit(&kernel, tx, at) else {
+                    panic!("an alias published by the peer must be refused");
+                };
+                assert_eq!(
+                    found
+                        .issues
+                        .iter()
+                        .map(|issue| (issue.validator, issue.code.as_str(), issue.message.as_str()))
+                        .collect::<Vec<_>>(),
+                    expected
+                        .iter()
+                        .map(|issue| (issue.validator, issue.code.as_str(), issue.message.as_str()))
+                        .collect::<Vec<_>>()
+                );
+            };
+            reject(&transaction(vec![add_alias(seed.second, KEY)]), 40);
+
+            let historical = transaction(vec![add_alias(seed.second, KEY)]);
+            kernel
+                .propose(&encode(&historical), context().operator, || {
+                    Timestamp::from_millis(50)
+                })
+                .unwrap();
+            assert!(matches!(
+                kernel
+                    .validate(historical.id, RevisionNumber::new(1), || {
+                        Timestamp::from_millis(51)
+                    })
+                    .unwrap(),
+                ValidationCommandResult::Validated(_)
+            ));
+            reject(&transaction(vec![add_alias(seed.second, KEY)]), 60);
+            assert!(captured.aliases().nodes(seed.repository, KEY).is_empty());
+            assert_eq!(
+                captured.aliases().nodes(seed.repository, "warm"),
+                [seed.first]
+            );
+            let cold = open(directory.path(), file, authority.clone());
+            assert_eq!(cold.transactions().unwrap(), kernel.transactions().unwrap());
+            assert_eq!(cold.snapshot().unwrap(), kernel.snapshot().unwrap());
+        }
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-07T07:33:53Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:browser-tests-need-no-network",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "unit 841edb1b17: cargo test -p ekr view_page 42 passed 1 ignored, adversary_viewer_compact 10, adversary_viewer_follow_ups 6, adversary_page_stream_1 9, adversary_p_page 3, search_live 11 — 0 failed, CDN host mapped NOTFOUND; fmt and clippy -p ekr exit 0"
+  }
+}

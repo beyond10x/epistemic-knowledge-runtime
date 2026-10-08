@@ -1,13 +1,21 @@
 # Wave correct-07 — migrate with added evidence, the extraction verb's findings, typed divergence, a replaced SQLite store, tests under load, document bounds
 
 Skill: aep:implementing 0.15.0 (wave mode). Coordinator: the orchestrating Claude session.
-Status: **open** (2026-10-01), dispatched on the operator's instruction ("dispatch next wave, take
+Status: **released as 0.0.26**, verified again on resume 2026-10-02. Dispatched on the operator's instruction ("dispatch next wave, take
 decisions yourself") from `release-plan:next-waves-2026-10-01` (revision 4, critic panel two rounds).
 
 Base: `main` at `e92f7341` (0.0.25) plus this opening commit, which merges `plan/review-0930`
 (the store at `fdc5ba6d`; every conflict was a squash artefact, main's copy equal to the plan
 branch at `7f27af49`, so the plan branch's copy was taken). Integration branch `wave/correct-07` in
 worktree `ekr-correct-07`.
+
+Completion evidence: main and annotated tag 0.0.26 point to
+`4832d892e7586f6cc7980fa6f99634e3c9b71356`; GitHub Release 0.0.26 is published.
+Correctness run 36969172579 and shared Gates runs 36969173091 and 36969190143 succeeded on
+that exact commit. These were queried on 2026-10-02 during the extract-07b resume. The table
+below preserves the opening stages; it does not describe unfinished implementation. The
+eight associated story/task statuses were reconciled through AEP from this release evidence
+in extract-07b's opening commit. Residual findings remain separate tasks.
 
 | unit | item | branch | stage |
 |---|---|---|---|

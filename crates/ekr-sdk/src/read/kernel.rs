@@ -85,6 +85,19 @@ pub struct SnapshotGraph {
     pub assertions: BTreeMap<AssertionId, SnapshotAssertion>,
     /// Its evidence entries.
     pub evidence: BTreeMap<EvidenceId, SnapshotEvidence>,
+    /// The evidence attached to its assertions after they were added, by assertion id, each list
+    /// in evidence-id order. Empty, and absent from the document, when there is none.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub attachments: BTreeMap<AssertionId, Vec<SnapshotAttachment>>,
+}
+
+/// One piece of evidence attached to an assertion after it was added.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotAttachment {
+    /// The evidence attached.
+    pub evidence: EvidenceId,
+    /// The revision that attached it.
+    pub revision: u64,
 }
 
 /// A canonical node.
@@ -314,11 +327,27 @@ pub enum ExplanationLink {
     Commit(Map<String, Value>),
     /// A later retraction or supersession of it, with its commit by reference.
     Lifecycle(Map<String, Value>),
+    /// Evidence attached to it after it was added, with the attaching commit by reference.
+    Attachment(ExplainedAttachment),
     /// Evidence cited, by its content hash, and with `documents` its retained bytes.
     Evidence(ExplainedEvidence),
     /// A kind this SDK does not know, added by a newer `ekr`.
     #[serde(other)]
     Other,
+}
+
+/// An attachment link: which evidence was attached to which assertion, at which revision, and the
+/// commit that attached it — by reference, and with the documents its receipt as `receipt`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ExplainedAttachment {
+    /// The assertion the evidence is attached to.
+    pub assertion_id: AssertionId,
+    /// The evidence attached; one of the explanation's Evidence links.
+    pub evidence_id: EvidenceId,
+    /// The revision that attached it.
+    pub revision: u64,
+    /// The attaching commit, as a `Commit` link carries it.
+    pub commit: Map<String, Value>,
 }
 
 /// An evidence link: the entry and, when the explanation was read with its documents

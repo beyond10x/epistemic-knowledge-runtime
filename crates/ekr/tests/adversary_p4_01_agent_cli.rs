@@ -71,13 +71,17 @@ fn document(operation: &str) -> String {
         text.push_str(line);
         text.push('\n');
     }
-    let parsed = TransactionDocument::parse(text.as_bytes())
-        .ok()
-        .and_then(|d| d.transaction().operations.first().cloned());
+    let parsed = TransactionDocument::parse(format!("{text}  evidence: []\n").as_bytes())
+        .expect("the printed example parses before its evidence manifest is filled")
+        .transaction()
+        .operations
+        .first()
+        .cloned();
     let evidence: Vec<String> = match parsed {
         Some(GraphOperation::AddAssertion(assertion)) => {
             assertion.evidence.iter().map(ToString::to_string).collect()
         }
+        Some(GraphOperation::AttachEvidence(attachment)) => vec![attachment.evidence.to_string()],
         _ => Vec::new(),
     };
     text.push_str(&format!("  evidence: [{}]\n", evidence.join(", ")));
@@ -219,15 +223,15 @@ fn a_kind_the_kernel_never_applies_says_so_where_it_is_documented() {
     );
 }
 
-/// Every `ekr operations <Kind>` page says `Example (ids from ekr example ekr-seed/2)`. Read as
-/// that claim: an example validated against a store seeded from `ekr example ekr-seed/2` finds
+/// Every `ekr operations <Kind>` page names the example seed and any prerequisite. Read as
+/// that claim: an example validated after those documented preparations finds
 /// every id it names that must already exist, and every property and operation it uses declared.
 ///
 /// After the fix: no example draws an `unresolved-*`, `undeclared-*` or `*-not-declared` issue
-/// against the printed seed (either the seed declares what the examples use, or the heading
-/// stops claiming the ids come from it).
+/// after the printed seed and any explicitly documented prerequisite. AttachEvidence's prerequisite
+/// is executed from the printed AddEvidence example, and the attachment must then validate.
 #[test]
-fn every_example_operation_names_only_what_the_printed_seed_holds() {
+fn every_example_operation_names_only_what_its_documented_preparations_hold() {
     let mut dangling = Vec::new();
     for kind in listed_kinds() {
         let page = text(&["operations", &kind]);
@@ -236,7 +240,22 @@ fn every_example_operation_names_only_what_the_printed_seed_holds() {
             "{kind}: the page no longer makes the claim this case holds it to"
         );
         let world = World::seeded();
+        if kind == "AttachEvidence" {
+            assert!(page.contains("First commit the AddEvidence example"));
+            assert!(page.contains("after committing the AddEvidence example"));
+            let preparation = world.file(
+                "prepare-evidence.yaml",
+                &document(&example_operation("AddEvidence")),
+            );
+            let proposed = world.ok(&["propose", &preparation]);
+            let id = proposed["transaction_id"].as_str().unwrap();
+            assert_eq!(world.ok(&["validate", id])["kind"], "Validated");
+            assert_eq!(world.ok(&["commit", id])["kind"], "Committed");
+        }
         let validated = world.validate(&format!("{kind}.yaml"), &example_operation(&kind));
+        if kind == "AttachEvidence" {
+            assert_eq!(validated["kind"], "Validated", "{validated}");
+        }
         let missing: Vec<String> = issue_codes(&validated)
             .into_iter()
             .filter(|c| {
@@ -251,7 +270,7 @@ fn every_example_operation_names_only_what_the_printed_seed_holds() {
     }
     assert!(
         dangling.is_empty(),
-        "examples naming ids or declarations the printed seed does not hold: {dangling:#?}"
+        "examples naming ids or declarations their documented preparations do not hold: {dangling:#?}"
     );
 }
 

@@ -253,7 +253,7 @@ fn every_example_document_validates_against_its_printed_schema() {
 fn every_operation_example_validates_against_the_transaction_document_schema() {
     let validator = validator(TRANSACTION);
     let kinds = listed_kinds();
-    assert_eq!(kinds.len(), 15, "{kinds:?}");
+    assert_eq!(kinds.len(), 16, "{kinds:?}");
     for kind in kinds {
         let document = document_around(&example_operation(&kind));
         read(TRANSACTION, &document)
@@ -686,7 +686,7 @@ fn accepted_documents(format: &str) -> Vec<(&'static str, String)> {
                             "  relation: LEADS\n  object:\n    node_type: Project\n    aliases:\n    - Apollo\n",
                             "  relation: CEO_OF\n  object:\n    node_type: Organization\n    aliases:\n    - Initech\n",
                         ),
-                        "- !Property\n  subject:\n    node_type: Project\n    aliases:\n    - Apollo\n  property: status\n  value:\n    value_kind: Enum\n    value: active\n  evidence:\n  - 00000000-0000-4000-8000-000000000403\n",
+                        "- !Property\n  subject:\n    node_type: Project\n    aliases:\n    - Apollo\n  property: status\n  value:\n    value_kind: Enum\n    value: active\n  evidence:\n  - 00000000-0000-4000-8000-000000000403\n  replaces: false\n",
                         "",
                     ),
                 ),

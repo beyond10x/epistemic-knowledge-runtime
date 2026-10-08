@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T10:29:26Z",
+  "actor": "agent:codex-ekr-x7b",
+  "artifact": "task:read-only-open-passes-under-load",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correctness task check at release 0.0.26, commit 4832d892e7586f6cc7980fa6f99634e3c9b71356; success verified on resume",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36969172579"
+  }
+}

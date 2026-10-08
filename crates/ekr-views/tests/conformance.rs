@@ -35,7 +35,7 @@ fn the_sqlite_provider_passes_every_admitted_views_scenario() {
 }
 
 /// The committed suite is the `ekr-views` component's, complete, with nothing refused; it selects
-/// exactly the scenarios the committed baseline names, which are the thirty-nine generated
+/// exactly the scenarios the committed baseline names, which are the fifty-two generated
 /// outcome scenarios and every authored one.
 #[test]
 fn the_committed_suite_is_the_complete_views_inventory() {
@@ -73,7 +73,7 @@ fn the_committed_suite_is_the_complete_views_inventory() {
         authored,
         "every authored scenario file is selected"
     );
-    assert_eq!(names.len(), authored + 46, "{names:#?}");
+    assert_eq!(names.len(), authored + 52, "{names:#?}");
 }
 
 /// The authored files `views-provenance.json` records the suite was synthesized from are exactly

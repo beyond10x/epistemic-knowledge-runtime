@@ -22,14 +22,14 @@ use ekr_sdk::document::{
     payload_hash, to_yaml, AgentId, AliasAddition, Assertion, AssertionId, AssertionLifecycle,
     Assessment, Cardinality, Confidence, DocumentError, DocumentLimit, DocumentLimits, EdgeDraft,
     EdgeId, EdgeType, EdgeTypeSpec, EdgeWidening, EntityMerge, Evidence, EvidenceAddition,
-    EvidenceId, EvidenceSource, GraphRoot, GraphRootId, GraphSection, Invocation, Lifecycle,
-    NodeDraft, NodeId, NodeType, NodeTypeSpec, Object, Ontology, OntologyError, OntologySection,
-    OntologySpec, Operation, OperationDefinition, OperationKind, Predicate, PropertyDefinition,
-    PropertyId, PropertyModification, PropertyMutation, PropertySpec, Retraction, SchemaChange,
-    SchemaVersion, SchemaVersionId, SeedBuilder, SeedDocument, SeedGraph, SeedNode, Space, Subject,
-    Supersession, TemporalRange, Timestamp, Transaction, TransactionBuilder, TransactionDocument,
-    TransactionId, TransactionTime, Transition, TypeId, TypedReference, ValidationProfile, Value,
-    ValueSpec, ValueType,
+    EvidenceAttachment, EvidenceId, EvidenceSource, GraphRoot, GraphRootId, GraphSection,
+    Invocation, Lifecycle, NodeDraft, NodeId, NodeType, NodeTypeSpec, Object, Ontology,
+    OntologyError, OntologySection, OntologySpec, Operation, OperationDefinition, OperationKind,
+    Predicate, PropertyDefinition, PropertyId, PropertyModification, PropertyMutation,
+    PropertySpec, Retraction, SchemaChange, SchemaVersion, SchemaVersionId, SeedBuilder,
+    SeedDocument, SeedGraph, SeedNode, Space, Subject, Supersession, TemporalRange, Timestamp,
+    Transaction, TransactionBuilder, TransactionDocument, TransactionId, TransactionTime,
+    Transition, TypeId, TypedReference, ValidationProfile, Value, ValueSpec, ValueType,
 };
 use serde_json::Value as Json;
 
@@ -100,6 +100,7 @@ fn kernel_kind(operation: &ekr_kernel::GraphOperation) -> &'static str {
         G::AddEvidence(_) => "AddEvidence",
         G::WidenEdgeType(_) => "WidenEdgeType",
         G::AddAlias(_) => "AddAlias",
+        G::AttachEvidence(_) => "AttachEvidence",
     }
 }
 
@@ -218,6 +219,9 @@ fn example(kind: OperationKind, operator: AgentId) -> Operation {
             EdgeWidening::new(type_id, [TypeId::mint()], [TypeId::mint(), TypeId::mint()]).into()
         }
         OperationKind::AddAlias => AliasAddition::new(NodeId::mint(), "field-guide-2019").into(),
+        OperationKind::AttachEvidence => {
+            EvidenceAttachment::new(AssertionId::mint(), EvidenceId::mint()).into()
+        }
     }
 }
 
@@ -316,6 +320,7 @@ fn every_builder_output_is_read_by_the_kernel_and_passes_ekr_schema() {
 fn the_transaction_builder_derives_the_evidence_manifest_and_refuses_what_every_profile_refuses() {
     let operator = AgentId::mint();
     let cited = EvidenceId::mint();
+    let attached = EvidenceId::mint();
     let assertion = Assertion::new(
         GraphRootId::mint(),
         Subject::Node(NodeId::mint()),
@@ -330,11 +335,22 @@ fn the_transaction_builder_derives_the_evidence_manifest_and_refuses_what_every_
         .with_id(id)
         .push(assertion.into())
         .push(Operation::DeleteEdge(EdgeId::mint()))
+        .push(EvidenceAttachment::new(AssertionId::mint(), attached).into())
         .build()
         .expect("a data transaction builds");
     let transaction: &Transaction = &document.transaction;
     assert_eq!(transaction.id, id);
-    assert_eq!(transaction.evidence, [cited].into());
+    assert_eq!(transaction.operations[0].rests_on(), vec![cited]);
+    assert_eq!(
+        transaction.operations[1].rests_on(),
+        Vec::<EvidenceId>::new()
+    );
+    assert_eq!(transaction.operations[2].rests_on(), vec![attached]);
+    assert_eq!(
+        transaction.evidence,
+        [cited, attached].into(),
+        "the manifest holds what the assertions cite and the attachments attach"
+    );
     assert_eq!(transaction.schema_version, None);
     assert_eq!(document.format, sdk::TRANSACTION_FORMAT);
     assert!(!Operation::DeleteEdge(EdgeId::mint()).is_schema_change());

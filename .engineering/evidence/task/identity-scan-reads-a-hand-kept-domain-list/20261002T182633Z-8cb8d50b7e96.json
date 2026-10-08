@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T18:26:33Z",
+  "actor": "agent:codex-ekr-next-three-root",
+  "artifact": "task:identity-scan-reads-a-hand-kept-domain-list",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "Focused scanner and typed-carrier regressions, witnessed baseline red and treatment green",
+    "reference": "<cache>/ekr-next-three/input-08/identity/public-report.md; candidate e2aa1b16c196fa78bd8e5ebdbd7c67be05e57773"
+  }
+}

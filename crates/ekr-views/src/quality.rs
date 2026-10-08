@@ -31,10 +31,14 @@ pub struct StoreQualityReported {
     pub with_evidence: u64,
     /// `assertions.with_item_evidence`.
     pub with_item_evidence: u64,
+    /// `assertions.with_seed_evidence`.
+    pub with_seed_evidence: u64,
     /// `properties.declared`.
     pub properties: u64,
     /// `properties.constrained`.
     pub constrained_properties: u64,
+    /// `properties.constrained_types`.
+    pub constrained_types: u64,
     /// Entries of `shared_names`.
     pub shared_names: u64,
     /// `sharing_nodes`.
@@ -56,6 +60,7 @@ struct AssertionQuality {
     active: u64,
     with_evidence: u64,
     with_item_evidence: u64,
+    with_seed_evidence: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     with_evidence_share: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -67,6 +72,7 @@ struct AssertionQuality {
 struct PropertyQuality {
     declared: u64,
     constrained: u64,
+    constrained_types: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     constrained_share: Option<u64>,
 }
@@ -141,21 +147,53 @@ pub fn quality(
     };
     let after_seed = |id: &EvidenceId| graph.evidence.contains_key(id) && !seed.contains(id);
     let (mut active, mut with_evidence, mut with_item_evidence) = (0_u64, 0_u64, 0_u64);
+    let mut with_seed_evidence = 0;
     for assertion in graph.assertions.values() {
         if !matches!(assertion.lifecycle, AssertionLifecycle::Active) {
             continue;
         }
         active += 1;
-        let cited: Vec<EvidenceId> = assertion.evidence.iter().map(|e| e.id()).collect();
+        // Evidence attached after the assertion was added counts as cited evidence does
+        // (`story:evidence-attaches-to-a-held-assertion`).
+        let cited: Vec<EvidenceId> = assertion
+            .evidence
+            .iter()
+            .copied()
+            .chain(
+                graph
+                    .attached(assertion.id)
+                    .map(|attached| attached.evidence),
+            )
+            .map(|e| e.id())
+            .collect();
         if cited.iter().any(held) {
             with_evidence += 1;
         }
         if cited.iter().any(after_seed) {
             with_item_evidence += 1;
         }
+        if cited.iter().any(|id| seed.contains(id) && held(id)) {
+            with_seed_evidence += 1;
+        }
     }
 
     let ontology = graph.ontology.to_document();
+    let constrained_types = ontology
+        .node_types
+        .iter()
+        .map(|declared| &declared.properties)
+        .chain(
+            ontology
+                .edge_types
+                .iter()
+                .map(|declared| &declared.properties),
+        )
+        .filter(|properties| {
+            properties
+                .values()
+                .any(|property| !property.constraints.is_empty())
+        })
+        .count() as u64;
     let declarations = ontology
         .node_types
         .iter()
@@ -210,12 +248,14 @@ pub fn quality(
             active,
             with_evidence,
             with_item_evidence,
+            with_seed_evidence,
             with_evidence_share: share(with_evidence, active),
             with_item_evidence_share: share(with_item_evidence, active),
         },
         properties: PropertyQuality {
             declared,
             constrained,
+            constrained_types,
             constrained_share: share(constrained, declared),
         },
         sharing_nodes: sharing.len() as u64,
@@ -227,8 +267,10 @@ pub fn quality(
         active_assertions: active,
         with_evidence,
         with_item_evidence,
+        with_seed_evidence,
         properties: declared,
         constrained_properties: constrained,
+        constrained_types,
         shared_names: document.shared_names.len() as u64,
         sharing_nodes: document.sharing_nodes,
         quality_hash: hash(&bytes),

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T04:05:16Z",
+  "actor": "agent:codex",
+  "artifact": "story:hosted-postgres-snapshot",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Remaining store/views/xtask package tests at cc1c43db6: 359 passed, 0 failed, 3 ignored across 84 completed runners; exit 0. Both corrected public-surface guards execute. Full-workspace doc tests also exit 0; this is a tail gate, not the final combined full gate.",
+    "reference": "<cache>/ekr-hosted-runtime/release-gate/tail-results.tsv"
+  }
+}

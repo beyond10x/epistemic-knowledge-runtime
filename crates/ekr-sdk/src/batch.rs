@@ -589,18 +589,15 @@ pub(crate) fn unanswered(request: &Request, answer: Answer) -> CallError {
 }
 
 /// The bytes `group` adds to a transaction document, over-estimated: its operations as YAML with
-/// four more bytes of indentation a line, and the evidence ids its assertions add to the
-/// manifest. A group the writer refuses is estimated at the whole cap, so it travels alone.
+/// four more bytes of indentation a line, and the evidence ids its assertions and attachments add
+/// to the manifest. A group the writer refuses is estimated at the whole cap, so it travels alone.
 fn estimate(group: &[Operation]) -> usize {
     let Ok(yaml) = to_yaml(group) else {
         return TRANSACTION_LIMITS.input_bytes;
     };
     let evidence: usize = group
         .iter()
-        .map(|operation| match operation {
-            Operation::AddAssertion(assertion) => assertion.evidence.len(),
-            _ => 0,
-        })
+        .map(|operation| operation.rests_on().len())
         .sum();
     yaml.len() + 4 * yaml.lines().count() + EVIDENCE_ID_BYTES * evidence
 }

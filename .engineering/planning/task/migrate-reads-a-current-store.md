@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:migrate-reads-a-current-store
 kind: task
-status: active
+status: implemented
 title: ekr migrate reads a store that took evidence after its seed
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
-revision: 6
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 5}
 - {from: "proposed", to: "active", at: "2026-10-01T19:15:30Z", actor: "human:timo", revision: 6}
+- {from: "active", to: "implemented", at: "2026-10-02T10:29:24Z", actor: "agent:codex-ekr-x7b", revision: 7, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## What is wrong
 

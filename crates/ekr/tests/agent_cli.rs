@@ -44,9 +44,9 @@ fn names<E: ValueEnum>() -> Vec<String> {
         .collect()
 }
 
-/// `GraphOperation` has fifteen variants (the eleven of design § 19 and amendment 87, plus
-/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType` and `AddAlias`).
-const KIND_COUNT: usize = 15;
+/// `GraphOperation` has sixteen variants (the eleven of design § 19 and amendment 87, plus
+/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias` and `AttachEvidence`).
+const KIND_COUNT: usize = 16;
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -682,6 +682,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "schema",
         "view",
         "mcp",
+        "mcp-http",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -768,7 +769,14 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ),
         (
             "view",
-            &["127.0.0.1", "ekr.graph-projection/1", "free one", store],
+            &[
+                "127.0.0.1",
+                "ekr.graph-projection/1",
+                "free one",
+                store,
+                "--allow-host",
+                "non-loopback",
+            ],
         ),
         (
             "session",
@@ -794,12 +802,37 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             ],
         ),
         (
+            "mcp-http",
+            &[
+                "Streamable HTTP",
+                "/mcp",
+                "127.0.0.1",
+                "--allow-host",
+                "--allow-origin",
+                "/healthz",
+                "/readyz",
+                "seeded",
+                "No sessions",
+                store,
+            ],
+        ),
+        (
             "migrate",
             &[
-                "ekr-seed-envelope/3",
+                "ekr-seed-envelope/4",
                 "ekr.store-migration/1",
                 "must hold no store",
                 store,
+            ],
+        ),
+        (
+            "postgres-schema",
+            &[
+                "ekr.postgres/1",
+                "ekr.postgres-schema/1",
+                "schema-management",
+                "Does not seed",
+                "connection file",
             ],
         ),
         (
@@ -813,6 +846,18 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "OCEL 2.0",
                 "valid-time rule",
                 "--events",
+                "ekr head",
+                store,
+            ],
+        ),
+        (
+            "process-map",
+            &[
+                "ekr.process-map/1",
+                "ekr.ocel/1",
+                "ekr ocel",
+                "variants",
+                "directly-follows",
                 "ekr head",
                 store,
             ],
@@ -858,6 +903,19 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "Wilson",
                 "ekr sample",
                 "stdin",
+            ],
+        ),
+        (
+            "stage",
+            &[
+                "ekr stage begin",
+                "EKR_STAGE",
+                "--stage",
+                "ekr stage publish",
+                "--expect-head",
+                "ekr stage abandon",
+                "ekr head",
+                store,
             ],
         ),
     ];
@@ -1224,6 +1282,7 @@ fn cited(example: &str) -> Vec<String> {
         GraphOperation::AddAssertion(assertion) => {
             assertion.evidence.iter().map(ToString::to_string).collect()
         }
+        GraphOperation::AttachEvidence(attachment) => vec![attachment.evidence.to_string()],
         _ => Vec::new(),
     }
 }

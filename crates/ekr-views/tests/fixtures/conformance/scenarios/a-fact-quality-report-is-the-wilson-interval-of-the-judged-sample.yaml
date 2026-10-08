@@ -15,6 +15,24 @@ scenario: a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample
 summary: A judged sample's pass rate and its Wilson interval at the stated confidence, 9500 when none is stated, are the closed-form values, with the bounds exactly 0 and 1 where nothing or everything passed.
 
 timeline:
+  - at: 2027-01-16T09:59:00Z
+    command: ekr.views.ReportFactQuality
+    actor: ekr.views.Reader
+    input:
+      judgements: []
+      sample: null
+      confidence: null
+    outcome: reported
+    events:
+      - event: ekr.views.FactQualityReported
+        payload:
+          confidence: 9500
+          judged: 0
+          passed: 0
+          failed: 0
+          lower_bp: 0
+          upper_bp: 10000
+
   - at: 2027-01-16T10:00:00Z
     command: ekr.views.ReportFactQuality
     actor: ekr.views.Reader
