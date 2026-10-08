@@ -236,7 +236,7 @@ pub trait StageLog {
     /// # Errors
     /// Provider failure or a record stream that does not read as a stage's lifecycle.
     fn stage_record(&self, stage: StageId) -> Result<Option<StageRecord>, StoreError>;
-    /// Every stage this store has recorded, in every state (`ekr.store.Stages`).
+    /// Every stage this store has recorded, in every state (`ekr.cli.Stages`).
     /// # Errors
     /// Provider failure or a record that does not read.
     fn stages(&self) -> Result<Vec<StageRecord>, StoreError>;

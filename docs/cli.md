@@ -47,7 +47,7 @@ Copy it onto your `PATH`; the rest of this page calls it `ekr`.
 
 ## Configuration
 
-Verbs that read or write a store need three settings, and take a fourth. Each is a flag or an
+Verbs that read or write a store need three settings, and take two more. Each is a flag or an
 environment variable; the flag wins, and an empty variable counts as unset.
 
 | flag | variable | value |
@@ -56,10 +56,16 @@ environment variable; the flag wins, and an empty variable counts as unset.
 | `--store` | `EKR_STORE` | a directory for `file`, database file for `sqlite`, configuration file for `postgres` |
 | `--backend` | `EKR_BACKEND` | `file`, `sqlite` or `postgres`, lowercase |
 | `--full-replay` | `EKR_FULL_REPLAY` | optional: replay from the seed (below); the variable is `1` or `true` for on, `0` or `false` for off |
+| `--stage` | `EKR_STAGE` | optional: a stage id, as [`ekr stage begin`](#ekr-stage) prints it. Every verb that opens an existing store joins that stage: it reads and writes the stage, not the store |
 
 The store need not exist before `ekr seed`: the file provider creates the directory and any missing
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
 `example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
+
+`--stage` and `EKR_STAGE` are the one pair where the flag does not simply win: the two naming
+different stages is a usage error (exit 2). `seed` and `migrate`, which create a store, refuse
+either as a usage error. The [`ekr stage`](#ekr-stage) verbs run on the store itself: they ignore
+`EKR_STAGE`, so a run can export it and still publish, and refuse `--stage` as a usage error.
 
 A store this process may read but not write — on a read-only mount, or owned by another user —
 still answers every verb that only reads it. Such a verb opens the store read-only, writes nothing
@@ -136,7 +142,7 @@ exactly that.
 |---|---|---|
 | 0 | a declared outcome | one JSON document on stdout. A validation that rejects (`"kind": "Rejected"`) and a commit that finds the head moved (`"kind": "Stale"`) are outcomes too: read `kind` |
 | 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
-| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, or clap's usage message |
+| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, `ekr: <name>: <reason>` for a refusal of a stage ([`ekr stage`](#ekr-stage)), or clap's usage message |
 
 `guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
@@ -177,6 +183,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
 | `ekr migrate` | reads, and writes a new store | `--to <path>`, optional `--to-backend <provider>`: empty destination; PostgreSQL uses an application configuration file | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 | `ekr postgres-schema` | provisions provider tables | `--config <file>`: schema-management configuration | `ekr.postgres-schema/1` with `ready: true`; no knowledge is seeded |
+| `ekr stage` | writes; `list` reads | `begin`; `publish <stage id> --expect-head <revision>`; `abandon <stage id>`; `list` | the stage as the verb left it: `stage_id`, `state`, `base` and, once published, `published_first` and `published_last`; `list` prints every stage the store has had |
 
 Every verb has `--help`.
 
@@ -1742,6 +1749,88 @@ schema-management connection, using verified TLS. It prints `ekr.postgres-schema
 and is refused inside a session. See [Hosted PostgreSQL](#hosted-postgresql) for configuration,
 role separation, pool bounds and initial copying.
 
+### `ekr stage`
+
+Makes a run all or nothing. A run is the separate `ekr` processes a batch makes — `ontology`,
+`apply-extraction`, `snapshot`, `mint`, `propose`, `validate`, `commit` — followed by a gate such
+as `ekr quality`. In a stage, the run's commits go to the stage, never to the store; the run reads
+them back; and the stage is then published into the store whole, or dropped whole. A run whose
+gate fails leaves `ekr head` exactly where it was. Stages need a SQLite or PostgreSQL store; a File
+store refuses them, `stage-unsupported-provider`.
+
+```console
+ekr head                                          # the store's head the run begins from: "revision": 4
+ekr stage begin                                   # prints the stage, Begun at revision 4
+export EKR_STAGE=<the stage_id it printed>
+ekr apply-extraction extraction.yaml              # every verb now reads and writes the stage
+ekr propose run.yaml && ekr validate <id> && ekr commit <id>
+ekr quality                                       # the gate, on the stage
+ekr stage publish "$EKR_STAGE" --expect-head 4    # passed: the run lands in the store at once
+ekr stage abandon "$EKR_STAGE"                    # failed: the stage is dropped, the store untouched
+unset EKR_STAGE
+```
+
+- **`ekr stage begin`** mints the stage's id, records the stage at the store's head and copies the
+  store into the stage's own tenant of the same database. It prints the stage: `stage_id`,
+  `state` (`Begun`), `base` (the store's head) and `base_revision`. The store's head and history
+  do not move. The copy is the store's preserving copy, as [`ekr migrate`](#ekr-migrate) writes
+  one: a joined `ekr head` names the same revision and the same knowledge, evidence, ontology and
+  authority roots, and its `transaction` is the stage's own seed claim.
+- **Joining.** Every verb that opens an existing store joins the stage `--stage <id>` or
+  `EKR_STAGE=<id>` names ([Configuration](#configuration)), `ekr session`, `ekr mcp` and
+  `ekr view` included. Its reads see the store at the stage's base and the run's own commits,
+  numbered on from the base; its writes go to the stage. Before every read and write it reads the
+  stage's record, and once the stage is not `Begun` it is refused: `stage-sealed`,
+  `stage-already-published` or `stage-already-abandoned`. A write that passed that check and
+  landed after the stage was sealed is refused `stage-write-landed` and is not reported
+  successful; its occurrences, which the message names, are in the store only if the stage's
+  publication holds them. `seed` and `migrate` refuse a stage as a usage error. A session request
+  carries no `--stage` (`session-option-refused`) and a session does not serve `ekr stage`.
+- **`ekr stage publish <stage id> --expect-head <revision>`** seals the stage, so no joined write
+  lands any more, then publishes it: every proposal, validation, rejection and commit the run made
+  is appended to the store in one group, derived again for the store's lineage, and the stage's
+  tenant is emptied. It prints the stage, `Published`, with `published_first` and
+  `published_last`, the first and last revision it added (`null` when the run committed nothing),
+  and `occurrences`. Afterwards `ekr head` is the stage's last revision — the same number,
+  identity and roots — and the store replays from its seed (`--full-replay`). The store's head
+  must be `--expect-head` and the stage's base: otherwise it is refused `stage-head-moved` and
+  nothing changes, and the run is made again in a new stage; a stage is never rebased. Another
+  writer's proposals, validations and rejections in the store meanwhile do not refuse it; another
+  commit does.
+- **A publish retried** after it was interrupted finishes it. It reads the stage's record and seals
+  only a `Begun` stage: retried after the seal, it publishes; retried after the append, with the
+  same `--expect-head`, it prints the original result, appends nothing and empties what is left of
+  the stage's tenant. With another `--expect-head` it is refused `stage-already-published`.
+- **`ekr stage abandon <stage id>`** records the stage `Abandoned` and empties its tenant. The
+  store's head and history do not move. Retried, it prints the original result and finishes the
+  emptying. A published stage is refused `stage-already-published`, after it empties what an
+  interrupted publication left of the stage's tenant.
+- **`ekr stage list`** prints every stage the store has had, in every state, as a list of
+  `stage_id`, `store` (the store's tenant), `base`, `base_revision`, `published_revisions` and
+  `state`. A stage's record stays after its tenant is emptied. A `Begun` stage whose
+  `ekr stage begin` answer was lost is found here, then joined or abandoned; nothing abandons an
+  unclaimed stage by itself, and its tenant holds a copy of the store until it is.
+
+The stage verbs run on the store, never on a stage: they ignore `EKR_STAGE` and refuse `--stage`
+as a usage error. `begin`, `publish` and `abandon` write the store and are refused
+`store-read-only` on a store this process may not write; `list` only reads.
+
+Each refusal of a stage is a named refusal, exit 2, `ekr: <name>: <reason>`, and the verb it
+refuses changed nothing. Those a run meets in the ordinary course are rows of
+[Common refusals](#common-refusals). The others arise only when another process interleaves, or
+after an interruption:
+
+| refusal | what it means | what to do |
+|---|---|---|
+| `stage-stream-moved` | another writer's proposal, validation or rejection landed in the store between the publication's capture and its append; the stage stays `Sealing` | publish again with the same `--expect-head` |
+| `stage-object-moved` | the same, for an object the publication stores | publish again with the same `--expect-head` |
+| `stage-suffix-refused` | the kernel refused the run against the store; the stage stays `Sealing` | abandon it and make the run again |
+| `unresolved-preparation` | the stage holds a decision a joined command elected and never published | run that command again in the stage, or abandon it |
+| `stage-incomplete` | a begin stopped before its copy finished; nothing joins or publishes the stage | abandon it and begin another |
+| `stage-sealed` | a verb joined to a stage that is being published | wait for the publish, or make the write in a new stage |
+| `stage-write-landed` | a joined write landed after the stage was sealed; it is not reported successful | read the store for the occurrences it names once the stage is published |
+| `stage-not-sealed` | a `Begun` stage published without its seal, which `ekr stage publish` never does | — |
+
 ## The workflow
 
 ```console
@@ -3173,7 +3262,8 @@ There are three forms, and the `exit` column says which one each refusal takes:
 
 - **A named refusal, exit 2.** Nothing was recorded. stderr is `ekr: ekr.kernel.<Name>: <reason>`.
   A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes. A
-  write to a store this process may not write is `ekr: store-read-only: <reason>`.
+  write to a store this process may not write is `ekr: store-read-only: <reason>`, and a refusal of a
+  stage is `ekr: <name>: <reason>` ([`ekr stage`](#ekr-stage)).
 - **A fault, exit 1.** stderr is `ekr: <message>`. A host document the kernel does not accept is
   reported while the provider is opened, as `ekr: opening the provider: invalid seed: <code>`.
 - **A validation issue, exit 0.** `ekr validate` records `"kind": "Rejected"`, and each issue carries
@@ -3181,16 +3271,18 @@ There are three forms, and the `exit` column says which one each refusal takes:
   `ekr.kernel.InvalidSeed: <code>: <detail>`, exit 2.
 
 The `where` column names the verbs that report a refusal; `any store verb` means every verb that
-opens the store. `crates/ekr/tests/docs_cli.rs` triggers every row that is not a validation issue
+opens the store, and `any joined verb` every such verb joined to a stage with `--stage` or
+`EKR_STAGE`. `crates/ekr/tests/docs_cli.rs` triggers every row that is not a validation issue
 against the worked example's files, through each verb its `where` cell names (two different store
-verbs for `any store verb`), and checks the exit status in this table and that stderr names the
-refusal in the form above. For a validation-issue row it checks that the code is a whole string a
-validator in `crates/ekr-kernel/src/validate` raises, or, for a schema change, one of the ontology's
-own codes that validator raises as they are. It does not run those rows, except the schema-change
-rows: it lists every code a schema change can be refused with and checks that each is a row here or
-one no transaction document can reach, and it draws each of those rows from the worked seed under
-validation profile v2. The worked example itself produces `inadmissible-value` and
-`unsupported-operation`.
+verbs for `any store verb`, two different joined verbs for `any joined verb`; a stage row on a
+SQLite store unless it is about the File provider), and checks the exit status in this
+table and that stderr names the refusal in the form above. For a validation-issue row it checks
+that the code is a whole string a validator in `crates/ekr-kernel/src/validate` raises, or,
+for a schema change, one of the ontology's own codes that validator raises as they are. It does
+not run those rows, except the schema-change rows: it lists every code a schema change can be
+refused with and checks that each is a row here or one no transaction document can reach, and it
+draws each of those rows from the worked seed under validation profile v2. The worked example
+itself produces `inadmissible-value` and `unsupported-operation`.
 
 | refusal | where | exit | what it means | what to fix |
 |---|---|---|---|---|
@@ -3215,6 +3307,12 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `store-read-only` | seed, propose, validate, commit | 2 | this process may not write the store at `--store` — a file store's directory, `writer.lock`, `events.jsonl` or `blobs`; a SQLite database, its directory or its `-wal` or `-shm` file — so the verb, which writes, is refused before it opens anything and nothing is written. The verbs that only read answer on the same store ([Configuration](#configuration)) | run the verb as a user that may write the store, or on a writable copy of it |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
+| `stage-tenant-reserved` | any store verb | 1 | the host document's `tenant` contains `ekr.stage:`, the marker reserved to a stage's own tenant, so no store is opened under it; nothing is read, created or written | choose a tenant without `ekr.stage:` |
+| `stage-unsupported-provider` | stage, any joined verb | 2 | the store is a File store, which admits no stage: `ekr stage begin`, `publish` and `abandon` are refused, and so is every verb joined to a stage (`ekr stage list` lists none) | use a SQLite or PostgreSQL store, or drop `--stage` and `EKR_STAGE` |
+| `stage-not-found` | stage, any joined verb | 2 | no stage of this store has that id | take the `stage_id` `ekr stage begin` printed, or find it with `ekr stage list` |
+| `stage-head-moved` | stage | 2 | `ekr stage publish`: the store's head is not `--expect-head`, or not the stage's base, because another commit landed in the store since the stage began; nothing was sealed or published | pass the head the run began from; if the store moved, abandon the stage and make the run again in a new one |
+| `stage-already-published` | stage, any joined verb | 2 | the stage is published: a verb joined to it, `ekr stage abandon`, or `ekr stage publish` with another `--expect-head` | read the store, where the run now is; begin a new stage for the next run |
+| `stage-already-abandoned` | stage, any joined verb | 2 | the stage is abandoned: a verb joined to it, or `ekr stage publish` | begin a new stage and make the run again |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer`, an assertion's `proposed_by` or an added evidence entry's `extracted_by` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
@@ -3381,8 +3479,8 @@ The `ekr.store-migration/1` report maps every retained occurrence's source and d
 hash and identifies carried objects. Logical knowledge, evidence, ontology and authority roots,
 revision identities and retained evidence bytes are preserved. The fresh migration claim changes
 the seed hash and derived physical record/root hashes; the report names those changes. PostgreSQL as a migration source is
-refused (`migrate-source-not-supported`); this command provides initial snapshot copying, not atomic
-incremental publication into a served store. Low-level PostgreSQL inventory reads the
+refused (`migrate-source-not-supported`); this command provides initial snapshot copying; atomic
+incremental publication into a served store is [`ekr stage`](#ekr-stage). Low-level PostgreSQL inventory reads the
 tenant under one provider capture, never its change feed, which is not a complete source snapshot.
 
 SDK callers use the existing `StoreConfig { host, store, backend }` construction, setting

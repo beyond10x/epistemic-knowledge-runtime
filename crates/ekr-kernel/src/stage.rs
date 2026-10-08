@@ -26,7 +26,7 @@ use crate::migrate::CapturedStore;
 use crate::replay::ReplayState;
 use crate::{Commit, CommitError};
 
-/// A stage as the store's record lists it (`ekr.store.Stages`): the stage and its state.
+/// A stage as the store's record lists it (`ekr.cli.Stages`): the stage and its state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StageListing {
     /// The stage, with the store's revisions its publication added.
@@ -603,7 +603,7 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
         Err(StoreError::Conflict.into())
     }
 
-    /// Every stage the store has recorded (`ekr.store.Stages`), with the revisions a publication
+    /// Every stage the store has recorded (`ekr.cli.Stages`), with the revisions a publication
     /// added read from the store's revision stream.
     pub(crate) fn stages(&self) -> Result<Vec<StageListing>, CommitError> {
         let records = self.store.stages()?;

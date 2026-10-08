@@ -226,7 +226,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -257,7 +257,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -284,7 +284,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -326,7 +326,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -345,7 +345,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -453,7 +453,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -484,7 +484,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -555,7 +555,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -593,7 +593,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -620,7 +620,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -680,7 +680,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -733,7 +733,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -760,7 +760,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -783,7 +783,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -814,7 +814,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -841,7 +841,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -868,7 +868,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -899,7 +899,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -930,7 +930,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -957,7 +957,7 @@
           },
           {
             "kind": "view",
-            "name": "ekr.store.Stages"
+            "name": "ekr.cli.Stages"
           }
         ],
         "origin": "generated",
@@ -1603,8 +1603,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "b8de0b067d148c139cbd040534c289406b16326ed668680faf61d4585b01310f",
-    "spec_digest": "5a637fd8568f95fca29a478329c88a826cfbef890ef7c6e87da4ff76fca7dfe9",
+    "contract_digest": "0a396bd862280514e914eb5017aee80fbb486e75ffbe169209562bffacff4183",
+    "spec_digest": "3d887888229e8708d03215fcc90be8dcc6f2c6d6fc10b63456529fba415c0ff6",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"

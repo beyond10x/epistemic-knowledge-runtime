@@ -287,6 +287,11 @@ impl Fixture {
     /// The attempt number of `stage`'s elected publication, read through the store's own
     /// preparation reader under this kernel's authority, which authorizes every attempt it reads.
     fn attempt(&self, stage: StageId) -> Option<u64> {
+        self.preparation(stage)
+            .map(|prepared| prepared.attempt_number)
+    }
+    /// `stage`'s elected publication, read under this kernel's authority as `attempt` reads it.
+    fn preparation(&self, stage: StageId) -> Option<ekr_store::PublicationPreparationV4> {
         let mut held = None;
         let _ = Commit::over_with_authority(context(), evolving(), |authority| {
             held = Some(authority);
@@ -305,10 +310,7 @@ impl Fixture {
                     .under(authority),
             ),
         };
-        raw.log()
-            .stage_preparation(stage)
-            .unwrap()
-            .map(|prepared| prepared.attempt_number)
+        raw.log().stage_preparation(stage).unwrap()
     }
     /// The tenant of `stage` of this store.
     fn stage_tenant(&self, stage: StageId) -> String {
@@ -2118,4 +2120,125 @@ fn two_publishes_of_one_stage_append_its_suffix_once_and_answer_alike() {
             assert_eq!(fixture.holds(&fixture.stage_tenant(stage)), 0);
         }
     });
+}
+
+/// The store's carriers of a published stage read back as the publication left them: the stage's
+/// record (`ekr_store::StageRecord`, with its `StagePublishedRecord`), its elected `/4`
+/// preparation (`PublicationPreparationV4`, keyed by `StagePublicationCommandKey`, whose decision's
+/// `StagePublicationObject`s are each in the store with their bytes) and the listing's
+/// `StoreTenant`. Read through a provider handle on the store's tenant, which decides nothing.
+#[test]
+fn a_published_stage_reads_back_as_its_record_preparation_and_objects_left_it() {
+    each(|fixture| {
+        let store = fixture.seeded();
+        let begun = store.begin_stage().unwrap();
+        let joined = store.join_stage(begun.stage_id).unwrap();
+        commit(&joined);
+        let payload = format!("a statement the run retains {}", TypeId::mint()).into_bytes();
+        commit_transaction(&joined, &evidence(&payload));
+        drop(joined);
+        let published = store
+            .seal_and_publish_stage(begun.stage_id, begun.base)
+            .unwrap();
+        let raw = fixture.raw(&fixture.tenant);
+
+        let record: ekr_store::StageRecord =
+            raw.log().stage_record(begun.stage_id).unwrap().unwrap();
+        assert_eq!(record.state, StageState::Published);
+        assert_eq!(record.tenant, fixture.stage_tenant(begun.stage_id));
+        assert_eq!(record.result(), published);
+        let recorded: &ekr_store::StagePublishedRecord = record.published.as_ref().unwrap();
+        assert_eq!(recorded.head, store.head().unwrap().unwrap().revision);
+        assert_eq!(recorded.published_first, published.published_first);
+        assert_eq!(recorded.published_last, published.published_last);
+        assert_eq!(Some(recorded.occurrences), published.occurrences);
+
+        let prepared: ekr_store::PublicationPreparationV4 =
+            fixture.preparation(begun.stage_id).unwrap();
+        assert_eq!(prepared.format, ekr_store::PublicationPreparationV4::FORMAT);
+        assert_eq!(
+            prepared.command_key,
+            ekr_store::StagePublicationCommandKey::of(begun.stage_id)
+        );
+        assert_eq!(prepared.decision.stage_id, begun.stage_id);
+        assert_eq!(prepared.decision.base, begun.base);
+        assert_eq!(prepared.decision.published_last, published.published_last);
+        assert!(
+            !prepared.decision.objects.is_empty(),
+            "the run stored objects"
+        );
+        for (hash, object) in &prepared.decision.objects {
+            let object: &ekr_store::StagePublicationObject = object;
+            assert_eq!(
+                raw.get(hash).as_deref(),
+                Some(object.bytes.as_slice()),
+                "{hash} is in the store with the bytes the publication carried"
+            );
+        }
+        assert!(prepared
+            .decision
+            .objects
+            .values()
+            .any(|object| object.bytes == payload));
+
+        let listed = store.stages().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(
+            listed[0].stage.store,
+            ekr_store::StoreTenant(fixture.tenant.clone())
+        );
+    });
+}
+
+/// A store's tenant is admitted only without the stage marker, wherever the marker stands; any
+/// other tenant is admitted as it is.
+#[test]
+fn a_store_tenant_carrying_the_stage_marker_is_not_admitted() {
+    assert_eq!(ekr_store::admit_store_tenant("library"), Ok(()));
+    assert_eq!(ekr_store::admit_store_tenant("ekr.stage"), Ok(()));
+    for tenant in [
+        ekr_store::STAGE_TENANT_MARKER.to_owned(),
+        format!("{}library", ekr_store::STAGE_TENANT_MARKER),
+        format!("library {} copy", ekr_store::STAGE_TENANT_MARKER),
+    ] {
+        assert_eq!(
+            ekr_store::admit_store_tenant(&tenant),
+            Err(StoreError::StageTenantReserved(tenant.clone()))
+        );
+    }
+}
+
+/// A stage point answers what the calling thread's hook answers there, and nothing without one;
+/// a guard dropped restores the hook it replaced.
+#[test]
+fn a_stage_hook_guard_restores_the_hook_it_replaced() {
+    fn interrupting(name: &'static str) -> ekr_store::StageHookGuard {
+        ekr_store::on_stage_point(move |point| {
+            if point == StagePoint::Sealed {
+                Err(StoreError::Backend(name.into()))
+            } else {
+                Ok(())
+            }
+        })
+    }
+    let interrupted = |name: &str| Err(StoreError::Backend(name.into()));
+    assert_eq!(ekr_store::stage::reached(StagePoint::Sealed), Ok(()));
+    let outer = interrupting("outer");
+    assert_eq!(
+        ekr_store::stage::reached(StagePoint::Sealed),
+        interrupted("outer")
+    );
+    assert_eq!(ekr_store::stage::reached(StagePoint::SealChecked), Ok(()));
+    let inner = interrupting("inner");
+    assert_eq!(
+        ekr_store::stage::reached(StagePoint::Sealed),
+        interrupted("inner")
+    );
+    drop(inner);
+    assert_eq!(
+        ekr_store::stage::reached(StagePoint::Sealed),
+        interrupted("outer")
+    );
+    drop(outer);
+    assert_eq!(ekr_store::stage::reached(StagePoint::Sealed), Ok(()));
 }

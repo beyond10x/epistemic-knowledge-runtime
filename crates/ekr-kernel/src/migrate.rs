@@ -340,7 +340,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> CapturedStore<'_, S> {
 
     /// The identity of the captured head revision.
     #[must_use]
-    pub fn head_revision(&self) -> ekr_core::RevisionId {
+    pub(crate) fn head_revision(&self) -> ekr_core::RevisionId {
         self.state.head().revision_id
     }
 

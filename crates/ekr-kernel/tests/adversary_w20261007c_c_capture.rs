@@ -60,8 +60,9 @@ fn tenant() -> String {
     format!("adversary-c-{}", TypeId::mint())
 }
 
-fn stage_id() -> u128 {
-    TypeId::mint().as_u128()
+/// A stage id minted as begin mints it (`ekr.store.StageId`), as `hosted_postgres.rs` does.
+fn stage_id() -> ekr_core::StageId {
+    ekr_core::StageId::mint()
 }
 
 fn document(at: i64) -> (TransactionId, Vec<u8>) {

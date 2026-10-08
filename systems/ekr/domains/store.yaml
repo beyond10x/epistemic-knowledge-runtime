@@ -853,25 +853,6 @@ errors:
 # `ekr` handles them, not ekr-kernel. A command's one handler is the component owning its domain
 # (ESS-COMPONENT-004, `conflicting_declaration`, ess 0.36.0 and 0.55.0), and ekr-store owns
 # ekr.store, so they are declared in ekr.cli, which `ekr` owns. The Stage, its id, its record's
-# events, its refusals and the view below stay here, and the commands reference them.
-
-views:
-  # Every stage this store has recorded, in every state, from the stage records that stay after
-  # each stage's tenant is forgotten. A conformance read surface, not a CLI verb; it is also how a
-  # stage whose begin answer was lost is found. Whether the CLI lists stages is unit L's decision.
-  - name: ekr.store.Stages
-    source: ekr.store.Stage
-    consistency: read_your_writes
-    fields:
-      - name: stage_id
-        type: ekr.store.StageId
-      - name: store
-        type: ekr.store.StoreTenant
-      - name: base
-        type: ekr.kernel.RevisionNumber
-      - name: base_revision
-        type: ekr.kernel.RevisionId
-      - name: published_revisions
-        type: List<ekr.kernel.RevisionId>
-      - name: state
-        type: ekr.store.Stage.State
+# events and its refusals stay here, and the commands reference them. The view of every stage is
+# ekr.cli.Stages (cli.yaml, unit L): declared here, it left every lifecycle scenario of a suite for
+# the `ekr` component outside it, needing a view another component owns.

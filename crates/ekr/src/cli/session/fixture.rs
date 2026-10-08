@@ -50,6 +50,7 @@ pub(in crate::cli) fn seeded(directory: &Path, backend: Backend, name: &str) -> 
         store: Some(store),
         backend: Some(backend),
         full_replay: false,
+        stage: None,
         access: crate::cli::Access::Read,
     }
     .resolve("test")

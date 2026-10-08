@@ -44,6 +44,8 @@ pub(super) struct ViewsCli {
     backend: Option<Backend>,
     #[arg(long, global = true)]
     full_replay: bool,
+    #[arg(long, global = true)]
+    stage: Option<String>,
     #[command(subcommand)]
     verb: Verb,
 }
@@ -51,7 +53,11 @@ pub(super) struct ViewsCli {
 impl ViewsCli {
     /// Whether the request sets a global option, which is the session's own.
     pub(super) const fn sets_an_option(&self) -> bool {
-        self.host.is_some() || self.store.is_some() || self.backend.is_some() || self.full_replay
+        self.host.is_some()
+            || self.store.is_some()
+            || self.backend.is_some()
+            || self.full_replay
+            || self.stage.is_some()
     }
 
     /// The verb.

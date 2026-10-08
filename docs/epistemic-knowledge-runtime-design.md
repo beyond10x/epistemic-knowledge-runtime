@@ -5450,7 +5450,9 @@ already carries it no longer opens. The contract is `systems/ekr/domains/store.y
 below about the stage itself was unexecuted at this amendment; a sentence about existing code names
 the case that runs it or says unexecuted. Unit P (2026-10-08) executes the stage through the
 kernel's API in `crates/ekr-kernel/tests/stage.rs` and corrects the sentences its code contradicts;
-§ 107.12 says what it decided. The `ekr stage` verbs (unit L) remain unexecuted.*
+§ 107.12 says what it decided. Unit L (2026-10-08) executes the `ekr stage` verbs and the join
+through the binary in `crates/ekr/tests/stage_cli.rs` and `postgres_cli.rs`; § 107.13 says what it
+decided.*
 
 **What was asked.** A consumer runs a batch of separate one-shot processes — `ekr ontology`,
 `ekr apply-extraction`, `ekr snapshot`, `ekr mint`, `ekr propose`, `ekr validate`, `ekr commit` —
@@ -5500,7 +5502,7 @@ The stage's **record** is a private stream per stage in the store's own tenant, 
 stream, so writing it never moves `ekr head`. It holds only four small events — `StageBegun`,
 `StageSealed`, `StagePublished`, `StageAbandoned` — and no blob. It stays after the stage's tenant
 is forgotten, as the stage's history: it answers a stage already published or abandoned, and lists
-every stage the store has had (`ekr.store.Stages`).
+every stage the store has had (`ekr.cli.Stages`).
 
 A stage's lifecycle is Begun, then Sealing, then Published; Begun or Sealing may become Abandoned.
 
@@ -5837,8 +5839,8 @@ provider; the kernel's tests carry no PostgreSQL provider to forge one with.
 | interrupted | what holds | a retry |
 |---|---|---|
 | begin, before `StageBegun` | nothing | begins |
-| begin, after `StageBegun`, before the completion receipt | a Begun stage whose copy is incomplete; joined verbs and seal refuse `StageIncomplete` (`migrate-incomplete` for a separate destination: `interrupted_postgres_copy_is_unreadable_after_reopen`, where the PostgreSQL tests run) | a retried begin begins another stage under another id; the incomplete one is found in `ekr.store.Stages` and abandoned. A begin is not resumed (§ 105.2) |
-| begin, after the receipt, answer lost | a complete Begun stage whose id the caller never saw | a retried begin begins another stage; the first is found in `ekr.store.Stages` and joined or abandoned |
+| begin, after `StageBegun`, before the completion receipt | a Begun stage whose copy is incomplete; joined verbs and seal refuse `StageIncomplete` (`migrate-incomplete` for a separate destination: `interrupted_postgres_copy_is_unreadable_after_reopen`, where the PostgreSQL tests run) | a retried begin begins another stage under another id; the incomplete one is found in `ekr.cli.Stages` and abandoned. A begin is not resumed (§ 105.2) |
+| begin, after the receipt, answer lost | a complete Begun stage whose id the caller never saw | a retried begin begins another stage; the first is found in `ekr.cli.Stages` and joined or abandoned |
 | seal, before `StageSealed` | nothing changed | seals |
 | seal written, publish not yet elected | a Sealing stage; joined writes refused | publish reads Sealing and runs PublishStage alone, which captures and publishes |
 | publish, elected, append outcome unknown | the elected attempt (§ 107.5) | resumes that exact attempt: written, it adopts it (`retained-publication`); a definitive conflict is answered by what moved (§ 107.4) |
@@ -5855,7 +5857,7 @@ and not its head. Before the capture it refuses nothing, and the suffix follows 
 stays Sealing until a retried publish publishes.
 
 Because begin mints the id, a begin whose answer is lost leaves a stage the caller cannot name
-until it reads `ekr.store.Stages`. Whether the CLI lists stages, and how long an unclaimed Begun
+until it reads `ekr.cli.Stages`. Whether the CLI lists stages, and how long an unclaimed Begun
 stage is kept, is unit L's to decide.
 
 ## 107.9 What readers see
@@ -5883,14 +5885,14 @@ ess 0.36.0 and 0.55.0), and `ekr-store` owns `ekr.store`. The commands are there
 domain of their own, `ekr.cli` (`systems/ekr/domains/cli.yaml`): `ekr.cli.BeginStage`,
 `ekr.cli.SealStage`, `ekr.cli.PublishStage` and `ekr.cli.AbandonStage`. The component `ekr`, the
 `crates/ekr` binary, owns `ekr.cli`, accepts the four and publishes the stage record's four events
-(`systems/ekr/components.yaml`). The stage, its id, its record's events, its refusals and
-`ekr.store.Stages` stay in `ekr.store`, and the commands reference them.
+(`systems/ekr/components.yaml`). The stage, its id, its record's events and its refusals stay
+in `ekr.store`, and the commands reference them. The view of every stage is `ekr.cli.Stages`
+(unit L, § 107.13; it was `ekr.store.Stages`).
 
 The committed `ekr-kernel`, `ekr-views` and `ekr-integrate` suites select none of the four, and no
 suite for the `ekr` component is synthesized or committed in this wave.
 
-The cases below carry the stage's acceptance. Unit C's and unit P's exist (2026-10-08); unit L's do
-not yet.
+The cases below carry the stage's acceptance. Unit C's, unit P's and unit L's exist (2026-10-08).
 "Where the PostgreSQL tests run" means: a case's PostgreSQL part returns early without
 `EKR_TEST_POSTGRES_CONFIG` (`EKR_REQUIRE_POSTGRES=1` makes that a failure), and no workflow under
 `.github/` sets it, so the gate passes that part unrun. Where each runs:
@@ -6005,7 +6007,7 @@ SQLite and, where the PostgreSQL tests run, on PostgreSQL.
 - **The kernel's API, for unit L.** On a store's own `Runtime`: `begin_stage()`,
   `seal_stage(stage, expect_head)`, `publish_stage(stage, expect_head)`,
   `seal_and_publish_stage(stage, expect_head)` (what `ekr stage publish` runs: § 107.4),
-  `abandon_stage(stage)`, `stages()` (`ekr.store.Stages`) and `join_stage(stage)`, which returns
+  `abandon_stage(stage)`, `stages()` (`ekr.cli.Stages`) and `join_stage(stage)`, which returns
   the `Runtime` every joined verb uses. Each answers `ekr.store.StageResult`, and each refusal is
   a store error named in `store.yaml` inside `CommitError::Store`. A stage command on a joined
   runtime is refused `stage-command-on-stage`; a File store refuses every one
@@ -6039,3 +6041,57 @@ SQLite and, where the PostgreSQL tests run, on PostgreSQL.
   before it refuses; a seal and an abandonment racing from Begun each end in their named answer;
   `unresolved-preparation` names the stage of an unresolved `/4` slot; and a refusal of a
   publication's election by the store's authority is `stage-suffix-refused`.
+
+## 107.13 What unit L decided
+
+*Added 2026-10-08 by `task:stage-cli`.* Each item is held by the case named, in
+`crates/ekr/tests/stage_cli.rs` on SQLite and in `postgres_cli.rs` on PostgreSQL where the
+PostgreSQL tests run, both written once in `crates/ekr/tests/support/stage_run.rs`.
+
+- **The verbs.** `ekr stage begin`, `ekr stage publish <id> --expect-head <revision>` (which runs
+  `seal_and_publish_stage`, so it seals only a Begun stage: spec review B1), `ekr stage abandon
+  <id>` and `ekr stage list`. Each prints what the kernel answers: the `ekr.store.StageResult`, or
+  for `list` the rows of `ekr.cli.Stages`.
+- **The CLI lists stages.** `ekr stage list` is how a stage whose begin answer was lost is found
+  (§ 107.8). Its view moved from `ekr.store.Stages` to `ekr.cli.Stages` (`cli.yaml`), beside the
+  commands the `ekr` component handles. With it in `ekr.store`, every lifecycle scenario of a suite
+  for `ekr` needed a view another component owns: ess 0.56.0 synthesizes 4 scenarios for `ekr` with
+  the view in `store.yaml` and 36 with it in `cli.yaml` (spec review F14). The committed suites keep
+  their counts (62, 84 and 2); only the view's name in their `outside` entries changes. No suite for
+  `ekr` is committed. Nothing removes an unclaimed Begun stage; its tenant holds a copy of the store
+  until it is abandoned.
+- **What joins (§ 107.3's open questions).** Every verb that opens an existing store through the
+  CLI's one opener (`Store::open`) joins the stage `--stage` or `EKR_STAGE` names: the one-shot
+  store verbs, `apply-extraction`, `session`, `mcp`, `mcp-http` and `view`. The two naming
+  different stages is a usage error. `seed` and `migrate` create a store and refuse a stage as a
+  usage error, so a joined `seed` never reaches `AlreadySeeded`. The stage verbs run on the store:
+  they ignore `EKR_STAGE`, so a run that exports it can still publish, and `--stage` with them is a
+  usage error (spec review F13). Verbs that open no store (`mint`, `hash`, `schema`, ...) ignore
+  both. A session request carries no `--stage` (`session-option-refused`) and a session does not
+  serve `stage`. Held by `every_store_verb_joins_the_stage_named_by_ekr_stage` (`ontology`,
+  `apply-extraction`, `snapshot`, `mint`, `propose`, `validate`, `commit`, `head`, `quality`,
+  `transactions`, `rejections`, `resolve` and a session) and
+  `the_stage_verbs_run_on_the_store_and_a_conflicting_stage_is_a_usage_error`.
+- **Exit codes.** Every stage refusal of `ekr.store` a stage verb or a joined verb meets is a named
+  refusal, exit 2, printed `ekr: <name>: <reason>`: `stage-not-found`, `stage-not-sealed`,
+  `stage-sealed`, `stage-already-published`, `stage-already-abandoned`, `stage-write-landed`,
+  `stage-head-moved`, `stage-stream-moved`, `stage-object-moved`, `stage-incomplete`,
+  `unresolved-preparation`, `stage-suffix-refused` and `stage-unsupported-provider`
+  (`crates/ekr/src/exit.rs`). `stage-tenant-reserved` is a host-configuration fault, exit 1, printed
+  `ekr: stage-tenant-reserved: …` rather than as an unnamed `opening the provider: …` (unit C's
+  adversary, row 6). The ones a run meets in the ordinary course are rows of `docs/cli.md` § Common
+  refusals, which `docs_cli.rs` triggers through the binary; the interleaved ones are a table in
+  `docs/cli.md` § `ekr stage`.
+- **What the stage's tenant holds** is read through `Runtime::stage_tenant_events`, a diagnostic
+  that opens the tenant `StageBegun` names without kernel authority and appends no event: one
+  SQLite image, or one PostgreSQL capture and never the change feed (§ 107.12); `ekr` has
+  no storage crate to read it with. The case of § 107.8's row "publish, after the append, before
+  the forgetting" interrupts the first `ekr stage publish` at `PublishAppended` through the CLI's
+  own code in the test process (`ekr::cli::run`, with the store's stage hook, which the kernel now
+  re-exports hidden as it does the read counters) and retries it through the binary:
+  `a_publish_retried_from_the_cli_after_its_append_returns_the_original_result_and_empties_the_tenant`.
+- **What the cases compare.** A joined `ekr head` at the base names the store's revision and its
+  knowledge, evidence, ontology and authority roots; its `root.transaction` is the stage's own seed
+  claim and differs (measured), as § 107.9 says. After publication `ekr head` is the stage's last
+  revision by number and roots, `ekr snapshot` by revision identity and graph, and
+  `ekr --full-replay head` equals `ekr head`.
