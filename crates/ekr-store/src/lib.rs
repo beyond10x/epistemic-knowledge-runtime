@@ -248,12 +248,16 @@ pub enum StoreError {
     StageIncomplete(StageId),
 
     /// `unresolved-preparation` (`ekr.store.UnresolvedPreparation`): a decision was elected and
-    /// never published. Nothing was copied, sealed or appended.
-    #[error(
-        "unresolved-preparation: occurrence {0} was elected and never published; resolve it with \
-         the command that elected it"
-    )]
-    UnresolvedPreparation(EventId),
+    /// never published. Nothing was copied, sealed or appended. A stage's publication elected and
+    /// not resolved (design § 107.5) names its stage, which publishing or abandoning resolves, and
+    /// the first occurrence it elected, if it elected one; any other names its occurrence.
+    #[error("unresolved-preparation: {}", unresolved(*event_id, *stage_id))]
+    UnresolvedPreparation {
+        /// The occurrence elected and never published, where the decision has one.
+        event_id: Option<EventId>,
+        /// The Sealing stage whose publication slot is unresolved, for a stage's publication.
+        stage_id: Option<StageId>,
+    },
 
     /// `stage-suffix-refused` (`ekr.store.StageSuffixRefused`): the stage's suffix did not
     /// validate against the store; nothing was appended and the stage stays Sealing.
@@ -354,6 +358,22 @@ pub enum StoreError {
         /// The revision the caller asked to begin at.
         requested: RevisionNumber,
     },
+}
+
+/// What `unresolved-preparation` says: the stage to publish or abandon, or the occurrence to
+/// resolve with the command that elected it.
+fn unresolved(event_id: Option<EventId>, stage_id: Option<StageId>) -> String {
+    match (stage_id, event_id) {
+        (Some(stage), _) => format!(
+            "stage {stage} holds a publication elected and never appended; publish or abandon \
+             that stage"
+        ),
+        (None, Some(event)) => format!(
+            "occurrence {event} was elected and never published; resolve it with the command \
+             that elected it"
+        ),
+        (None, None) => "a decision was elected and never published".to_owned(),
+    }
 }
 
 impl From<eventlog_core::EventLogError> for StoreError {

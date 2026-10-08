@@ -34,6 +34,10 @@ CONFIGURATION (every store verb)
   --full-replay                  or EKR_FULL_REPLAY=1: replay the whole history from the seed
                                  instead of continuing from the store's replay checkpoint;
                                  the answer is the same
+  --stage <stage id>             or EKR_STAGE: join the stage `ekr stage begin` printed (sqlite
+                                 or postgres): every store verb reads and writes the stage, not
+                                 the store, until `ekr stage publish <id> --expect-head <head>`
+                                 lands the run whole or `ekr stage abandon <id>` drops it
 
 WORKFLOW
   1. ekr example ekr.cli-host/1 > host.json       a host document to start from

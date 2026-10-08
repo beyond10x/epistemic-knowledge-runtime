@@ -1540,6 +1540,10 @@ commands:
             number: {generated: true}
             knowledge_root: {generated: true}
         summary: A new immutable revision exists whose parent is the one validated against.
+      - name: retained-commit
+        when_subject_state: Committed
+        replays: committed
+        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: stale
         external: the canonical revision moved since the transaction was validated
         moves: ekr.kernel.GraphTransaction.stale
@@ -1565,10 +1569,6 @@ commands:
             validated_against: {generated: true}
             current: {generated: true}
         summary: Canonical state moved since validation; nothing committed and the transaction is Stale.
-      - name: retained-commit
-        when_subject_state: Committed
-        replays: committed
-        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: transaction-not-found
         external: no retained transaction carries input.transaction_id
         error: ekr.kernel.TransactionNotFound

@@ -1,4 +1,10 @@
 //! Hosted provider configuration is referenced by path, never supplied as credentials in argv.
+//!
+//! The `ekr stage` cases of design § 107.10 (`task:stage-cli`) run here on PostgreSQL, where the
+//! PostgreSQL tests run; `stage_cli.rs` runs the same cases on SQLite.
+#[path = "support/stage_run.rs"]
+mod stage_run;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -505,4 +511,59 @@ fn adversary_if_absent_processes_racing_a_plain_seed_on_one_tenant() {
         let head = ekr(&[remote.as_slice(), &["head"]].concat());
         assert_eq!(head["root"], lineage["result"], "round {round}");
     }
+}
+
+#[test]
+fn stage_begin_prints_the_minted_id() {
+    let Some(config) = fixture() else { return };
+    stage_run::stage_begin_prints_the_minted_id(stage_run::Provider::Postgres(&config));
+}
+
+#[test]
+fn a_failed_run_in_a_stage_leaves_ekr_head_where_it_was() {
+    let Some(config) = fixture() else { return };
+    stage_run::a_failed_run_in_a_stage_leaves_ekr_head_where_it_was(stage_run::Provider::Postgres(
+        &config,
+    ));
+}
+
+#[test]
+fn a_passed_run_is_published_and_ekr_head_is_the_stages_last_revision() {
+    let Some(config) = fixture() else { return };
+    stage_run::a_passed_run_is_published_and_ekr_head_is_the_stages_last_revision(
+        stage_run::Provider::Postgres(&config),
+    );
+}
+
+#[test]
+fn every_store_verb_joins_the_stage_named_by_ekr_stage() {
+    let Some(config) = fixture() else { return };
+    stage_run::every_store_verb_joins_the_stage_named_by_ekr_stage(stage_run::Provider::Postgres(
+        &config,
+    ));
+}
+
+#[test]
+fn a_publish_against_a_moved_head_is_refused_by_name_from_the_cli() {
+    let Some(config) = fixture() else { return };
+    stage_run::a_publish_against_a_moved_head_is_refused_by_name_from_the_cli(
+        stage_run::Provider::Postgres(&config),
+    );
+}
+
+#[test]
+fn a_publish_retried_from_the_cli_after_its_append_returns_the_original_result_and_empties_the_tenant(
+) {
+    let Some(config) = fixture() else { return };
+    stage_run::a_publish_retried_from_the_cli_after_its_append_returns_the_original_result_and_empties_the_tenant(
+        stage_run::Provider::Postgres(&config),
+    );
+}
+
+#[test]
+fn the_stage_verbs_run_on_the_store_and_a_conflicting_stage_is_a_usage_error() {
+    let Some(config) = fixture() else { return };
+    stage_run::the_stage_verbs_run_on_the_store_and_a_conflicting_stage_is_a_usage_error(
+        stage_run::Provider::Postgres(&config),
+    );
 }

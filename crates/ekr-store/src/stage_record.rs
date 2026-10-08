@@ -332,8 +332,11 @@ impl<S: EventStore> EventlogStore<S> {
                     },
                     events: vec![NewEvent::new(name, 1, event)?],
                 }],
+                // The key names the move as well as the version: a seal and an abandonment
+                // appended at one version are two requests, and the one that loses meets the
+                // stream's conditional append, never the other's command receipt.
                 meta: envelope(
-                    &format!("ekr.stage.{stage}.{version}"),
+                    &format!("ekr.stage.{stage}.{version}.{name}"),
                     ContentHash::of_bytes(format!("{stage}.{version}.{name}").as_bytes()).to_hex(),
                 ),
             },

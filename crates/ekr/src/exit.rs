@@ -58,10 +58,20 @@ impl Failure {
         }
     }
 
-    /// The fault a store's refusal is: [`Self::diverged`] for `PersistenceError::Diverged` and
-    /// [`Self::replaced`] for `PersistenceError::Replaced`.
+    /// What a store's refusal is. A refusal of a stage command, or of a verb joined to a stage, is
+    /// a named refusal under its `ekr.store` refusal name (`stage_refusal`). Anything else is a
+    /// fault: [`Self::diverged`] for `PersistenceError::Diverged` and [`Self::replaced`] for
+    /// `PersistenceError::Replaced`.
     #[must_use]
     pub fn store(error: PersistenceError) -> Self {
+        if let Some(name) = stage_refusal(&error) {
+            let text = error.to_string();
+            let reason = text
+                .strip_prefix(name)
+                .and_then(|rest| rest.strip_prefix(": "))
+                .unwrap_or(&text);
+            return Self::refused(name, reason);
+        }
         let diverged = matches!(error, PersistenceError::Diverged(_));
         let replaced = matches!(error, PersistenceError::Replaced(_));
         Self::Fault {
@@ -122,6 +132,28 @@ impl Failure {
             _ => None,
         }
     }
+}
+
+/// The name a store refuses a stage command, or a verb joined to a stage, under (design § 107;
+/// `systems/ekr/domains/store.yaml`, the stage's errors): exit 2, nothing written by the verb.
+/// `stage-write-landed` is one too: the write is refused and reported unsuccessful, and its
+/// occurrences are in the store only if the stage's publication holds them. A host tenant that
+/// carries the stage marker (`stage-tenant-reserved`) is not a refusal of a stage but a
+/// host-configuration fault, exit 1, and is not here.
+fn stage_refusal(error: &PersistenceError) -> Option<&'static str> {
+    Some(match error {
+        PersistenceError::StageNotFound(_) => "stage-not-found",
+        PersistenceError::StageStateConflict { state, .. } => state.refusal(),
+        PersistenceError::StageWriteLanded { .. } => "stage-write-landed",
+        PersistenceError::StageHeadMoved { .. } => "stage-head-moved",
+        PersistenceError::StageStreamMoved { .. } => "stage-stream-moved",
+        PersistenceError::StageObjectMoved { .. } => "stage-object-moved",
+        PersistenceError::StageIncomplete(_) => "stage-incomplete",
+        PersistenceError::UnresolvedPreparation { .. } => "unresolved-preparation",
+        PersistenceError::StageSuffixRefused { .. } => "stage-suffix-refused",
+        PersistenceError::StageUnsupportedProvider(_) => "stage-unsupported-provider",
+        _ => return None,
+    })
 }
 
 impl fmt::Display for Failure {

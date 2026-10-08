@@ -135,6 +135,12 @@ pub use document::{
 };
 /// Typed persistence failures exposed without granting the caller storage or writer access.
 pub use ekr_store::StoreError as PersistenceError;
+/// The store's stage hook, test instrumentation as [`stream_reads`] is: a crate above the kernel
+/// interrupts a stage command at a named point of its own thread, as `ekr`'s CLI cases interrupt
+/// `ekr stage publish` after its append (design § 107.8). An interruption only returns an error
+/// where the command stands; it writes nothing and reaches no store.
+#[doc(hidden)]
+pub use ekr_store::{on_stage_point, StageHookGuard, StagePoint};
 /// The store's per-thread read counters, test instrumentation as [`graphs_applied`] is: they let a
 /// crate above the kernel count the provider reads one of its calls makes, which no clock under
 /// load can (`AGENTS.md`). They read counts; they reach no store.

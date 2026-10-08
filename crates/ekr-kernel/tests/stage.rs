@@ -23,9 +23,8 @@ use ekr_kernel::{
 };
 use ekr_ontology::NodeType;
 use ekr_store::{
-    Initialize, Inventory, ObjectStore, PostgresStore, ProviderKind, PublishedEvent, RevisionLog,
-    SqliteStore, StageLog, StagePoint, StageResult, StageState, StorageClass, StoreError,
-    STAGE_TENANT_MARKER,
+    Initialize, Inventory, ObjectStore, PostgresStore, ProviderKind, RevisionLog, SqliteStore,
+    StageLog, StagePoint, StageResult, StageState, StorageClass, StoreError, STAGE_TENANT_MARKER,
 };
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -225,11 +224,15 @@ impl Raw {
             Self::Postgres(store) => store.inventory().unwrap().events,
         }
     }
-    fn published(&self) -> Vec<PublishedEvent> {
+    /// The tenant's revision stream: read from the stream on SQLite, one capture on PostgreSQL.
+    fn occurrences(&self) -> Vec<ekr_graph::RevisionEvent> {
         match self {
-            Self::Sqlite(store) => store.published_events().unwrap(),
-            Self::Postgres(store) => store.published_events().unwrap(),
+            Self::Sqlite(store) => store.inventory().unwrap().occurrences,
+            Self::Postgres(store) => store.inventory().unwrap().occurrences,
         }
+        .into_iter()
+        .map(|held| held.event)
+        .collect()
     }
     fn put(&self, class: StorageClass, bytes: &[u8]) {
         match self {
@@ -280,6 +283,34 @@ impl Fixture {
     /// How many events `tenant` of this store holds.
     fn holds(&self, tenant: &str) -> usize {
         self.raw(tenant).events()
+    }
+    /// The attempt number of `stage`'s elected publication, read through the store's own
+    /// preparation reader under this kernel's authority, which authorizes every attempt it reads.
+    fn attempt(&self, stage: StageId) -> Option<u64> {
+        self.preparation(stage)
+            .map(|prepared| prepared.attempt_number)
+    }
+    /// `stage`'s elected publication, read under this kernel's authority as `attempt` reads it.
+    fn preparation(&self, stage: StageId) -> Option<ekr_store::PublicationPreparationV4> {
+        let mut held = None;
+        let _ = Commit::over_with_authority(context(), evolving(), |authority| {
+            held = Some(authority);
+            Err::<SqliteStore, _>(StoreError::Backend("only the authority is wanted".into()))
+        });
+        let authority: KernelAuthority = held.expect("the anchor admits the authority");
+        let raw = match &self.config {
+            None => Raw::Sqlite(
+                SqliteStore::sqlite(&self.path(), &self.tenant, None)
+                    .unwrap()
+                    .under(authority),
+            ),
+            Some(config) => Raw::Postgres(
+                PostgresStore::postgres(config, &self.tenant, false)
+                    .unwrap()
+                    .under(authority),
+            ),
+        };
+        raw.log().stage_preparation(stage).unwrap()
     }
     /// The tenant of `stage` of this store.
     fn stage_tenant(&self, stage: StageId) -> String {
@@ -457,29 +488,17 @@ fn store_error(error: CommitError) -> StoreError {
     }
 }
 
-/// The store's revision stream as its provider log holds it.
-fn revision_stream(runtime: &Runtime) -> Vec<PublishedEvent> {
-    runtime
-        .published_events()
-        .unwrap()
-        .into_iter()
-        .filter(|event| event.stream_type == "ekr.revision")
-        .collect()
+/// The store's revision stream, read from the stream itself (SQLite) or one capture
+/// (PostgreSQL), never from the provider's change feed: PostgreSQL's feed withholds events
+/// committed after the oldest transaction still in progress anywhere in the database
+/// (eventlog-postgres `WATERMARK`), so a count read from it can lag what is committed.
+fn revision_stream(fixture: &Fixture) -> Vec<ekr_graph::RevisionEvent> {
+    revision_stream_of(fixture, &fixture.tenant)
 }
 
-/// The `ekr.store.PublicationPrepared` selections the store holds: one per elected attempt.
-fn elections(runtime: &Runtime) -> usize {
-    runtime
-        .published_events()
-        .unwrap()
-        .iter()
-        .filter(|event| event.name == "ekr.store.PublicationPrepared")
-        .count()
-}
-
-/// A revision event as the log holds it.
-fn occurrence(event: &PublishedEvent) -> ekr_graph::RevisionEvent {
-    serde_json::from_value(event.data.clone()).unwrap()
+/// [`revision_stream`] of another tenant at the fixture's location.
+fn revision_stream_of(fixture: &Fixture, tenant: &str) -> Vec<ekr_graph::RevisionEvent> {
+    fixture.raw(tenant).occurrences()
 }
 
 /// The identities and roots of `root` a preserving copy keeps: the number and the ontology,
@@ -517,7 +536,7 @@ fn a_stage_begins_at_the_head_and_the_store_is_unchanged() {
     each(|fixture| {
         let store = fixture.seeded();
         let before = store.head().unwrap().unwrap();
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         let begun = store.begin_stage().unwrap();
         assert_eq!(begun.state, StageState::Begun);
         assert_eq!(begun.base, before.revision);
@@ -534,7 +553,7 @@ fn a_stage_begins_at_the_head_and_the_store_is_unchanged() {
             Some(before),
             "the head does not move"
         );
-        assert_eq!(revision_stream(&store), stream, "nor the revision stream");
+        assert_eq!(revision_stream(fixture), stream, "nor the revision stream");
         let joined = store.join_stage(begun.stage_id).unwrap();
         assert_eq!(joined.joined_stage(), Some(begun.stage_id));
         assert_eq!(
@@ -610,16 +629,16 @@ fn a_published_stage_lands_whole_and_the_store_replays_in_full() {
         // envelope, its prior records): the publication derives them again for the store's.
         let stage_records: Vec<ContentHash> = fixture
             .raw(&fixture.stage_tenant(begun.stage_id))
-            .published()
+            .occurrences()
             .iter()
             .filter(|event| {
-                event.stream_type == "ekr.revision"
-                    && matches!(
-                        event.name.as_str(),
-                        "ekr.kernel.TransactionValidated" | "ekr.kernel.RevisionCommitted"
-                    )
+                matches!(
+                    event.payload,
+                    ekr_graph::RevisionPayload::TransactionValidated { .. }
+                        | ekr_graph::RevisionPayload::RevisionCommitted { .. }
+                )
             })
-            .map(|event| occurrence(event).record_hash)
+            .map(|event| event.record_hash)
             .collect();
         let published = store
             .seal_and_publish_stage(begun.stage_id, begun.base)
@@ -661,9 +680,9 @@ fn a_published_stage_lands_whole_and_the_store_replays_in_full() {
                 .get(&ContentHash::of_bytes(&payload)),
             Some(&StorageClass::Provenance)
         );
-        let added: Vec<_> = revision_stream(&replayed)
+        let added: Vec<_> = revision_stream(fixture)
             .iter()
-            .filter_map(|event| match occurrence(event).payload {
+            .filter_map(|event| match event.payload {
                 ekr_graph::RevisionPayload::RevisionCommitted {
                     revision_id,
                     number,
@@ -761,7 +780,7 @@ fn a_head_that_moves_after_the_seal_leaves_the_stage_sealing_and_the_store_uncha
 
         // A commit landing between the capture and the append: the group is refused whole.
         let second = staged(&store);
-        let stream = revision_stream(&store).len();
+        let stream = revision_stream(fixture).len();
         let open = fixture.opener();
         let hook = ekr_store::on_stage_point(move |point| {
             if point == StagePoint::PublishElected {
@@ -773,7 +792,7 @@ fn a_head_that_moves_after_the_seal_leaves_the_stage_sealing_and_the_store_uncha
         drop(hook);
         named(&error, "stage-head-moved");
         assert_eq!(
-            revision_stream(&store).len(),
+            revision_stream(fixture).len(),
             stream + 3,
             "the racing commit alone"
         );
@@ -919,13 +938,17 @@ fn a_publish_retried_after_an_unknown_outcome_adopts_its_publication() {
             StoreError::UnknownCommit
         );
         drop(hook);
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         let retried = store
             .seal_and_publish_stage(begun.stage_id, begun.base)
             .unwrap();
         assert_eq!(retried.state, StageState::Published);
         assert_eq!(retried.occurrences, Some(3));
-        assert_eq!(revision_stream(&store), stream, "the retry appends nothing");
+        assert_eq!(
+            revision_stream(fixture),
+            stream,
+            "the retry appends nothing"
+        );
         assert_eq!(
             store
                 .seal_and_publish_stage(begun.stage_id, begun.base)
@@ -950,18 +973,22 @@ fn a_publish_retried_after_an_unknown_outcome_adopts_its_publication() {
             StoreError::UnknownCommit
         );
         drop(hook);
-        let (stream, elected) = (revision_stream(&store).len(), elections(&store));
+        let (stream, elected) = (
+            revision_stream(fixture).len(),
+            fixture.attempt(second.stage_id),
+        );
+        assert_eq!(elected, Some(0), "one attempt elected");
         let published = store
             .seal_and_publish_stage(second.stage_id, second.base)
             .unwrap();
         assert_eq!(published.state, StageState::Published);
         assert_eq!(
-            revision_stream(&store).len(),
+            revision_stream(fixture).len(),
             stream + 3,
             "the suffix, once"
         );
         assert_eq!(
-            elections(&store),
+            fixture.attempt(second.stage_id),
             elected,
             "the elected attempt, not another"
         );
@@ -973,7 +1000,7 @@ fn a_publish_interrupted_after_the_seal_is_finished_by_its_retry() {
     each(|fixture| {
         let store = fixture.seeded();
         let begun = staged(&store);
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         let hook = ekr_store::on_stage_point(|point| {
             if point == StagePoint::Sealed {
                 Err(StoreError::Backend("interrupted after the seal".into()))
@@ -987,7 +1014,7 @@ fn a_publish_interrupted_after_the_seal_is_finished_by_its_retry() {
         );
         drop(hook);
         assert_eq!(state(&store, begun.stage_id), StageState::Sealing);
-        assert_eq!(revision_stream(&store), stream);
+        assert_eq!(revision_stream(fixture), stream);
         named(
             &refusal(store.join_stage(begun.stage_id).map(|_| ())),
             "stage-sealed",
@@ -1021,7 +1048,7 @@ fn a_publish_interrupted_after_the_append_is_finished_by_its_retry() {
             fixture.holds(&tenant) > 0,
             "the tenant is not forgotten yet"
         );
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         named(
             &refusal(store.join_stage(begun.stage_id).map(|_| ())),
             "stage-already-published",
@@ -1029,6 +1056,11 @@ fn a_publish_interrupted_after_the_append_is_finished_by_its_retry() {
         named(
             &refusal(store.abandon_stage(begun.stage_id)),
             "stage-already-published",
+        );
+        assert_eq!(
+            fixture.holds(&tenant),
+            0,
+            "abandon of a Published stage forgets what remains of its tenant before it refuses"
         );
         named(
             &refusal(
@@ -1044,7 +1076,7 @@ fn a_publish_interrupted_after_the_append_is_finished_by_its_retry() {
             .unwrap();
         assert_eq!(retried.state, StageState::Published);
         assert_eq!(retried.occurrences, Some(3));
-        assert_eq!(revision_stream(&store), stream, "nothing appended twice");
+        assert_eq!(revision_stream(fixture), stream, "nothing appended twice");
         assert_eq!(fixture.holds(&tenant), 0, "the retry forgets the tenant");
     });
 }
@@ -1075,7 +1107,13 @@ fn a_stage_with_an_unresolved_preparation_is_not_sealed() {
         drop(hook);
         let error = refusal(store.seal_stage(begun.stage_id, begun.base));
         named(&error, "unresolved-preparation");
-        assert!(matches!(error, StoreError::UnresolvedPreparation(_)));
+        assert!(matches!(
+            error,
+            StoreError::UnresolvedPreparation {
+                event_id: Some(_),
+                stage_id: None
+            }
+        ));
         named(
             &refusal(store.seal_and_publish_stage(begun.stage_id, begun.base)),
             "unresolved-preparation",
@@ -1100,12 +1138,26 @@ fn a_stage_with_an_unresolved_preparation_is_not_sealed() {
     });
 }
 
-/// The revision identity of `runtime`'s head.
-fn head_revision(runtime: &Runtime) -> ekr_core::RevisionId {
-    revision_stream(runtime)
+/// The last proposal of the revision stream `raw` reads.
+fn last_proposal(raw: &Raw) -> ekr_graph::RevisionEvent {
+    raw.occurrences()
+        .into_iter()
+        .rev()
+        .find(|event| {
+            matches!(
+                event.payload,
+                ekr_graph::RevisionPayload::TransactionProposed { .. }
+            )
+        })
+        .expect("the stage holds a proposal")
+}
+
+/// The revision identity of the fixture's store's head.
+fn head_revision(fixture: &Fixture) -> ekr_core::RevisionId {
+    revision_stream(fixture)
         .iter()
         .rev()
-        .find_map(|event| match occurrence(event).payload {
+        .find_map(|event| match event.payload {
             ekr_graph::RevisionPayload::Seeded { revision_id, .. }
             | ekr_graph::RevisionPayload::RevisionCommitted { revision_id, .. } => {
                 Some(revision_id)
@@ -1154,7 +1206,7 @@ fn an_incomplete_stage_refuses_seal_and_is_abandoned() {
                 stage,
                 &fixture.stage_tenant(stage),
                 head,
-                head_revision(&store),
+                head_revision(fixture),
             )
             .unwrap();
         named(&refusal(store.seal_stage(stage, head)), "stage-incomplete");
@@ -1171,7 +1223,7 @@ fn an_incomplete_stage_refuses_seal_and_is_abandoned() {
         let stage = StageId::mint();
         let tenant = fixture.stage_tenant(stage);
         raw.log()
-            .record_stage_begun(stage, &tenant, head, head_revision(&store))
+            .record_stage_begun(stage, &tenant, head, head_revision(fixture))
             .unwrap();
         match &fixture.config {
             None => interrupted_copy(
@@ -1214,7 +1266,7 @@ fn an_abandoned_stage_leaves_the_head_and_its_tenant_holds_nothing() {
     each(|fixture| {
         let store = fixture.seeded();
         let before = store.head().unwrap();
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         let begun = store.begin_stage().unwrap();
         let joined = store.join_stage(begun.stage_id).unwrap();
         commit(&joined);
@@ -1224,7 +1276,7 @@ fn an_abandoned_stage_leaves_the_head_and_its_tenant_holds_nothing() {
         let abandoned = store.abandon_stage(begun.stage_id).unwrap();
         assert_eq!(abandoned.state, StageState::Abandoned);
         assert_eq!(store.head().unwrap(), before, "ekr head is where it was");
-        assert_eq!(revision_stream(&store), stream);
+        assert_eq!(revision_stream(fixture), stream);
         assert_eq!(
             fixture.holds(&tenant),
             0,
@@ -1422,7 +1474,7 @@ fn the_store_tenant_is_never_forgotten() {
         ] {
             let error = raw
                 .log()
-                .record_stage_begun(stage, &tenant, head, head_revision(&store))
+                .record_stage_begun(stage, &tenant, head, head_revision(fixture))
                 .unwrap_err();
             assert!(
                 error.to_string().contains("stage-tenant-not-derived"),
@@ -1453,7 +1505,10 @@ fn the_store_tenant_is_never_forgotten() {
         ] {
             let stage = StageId::mint();
             forge_begun(&fixture.path(), &fixture.tenant, stage, &victim, head);
-            let (ours, theirs) = (revision_stream(&store), revision_stream(&neighbour));
+            let (ours, theirs) = (
+                revision_stream(fixture),
+                revision_stream_of(fixture, &other),
+            );
             let error = refusal(store.abandon_stage(stage));
             assert!(
                 error
@@ -1462,11 +1517,15 @@ fn the_store_tenant_is_never_forgotten() {
                 "{victim}: {error}"
             );
             assert_eq!(
-                revision_stream(&store),
+                revision_stream(fixture),
                 ours,
                 "the store's tenant is not forgotten"
             );
-            assert_eq!(revision_stream(&neighbour), theirs, "nor another store's");
+            assert_eq!(
+                revision_stream_of(fixture, &other),
+                theirs,
+                "nor another store's"
+            );
             assert_eq!(
                 live.clone().map(|tenant| fixture.holds(&tenant)),
                 held,
@@ -1491,18 +1550,12 @@ fn a_reader_of_the_store_never_sees_part_of_a_suffix() {
         drop(joined);
         let reader = fixture.open();
         let base = reader.head().unwrap().unwrap();
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         // A fault inside the group (adversary F10): an object it stores after its revision
         // appends is stored by another writer first, so the group's conditional append of that
         // object fails and with it every entry before it.
         let stage_raw = fixture.raw(&fixture.stage_tenant(begun.stage_id));
-        let proposal = stage_raw
-            .published()
-            .iter()
-            .rev()
-            .find(|event| event.name == "ekr.kernel.TransactionProposed")
-            .map(occurrence)
-            .unwrap();
+        let proposal = last_proposal(&stage_raw);
         let bytes = stage_raw.get(&proposal.record_hash).unwrap();
         drop(stage_raw);
         let (path, config, tenant) = (
@@ -1529,7 +1582,7 @@ fn a_reader_of_the_store_never_sees_part_of_a_suffix() {
                 content_hash: proposal.record_hash,
             }
         );
-        assert_eq!(revision_stream(&store), stream, "none of the suffix");
+        assert_eq!(revision_stream(fixture), stream, "none of the suffix");
         assert_eq!(reader.head().unwrap(), Some(base), "a reader sees the base");
         assert_eq!(fixture.open().head().unwrap(), Some(base));
         let published = store
@@ -1537,7 +1590,7 @@ fn a_reader_of_the_store_never_sees_part_of_a_suffix() {
             .unwrap();
         assert_eq!(published.occurrences, Some(7));
         assert_eq!(
-            revision_stream(&store).len(),
+            revision_stream(fixture).len(),
             stream.len() + 7,
             "all of it at once"
         );
@@ -1585,9 +1638,9 @@ fn a_proposal_made_in_the_store_during_the_run_does_not_refuse_the_publication_a
             .seal_and_publish_stage(begun.stage_id, begun.base)
             .unwrap();
         assert_eq!(published.occurrences, Some(3));
-        let proposed: Vec<TransactionId> = revision_stream(&store)
+        let proposed: Vec<TransactionId> = revision_stream(fixture)
             .iter()
-            .filter_map(|event| match occurrence(event).payload {
+            .filter_map(|event| match event.payload {
                 ekr_graph::RevisionPayload::TransactionProposed { transaction_id, .. } => {
                     Some(transaction_id)
                 }
@@ -1608,7 +1661,7 @@ fn a_proposal_landing_between_capture_and_append_is_refused_stage_stream_moved_a
     each(|fixture| {
         let store = fixture.seeded();
         let begun = staged(&store);
-        let captured = revision_stream(&store).len() as u64;
+        let captured = revision_stream(fixture).len() as u64;
         let open = fixture.opener();
         let mut proposed = false;
         let hook = ekr_store::on_stage_point(move |point| {
@@ -1630,18 +1683,18 @@ fn a_proposal_landing_between_capture_and_append_is_refused_stage_stream_moved_a
             }
         );
         assert_eq!(state(&store, begun.stage_id), StageState::Sealing);
-        assert_eq!(revision_stream(&store).len() as u64, captured + 1);
-        let elected = elections(&store);
+        assert_eq!(revision_stream(fixture).len() as u64, captured + 1);
+        assert_eq!(fixture.attempt(begun.stage_id), Some(0));
         let published = store
             .seal_and_publish_stage(begun.stage_id, begun.base)
             .unwrap();
         assert_eq!(published.state, StageState::Published);
         assert_eq!(
-            elections(&store),
-            elected + 1,
+            fixture.attempt(begun.stage_id),
+            Some(1),
             "the slot's successor attempt"
         );
-        assert_eq!(revision_stream(&store).len() as u64, captured + 4);
+        assert_eq!(revision_stream(fixture).len() as u64, captured + 4);
     });
 }
 
@@ -1652,16 +1705,10 @@ fn an_object_stored_in_the_store_after_the_capture_is_refused_stage_object_moved
         let store = fixture.seeded();
         let begun = staged(&store);
         let stage_raw = fixture.raw(&fixture.stage_tenant(begun.stage_id));
-        let proposal = stage_raw
-            .published()
-            .iter()
-            .rev()
-            .find(|event| event.name == "ekr.kernel.TransactionProposed")
-            .map(occurrence)
-            .unwrap();
+        let proposal = last_proposal(&stage_raw);
         let bytes = stage_raw.get(&proposal.record_hash).unwrap();
         drop(stage_raw);
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         let raw = fixture.raw(&fixture.tenant);
         let mut stored = Some(bytes);
         let hook = ekr_store::on_stage_point(move |point| {
@@ -1683,12 +1730,12 @@ fn an_object_stored_in_the_store_after_the_capture_is_refused_stage_object_moved
             }
         );
         assert_eq!(state(&store, begun.stage_id), StageState::Sealing);
-        assert_eq!(revision_stream(&store), stream);
+        assert_eq!(revision_stream(fixture), stream);
         let published = store
             .seal_and_publish_stage(begun.stage_id, begun.base)
             .unwrap();
         assert_eq!(published.state, StageState::Published);
-        assert_eq!(revision_stream(&store).len(), stream.len() + 3);
+        assert_eq!(revision_stream(fixture).len(), stream.len() + 3);
         // The object the other writer stored weakly is raised to what the suffix needs.
         let held = fixture
             .raw(&fixture.tenant)
@@ -1707,7 +1754,7 @@ fn an_abandonment_landing_between_capture_and_append_is_answered_stage_already_a
     each(|fixture| {
         let store = fixture.seeded();
         let begun = staged(&store);
-        let stream = revision_stream(&store);
+        let stream = revision_stream(fixture);
         let (open, stage) = (fixture.opener(), begun.stage_id);
         let hook = ekr_store::on_stage_point(move |point| {
             if point == StagePoint::PublishElected {
@@ -1725,7 +1772,7 @@ fn an_abandonment_landing_between_capture_and_append_is_answered_stage_already_a
                 state: StageState::Abandoned,
             }
         );
-        assert_eq!(revision_stream(&store), stream, "nothing appended");
+        assert_eq!(revision_stream(fixture), stream, "nothing appended");
         assert_eq!(state(&store, begun.stage_id), StageState::Abandoned);
         assert_eq!(fixture.holds(&fixture.stage_tenant(begun.stage_id)), 0);
     });
@@ -1760,13 +1807,7 @@ fn a_store_begins_a_stage_after_a_publication_refused_at_its_append() {
         // land, so begin refuses until its stage is published or abandoned.
         let second = staged(&store);
         let stage_raw = fixture.raw(&fixture.stage_tenant(second.stage_id));
-        let proposal = stage_raw
-            .published()
-            .iter()
-            .rev()
-            .find(|event| event.name == "ekr.kernel.TransactionProposed")
-            .map(occurrence)
-            .unwrap();
+        let proposal = last_proposal(&stage_raw);
         let mut bytes = stage_raw.get(&proposal.record_hash);
         drop(stage_raw);
         let raw = fixture.raw(&fixture.tenant);
@@ -1875,4 +1916,329 @@ fn a_stage_begin_reads_the_store_under_one_capture_and_counts_what_it_holds() {
         inventory.events,
         inventory.objects.len()
     );
+}
+
+/// Validates the retained proposal `id` through `runtime` against its head.
+fn validate(runtime: &Runtime, id: TransactionId) {
+    let at = at();
+    let verdict = runtime
+        .validate(id, runtime.head().unwrap().unwrap().revision, || {
+            Timestamp::from_millis(at)
+        })
+        .unwrap();
+    assert!(
+        matches!(verdict, ValidationCommandResult::Validated(_)),
+        "{verdict:?}"
+    );
+}
+
+/// Design § 107.3, after unit P's adversary: a joined command elects between the seal's capture
+/// and its record, and publishes its occurrence after the record. The write is refused
+/// `stage-write-landed` with that occurrence, and the publication, captured after the seal, holds
+/// it. Two threads, joined by channels at named points: no timing.
+#[test]
+fn a_write_landing_after_the_seal_is_refused_with_its_occurrences_and_is_published() {
+    each(|fixture| {
+        let store = fixture.seeded();
+        let begun = store.begin_stage().unwrap();
+        let (stage, base) = (begun.stage_id, begun.base);
+        let (captured_send, captured) = std::sync::mpsc::channel::<()>();
+        let (elected_send, elected) = std::sync::mpsc::channel::<()>();
+        let (go_send, go) = std::sync::mpsc::channel::<()>();
+        let open = fixture.opener();
+        let transaction = define();
+        let proposed = transaction.id;
+        let writer = std::thread::spawn(move || {
+            let joined = open().join_stage(stage).unwrap();
+            let mut writes = 0;
+            let _hook = ekr_store::on_stage_point(move |point| {
+                let lost =
+                    |error: std::sync::mpsc::RecvError| StoreError::Backend(error.to_string());
+                if point == StagePoint::JoinedWrite {
+                    writes += 1;
+                    if writes == 1 {
+                        // The election waits for the seal's capture.
+                        captured.recv().map_err(lost)?;
+                    } else if writes == 2 {
+                        // The occurrence waits for the seal's record.
+                        elected_send
+                            .send(())
+                            .map_err(|error| StoreError::Backend(error.to_string()))?;
+                        go.recv().map_err(lost)?;
+                    }
+                }
+                Ok(())
+            });
+            try_propose(&joined, &transaction).map_err(store_error)
+        });
+        let hook = ekr_store::on_stage_point(move |point| {
+            if point == StagePoint::SealChecked {
+                captured_send
+                    .send(())
+                    .map_err(|error| StoreError::Backend(error.to_string()))?;
+                elected
+                    .recv()
+                    .map_err(|error| StoreError::Backend(error.to_string()))?;
+            }
+            Ok(())
+        });
+        let sealed = store.seal_stage(stage, base);
+        drop(hook);
+        go_send.send(()).ok();
+        let written = writer.join().expect("the writer thread");
+        assert_eq!(sealed.unwrap().state, StageState::Sealing);
+        let landed = match written {
+            Err(StoreError::StageWriteLanded {
+                state: StageState::Sealing,
+                event_ids,
+                ..
+            }) => event_ids,
+            other => panic!("not stage-write-landed after the seal: {other:?}"),
+        };
+        assert_eq!(landed.len(), 1, "the refused write names its occurrence");
+        let published = store.publish_stage(stage, base).unwrap();
+        assert_eq!(published.occurrences, Some(1));
+        let held: BTreeSet<_> = revision_stream(fixture)
+            .iter()
+            .map(|event| event.event_id)
+            .collect();
+        assert!(
+            landed.iter().all(|event| held.contains(event)),
+            "the publication holds what the refused write landed"
+        );
+        assert_eq!(
+            fixture
+                .open()
+                .transaction_states([proposed])
+                .unwrap()
+                .get(&proposed),
+            Some(&TransactionState::Proposed)
+        );
+    });
+}
+
+/// Design § 107.4, after unit P's adversary: another writer's validation of a proposal the store
+/// held at the base, which the run validated and committed, decides that transaction twice in the
+/// store's history with the suffix after it. The publication is refused `stage-suffix-refused`,
+/// the store is unchanged and the stage stays Sealing, to be abandoned.
+#[test]
+fn a_validation_another_writer_made_of_a_transaction_the_run_decides_refuses_the_publication() {
+    each(|fixture| {
+        let store = fixture.seeded();
+        let pending = define();
+        try_propose(&store, &pending).unwrap();
+        let begun = store.begin_stage().unwrap();
+        let joined = store.join_stage(begun.stage_id).unwrap();
+        validate(&joined, pending.id);
+        let at = at();
+        joined
+            .commit(pending.id, context().operator, || {
+                Timestamp::from_millis(at)
+            })
+            .unwrap();
+        drop(joined);
+        validate(&store, pending.id);
+        let stream = revision_stream(fixture);
+        let error = refusal(store.seal_and_publish_stage(begun.stage_id, begun.base));
+        named(&error, "stage-suffix-refused");
+        assert!(
+            matches!(
+                &error,
+                StoreError::StageSuffixRefused { code, .. }
+                    if code == "retained-transaction-state-conflict"
+            ),
+            "{error}"
+        );
+        assert_eq!(revision_stream(fixture), stream, "nothing appended");
+        assert_eq!(state(&store, begun.stage_id), StageState::Sealing);
+        assert_eq!(
+            store.abandon_stage(begun.stage_id).unwrap().state,
+            StageState::Abandoned
+        );
+    });
+}
+
+/// Two publishes of one stage (unit P's adversary, its probe): the second runs whole at a named
+/// point of the first, after the first captured the stage (both derive the suffix) and after the
+/// first elected its attempt (the second resumes that attempt). Either way the group lands once
+/// and both answer the same result. The store is counted from its revision stream and from one
+/// capture, not from the change feed, which on PostgreSQL withholds events committed after the
+/// oldest transaction still in progress in the database and so may show fewer, never more.
+#[test]
+fn two_publishes_of_one_stage_append_its_suffix_once_and_answer_alike() {
+    each(|fixture| {
+        let store = fixture.seeded();
+        for point in [StagePoint::PublishCaptured, StagePoint::PublishElected] {
+            let begun = staged(&store);
+            let stream = revision_stream(fixture).len();
+            let other = std::rc::Rc::new(std::cell::RefCell::new(None));
+            let (open, stage, base, outcome) = (
+                fixture.opener(),
+                begun.stage_id,
+                begun.base,
+                std::rc::Rc::clone(&other),
+            );
+            let hook = ekr_store::on_stage_point(move |reached| {
+                if reached == point && outcome.borrow().is_none() {
+                    *outcome.borrow_mut() = Some(
+                        open()
+                            .seal_and_publish_stage(stage, base)
+                            .map_err(store_error),
+                    );
+                }
+                Ok(())
+            });
+            let first = store.seal_and_publish_stage(stage, base);
+            drop(hook);
+            let second = other.borrow_mut().take().expect("the other publish ran");
+            let (first, second) = (first.unwrap(), second.unwrap());
+            assert_eq!(first, second, "{point:?}: both answer the original result");
+            assert_eq!(first.state, StageState::Published);
+            assert_eq!(
+                revision_stream(fixture).len(),
+                stream + 3,
+                "{point:?}: the suffix, once"
+            );
+            assert_eq!(fixture.attempt(stage), Some(0), "{point:?}: one attempt");
+            let mut replayed = fixture.open();
+            replayed.set_full_replay(true);
+            assert_eq!(
+                replayed.head().unwrap().unwrap().revision,
+                RevisionNumber::new(base.get() + 1)
+            );
+            let fed = store
+                .published_events()
+                .unwrap()
+                .iter()
+                .filter(|event| event.stream_type == "ekr.revision")
+                .count();
+            assert!(
+                fed <= stream + 3,
+                "{point:?}: the feed shows {fed} occurrences, more than the stream's {}",
+                stream + 3
+            );
+            assert_eq!(fixture.holds(&fixture.stage_tenant(stage)), 0);
+        }
+    });
+}
+
+/// The store's carriers of a published stage read back as the publication left them: the stage's
+/// record (`ekr_store::StageRecord`, with its `StagePublishedRecord`), its elected `/4`
+/// preparation (`PublicationPreparationV4`, keyed by `StagePublicationCommandKey`, whose decision's
+/// `StagePublicationObject`s are each in the store with their bytes) and the listing's
+/// `StoreTenant`. Read through a provider handle on the store's tenant, which decides nothing.
+#[test]
+fn a_published_stage_reads_back_as_its_record_preparation_and_objects_left_it() {
+    each(|fixture| {
+        let store = fixture.seeded();
+        let begun = store.begin_stage().unwrap();
+        let joined = store.join_stage(begun.stage_id).unwrap();
+        commit(&joined);
+        let payload = format!("a statement the run retains {}", TypeId::mint()).into_bytes();
+        commit_transaction(&joined, &evidence(&payload));
+        drop(joined);
+        let published = store
+            .seal_and_publish_stage(begun.stage_id, begun.base)
+            .unwrap();
+        let raw = fixture.raw(&fixture.tenant);
+
+        let record: ekr_store::StageRecord =
+            raw.log().stage_record(begun.stage_id).unwrap().unwrap();
+        assert_eq!(record.state, StageState::Published);
+        assert_eq!(record.tenant, fixture.stage_tenant(begun.stage_id));
+        assert_eq!(record.result(), published);
+        let recorded: &ekr_store::StagePublishedRecord = record.published.as_ref().unwrap();
+        assert_eq!(recorded.head, store.head().unwrap().unwrap().revision);
+        assert_eq!(recorded.published_first, published.published_first);
+        assert_eq!(recorded.published_last, published.published_last);
+        assert_eq!(Some(recorded.occurrences), published.occurrences);
+
+        let prepared: ekr_store::PublicationPreparationV4 =
+            fixture.preparation(begun.stage_id).unwrap();
+        assert_eq!(prepared.format, ekr_store::PublicationPreparationV4::FORMAT);
+        assert_eq!(
+            prepared.command_key,
+            ekr_store::StagePublicationCommandKey::of(begun.stage_id)
+        );
+        assert_eq!(prepared.decision.stage_id, begun.stage_id);
+        assert_eq!(prepared.decision.base, begun.base);
+        assert_eq!(prepared.decision.published_last, published.published_last);
+        assert!(
+            !prepared.decision.objects.is_empty(),
+            "the run stored objects"
+        );
+        for (hash, object) in &prepared.decision.objects {
+            let object: &ekr_store::StagePublicationObject = object;
+            assert_eq!(
+                raw.get(hash).as_deref(),
+                Some(object.bytes.as_slice()),
+                "{hash} is in the store with the bytes the publication carried"
+            );
+        }
+        assert!(prepared
+            .decision
+            .objects
+            .values()
+            .any(|object| object.bytes == payload));
+
+        let listed = store.stages().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(
+            listed[0].stage.store,
+            ekr_store::StoreTenant(fixture.tenant.clone())
+        );
+    });
+}
+
+/// A store's tenant is admitted only without the stage marker, wherever the marker stands; any
+/// other tenant is admitted as it is.
+#[test]
+fn a_store_tenant_carrying_the_stage_marker_is_not_admitted() {
+    assert_eq!(ekr_store::admit_store_tenant("library"), Ok(()));
+    assert_eq!(ekr_store::admit_store_tenant("ekr.stage"), Ok(()));
+    for tenant in [
+        ekr_store::STAGE_TENANT_MARKER.to_owned(),
+        format!("{}library", ekr_store::STAGE_TENANT_MARKER),
+        format!("library {} copy", ekr_store::STAGE_TENANT_MARKER),
+    ] {
+        assert_eq!(
+            ekr_store::admit_store_tenant(&tenant),
+            Err(StoreError::StageTenantReserved(tenant.clone()))
+        );
+    }
+}
+
+/// A stage point answers what the calling thread's hook answers there, and nothing without one;
+/// a guard dropped restores the hook it replaced.
+#[test]
+fn a_stage_hook_guard_restores_the_hook_it_replaced() {
+    fn interrupting(name: &'static str) -> ekr_store::StageHookGuard {
+        ekr_store::on_stage_point(move |point| {
+            if point == StagePoint::Sealed {
+                Err(StoreError::Backend(name.into()))
+            } else {
+                Ok(())
+            }
+        })
+    }
+    let interrupted = |name: &str| Err(StoreError::Backend(name.into()));
+    assert_eq!(ekr_store::stage::reached(StagePoint::Sealed), Ok(()));
+    let outer = interrupting("outer");
+    assert_eq!(
+        ekr_store::stage::reached(StagePoint::Sealed),
+        interrupted("outer")
+    );
+    assert_eq!(ekr_store::stage::reached(StagePoint::SealChecked), Ok(()));
+    let inner = interrupting("inner");
+    assert_eq!(
+        ekr_store::stage::reached(StagePoint::Sealed),
+        interrupted("inner")
+    );
+    drop(inner);
+    assert_eq!(
+        ekr_store::stage::reached(StagePoint::Sealed),
+        interrupted("outer")
+    );
+    drop(outer);
+    assert_eq!(ekr_store::stage::reached(StagePoint::Sealed), Ok(()));
 }

@@ -2,9 +2,10 @@ domain: ekr.cli
 
 summary: >-
   The commands the `ekr` binary handles itself: the four stage commands of design § 107, which run
-  the kernel's preserving copy and its authority over a store and its stage's tenant together. The
-  stage they act on, its id, its record's events, its refusals and the view of every stage are
-  ekr.store's (store.yaml), and the commands here reference them.
+  the kernel's preserving copy and its authority over a store and its stage's tenant together, and
+  the view of every stage a store has had, which `ekr stage list` prints. The stage they act on, its
+  id, its record's events and its refusals are ekr.store's (store.yaml), and the commands and the
+  view here reference them.
 
 naming:
   wire: cli
@@ -35,7 +36,18 @@ naming:
 # after its write lands and refuses ekr.store.StageWriteLanded if the stage is no longer Begun.
 # The kernel's API for the CLI (unit P, 2026-10-08): `Runtime::begin_stage`, `seal_stage`,
 # `publish_stage`, `seal_and_publish_stage` (what `ekr stage publish` runs), `abandon_stage`,
-# `stages` and `join_stage`; held by `crates/ekr-kernel/tests/stage.rs`. The verbs are unit L's.
+# `stages` and `join_stage`; held by `crates/ekr-kernel/tests/stage.rs`.
+#
+# The verbs (unit L, 2026-10-08; design § 107.13): `ekr stage begin`, `ekr stage publish <id>
+# --expect-head <revision>`, `ekr stage abandon <id>` and `ekr stage list` (ekr.cli.Stages). Each
+# runs on the store's own tenant: it ignores EKR_STAGE, and `--stage` with it is a usage error. A
+# verb that opens an existing store joins the stage `--stage` or EKR_STAGE names; both naming
+# different stages is a usage error, and so is either with `seed` or `migrate`, which create a
+# store. A verb that opens no store (`mint`, `hash`, `schema`, ...) ignores both. Every refusal in
+# ekr.store that a stage command or a joined verb answers is a named refusal of the binary, exit 2,
+# printed under its refusal name; `stage-tenant-reserved` is a host-configuration fault, exit 1.
+# Held by `crates/ekr/tests/stage_cli.rs` on SQLite and `crates/ekr/tests/postgres_cli.rs` where
+# the PostgreSQL tests run.
 #
 # An id no stage carries is answered `stage-not-found` by seal, publish and abandon, before any
 # other refusal. `unknown_instance:` (ess/15) would declare that order; this specification is
@@ -50,7 +62,8 @@ commands:
   # `a_commit_racing_the_capture_is_not_in_the_stage` where the PostgreSQL tests run). The
   # capture's head is the stage's base, so the record can name it before the copy is written.
   # Begin itself is held through the kernel by `a_stage_begins_at_the_head_and_the_store_is_unchanged`
-  # (unit P, `crates/ekr-kernel/tests/stage.rs`); the verb is unexecuted. The copy is a
+  # (unit P, `crates/ekr-kernel/tests/stage.rs`), and the verb by `stage_begin_prints_the_minted_id`
+  # (unit L, `crates/ekr/tests/stage_cli.rs` and `postgres_cli.rs`). The copy is a
   # migration, not a byte copy: the stage's seed is `ekr-seed-envelope/4` with a fresh claim, and
   # every record that names the seed envelope or a prior root is derived again for the stage's
   # lineage (design § 100.3; `crates/ekr-kernel/src/migrate.rs`). Revision numbers and identities,
@@ -161,14 +174,20 @@ commands:
   # the suffix is appended after them, so in the store's stream the run's occurrences follow
   # theirs. A record of the suffix names no stream position (ekr.kernel.RevisionEventV2 carries a
   # format, an event id, a record hash and a payload), and the kernel checks the store's whole
-  # history with the suffix after them. A commit moves the head and refuses.
+  # history with the suffix after them. A commit moves the head and refuses. One that decides a
+  # transaction the suffix decides too (a validation or rejection of a proposal the store held at
+  # the base, which the run validated) leaves the store's history with the suffix after it
+  # deciding that transaction twice: `suffix-refused`, at the capture, or at the successor a
+  # retry after `stream-moved` elects.
   #
   # A definitive conflict of the group is answered by what moved, read again in this order: the
   # record (an abandonment landed: `abandoned-meanwhile`, and the stage is Abandoned), the head (a
   # commit landed: `head-moved`, the stage stays Sealing and can only be abandoned), the revision
   # stream (`stream-moved`) and an object stream (`object-moved`); after either of the last two the
-  # stage stays Sealing and a publish retried with the same expected head publishes. Each row is held
-  # through the kernel by its unit P case (design § 107.10); the verb is unexecuted.
+  # stage stays Sealing and a publish retried with the same expected head publishes, unless the
+  # store's authority refuses the successor (`suffix-refused`). Each row is held through the kernel
+  # by its unit P case (design § 107.10). The verb is held by unit L's cases for `published`,
+  # `head-moved` and `retained-publication`; its interleaved rows only through the kernel.
   #
   # The election is a publication preparation of a new kind (design §§ 94, 107.5): keyed by
   # Publish and the stage id, its decision is the whole suffix and its native request the whole
@@ -231,7 +250,7 @@ commands:
       - name: stream-moved
         external: at a definitive conflict of the append group, the store's revision stream is past the version read at the capture and the head is still the stage's base
         error: ekr.store.StageStreamMoved
-        summary: Nothing was appended and the stage stays Sealing; a publish retried with the same expected head publishes.
+        summary: Nothing was appended and the stage stays Sealing; a publish retried with the same expected head publishes, or is refused suffix-refused where the occurrence decides a transaction the suffix decides.
       - name: object-moved
         external: at a definitive conflict of the append group, an object stream the group appends to moved after the capture, and the record, the head and the revision stream did not
         error: ekr.store.StageObjectMoved
@@ -299,4 +318,29 @@ commands:
         summary: Nothing was read or forgotten.
       - name: wrong-state
         error: ekr.store.StageStateConflict
-        summary: A Published stage refuses without an event, a subject change or any forgetting.
+        summary: A Published stage refuses without an event or a subject change; what remains of its tenant after a publication interrupted before its forgetting is forgotten first.
+
+views:
+  # Every stage the store has recorded, in every state, from the stage records that stay after each
+  # stage's tenant is forgotten: `ekr stage list` prints it (unit L), and it is how a stage whose
+  # begin answer was lost is found and then joined or abandoned (design § 107.8). Declared here and
+  # not in store.yaml, beside the commands the `ekr` component handles: in ekr.store, owned by
+  # ekr-store, every lifecycle scenario a suite for `ekr` synthesizes would need a view another
+  # component owns and fall outside that suite (spec review F14; ess 0.56.0 selects 4 scenarios for
+  # `ekr` with the view in store.yaml and 36 with it here).
+  - name: ekr.cli.Stages
+    source: ekr.store.Stage
+    consistency: read_your_writes
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: store
+        type: ekr.store.StoreTenant
+      - name: base
+        type: ekr.kernel.RevisionNumber
+      - name: base_revision
+        type: ekr.kernel.RevisionId
+      - name: published_revisions
+        type: List<ekr.kernel.RevisionId>
+      - name: state
+        type: ekr.store.Stage.State

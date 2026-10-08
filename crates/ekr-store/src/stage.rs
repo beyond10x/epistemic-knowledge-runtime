@@ -236,7 +236,7 @@ pub trait StageLog {
     /// # Errors
     /// Provider failure or a record stream that does not read as a stage's lifecycle.
     fn stage_record(&self, stage: StageId) -> Result<Option<StageRecord>, StoreError>;
-    /// Every stage this store has recorded, in every state (`ekr.store.Stages`).
+    /// Every stage this store has recorded, in every state (`ekr.cli.Stages`).
     /// # Errors
     /// Provider failure or a record that does not read.
     fn stages(&self) -> Result<Vec<StageRecord>, StoreError>;
@@ -318,6 +318,8 @@ pub enum StagePoint {
     SealChecked,
     /// Seal has written `StageSealed`; publish has not yet read the stage.
     Sealed,
+    /// Publish has captured the stage and derived its suffix, and not yet elected an attempt.
+    PublishCaptured,
     /// Publish has captured the stage and elected its attempt, and not yet appended the group.
     PublishElected,
     /// The group is appended; the stage's tenant is not yet forgotten.

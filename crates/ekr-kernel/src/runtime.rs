@@ -783,7 +783,7 @@ impl Runtime {
             }
         }
     }
-    /// Every stage the store has recorded, in every state (`ekr.store.Stages`).
+    /// Every stage the store has recorded, in every state (`ekr.cli.Stages`).
     /// # Errors
     /// Provider failure or a record that does not read.
     pub fn stages(&self) -> Result<Vec<StageListing>, CommitError> {
@@ -793,6 +793,49 @@ impl Runtime {
             Backend::Postgres(kernel) => kernel.stages(),
             Backend::File(_) => Ok(Vec::new()),
         }
+    }
+    /// How many events the tenant of `stage` holds, the tenant its `StageBegun` names: zero once
+    /// the stage is abandoned or published and its tenant forgotten (design §§ 107.6, 107.9). A
+    /// diagnostic of what a stage leaves behind, read through a handle on that tenant that holds
+    /// no kernel authority and appends no event: the provider log of one SQLite image, or one
+    /// PostgreSQL capture, never the change feed, which can withhold committed events (design
+    /// § 107.12). Test support, not part of a store's reading surface: it decides nothing.
+    ///
+    /// On PostgreSQL the capture first ensures the tenant's capture identity, as every capture from
+    /// a writing handle does: after the stage's tenant is forgotten it writes one row of provider
+    /// metadata for that tenant (eventlog-postgres `_identity`), and no event, object or blob. No
+    /// store reader sees it: every store verb reads the store's own tenant, where the stage's
+    /// record is, and a joined verb is refused before it reads the stage's tenant once the stage is
+    /// published or abandoned. A later forgetting of the tenant removes it with the rest.
+    /// # Errors
+    /// `stage-not-found`, `stage-unsupported-provider` on File, or provider failure.
+    #[doc(hidden)]
+    pub fn stage_tenant_events(&self, stage: StageId) -> Result<usize, CommitError> {
+        self.on_store()?;
+        let record = match &self.backend {
+            Backend::Sqlite(kernel) => ekr_store::StageLog::stage_record(&kernel.store, stage)?,
+            Backend::Postgres(kernel) => ekr_store::StageLog::stage_record(&kernel.store, stage)?,
+            Backend::File(_) => {
+                return Err(StoreError::StageUnsupportedProvider(ProviderKind::File).into())
+            }
+        }
+        .ok_or(StoreError::StageNotFound(stage))?;
+        let events = match &self.location {
+            Location::Sqlite { path, .. } => {
+                SqliteStore::sqlite_read_only(path, &record.tenant, None)?
+                    .published_events()?
+                    .len()
+            }
+            Location::Postgres { config, .. } => {
+                PostgresStore::postgres(config, &record.tenant, false)?
+                    .inventory()?
+                    .events
+            }
+            Location::File => {
+                return Err(StoreError::StageUnsupportedProvider(ProviderKind::File).into())
+            }
+        };
+        Ok(events)
     }
     /// The runtime of a verb joined to `stage` (design § 107.3): the stage's tenant of this store,
     /// opened as this runtime's store is, which reads the stage's record in the store's tenant

@@ -720,15 +720,20 @@ fn help_refused() -> Failure {
 fn option_refused() -> Failure {
     Failure::refused(
         OPTION,
-        "--host, --store, --backend and --full-replay are the session's own, fixed when it \
-         started; a request carries none of them",
+        "--host, --store, --backend, --full-replay and --stage are the session's own, fixed when \
+         it started; a request carries none of them",
     )
 }
 
 /// Refuses a request that sets a global option, or names a verb the session does not serve:
 /// `seed` is served only by a session started with `--create`.
 fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
-    if cli.host.is_some() || cli.store.is_some() || cli.backend.is_some() || cli.full_replay {
+    if cli.host.is_some()
+        || cli.store.is_some()
+        || cli.backend.is_some()
+        || cli.full_replay
+        || cli.stage.is_some()
+    {
         return Err(option_refused());
     }
     match cli.command {
@@ -740,6 +745,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::McpHttp { .. } => Err(verb_refused("mcp-http")),
         Command::Migrate { .. } => Err(verb_refused("migrate")),
         Command::PostgresSchema { .. } => Err(verb_refused("postgres-schema")),
+        Command::Stage { .. } => Err(verb_refused("stage")),
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
