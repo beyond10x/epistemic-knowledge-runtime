@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-08T03:23:24Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "task:postgres-source-copy",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "unit 07d50be27e: PostgreSQL required: ekr-kernel hosted_postgres 18, adversary_w20261007c_c_capture 5 passed, ekr-store adversary_w20261007c_c_docs 2 passed, 0 failed, on the combined tree"
+  }
+}

@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:stage-suffix-publication
 kind: task
-status: active
+status: implemented
 title: A stage's suffix is published whole into the store, or refused
 relations:
 - serves: vision:o5
 - derived_from: story:a-run-is-staged-and-published-whole
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-07T08:53:47Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-07T08:53:47Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-08T03:23:30Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Build
 

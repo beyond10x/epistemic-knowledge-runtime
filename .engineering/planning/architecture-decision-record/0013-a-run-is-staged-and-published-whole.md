@@ -2,19 +2,24 @@
 format: aep.planning-md/3
 id: architecture-decision-record:0013-a-run-is-staged-and-published-whole
 kind: architecture-decision-record
-status: proposed
+status: accepted
 title: ADR 0013 — A run is staged and its suffix published whole; a head is never rewound
 summary: A batch of one-shot verbs writes to a stage tenant and is published into the store in one append group, or the stage is forgotten; no operation moves a store's head backwards
 relations:
 - decides: story:a-run-is-staged-and-published-whole
-revision: 1
+revision: 4
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-10-08T03:23:31Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 
 ## Status
 
 Proposed on 2026-10-07 with design § 107, the stage model in `systems/ekr/domains/store.yaml` and
-its commands in `systems/ekr/domains/cli.yaml` (`task:stage-specified`). The owner's decisions on that unit's open questions are recorded
-below. Nothing it decides is executed yet; § 107.10 names the cases units C, P and L add.
+its commands in `systems/ekr/domains/cli.yaml` (`task:stage-specified`). The owner's decisions on
+that unit's open questions are recorded below. Units C, P and L of wave 2026-10-07c execute it:
+the PostgreSQL capture and copy (`task:postgres-source-copy`), the suffix publication
+(`task:stage-suffix-publication`) and the CLI (`task:stage-cli`). Design § 107.12 and § 107.13
+record what those units decided where § 107 was silent or wrong.
 
 ## Context
 
@@ -129,7 +134,20 @@ nothing.
 
 ## Evidence
 
-None yet. Design § 107.10 names the cases: unit C's in `crates/ekr-kernel/tests/hosted_postgres.rs`,
-unit P's in `crates/ekr-kernel/tests/stage.rs`, and unit L's in `crates/ekr/tests/stage_cli.rs`
-and `crates/ekr/tests/postgres_cli.rs`. The acceptance is the story's: a failed run leaves
-`ekr head` unchanged and a passed run lands whole and replays, on SQLite and on PostgreSQL.
+The cases design § 107.10 names, as run on wave 2026-10-07c's integration branch with a
+PostgreSQL server required (`EKR_REQUIRE_POSTGRES=1`):
+
+- unit C: `crates/ekr-kernel/tests/hosted_postgres.rs` (18 cases) and
+  `crates/ekr-kernel/tests/adversary_w20261007c_c_capture.rs` (5);
+- unit P: `crates/ekr-kernel/tests/stage.rs` (36 cases, SQLite and PostgreSQL) and
+  `crates/ekr-kernel/tests/adversary_w20261007c_p.rs` (9);
+- unit L: `crates/ekr/tests/stage_cli.rs` (9 cases, SQLite) and `crates/ekr/tests/postgres_cli.rs`
+  (13, PostgreSQL), which hold the story's acceptance: a run whose gate fails is abandoned and
+  `ekr head` is unchanged; a run that passes is published, `ekr head` is the stage's last revision
+  re-derived for the store, and replay verifies; a publish at a moved head is refused by name and
+  changes nothing; every verb works with the stage named only by `EKR_STAGE`; after abandon or
+  publish the stage's tenant holds nothing.
+
+The continuous-integration gate does not run the PostgreSQL cases: its workflow provides no
+PostgreSQL server. The three adversary reviews are `.engineering/reviews/w20261007c-s-adversary.md`,
+`w20261007c-c-adversary.md` and `w20261007c-p-adversary.md`.

@@ -2,7 +2,7 @@
 
 Skill: aep:implementing 0.21.0 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-07.
-Status: **open**: units S, C and P merged; P's adversary and unit L running.
+Status: **integrated**: units S, C, P, L and the Eventlog 0.8.1 move merged into `wave/20261007c`; the pull request is next.
 
 Approved 2026-10-07: a consumer running one-shot `ekr` verbs against PostgreSQL needs a failed run
 to leave the head where it was; the shape (a stage published whole, not a rewound head) was chosen
@@ -29,11 +29,12 @@ that holds the one before.
 
 | unit | branch | head | worktree id | build dir | scratch | stage |
 |---|---|---|---|---|---|---|
-| int | `wave/20261007c` | `c9a535bce0` | `ekr-w20261007c-int` | `<int>/target` | `<int>/.engineering/drafts` | S, C, P merged |
+| int | `wave/20261007c` | `d8a5f48646` | `ekr-w20261007c-int` | `<int>/target` | `<int>/.engineering/drafts` | all units merged |
 | S | `unit/stage-specified` | `3359dc47d6` | `ekr-w20261007c-s` | — | — | merged; adversary fixes merged; tree finished and archived |
 | C | `unit/postgres-source-copy` | `07d50be27e` | `ekr-w20261007c-c` | — | — | merged with adversary fixes (`3b12ba4381`); tree finished and archived |
-| P | `unit/stage-suffix-publication` | `811cddb2af` | `ekr-w20261007c-p` | `<p>/target` | `<p>/.engineering/drafts` | merged (`c9a535bce0`); adversary running |
-| L | `unit/stage-cli` | `c9a535bce0` | `ekr-w20261007c-l` | `<l>/target` | `<l>/.engineering/drafts` | implementor running |
+| P | `unit/stage-suffix-publication` | `ed0f5b134e` | `ekr-w20261007c-p` | — | — | merged with adversary fixes (`1aa4b4ca48`); tree finished and archived |
+| L | `unit/stage-cli` | `7a2756fab6` | `ekr-w20261007c-l` | — | — | merged (`9d21959a01`) |
+| E | `unit/eventlog-0.8.1` | `ffae1fb371` | `ekr-w20261007c-l` (reused) | — | — | merged (`d8a5f48646`); tree finished and archived |
 
 ## Unit S
 
@@ -51,23 +52,31 @@ pass.
 PostgreSQL cases run against a disposable local container started for this wave and removed at its
 close. CI does not run them (no PostgreSQL in `correctness.yml`).
 
+## Unit P's adversary
+
+One blocking defect: seal and abandon shared an idempotency key, so their race answered "idempotency
+key already used" instead of a named refusal. Each record move now has its own key. Two further
+refusals were misreported and an abandon after an interrupted publication left the stage's tenant
+holding events; all fixed (`ed0f5b134e`). Two adversary cases asserted § 107 sentences the code
+showed wrong (an occurrence can land after the seal; another writer's validation of a transaction
+the run decides refuses the publication); the sentences were corrected and the two cases removed.
+An intermittent two-publish shortfall came from the PostgreSQL change feed withholding events behind
+an open transaction, not from a double publication. Review: `.engineering/reviews/w20261007c-p-adversary.md`.
+
+## Unit L and the Eventlog move
+
+Unit L adds `ekr stage begin|publish|abandon|list`, `--stage`/`EKR_STAGE`, and names every stage
+refusal. ess 0.56.0's refusal of `kernel.yaml` is fixed by declaring `retained-commit` before `stale`.
+The Eventlog crates move from 0.5.0 (`fe8a0a7e`) to the 0.8.1 release commit `d5db40da`, pinned by
+rev because `story_contract` holds each pin to an immutable revision.
+
 ## Gate
 
-Not run yet.
-
-## Unit C
-
-The adversary found no blocking defect and added seven cases. Three were red: the one-capture
-check could not see a feed read (`PostgresStore::published_events()` did not count its pages),
-and `docs/cli.md` still named the inventory refusal unit C removed. Both were fixed on the unit's
-branch and merged (`3b12ba4381`). The review is `.engineering/reviews/w20261007c-c-adversary.md`.
-
-## Unit P
-
-`crates/ekr-kernel/tests/stage.rs` holds 30 cases, passing on SQLite and with PostgreSQL
-required; the carrier, projection and identity guards pass again. `ess` 0.56.0 refuses
-`systems/ekr/domains/kernel.yaml` (`ESS-COMMAND-004`, `ekr.kernel.Commit`'s `retained-commit`
-declared after `stale`) on `main` as well; unit L reorders it.
-
-The Eventlog pins move from 0.5.0 (`fe8a0a7e`) to the 0.8.1 tag inside this wave, after unit L,
-once the tag exists.
+Pre-push checks on the combined tree (unit E's tree, which held `d8a5f48646`'s content), with
+PostgreSQL required for the PostgreSQL targets: `cargo fmt --all -- --check`, `cargo clippy --locked
+--workspace --all-targets -- -D warnings`, and package-scoped `cargo test` of `ekr` (story_contract,
+public_surface, docs_cli, agent_cli, stage_cli, adversary_docs_contract, postgres_cli, conformance,
+conformance_integrate), all of `ekr-store`, `ekr-kernel` (lib, stage, hosted_postgres, the two
+adversary files, migrate_store, store_open, seed, seed_envelope_v3), `ekr-core` identity_serde and
+`ekr-views` conformance and code_names: 10 steps, 10 exit 0. The full gate is the pull request's
+CI. Its workflow provides no PostgreSQL, so CI runs the SQLite half of the stage cases.

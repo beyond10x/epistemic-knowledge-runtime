@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:a-run-is-staged-and-published-whole
 kind: story
-status: active
+status: implemented
 title: A run is staged, and published whole or dropped whole
 relations:
 - serves: vision:o5
@@ -19,10 +19,11 @@ scope:
   path: docs/epistemic-knowledge-runtime-design.md
 - confidence: cited
   path: systems/ekr/domains/store.yaml
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-07T08:53:46Z", actor: "agent:claude-ekr-controller", revision: 8}
 - {from: "proposed", to: "active", at: "2026-10-07T08:53:46Z", actor: "agent:claude-ekr-controller", revision: 9}
+- {from: "active", to: "implemented", at: "2026-10-08T03:23:30Z", actor: "agent:claude-ekr-controller", revision: 10, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Outcome
 

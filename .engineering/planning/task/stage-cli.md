@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:stage-cli
 kind: task
-status: active
+status: implemented
 title: Every store verb joins a stage by EKR_STAGE or --stage
 relations:
 - serves: vision:o5
 - derived_from: story:a-run-is-staged-and-published-whole
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-07T08:53:48Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-07T08:53:48Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-08T03:23:30Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Build
 
