@@ -4,6 +4,29 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- A run can be staged: `ekr stage begin` copies the store at its head into a stage of its own and
+  prints the stage id; `--stage <id>` or `EKR_STAGE=<id>` joins every verb that opens an existing
+  store to that stage; `ekr stage publish <id> --expect-head <revision>` appends the stage's
+  revisions to the store in one append group, or refuses by name and changes nothing; `ekr stage
+  abandon <id>` drops the stage; `ekr stage list` lists a store's stages. After a publication or
+  an abandonment the stage's tenant holds nothing. A retried publish returns the first one's
+  result and appends nothing twice. Stages run on SQLite and PostgreSQL; the File provider
+  refuses them. `docs/cli.md` lists the verbs and their refusals.
+- A PostgreSQL store's inventory is read under one provider capture, so a stage can be begun from
+  a PostgreSQL store. `ekr migrate` still refuses a PostgreSQL source.
+
+### Changed
+
+- Every store opener refuses a tenant containing `ekr.stage:` as `stage-tenant-reserved`; that
+  marker names stage tenants only.
+- A stage publication is elected through a new retained format,
+  `ekr.publication-preparation/4`. A store holding one is refused by earlier binaries as
+  `inventory-preparation-unreadable`.
+- The Eventlog crates move from 0.5.0 to 0.8.1. The File provider's appends and in-window reads
+  no longer grow with the journal's size.
+
 ## [0.0.32] — 2026-10-06
 
 ### Changed

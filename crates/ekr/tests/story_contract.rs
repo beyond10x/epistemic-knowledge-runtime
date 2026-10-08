@@ -736,28 +736,28 @@ const QUALIFIED: [(&str, &[&str]); 6] = [
         "eventlog-core",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8\"",
+            "rev = \"d5db40da9c0bee874eba3938a259c13c86f53277\"",
         ],
     ),
     (
         "eventlog-file",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8\"",
+            "rev = \"d5db40da9c0bee874eba3938a259c13c86f53277\"",
         ],
     ),
     (
         "eventlog-sqlite",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8\"",
+            "rev = \"d5db40da9c0bee874eba3938a259c13c86f53277\"",
         ],
     ),
     (
         "eventlog-postgres",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8\"",
+            "rev = \"d5db40da9c0bee874eba3938a259c13c86f53277\"",
         ],
     ),
 ];
