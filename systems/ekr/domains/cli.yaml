@@ -161,14 +161,19 @@ commands:
   # the suffix is appended after them, so in the store's stream the run's occurrences follow
   # theirs. A record of the suffix names no stream position (ekr.kernel.RevisionEventV2 carries a
   # format, an event id, a record hash and a payload), and the kernel checks the store's whole
-  # history with the suffix after them. A commit moves the head and refuses.
+  # history with the suffix after them. A commit moves the head and refuses. One that decides a
+  # transaction the suffix decides too (a validation or rejection of a proposal the store held at
+  # the base, which the run validated) leaves the store's history with the suffix after it
+  # deciding that transaction twice: `suffix-refused`, at the capture, or at the successor a
+  # retry after `stream-moved` elects.
   #
   # A definitive conflict of the group is answered by what moved, read again in this order: the
   # record (an abandonment landed: `abandoned-meanwhile`, and the stage is Abandoned), the head (a
   # commit landed: `head-moved`, the stage stays Sealing and can only be abandoned), the revision
   # stream (`stream-moved`) and an object stream (`object-moved`); after either of the last two the
-  # stage stays Sealing and a publish retried with the same expected head publishes. Each row is held
-  # through the kernel by its unit P case (design § 107.10); the verb is unexecuted.
+  # stage stays Sealing and a publish retried with the same expected head publishes, unless the
+  # store's authority refuses the successor (`suffix-refused`). Each row is held through the kernel
+  # by its unit P case (design § 107.10); the verb is unexecuted.
   #
   # The election is a publication preparation of a new kind (design §§ 94, 107.5): keyed by
   # Publish and the stage id, its decision is the whole suffix and its native request the whole
@@ -231,7 +236,7 @@ commands:
       - name: stream-moved
         external: at a definitive conflict of the append group, the store's revision stream is past the version read at the capture and the head is still the stage's base
         error: ekr.store.StageStreamMoved
-        summary: Nothing was appended and the stage stays Sealing; a publish retried with the same expected head publishes.
+        summary: Nothing was appended and the stage stays Sealing; a publish retried with the same expected head publishes, or is refused suffix-refused where the occurrence decides a transaction the suffix decides.
       - name: object-moved
         external: at a definitive conflict of the append group, an object stream the group appends to moved after the capture, and the record, the head and the revision stream did not
         error: ekr.store.StageObjectMoved
@@ -299,4 +304,4 @@ commands:
         summary: Nothing was read or forgotten.
       - name: wrong-state
         error: ekr.store.StageStateConflict
-        summary: A Published stage refuses without an event, a subject change or any forgetting.
+        summary: A Published stage refuses without an event or a subject change; what remains of its tenant after a publication interrupted before its forgetting is forgotten first.

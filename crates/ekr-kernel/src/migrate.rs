@@ -184,6 +184,30 @@ pub(crate) fn finished(
     Ok(())
 }
 
+/// A decision a capture found elected and never published.
+pub(crate) enum Unresolved {
+    /// A `/1`–`/3` preparation's occurrence.
+    Occurrence(EventId),
+    /// A stage whose publication slot is unresolved, and the first occurrence it elected.
+    Stage(ekr_core::StageId, Option<EventId>),
+}
+
+impl Unresolved {
+    /// `unresolved-preparation`, naming the stage or the occurrence.
+    pub(crate) fn refusal(self) -> StoreError {
+        match self {
+            Self::Occurrence(event) => StoreError::UnresolvedPreparation {
+                event_id: Some(event),
+                stage_id: None,
+            },
+            Self::Stage(stage, event) => StoreError::UnresolvedPreparation {
+                event_id: event,
+                stage_id: Some(stage),
+            },
+        }
+    }
+}
+
 /// A store read once for a preserving copy (design §§ 105.2, 107.2): its inventory, taken in one
 /// read of the provider — the image a read-only SQLite store holds, or one PostgreSQL capture —
 /// and replayed in full through the kernel's authority.
@@ -212,25 +236,35 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     /// [`CommitError::NotSeeded`] for a store with no seed.
     pub fn capture(&self) -> Result<CapturedStore<'_, S>, CommitError> {
         self.capture_with(|pending| {
-            migration(
-                "migrate-unresolved-preparation",
-                format!(
-                    "occurrence {pending} was elected and never published; resolve it with the \
+            let detail = match pending {
+                Unresolved::Stage(stage, _) => format!(
+                    "stage {stage} holds a publication elected and never appended; publish or \
+                     abandon that stage before migrating"
+                ),
+                Unresolved::Occurrence(event) => format!(
+                    "occurrence {event} was elected and never published; resolve it with the \
                      command that elected it before migrating"
                 ),
-            )
-            .into()
+            };
+            migration("migrate-unresolved-preparation", detail).into()
         })
     }
 
     /// [`Self::capture`], refusing a preparation whose decision was never published with
     /// `unresolved`: a stage's begin, seal and publication name it
-    /// [`StoreError::UnresolvedPreparation`].
+    /// [`StoreError::UnresolvedPreparation`]. A stage's publication slot that is not resolved
+    /// (design § 107.5) is named by its stage, before any other preparation.
     pub(crate) fn capture_with(
         &self,
-        unresolved: impl FnOnce(EventId) -> CommitError,
+        unresolved: impl FnOnce(Unresolved) -> CommitError,
     ) -> Result<CapturedStore<'_, S>, CommitError> {
         let inventory = self.store.inventory()?;
+        if let Some((stage, occurrences)) = inventory.unresolved_stages.iter().next() {
+            return Err(unresolved(Unresolved::Stage(
+                *stage,
+                occurrences.first().copied(),
+            )));
+        }
         let published: BTreeSet<EventId> = inventory
             .occurrences
             .iter()
@@ -241,7 +275,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .iter()
             .find(|event_id| !published.contains(event_id))
         {
-            return Err(unresolved(*pending));
+            return Err(unresolved(Unresolved::Occurrence(*pending)));
         }
         let history = RetainedHistory {
             occurrences: inventory.occurrences.clone(),

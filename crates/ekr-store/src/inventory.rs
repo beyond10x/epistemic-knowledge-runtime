@@ -11,9 +11,12 @@ pub struct StoreInventory {
     pub occurrences: Vec<RecordedOccurrence>,
     /// Every object the log stored, by address, each verified against its address and length.
     pub objects: BTreeMap<ContentHash, InventoriedObject>,
-    /// The domain occurrence identities of each publication preparation's newest attempt: one
-    /// for a `/1`–`/3` decision, and every occurrence of an unresolved `/4` decision.
+    /// The domain occurrence identity of each `/1`–`/3` publication preparation's newest
+    /// attempt.
     pub prepared: Vec<ekr_core::EventId>,
+    /// Each stage whose publication slot (`ekr.publication-preparation/4`) is unresolved (design
+    /// § 107.5), with the occurrences its newest attempt elected, none of which is published.
+    pub unresolved_stages: BTreeMap<StageId, Vec<ekr_core::EventId>>,
     /// How many events the provider log holds, of every stream.
     pub events: usize,
 }
@@ -139,14 +142,16 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             stages,
             stream: occurrences.len() as u64,
         };
-        let mut prepared = Vec::new();
+        let (mut prepared, mut unresolved_stages) = (Vec::new(), BTreeMap::new());
         for selection in newest.into_values() {
-            prepared.extend(self.prepared_occurrences(&selection, &resolved)?);
+            self.prepared_occurrences(&selection, &resolved)?
+                .collect_into(&mut prepared, &mut unresolved_stages);
         }
         Ok(StoreInventory {
             occurrences,
             objects,
             prepared,
+            unresolved_stages,
             events: events.len(),
         })
     }
@@ -226,18 +231,16 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             stages,
             stream: held.occurrences.len() as u64,
         };
-        let mut prepared = Vec::new();
+        let (mut prepared, mut unresolved_stages) = (Vec::new(), BTreeMap::new());
         for selection in newest.into_values() {
-            prepared.extend(prepared_occurrences(
-                &selection,
-                |key| Ok(blobs.get(key).cloned()),
-                &resolved,
-            )?);
+            prepared_occurrences(&selection, |key| Ok(blobs.get(key).cloned()), &resolved)?
+                .collect_into(&mut prepared, &mut unresolved_stages);
         }
         Ok(StoreInventory {
             occurrences: held.occurrences,
             objects,
             prepared,
+            unresolved_stages,
             events: total,
         })
     }
@@ -258,7 +261,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         &self,
         selection: &serde_json::Value,
         resolved: &Resolution,
-    ) -> Result<Vec<ekr_core::EventId>, StoreError> {
+    ) -> Result<Prepared, StoreError> {
         prepared_occurrences(
             selection,
             |key| {
@@ -357,13 +360,13 @@ impl Resolution {
 /// without authorizing it: a migration only asks whether that decision was published.
 ///
 /// A `/1`–`/3` decision is one occurrence, named whether or not it was published; the caller
-/// compares it with the published ones. A `/4` decision is a stage's whole suffix: none of it
-/// where `resolved` says its slot is resolved, and otherwise every occurrence of it.
+/// compares it with the published ones. A `/4` decision is a stage's whole suffix: nothing where
+/// `resolved` says its slot is resolved, and otherwise the stage with every occurrence of it.
 fn prepared_occurrences(
     selection: &serde_json::Value,
     blob: impl FnOnce(&str) -> Result<Option<Vec<u8>>, StoreError>,
     resolved: &Resolution,
-) -> Result<Vec<ekr_core::EventId>, StoreError> {
+) -> Result<Prepared, StoreError> {
     let unreadable = || StoreError::Document("inventory-preparation-unreadable".into());
     let hash: ContentHash =
         serde_json::from_value(selection["preparation_hash"].clone()).map_err(|_| unreadable())?;
@@ -380,18 +383,45 @@ fn prepared_occurrences(
             .as_u64()
             .ok_or_else(unreadable)?;
         if resolved.resolved(&stage.to_string(), expected) {
-            return Ok(Vec::new());
+            return Ok(Prepared::Resolved);
         }
-        return decision["occurrences"]
+        let occurrences = decision["occurrences"]
             .as_array()
             .ok_or_else(unreadable)?
             .iter()
             .map(|occurrence| {
                 serde_json::from_value(occurrence["event_id"].clone()).map_err(|_| unreadable())
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
+        return Ok(Prepared::Stage(stage, occurrences));
     }
     serde_json::from_value(record["decision"]["event"]["event_id"].clone())
-        .map(|event_id| vec![event_id])
+        .map(Prepared::Occurrence)
         .map_err(|_| unreadable())
+}
+
+/// What one preparation slot's newest attempt holds for the inventory.
+enum Prepared {
+    /// A `/1`–`/3` decision's one occurrence.
+    Occurrence(ekr_core::EventId),
+    /// An unresolved stage publication: its stage and the occurrences it elected.
+    Stage(StageId, Vec<ekr_core::EventId>),
+    /// A resolved stage publication.
+    Resolved,
+}
+
+impl Prepared {
+    fn collect_into(
+        self,
+        prepared: &mut Vec<ekr_core::EventId>,
+        stages: &mut BTreeMap<StageId, Vec<ekr_core::EventId>>,
+    ) {
+        match self {
+            Self::Occurrence(event_id) => prepared.push(event_id),
+            Self::Stage(stage, occurrences) => {
+                stages.insert(stage, occurrences);
+            }
+            Self::Resolved => {}
+        }
+    }
 }
