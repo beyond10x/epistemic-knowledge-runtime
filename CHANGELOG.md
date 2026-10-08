@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.33] — 2026-10-08
+
 ### Added
 
 - A run can be staged: `ekr stage begin` copies the store at its head into a stage of its own and
