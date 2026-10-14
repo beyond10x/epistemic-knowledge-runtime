@@ -840,6 +840,17 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             &["ekr.store-quality/1", "evidence", "ekr head", store],
         ),
         (
+            "compare",
+            &[
+                "ekr.store-comparison/1",
+                "commit times",
+                "writes nothing",
+                "--other",
+                "ekr head",
+                store,
+            ],
+        ),
+        (
             "ocel",
             &[
                 "ekr.ocel/1",

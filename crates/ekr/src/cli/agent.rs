@@ -72,6 +72,10 @@ WORKFLOW
                                                    evidenced assertions (seed and item),
                                                    constrained properties and declaring types,
                                                    names shared within a type
+     ekr compare --other <store> [--other-backend B] [--at N] [--other-at N]
+                                                   do two stores hold the same knowledge, commit
+                                                   times aside? per category the differing ids
+                                                   and fields; writes to neither
      ekr ocel [--revision N] [--events <type>...]  one revision as an OCEL 2.0 event log
                                                    (its `ocel` member), types and attributes by
                                                    id, `names` naming them; event types the

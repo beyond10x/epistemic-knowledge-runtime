@@ -23,6 +23,8 @@
 //! `quality` opens the store as those verbs do and reads one revision through
 //! `ekr_views::report_quality` (`quality.rs`); `ocel` likewise, through `ekr_views::export_ocel`
 //! (`ocel.rs`), and `process-map` through `ekr_views::export_process_map` (`process_map.rs`).
+//! `compare` opens the configured store and the one `--other` names as those verbs do, reads each
+//! once through `Runtime::read` and writes to neither (`compare.rs`).
 //! `sample` opens the store as those verbs do and draws from one revision through
 //! `ekr_views::draw_sample`; `fact-quality` reads the judged sample it is given and opens no
 //! provider (`sample.rs`).
@@ -40,6 +42,7 @@ mod agent;
 mod agent_help;
 mod code_names;
 mod commit;
+mod compare;
 mod explain;
 mod extraction;
 mod hash;
@@ -382,6 +385,34 @@ pub enum Command {
         #[arg(long)]
         revision: Option<u64>,
     },
+    /// Compare this store with another for equal content, ignoring commit times and transaction
+    /// ids: the `ekr.store-comparison/1` document (`ekr.cli.CompareStores`).
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads both stores
+    /// and writes nothing to either. The configured store is `left`, --other is `right`, each read
+    /// at its head (`ekr head`) unless --at or --other-at names a revision. Per category — types,
+    /// properties, nodes, edges, assertions, evidence — the document counts the ids each store
+    /// holds and names the first differing ids with the fields that differ; `equal` is true when
+    /// no category differs.
+    #[command(after_help = SEE)]
+    Compare {
+        /// The other store's location: a directory for `file`, database for `sqlite`,
+        /// configuration file for `postgres`.
+        #[arg(long, value_name = "STORE")]
+        other: PathBuf,
+        /// The other store's provider; the configured --backend when absent.
+        #[arg(long, value_enum)]
+        other_backend: Option<Backend>,
+        /// The other store's `ekr.cli-host/1` host document; the configured --host when absent.
+        #[arg(long, value_name = "HOST")]
+        other_host: Option<PathBuf>,
+        /// The committed revision of this store to compare; its head when absent.
+        #[arg(long)]
+        at: Option<u64>,
+        /// The committed revision of the other store to compare; its head when absent.
+        #[arg(long)]
+        other_at: Option<u64>,
+    },
     /// Print one revision as an OCEL 2.0 object-centric event log: the `ekr.ocel/1` document
     /// (`ekr.views.ExportOcel`), whose `ocel` member is the OCEL 2.0 JSON log.
     ///
@@ -524,7 +555,8 @@ pub enum Command {
     /// `ekr session`). On a --store holding no store yet the session starts anyway: `mint`,
     /// `hash` and `schema` are served, and a store verb answers `store-not-found` until a seed
     /// creates the store. `seed` is served with --create only;
-    /// `view`, `session`, `mcp`, `mcp-http`, `migrate`, `guide`, `operations` and `example` are refused
+    /// `view`, `session`, `mcp`, `mcp-http`, `migrate`, `compare`, `guide`, `operations` and
+    /// `example` are refused
     /// (`session-verb-refused`), and so are --host/--store/--backend/--full-replay in a request
     /// (`session-option-refused`).
     #[command(after_help = SEE)]
@@ -656,6 +688,7 @@ impl Command {
             | Self::Ontology { .. }
             | Self::CodeNames { .. }
             | Self::Quality { .. }
+            | Self::Compare { .. }
             | Self::Ocel { .. }
             | Self::ProcessMap { .. }
             | Self::Sample { .. }
@@ -1000,6 +1033,36 @@ fn dispatch(
             let runtime = source.resolve("quality")?.open()?;
             quality::run(&runtime, revision).map(Printed::Document)
         }
+        Command::Compare {
+            other,
+            other_backend,
+            other_host,
+            at,
+            other_at,
+        } => {
+            // A session refuses it: it opens a second store.
+            let store = source.configured("compare")?;
+            let other = Store {
+                host: match other_host {
+                    Some(path) => read_host(&path)?,
+                    None => store.host.clone(),
+                },
+                store: other,
+                backend: other_backend.unwrap_or(store.backend),
+                full_replay: store.full_replay,
+                stage: None,
+                access: Access::Read,
+            };
+            let (left, right) = (compare::Which::Store, compare::Which::Other);
+            let left_read =
+                compare::read(&store.open().map_err(|f| compare::from(left, f))?, at, left)?;
+            let right_read = compare::read(
+                &other.open().map_err(|f| compare::from(right, f))?,
+                other_at,
+                right,
+            )?;
+            render(&compare::run(&left_read, &right_read)?)
+        }
         Command::Ocel {
             revision,
             events,
@@ -1207,6 +1270,16 @@ fn flag_or_var(flag: Option<PathBuf>, var: &str) -> Option<PathBuf> {
         })
 }
 
+/// The trusted host document at `path`, read and checked.
+fn read_host(path: &std::path::Path) -> Result<CliHostConfigurationV1, Failure> {
+    std::fs::read(path)
+        .map_err(|error| Failure::fault(format!("reading host {}: {error}", path.display())))
+        .and_then(|bytes| {
+            CliHostConfigurationV1::from_json(&bytes)
+                .map_err(|error| Failure::fault(format!("host configuration: {error}")))
+        })
+}
+
 impl Configured {
     fn resolve(self, verb: &str) -> Result<Store, Failure> {
         let stage = self.stage(verb)?;
@@ -1244,12 +1317,7 @@ impl Configured {
             },
         };
         let backend = required(backend, "--backend", "EKR_BACKEND", verb)?;
-        let host = std::fs::read(&host)
-            .map_err(|error| Failure::fault(format!("reading host {}: {error}", host.display())))
-            .and_then(|bytes| {
-                CliHostConfigurationV1::from_json(&bytes)
-                    .map_err(|error| Failure::fault(format!("host configuration: {error}")))
-            })?;
+        let host = read_host(&host)?;
         let full_replay = self.full_replay
             || match std::env::var("EKR_FULL_REPLAY") {
                 Ok(value) if value == "1" || value == "true" => true,

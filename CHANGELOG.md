@@ -4,6 +4,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr compare --other <store>` says whether two stores hold the same knowledge, on any providers,
+  each at its head or at `--at` and `--other-at`: the `ekr.store-comparison/1` document, equal or
+  not, and per category (types, properties, nodes, edges, assertions, evidence) the counts on each
+  side and the first differing ids with the fields that differ. Commit times and transaction ids
+  are not compared, so two stores built from the same documents at different times compare equal.
+  It writes to neither store. `docs/cli.md` describes it.
+
 ## [0.0.33] — 2026-10-08
 
 ### Added
