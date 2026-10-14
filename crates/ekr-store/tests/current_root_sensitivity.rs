@@ -17,7 +17,7 @@ use ekr_graph::{
     TemporalRange, TransactionTime,
 };
 use ekr_ontology::{NodeType, Ontology, OntologyDocument, SchemaVersion};
-use ekr_store::{evidence_root, evidence_root_of, knowledge_root};
+use ekr_store::{evidence_root, knowledge_root};
 
 fn id<T: std::str::FromStr>(n: u64) -> T
 where
@@ -347,12 +347,18 @@ fn the_evidence_root_of_a_collection_is_the_evidence_root_of_its_graph() {
         graphs.push(changed);
     }
     for g in &graphs {
-        assert_eq!(evidence_root_of(&g.evidence), evidence_root(g));
+        assert_eq!(ekr_store::evidence_root_of(&g.evidence), evidence_root(g));
     }
     let mut emptied = graph();
     emptied.evidence.clear();
-    assert_eq!(evidence_root_of(&BTreeMap::new()), evidence_root(&emptied));
-    assert_ne!(evidence_root_of(&emptied.evidence), evidence_root(&graph()));
+    assert_eq!(
+        ekr_store::evidence_root_of(&BTreeMap::new()),
+        evidence_root(&emptied)
+    );
+    assert_ne!(
+        ekr_store::evidence_root_of(&emptied.evidence),
+        evidence_root(&graph())
+    );
 }
 
 #[test]
