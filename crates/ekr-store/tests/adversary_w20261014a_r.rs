@@ -73,29 +73,44 @@ fn seed() -> Publication {
 
 /// A fresh handle on the store of `file`'s provider at `path`, under the admitting authority.
 fn store(path: &Path, file: bool) -> Box<dyn RevisionLog> {
-    if file {
-        Box::new(
-            ekr_store::FileStore::file(&path.join("files"), "ekr", None)
-                .unwrap()
-                .under(Admitting),
-        )
+    opened(path, file).unwrap()
+}
+/// [`store`], or the provider's refusal to open it. The file provider refuses to open a store
+/// whose referenced blob fails its own integrity check, which hands over no model either.
+fn opened(path: &Path, file: bool) -> Result<Box<dyn RevisionLog>, StoreError> {
+    Ok(if file {
+        Box::new(ekr_store::FileStore::file(&path.join("files"), "ekr", None)?.under(Admitting))
     } else {
         Box::new(
-            ekr_store::SqliteStore::sqlite(&path.join("state.db"), "ekr", None)
-                .unwrap()
-                .under(Admitting),
+            ekr_store::SqliteStore::sqlite(&path.join("state.db"), "ekr", None)?.under(Admitting),
         )
-    }
+    })
 }
 /// Seeds the store at `path` and retains [`CHECKPOINT`] as the newest checkpoint over its one
 /// occurrence.
 fn seeded(path: &Path, file: bool) {
-    let written = store(path, file);
-    assert_eq!(written.initialize(&seed()), Ok(Appended::Written));
-    assert_eq!(
-        written.write_checkpoint(1, ContentHash::of_bytes(b"binding"), Some(CHECKPOINT)),
-        Ok(true)
-    );
+    // `Initialize` is a trait of its own, not a method of `dyn RevisionLog`, so the store is
+    // seeded through its concrete type.
+    fn written(store: &(impl RevisionLog + Initialize)) {
+        assert_eq!(store.initialize(&seed()), Ok(Appended::Written));
+        assert_eq!(
+            store.write_checkpoint(1, ContentHash::of_bytes(b"binding"), Some(CHECKPOINT)),
+            Ok(true)
+        );
+    }
+    if file {
+        written(
+            &ekr_store::FileStore::file(&path.join("files"), "ekr", None)
+                .unwrap()
+                .under(Admitting),
+        );
+    } else {
+        written(
+            &ekr_store::SqliteStore::sqlite(&path.join("state.db"), "ekr", None)
+                .unwrap()
+                .under(Admitting),
+        );
+    }
 }
 fn provider(file: bool) -> &'static str {
     if file {
@@ -155,7 +170,11 @@ fn a_checkpoint_damaged_on_disk_hands_over_no_model() {
             "{}: precondition: the checkpoint is retained as raw bytes",
             provider(file)
         );
-        let read = store(path, file).read_model(&none);
+        // A provider that refuses to open the damaged store hands over nothing at all.
+        let Ok(reopened) = opened(path, file) else {
+            continue;
+        };
+        let read = reopened.read_model(&none);
         match read {
             Ok(None) => {}
             Ok(Some((_, model))) => panic!(
@@ -194,7 +213,11 @@ fn a_named_object_damaged_on_disk_hands_over_no_model() {
             "{}: precondition: the record is retained as raw bytes",
             provider(file)
         );
-        let read = store(path, file).read_model(&record);
+        // A provider that refuses to open the damaged store hands over nothing at all.
+        let Ok(reopened) = opened(path, file) else {
+            continue;
+        };
+        let read = reopened.read_model(&record);
         match read {
             Ok(None) => {}
             Ok(Some((history, _))) => panic!(

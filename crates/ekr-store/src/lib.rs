@@ -81,9 +81,9 @@ pub use eventlog::{
 #[doc(hidden)]
 pub use log::knowledge_roots_hashed;
 pub use log::{
-    evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,
-    Publication, PublicationObject, ReadModel, RecordedOccurrence, RetainedHistory, RetainedObject,
-    RevisionLog,
+    evidence_root, evidence_root_of, knowledge_root, AdmittedRevision, Appended, CommitAuthority,
+    Initialize, Publication, PublicationObject, ReadModel, RecordedOccurrence, RetainedHistory,
+    RetainedObject, RevisionLog,
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};

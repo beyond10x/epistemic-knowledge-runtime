@@ -185,3 +185,56 @@ fn a_handle_that_keeps_no_checkpoint_hands_over_no_model() {
         "file: a store with no authority hands over no model"
     );
 }
+
+/// `RevisionLog::load_required`, design § 108.2 item 7: once the kernel has read from the model
+/// which evidence payloads a complete read of the revision requires, the store loads exactly
+/// those into the model's history, each verified as a required object is, and refuses one it
+/// cannot load rather than handing the history over without it.
+#[test]
+fn objects_named_after_the_model_is_read_are_loaded_verified_and_an_absent_one_is_refused() {
+    let directory = tempfile::tempdir().unwrap();
+    for (provider, store) in stores(directory.path()) {
+        let binding = ContentHash::of_bytes(b"binding");
+        assert_eq!(
+            store.write_checkpoint(1, binding, Some(b"a checkpoint")),
+            Ok(true)
+        );
+        let none = |_: &[ekr_store::RecordedOccurrence]| BTreeSet::new();
+        let (mut history, _) = store.read_model(&none).unwrap().unwrap();
+        let _ = ekr_store::objects_loaded();
+        let document = ContentHash::of_bytes(DOCUMENT);
+        store
+            .load_required(&mut history, BTreeSet::from([document]))
+            .unwrap();
+        assert_eq!(
+            history.objects.keys().copied().collect::<Vec<_>>(),
+            vec![document],
+            "{provider}: only the named object is added"
+        );
+        assert_eq!(
+            history.content(document, StorageClass::Canonical),
+            Ok(DOCUMENT),
+            "{provider}: the object is the verified bytes"
+        );
+        assert_eq!(ekr_store::objects_loaded(), 1, "{provider}: one load");
+        store
+            .load_required(&mut history, BTreeSet::from([document]))
+            .unwrap();
+        assert_eq!(
+            ekr_store::objects_loaded(),
+            0,
+            "{provider}: an object the history holds is not loaded again"
+        );
+        let absent = ContentHash::of_bytes(b"never stored");
+        assert!(
+            store
+                .load_required(&mut history, BTreeSet::from([absent]))
+                .is_err(),
+            "{provider}: an object the store does not hold is refused"
+        );
+        assert!(
+            !history.objects.contains_key(&absent),
+            "{provider}: nothing is added for a refused object"
+        );
+    }
+}

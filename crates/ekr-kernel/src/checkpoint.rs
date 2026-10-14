@@ -48,11 +48,12 @@ use crate::{
     CommitReceiptV1, KernelAuthority, ProposalRecordV1, RejectionRecordV1, SeedResultV1,
     StaleRecordV1, TransactionRecord, ValidationReceiptV1,
 };
-use ekr_core::{Canonical, ContentHash, EdgeId, Encoder, NodeId, RevisionNumber};
-use ekr_graph::{CanonicalGraph, RevisionPayload};
+use ekr_core::{Canonical, ContentHash, EdgeId, Encoder, EvidenceId, NodeId, RevisionNumber};
+use ekr_graph::{CanonicalGraph, Evidence, RevisionPayload};
 use ekr_ontology::{Ontology, OntologyDocument};
 use ekr_store::{
-    evidence_root, knowledge_root, GraphDocument, RetainedHistory, StorageClass, StoreError,
+    evidence_root, evidence_root_of, knowledge_root, GraphDocument, RetainedHistory, StorageClass,
+    StoreError,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -721,6 +722,32 @@ pub(crate) struct Served {
     pub(crate) revision_id: ekr_core::RevisionId,
     pub(crate) ontology: Arc<Ontology>,
     pub(crate) graph: Option<Arc<CanonicalGraph>>,
+    /// The evidence payloads a complete read of the revision requires: the seed envelope's, and
+    /// the payload of every evidence entry the revision's evidence root binds. The model is
+    /// served only once each of them is loaded and verified (design § 108.2 item 7).
+    pub(crate) payloads: BTreeSet<ContentHash>,
+}
+
+/// A checkpoint's head graph document read for its evidence collection only: every other field
+/// of it is skipped without being decoded.
+#[derive(Deserialize)]
+struct EvidenceOnly {
+    graph: EvidenceFields,
+}
+#[derive(Deserialize)]
+struct EvidenceFields {
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    evidence: BTreeMap<EvidenceId, Evidence>,
+}
+
+/// `seed_payloads` and the payload address of every entry of `evidence`.
+fn required_payloads<'a>(
+    seed_payloads: BTreeSet<ContentHash>,
+    evidence: impl IntoIterator<Item = &'a Evidence>,
+) -> BTreeSet<ContentHash> {
+    let mut payloads = seed_payloads;
+    payloads.extend(evidence.into_iter().map(|entry| entry.content_hash));
+    payloads
 }
 
 /// The revision an occurrence makes, if it makes one: the seed or a commit.
@@ -745,26 +772,50 @@ fn making(
 }
 
 impl KernelAuthority {
-    /// The objects a read of `revision` (the head for `None`) served from the read model loads:
-    /// the revision's retained record and, for a read of its graph, the seed envelope, whose
-    /// graph root no revision root binds. Nothing else, whatever the history's length.
+    /// The objects a read of `revision` (the head for `None`) served from the read model loads
+    /// with the history: the revision's retained record and the seed envelope, whose graph root
+    /// and evidence payloads no revision root binds and which a complete read requires. The
+    /// evidence payloads, named only once the model is read, are loaded after it
+    /// ([`Served::payloads`]). Nothing else, whatever the history's length.
     pub(crate) fn model_objects(
         occurrences: &[ekr_store::RecordedOccurrence],
         revision: Option<RevisionNumber>,
-        graph: bool,
     ) -> BTreeSet<ContentHash> {
         let mut objects = BTreeSet::new();
         if let Some(target) = making(occurrences, revision) {
             objects.insert(target.event.record_hash);
         }
-        if graph {
-            if let Some(RevisionPayload::Seeded { seed_hash, .. }) =
-                occurrences.first().map(|first| &first.event.payload)
-            {
-                objects.insert(*seed_hash);
-            }
+        if let Some(RevisionPayload::Seeded { seed_hash, .. }) =
+            occurrences.first().map(|first| &first.event.payload)
+        {
+            objects.insert(*seed_hash);
         }
         objects
+    }
+
+    /// The seed envelope `history` retains, verified at its address, held to a read model's
+    /// checkpoint: no preserving migration's claim (a migrated seed is never served), and
+    /// `seed_payloads` exactly the envelope's evidence payloads.
+    fn model_seed(
+        &self,
+        history: &RetainedHistory,
+        seed_payloads: &BTreeSet<ContentHash>,
+    ) -> Result<SeedOutline, StoreError> {
+        let Some(RevisionPayload::Seeded { seed_hash, .. }) = history
+            .occurrences
+            .first()
+            .map(|first| &first.event.payload)
+        else {
+            return Err(StoreError::NotSeeded);
+        };
+        let bytes = history.content(*seed_hash, StorageClass::Canonical)?;
+        let envelope = match self.held_envelope(*seed_hash)? {
+            Some(envelope) => SeedOutline::Full(envelope),
+            None => crate::seed::outline(bytes)?,
+        };
+        require(envelope.migration_claim().is_none(), "model-migrated-seed")?;
+        require(envelope.payloads_are(seed_payloads), "model-seed-payloads")?;
+        Ok(envelope)
     }
 
     /// Serves `revision` (the head for `None`) from the persisted read model `model`, read against
@@ -777,12 +828,15 @@ impl KernelAuthority {
     /// covers (an `/1` binding: a migrated seed is never served), and a head read must find that
     /// prefix to be every occurrence; the checkpoint must be this host's, bound to a prefix of
     /// that one, and headed by the last revision committed in it; the revision's record must name
-    /// its own occurrence and root; the schema must reproduce that root's ontology root; and a
-    /// graph, served only for the checkpoint's own head, must reproduce its knowledge and evidence
-    /// roots and carry the seed envelope's graph root, beside the envelope's seed payloads and,
-    /// under a profile that keeps none, no held identities. A read serves only what it checked and
-    /// reads nothing else of the model. What it takes on trust is what a checkpoint takes (design
-    /// § 96.3): that the bound prefix was replayed when it was written.
+    /// its own occurrence and root; the schema must reproduce that root's ontology root; the
+    /// retained seed envelope must carry no migration claim and the checkpoint's seed payloads;
+    /// a graph, served only for the checkpoint's own head, must reproduce its knowledge and
+    /// evidence roots and carry the seed envelope's graph root, beside, under a profile that keeps
+    /// none, no held identities; and for a schema read the head graph's evidence entries must
+    /// reproduce the revision's evidence root. A read serves only what it checked and reads
+    /// nothing else of the model. Its caller loads and verifies [`Served::payloads`] before it
+    /// serves anything (design § 108.2 item 7). What it takes on trust is what a checkpoint takes
+    /// (design § 96.3): that the bound prefix was replayed when it was written.
     /// # Errors
     /// The first check `model` fails, by name.
     pub(crate) fn serve_model(
@@ -842,17 +896,35 @@ impl KernelAuthority {
             _ => return Err(refuse("model-revision-absent")),
         };
 
-        // An ontology read reads no graph: it skips the head graph's bytes without decoding them,
-        // so a model whose graph does not hold serves it no graph, and nothing else either.
+        // An ontology read reads no graph: of the head graph it decodes only the evidence entries,
+        // which must reproduce the read revision's evidence root, and skips the rest undecoded.
+        // Retained evidence is never removed, so where evidence was added between the revision
+        // and the checkpoint's head the entries do not reproduce it and the revision reads
+        // completely.
         if !graph {
-            let checkpoint: CheckpointV1<serde::de::IgnoredAny> = decode_model(&model.checkpoint)?;
+            let checkpoint: CheckpointV1<EvidenceOnly> = decode_model(&model.checkpoint)?;
             self.model_checkpoint(&checkpoint, prefix, &digests)?;
-            let ontology = in_force(checkpoint.ontologies, &root)?;
+            let CheckpointV1 {
+                ontologies,
+                graph:
+                    EvidenceOnly {
+                        graph: EvidenceFields { evidence },
+                    },
+                seed_payloads,
+                ..
+            } = checkpoint;
+            self.model_seed(history, &seed_payloads)?;
+            require(
+                evidence_root_of(&evidence) == root.evidence_root,
+                "model-evidence-root",
+            )?;
+            let ontology = in_force(ontologies, &root)?;
             return Ok(Served {
                 root,
                 revision_id,
                 ontology: Arc::new(ontology),
                 graph: None,
+                payloads: required_payloads(seed_payloads, evidence.values()),
             });
         }
         let checkpoint: CheckpointV1 = decode_model(&model.checkpoint)?;
@@ -871,24 +943,11 @@ impl KernelAuthority {
         // What no revision root binds is the seed's: the graph root, and the evidence payloads the
         // seed requires. The identities a profile-v3 lineage held are not served; a store under
         // any other profile holds none, so its model says none.
-        let Some(RevisionPayload::Seeded { seed_hash, .. }) = history
-            .occurrences
-            .first()
-            .map(|first| &first.event.payload)
-        else {
-            return Err(StoreError::NotSeeded);
-        };
-        let seed_hash = *seed_hash;
-        let envelope = match self.held_envelope(seed_hash)? {
-            Some(envelope) => crate::seed::SeedOutline::Full(envelope),
-            None => crate::seed::outline(history.content(seed_hash, StorageClass::Canonical)?)?,
-        };
-        require(envelope.migration_claim().is_none(), "model-migrated-seed")?;
+        let envelope = self.model_seed(history, &seed_payloads)?;
         require(
             document.root == envelope.graph().root,
             "model-graph-root-identity",
         )?;
-        require(envelope.payloads_are(&seed_payloads), "model-seed-payloads")?;
         require(
             self.anchor.validation_profile.keeps_identities() || held.is_empty(),
             "model-held-identities",
@@ -899,11 +958,13 @@ impl KernelAuthority {
                 && evidence_root(&graph) == root.evidence_root,
             "model-graph-root",
         )?;
+        let payloads = required_payloads(seed_payloads, graph.evidence.values());
         Ok(Served {
             root,
             revision_id,
             ontology: Arc::new(ontology),
             graph: Some(Arc::new(graph)),
+            payloads,
         })
     }
 

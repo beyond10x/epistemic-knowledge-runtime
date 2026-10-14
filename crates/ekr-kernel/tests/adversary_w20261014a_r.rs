@@ -57,12 +57,17 @@ fn open(path: &Path, file: bool) -> Runtime {
 }
 /// A reading handle, as `ekr snapshot` and `ekr ontology` open one.
 fn reader(path: &Path, file: bool) -> Runtime {
+    opened(path, file).unwrap()
+}
+/// [`reader`], or the provider's refusal to open the store. The file provider refuses to open a
+/// store whose referenced blob fails its own integrity check: every read of it is refused.
+fn opened(path: &Path, file: bool) -> Result<Runtime, String> {
     if file {
         Runtime::file_reading(path, TENANT, context(), anchor())
     } else {
         Runtime::sqlite_reading(&path.join("state.db"), TENANT, context(), anchor())
     }
-    .unwrap()
+    .map_err(|error| format!("open refused: {error}"))
 }
 fn provider(file: bool) -> &'static str {
     if file {
@@ -273,23 +278,22 @@ fn held_to_the_complete_read(add: bool, payload: &[u8], what: &str) {
             provider(file)
         );
         // What `ekr snapshot` and `ekr ontology` read before this change: a complete read.
-        let complete = reader(path, file)
-            .read(None)
-            .map(|_| ())
-            .map_err(|e| e.to_string());
-        let full = {
-            let mut runtime = reader(path, file);
+        let complete = opened(path, file)
+            .and_then(|runtime| runtime.read(None).map(|_| ()).map_err(|e| e.to_string()));
+        let full = opened(path, file).and_then(|mut runtime| {
             runtime.set_full_replay(true);
             runtime.read(None).map(|_| ()).map_err(|e| e.to_string())
-        };
+        });
         assert!(
             complete.is_err() && full.is_err(),
             "{}: precondition: a complete read refuses a damaged {what} ({damaged} \
              occurrence(s) damaged): complete {complete:?}, full replay {full:?}",
             provider(file)
         );
-        let graph = reader(path, file).read_graph(None);
-        let ontology = reader(path, file).read_ontology(None);
+        let graph = opened(path, file)
+            .and_then(|runtime| runtime.read_graph(None).map_err(|e| e.to_string()));
+        let ontology = opened(path, file)
+            .and_then(|runtime| runtime.read_ontology(None).map_err(|e| e.to_string()));
         assert!(
             graph.is_err(),
             "{}: `ekr snapshot` (Runtime::read_graph) answers over a damaged {what} that the \

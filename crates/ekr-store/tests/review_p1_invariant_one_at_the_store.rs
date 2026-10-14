@@ -228,13 +228,15 @@ fn declared_entry_points() -> BTreeSet<String> {
 /// `sqlite` and `file` and create nothing where no store is. `set_full_replay` sets a flag.
 /// `checkpoint_covered` (design § 99.5) reads the newest checkpoint pointer.
 /// `read_model` (design § 108) reads the revision stream, that pointer, the checkpoint it names and the
-/// objects its caller names, and appends nothing.
+/// objects its caller names, and appends nothing; `load_required` loads further objects its caller
+/// names into the history `read_model` handed over, and appends nothing either.
 /// `postgres` admits an existing provider and `postgres_schema` provisions empty provider
 /// tables; neither publishes a knowledge occurrence. Publications use the same checked paths.
-const NOT_WRITERS: [&str; 26] = [
+const NOT_WRITERS: [&str; 27] = [
     "set_full_replay",
     "checkpoint_covered",
     "read_model",
+    "load_required",
     "preparation",
     "published_events",
     "history",

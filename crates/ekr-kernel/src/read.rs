@@ -380,7 +380,8 @@ impl OntologyRead {
 impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// The graph and root of `revision`, or of the head for `None`: from the persisted read model
     /// when the kernel verifies it for that revision (design § 108), which replays nothing and
-    /// decodes only the revision's record, the seed envelope and the checkpoint; otherwise
+    /// decodes only the revision's record, the seed envelope and the checkpoint, and loads and
+    /// verifies every evidence payload a complete read requires; otherwise
     /// [`Self::read`]'s, with its answer and its refusals.
     /// # Errors
     /// Whatever [`Self::read`] refuses.
@@ -407,7 +408,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     }
     /// The schema in force at `revision`, or at the head for `None`, with that revision's root:
     /// from the persisted read model when the kernel verifies it for that revision (design § 108),
-    /// which replays nothing and decodes only the revision's record and the checkpoint; otherwise
+    /// which replays nothing, decodes only the revision's record, the seed envelope and the
+    /// checkpoint (of its graph, the evidence entries), and loads and verifies every evidence
+    /// payload a complete read requires; otherwise
     /// [`Self::read`]'s, with its answer and its refusals.
     /// # Errors
     /// Whatever [`Self::read`] refuses.
@@ -448,16 +451,26 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 return None;
             }
         }
-        let (history, model) = self
+        let (mut history, model) = self
             .store
-            .read_model(&|occurrences| {
-                crate::KernelAuthority::model_objects(occurrences, revision, graph)
-            })
+            .read_model(&|occurrences| crate::KernelAuthority::model_objects(occurrences, revision))
             .ok()??;
         let served = self
             .authority
             .serve_model(&history, &model, revision, graph)
             .ok()?;
+        // Every evidence payload a complete read of the revision requires, which invariant 2
+        // rests canonical knowledge on, is loaded and checked as the complete read checks it
+        // (design § 108.2 item 7). One that is absent or damaged is never answered over: the
+        // complete read answers instead and refuses the store by its own name.
+        self.store
+            .load_required(&mut history, served.payloads.clone())
+            .ok()?;
+        for payload in &served.payloads {
+            history
+                .content(*payload, ekr_store::StorageClass::Provenance)
+                .ok()?;
+        }
         if let Ok(mut cache) = self.authority.cache.lock() {
             cache.model_served = true;
         }

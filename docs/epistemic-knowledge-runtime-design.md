@@ -6167,6 +6167,21 @@ it checked, and reads nothing else of the model.
    root, reproduce the root's knowledge and evidence roots, and the checkpoint's seed payloads must
    be the envelope's; under a profile that keeps no identities it must hold none. An ontology read
    skips the graph's bytes without decoding them.
+7. Every retained object a complete read of the revision requires that is not a decision record
+   is loaded and verified, as a history read loads a required object
+   (`RevisionLog::load_required`): the seed envelope, for an ontology read as for a graph read,
+   and every evidence payload, which invariant 2 rests canonical knowledge on. The payloads are
+   the checkpoint's seed payloads, which must be the envelope's, and the payload of each evidence
+   entry of its head graph, an entry list that must reproduce the read revision's evidence root
+   (an ontology read decodes those entries and skips the rest of the graph). Retained evidence is
+   never removed, so that list names every payload added through the revision; where it does not
+   reproduce the revision's evidence root, because evidence was added between the revision and
+   the checkpoint's head, the revision reads completely. An absent payload, or one whose bytes do
+   not hash to its address, refuses the model, and the complete read that answers instead refuses
+   the store by its own name. A damaged seed or added evidence payload is held on both providers
+   by `crates/ekr-kernel/tests/adversary_w20261014a_r.rs`, a damaged seed envelope by
+   `a_damaged_seed_envelope_is_refused_by_both_reads_as_by_a_complete_read` in
+   `crates/ekr-kernel/tests/read_model.rs`.
 
 **What it takes on trust** is what a checkpoint takes (§ 96.3) and `ekr head` took since § 99.2:
 that the bound prefix was replayed, and every retained decision in it re-derived, when the binding

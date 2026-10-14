@@ -17,8 +17,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 - One-shot `ekr snapshot` and `ekr ontology` answer from the retained replay checkpoint, which
   serves as a persisted read model, when the kernel verifies it for the revision read. They then
-  load the revision's record (and, for a snapshot, the seed envelope) and decode it with the
-  checkpoint. They replay nothing and no longer read, hash or decode every record of the history
+  load the revision's record, the seed envelope and every evidence payload, and decode the
+  record with the checkpoint. They replay nothing and no longer read, hash or decode every record of the history
   (design § 108). Answers are byte for byte what a complete read prints. A model that does not
   verify is ignored, and the read answers as before.
   - Still served by a complete read, as before: a snapshot of a head past the checkpoint's
@@ -30,6 +30,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
     refused by an `ekr snapshot` or `ekr ontology` served from the model, which does not load it.
     This is what `ekr head` already did since § 99.2. The next read that loads the record refuses
     it: any write verb, `ekr explain`, `ekr transactions`, or any verb under `--full-replay`.
+    A damaged or absent seed envelope or evidence payload is still refused by both verbs: the
+    model loads and verifies each one a complete read requires (design § 108.2 item 7).
 
 ## [0.0.33] — 2026-10-08
 

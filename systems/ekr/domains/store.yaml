@@ -415,6 +415,15 @@ types:
   #    version whose ontology root is that root's; a graph is served only for the checkpoint's own
   #    head revision, and only when it reproduces that root's knowledge, evidence and ontology roots
   #    and carries the seed envelope's graph root.
+  # 6. Every retained object a complete read of the revision requires that is not a decision record
+  #    is loaded and verified, as a required object is: the seed envelope, for a schema read as for
+  #    a graph read, and every evidence payload (`RevisionLog::load_required`), being the
+  #    checkpoint's seed payloads, which must be the envelope's, and the payload of each evidence
+  #    entry its head graph holds, an entry list that must reproduce the read revision's evidence
+  #    root. Retained evidence is never removed, so that list names every payload added through
+  #    the revision; where it does not reproduce the revision's evidence root the read goes on. An
+  #    object that is absent or whose bytes do not hash to its address refuses the model, and the
+  #    complete read refuses the store by its own name.
   # What it takes on trust is what a replay checkpoint takes (design § 96.3): that the prefix was
   # replayed and every decision in it re-derived when the binding was written. Records the read
   # does not load are not re-read by it.

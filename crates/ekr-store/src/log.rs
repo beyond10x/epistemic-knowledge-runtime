@@ -1,7 +1,9 @@
 //! Verified storage inputs and the fallible kernel authority boundary.
 use crate::{StorageClass, StoreError, StoredObject};
-use ekr_core::{Canonical, ContentHash, Encoder, EventId, RevisionId, RevisionNumber, Timestamp};
-use ekr_graph::{CanonicalGraph, RevisionEvent, Root};
+use ekr_core::{
+    Canonical, ContentHash, Encoder, EventId, EvidenceId, RevisionId, RevisionNumber, Timestamp,
+};
+use ekr_graph::{CanonicalGraph, Evidence, RevisionEvent, Root};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -45,7 +47,13 @@ pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
 /// Value-domain address of the complete evidence collection.
 #[must_use]
 pub fn evidence_root(graph: &CanonicalGraph) -> ContentHash {
-    ContentHash::of(&graph.evidence)
+    evidence_root_of(&graph.evidence)
+}
+/// [`evidence_root`] of a graph whose evidence collection is `evidence`, for a reader that
+/// decodes that collection without the rest of the graph.
+#[must_use]
+pub fn evidence_root_of(evidence: &BTreeMap<EvidenceId, Evidence>) -> ContentHash {
+    ContentHash::of(evidence)
 }
 
 /// A retained occurrence with the provider coordinates preserved alongside domain identity.
@@ -351,6 +359,22 @@ pub trait RevisionLog {
     ) -> Result<Option<(RetainedHistory, ReadModel)>, StoreError> {
         let _ = objects;
         Ok(None)
+    }
+    /// Loads into `history`, a history [`Self::read_model`] handed over, every object in `objects`
+    /// it does not already hold, each loaded and verified as a required object is: the objects
+    /// the kernel can name only after reading the model, which a complete read of the revision
+    /// requires (design § 108.2 item 7). Nothing is added unless every one loads.
+    ///
+    /// A log that keeps no read model refuses: it handed over no history to add to.
+    /// # Errors
+    /// An object the log does not hold, or whose retained bytes or metadata do not verify.
+    fn load_required(
+        &self,
+        history: &mut RetainedHistory,
+        objects: BTreeSet<ContentHash>,
+    ) -> Result<(), StoreError> {
+        let _ = (history, objects);
+        Err(StoreError::Document("read-model-not-kept".into()))
     }
     /// Records that the authority verified the first `covered` occurrences of the revision stream,
     /// under its own `binding` of that prefix, and retains `checkpoint` as their replay checkpoint,

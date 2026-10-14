@@ -411,6 +411,16 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
             }),
         );
         exercised.refuses(
+            "load_required",
+            store.load_required(
+                &mut RetainedHistory {
+                    occurrences: Vec::new(),
+                    objects: std::collections::BTreeMap::new(),
+                },
+                BTreeSet::from([object.content_hash]),
+            ),
+        );
+        exercised.refuses(
             "write_checkpoint",
             store.write_checkpoint(
                 1,

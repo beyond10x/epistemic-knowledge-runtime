@@ -19,7 +19,13 @@ thread_local! {
     /// Whether the stores this test thread opens admit schema changes (profile v2) rather than
     /// run profile v1. Each test runs on its own thread, so a case that sets it affects only itself.
     static EVOLVING: Cell<bool> = const { Cell::new(false) };
+    /// Whether the operator this test thread's stores record is named [`ENVELOPE_ONLY`] rather than
+    /// `operator`, so that one byte string occurs in the seed envelope and nowhere else.
+    static NAMED: Cell<bool> = const { Cell::new(false) };
 }
+
+/// An operator name the seed envelope's authority state records and no other retained object holds.
+const ENVELOPE_ONLY: &str = "operator named in the seed envelope only, 4c2d";
 
 fn context() -> BootstrapContext {
     BootstrapContext {
@@ -31,19 +37,29 @@ fn anchor() -> AuthorityStateV1 {
     let c = context();
     AuthorityStateV1 {
         format: "ekr.authority-state/1".into(),
-        agents: [(c.operator, "operator"), (c.validator, "validator")]
-            .into_iter()
-            .map(|(id, name)| {
-                (
+        agents: [
+            (
+                c.operator,
+                if NAMED.get() {
+                    ENVELOPE_ONLY
+                } else {
+                    "operator"
+                },
+            ),
+            (c.validator, "validator"),
+        ]
+        .into_iter()
+        .map(|(id, name)| {
+            (
+                id,
+                Agent {
                     id,
-                    Agent {
-                        id,
-                        name: name.into(),
-                        capabilities: BTreeSet::new(),
-                    },
-                )
-            })
-            .collect(),
+                    name: name.into(),
+                    capabilities: BTreeSet::new(),
+                },
+            )
+        })
+        .collect(),
         validation_profile: if EVOLVING.get() {
             ValidationProfileV1::schema_evolving(c.validator)
         } else {
@@ -62,12 +78,16 @@ fn open(path: &Path, file: bool) -> Runtime {
 }
 /// A reading handle, as `ekr snapshot` and `ekr ontology` open one.
 fn reader(path: &Path, file: bool) -> Runtime {
+    opened(path, file).unwrap()
+}
+/// [`reader`], or the provider's refusal to open the store.
+fn opened(path: &Path, file: bool) -> Result<Runtime, String> {
     if file {
         Runtime::file_reading(path, TENANT, context(), anchor())
     } else {
         Runtime::sqlite_reading(&path.join("state.db"), TENANT, context(), anchor())
     }
-    .unwrap()
+    .map_err(|error| format!("open refused: {error}"))
 }
 fn seed() -> SeedDocument {
     let mut seed = SeedDocument::from_yaml(include_str!("fixtures/seed-minimal-v2.yaml")).unwrap();
@@ -290,9 +310,11 @@ fn provider(file: bool) -> &'static str {
 /// read of the head (`Runtime::read`, what `ekr snapshot` and `ekr ontology` read through) loads,
 /// hashes and decodes every retained record the history holds, so its work grows with the
 /// history even where the checkpoint is at the head; a read at an earlier revision replays the
-/// whole lineage from the seed. A read of the head served from the read model loads two objects,
-/// decodes one record and the checkpoint, parses no document and begins no replay, at five
-/// commits and at ten alike.
+/// whole lineage from the seed. A read of the head served from the read model, of its graph or of
+/// its schema, loads three objects (the head record, the seed envelope and the one evidence
+/// payload the lineage holds, which a complete read requires: design § 108.2 item 7), decodes one
+/// record and the checkpoint, parses no document and begins no replay, at five commits and at ten
+/// alike.
 #[test]
 fn a_one_shot_read_of_a_verified_head_costs_what_the_history_length_does_not_change() {
     for file in [false, true] {
@@ -335,7 +357,7 @@ fn a_one_shot_read_of_a_verified_head_costs_what_the_history_length_does_not_cha
             // (`ekr_store::verified`), and the seed envelope of every store here is the same bytes:
             // the hashes are bounded, the rest counted exactly.
             assert!(
-                answer.graph_work.blobs_hashed <= 2 && answer.ontology_work.blobs_hashed <= 1,
+                answer.graph_work.blobs_hashed <= 3 && answer.ontology_work.blobs_hashed <= 3,
                 "{}: {:?} {:?}",
                 provider(file),
                 answer.graph_work,
@@ -352,12 +374,13 @@ fn a_one_shot_read_of_a_verified_head_costs_what_the_history_length_does_not_cha
                     records_decoded: 1,
                     documents_parsed: 0,
                     checkpoints_decoded: 1,
-                    objects_loaded: 2,
-                    blobs_read: 2,
+                    objects_loaded: 3,
+                    blobs_read: 3,
                     blobs_hashed: 0,
                 },
-                "{}: a graph read at {commits} commits loads the head record and the seed \
-                 envelope, decodes the record and the checkpoint, and replays nothing",
+                "{}: a graph read at {commits} commits loads the head record, the seed \
+                 envelope and the evidence payload, decodes the record and the checkpoint, and \
+                 replays nothing",
                 provider(file)
             );
             assert_eq!(
@@ -371,12 +394,12 @@ fn a_one_shot_read_of_a_verified_head_costs_what_the_history_length_does_not_cha
                     records_decoded: 1,
                     documents_parsed: 0,
                     checkpoints_decoded: 1,
-                    objects_loaded: 1,
-                    blobs_read: 1,
+                    objects_loaded: 3,
+                    blobs_read: 3,
                     blobs_hashed: 0,
                 },
-                "{}: an ontology read at {commits} commits loads and decodes the head record and \
-                 the checkpoint only",
+                "{}: an ontology read at {commits} commits loads the head record, the seed \
+                 envelope and the evidence payload, and decodes the record and the checkpoint only",
                 provider(file)
             );
         }
@@ -627,7 +650,7 @@ fn forgeries() -> Vec<(bool, bool, &'static str, Forge)> {
             root(forged)["created_at"] =
                 serde_json::to_value(Timestamp::from_millis(123_456)).unwrap();
         }),
-        (false, true, "no seed payloads", |forged| {
+        (false, false, "no seed payloads", |forged| {
             forged["seed_payloads"] = serde_json::json!([]);
         }),
         (
@@ -776,6 +799,97 @@ fn the_model_serves_only_what_its_pointer_covers_and_never_under_full_replay() {
             !graph.served_from_model() && !ontology.served_from_model(),
             "{}: a full-replay handle reads no model",
             provider(file)
+        );
+    }
+}
+
+/// Flips one bit in the middle of every occurrence of `bytes` in every file under `root`: the
+/// same length, different bytes. Returns how many occurrences it changed.
+fn damage(root: &Path, bytes: &[u8]) -> usize {
+    fn walk(path: &Path, bytes: &[u8], damaged: &mut usize) {
+        if path.is_dir() {
+            for entry in std::fs::read_dir(path).unwrap() {
+                walk(&entry.unwrap().path(), bytes, damaged);
+            }
+            return;
+        }
+        let mut contents = std::fs::read(path).unwrap();
+        let mut at = 0;
+        let mut changed = false;
+        while let Some(found) = contents[at..]
+            .windows(bytes.len())
+            .position(|window| window == bytes)
+        {
+            contents[at + found + bytes.len() / 2] ^= 1;
+            at += found + bytes.len();
+            changed = true;
+            *damaged += 1;
+        }
+        if changed {
+            std::fs::write(path, contents).unwrap();
+        }
+    }
+    let mut damaged = 0;
+    walk(root, bytes, &mut damaged);
+    damaged
+}
+
+/// The seed envelope, damaged on disk after the checkpoint at the head was written. A complete
+/// read requires it and refuses the store; so do both reads the model would serve, the ontology
+/// read included, which then loads the envelope as the graph read does (design § 108.2 item 7).
+/// Its bytes are a retained object a complete read requires, not a decision record, so the
+/// CHANGELOG's one named exception does not cover it.
+#[test]
+fn a_damaged_seed_envelope_is_refused_by_both_reads_as_by_a_complete_read() {
+    NAMED.set(true);
+    for file in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path();
+        build(path, file, 5, 3);
+        let before = answered(path, file, None);
+        assert!(
+            before.graph_served && before.ontology_served,
+            "{}: precondition: the undamaged head is served from the model",
+            provider(file)
+        );
+        let damaged = damage(path, ENVELOPE_ONLY.as_bytes());
+        assert!(
+            damaged >= 1,
+            "{}: precondition: the envelope is retained as raw bytes",
+            provider(file)
+        );
+        // The file provider refuses to open a store whose referenced blob fails its own integrity
+        // check: every read of it is refused, as these are.
+        let complete = opened(path, file)
+            .and_then(|runtime| runtime.read(None).map(|_| ()).map_err(|e| e.to_string()));
+        let full = opened(path, file).and_then(|mut runtime| {
+            runtime.set_full_replay(true);
+            runtime.read(None).map(|_| ()).map_err(|e| e.to_string())
+        });
+        assert!(
+            complete.is_err() && full.is_err(),
+            "{}: precondition: a complete read refuses a damaged seed envelope: {:?} {:?}",
+            provider(file),
+            complete.err(),
+            full.err()
+        );
+        let graph = opened(path, file)
+            .and_then(|runtime| runtime.read_graph(None).map_err(|e| e.to_string()));
+        assert!(
+            graph.is_err(),
+            "{}: the graph read answers over a damaged seed envelope; served from the model: \
+             {:?}",
+            provider(file),
+            graph.as_ref().map(GraphRead::served_from_model).ok()
+        );
+        let ontology = opened(path, file)
+            .and_then(|runtime| runtime.read_ontology(None).map_err(|e| e.to_string()));
+        assert!(
+            ontology.is_err(),
+            "{}: the ontology read answers over a damaged seed envelope; served from the model: \
+             {:?}",
+            provider(file),
+            ontology.as_ref().map(OntologyRead::served_from_model).ok()
         );
     }
 }

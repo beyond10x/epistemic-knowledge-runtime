@@ -2159,6 +2159,16 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             },
         )))
     }
+    /// One provider batch through the object loader a history read uses, after every object of
+    /// the batch has verified: a refusal adds nothing.
+    fn load_required(
+        &self,
+        history: &mut RetainedHistory,
+        objects: BTreeSet<ContentHash>,
+    ) -> Result<(), StoreError> {
+        self.entered()?;
+        self.load_objects(history, objects)
+    }
     fn write_checkpoint(
         &self,
         covered: u64,
