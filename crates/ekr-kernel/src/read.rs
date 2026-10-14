@@ -11,6 +11,50 @@ use ekr_store::{ObjectStore, RevisionLog};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+
+/// Decoding work the kernel did on the calling thread since [`read_cost`] last reported.
+///
+/// Test instrumentation, not part of the kernel's contract, as `ekr_store::ReadWork` is: it lets a
+/// case count what one read decodes, which no clock under load can (`AGENTS.md`). Counted per
+/// thread because every store and kernel call runs on its caller's thread.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReadCost {
+    /// Retained decision records decoded: seed results, proposals, validations, rejections,
+    /// commit receipts and stale records.
+    pub records_decoded: u64,
+    /// Transaction documents parsed from a retained proposal's bytes.
+    pub documents_parsed: u64,
+    /// Replay checkpoints decoded, each with its head graph.
+    pub checkpoints_decoded: u64,
+    /// Reads answered from the persisted read model (design § 108) rather than a complete read.
+    pub models_served: u64,
+}
+
+thread_local! {
+    static COST: std::cell::Cell<ReadCost> = const { std::cell::Cell::new(ReadCost {
+        records_decoded: 0,
+        documents_parsed: 0,
+        checkpoints_decoded: 0,
+        models_served: 0,
+    }) };
+}
+
+/// The decoding work counted on this thread since the last call, which starts the count again.
+#[doc(hidden)]
+#[must_use]
+pub fn read_cost() -> ReadCost {
+    COST.with(|cost| cost.replace(ReadCost::default()))
+}
+
+pub(crate) fn count(add: impl FnOnce(&mut ReadCost)) {
+    COST.with(|cost| {
+        let mut now = cost.get();
+        add(&mut now);
+        cost.set(now);
+    });
+}
+
 /// Complete verified coordinates of one retained canonical revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedRevision {
@@ -268,5 +312,156 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 .collect(),
             indexed: (graph, aliases),
         })
+    }
+}
+
+/// A verified read of one revision's graph, what `ekr snapshot` prints: served from the persisted
+/// read model where the kernel verifies it (design § 108), and otherwise a complete
+/// [`VerifiedRead`] of that revision. Either way the graph and root are the ones a complete read
+/// answers. Only the kernel constructs it; owning it grants no persistence authority.
+pub struct GraphRead {
+    /// The admitted graph at the read revision.
+    pub graph: Arc<CanonicalGraph>,
+    /// That revision's complete root.
+    pub root: Root,
+    source: GraphSource,
+}
+enum GraphSource {
+    /// Served from the read model: the revision's identity, from its retained record.
+    Model { revision_id: RevisionId },
+    /// A complete verified read.
+    Read(Box<VerifiedRead>),
+}
+impl GraphRead {
+    /// `ekr.kernel.Snapshot` of this read, byte for byte what [`VerifiedRead::snapshot`] of the
+    /// same revision answers.
+    /// # Errors
+    /// [`crate::ProjectionError::Unverified`] where a complete read's capture is not bound to its
+    /// retained root and seed; a read served from the model was held to them when it was served.
+    pub fn snapshot(
+        &self,
+        valid_at: Option<Timestamp>,
+    ) -> Result<crate::SnapshotResult, crate::ProjectionError> {
+        match &self.source {
+            GraphSource::Model { revision_id } => Ok(crate::SnapshotResult::of(
+                *revision_id,
+                self.root,
+                &self.graph,
+                valid_at,
+            )),
+            GraphSource::Read(read) => read.snapshot(valid_at),
+        }
+    }
+    /// Whether the persisted read model answered this read.
+    #[must_use]
+    pub fn served_from_model(&self) -> bool {
+        matches!(self.source, GraphSource::Model { .. })
+    }
+}
+
+/// A verified read of the schema in force at one revision, what `ekr ontology` prints: served
+/// from the persisted read model where the kernel verifies it (design § 108), and otherwise from a
+/// complete [`VerifiedRead`] of that revision. Only the kernel constructs it.
+pub struct OntologyRead {
+    /// The read revision's complete root; its `ontology_root` is [`Self::ontology`]'s address.
+    pub root: Root,
+    /// The schema in force at that revision.
+    pub ontology: Arc<Ontology>,
+    from_model: bool,
+}
+impl OntologyRead {
+    /// Whether the persisted read model answered this read.
+    #[must_use]
+    pub fn served_from_model(&self) -> bool {
+        self.from_model
+    }
+}
+
+impl<S: RevisionLog + ObjectStore> Commit<S> {
+    /// The graph and root of `revision`, or of the head for `None`: from the persisted read model
+    /// when the kernel verifies it for that revision (design § 108), which replays nothing and
+    /// decodes only the revision's record, the seed envelope and the checkpoint; otherwise
+    /// [`Self::read`]'s, with its answer and its refusals.
+    /// # Errors
+    /// Whatever [`Self::read`] refuses.
+    pub fn read_graph(&self, revision: Option<RevisionNumber>) -> Result<GraphRead, CommitError> {
+        if let Some(crate::checkpoint::Served {
+            root,
+            revision_id,
+            graph: Some(graph),
+            ..
+        }) = self.served(revision, true)
+        {
+            return Ok(GraphRead {
+                graph,
+                root,
+                source: GraphSource::Model { revision_id },
+            });
+        }
+        let read = self.read(revision)?;
+        Ok(GraphRead {
+            graph: Arc::clone(&read.graph),
+            root: read.root,
+            source: GraphSource::Read(Box::new(read)),
+        })
+    }
+    /// The schema in force at `revision`, or at the head for `None`, with that revision's root:
+    /// from the persisted read model when the kernel verifies it for that revision (design § 108),
+    /// which replays nothing and decodes only the revision's record and the checkpoint; otherwise
+    /// [`Self::read`]'s, with its answer and its refusals.
+    /// # Errors
+    /// Whatever [`Self::read`] refuses.
+    pub fn read_ontology(
+        &self,
+        revision: Option<RevisionNumber>,
+    ) -> Result<OntologyRead, CommitError> {
+        if let Some(served) = self.served(revision, false) {
+            return Ok(OntologyRead {
+                root: served.root,
+                ontology: served.ontology,
+                from_model: true,
+            });
+        }
+        let read = self.read(revision)?;
+        Ok(OntologyRead {
+            root: read.root,
+            ontology: Arc::new(read.graph.ontology.clone()),
+            from_model: false,
+        })
+    }
+    /// `revision` served from the persisted read model, with its graph when `graph` asks for it,
+    /// or `None` wherever the store has none or the kernel refuses it: never an error, because
+    /// the complete read that answers instead says what is wrong, if anything is.
+    ///
+    /// Only the first read of a handle that has reached no replay state is served from the model:
+    /// a one-shot command. A long-lived handle (a session) answers its later reads from the state a
+    /// complete read reached and keeps, which costs it nothing again, where the model would be
+    /// decoded anew for every read.
+    fn served(
+        &self,
+        revision: Option<RevisionNumber>,
+        graph: bool,
+    ) -> Option<crate::checkpoint::Served> {
+        {
+            let cache = self.authority.cache.lock().ok()?;
+            if cache.model_served || cache.newest().is_some() {
+                return None;
+            }
+        }
+        let (history, model) = self
+            .store
+            .read_model(&|occurrences| {
+                crate::KernelAuthority::model_objects(occurrences, revision, graph)
+            })
+            .ok()??;
+        let served = self
+            .authority
+            .serve_model(&history, &model, revision, graph)
+            .ok()?;
+        if let Ok(mut cache) = self.authority.cache.lock() {
+            cache.model_served = true;
+        }
+        count(|cost| cost.models_served += 1);
+        Some(served)
     }
 }

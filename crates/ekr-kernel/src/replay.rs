@@ -271,6 +271,7 @@ impl ReplayState {
         if let Some(parsed) = self.documents.get(&proposal.transaction_id) {
             return Ok(Arc::clone(parsed));
         }
+        crate::read::count(|cost| cost.documents_parsed += 1);
         TransactionDocument::parse(&proposal.document_bytes)
             .map(Arc::new)
             .map_err(|e| refuse(&format!("proposal-document: {e}")))
@@ -358,6 +359,10 @@ pub(crate) struct ReplayCache {
     pub(crate) seed_replays: u64,
     /// How many times this authority decoded a retained seed envelope's complete bytes.
     pub(crate) envelope_decodes: u64,
+    /// Whether this authority has answered a read from the persisted read model (design § 108).
+    /// Only its first read is: every later one continues from the replay state a complete read
+    /// reaches and keeps, which a long-lived handle reads again for free.
+    pub(crate) model_served: bool,
     /// Whether this authority is the one publishing a preserving migration into its store, which
     /// alone reads that store before the migration finished (design § 100.3).
     pub(crate) migrating: bool,
@@ -592,6 +597,7 @@ pub(crate) fn parsed_proposal(
     format: &str,
 ) -> Result<(ProposalRecordV1, TransactionDocument), StoreError> {
     registered(anchor, actor)?;
+    crate::read::count(|cost| cost.documents_parsed += 1);
     let document = TransactionDocument::parse(bytes)
         .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
     let tx = document.transaction();
@@ -1010,6 +1016,7 @@ impl KernelAuthority {
             let seed_result = SeedResultV1::from_bytes(
                 history.content(first.event.record_hash, StorageClass::Canonical)?,
             )?;
+            crate::read::count(|cost| cost.records_decoded += 1);
             let mut held = HeldIdentities::default();
             if self.anchor.validation_profile.keeps_identities() {
                 held.record(
@@ -1068,6 +1075,7 @@ impl KernelAuthority {
             )?;
             let event = &occurrence.event;
             let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
+            crate::read::count(|cost| cost.records_decoded += 1);
             match event.payload {
                 RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
                 RevisionPayload::TransactionProposed {

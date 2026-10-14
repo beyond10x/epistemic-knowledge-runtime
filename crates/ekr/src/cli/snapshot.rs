@@ -1,4 +1,5 @@
-//! `ekr snapshot`: the kernel's projection of one verified read.
+//! `ekr snapshot`: the kernel's projection of one verified read, served from the persisted read
+//! model where the kernel verifies it (design § 108).
 
 use ekr_core::{RevisionNumber, Timestamp};
 use ekr_kernel::{Runtime, SnapshotResult};
@@ -12,6 +13,6 @@ pub(super) fn run(
     at: Option<u64>,
     valid_at: Option<Timestamp>,
 ) -> Result<SnapshotResult, Failure> {
-    let read = runtime.read(at.map(RevisionNumber::new))?;
+    let read = runtime.read_graph(at.map(RevisionNumber::new))?;
     Ok(read.snapshot(valid_at)?)
 }

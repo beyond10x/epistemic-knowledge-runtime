@@ -25,7 +25,8 @@ use ekr_core::{
     TransactionId,
 };
 use ekr_graph::{
-    Assertion, AssertionLifecycle, CanonicalRef, Evidence, EvidenceSource, GraphSnapshot, Root,
+    Assertion, AssertionLifecycle, CanonicalGraph, CanonicalRef, Evidence, EvidenceSource,
+    GraphSnapshot, Root,
 };
 use ekr_store::{evidence_root, knowledge_root, GraphDocument};
 use serde::Serialize;
@@ -47,6 +48,33 @@ pub struct SnapshotResult {
     pub valid_at: Option<Timestamp>,
     /// Assertions believed at `valid_at`, in id order, when a selector was asked for.
     pub matching_assertions: Option<Vec<AssertionId>>,
+}
+impl SnapshotResult {
+    /// The projection of a verified `graph` at the revision `revision_id` with `root`: the one
+    /// place a snapshot is built, whether the graph came from a complete read or the read model.
+    pub(crate) fn of(
+        revision_id: RevisionId,
+        root: Root,
+        graph: &CanonicalGraph,
+        valid_at: Option<Timestamp>,
+    ) -> Self {
+        let matching_assertions = valid_at.map(|at| {
+            let mut ids: Vec<AssertionId> = GraphSnapshot::of(graph)
+                .valid_at(at)
+                .iter()
+                .map(|assertion| assertion.id)
+                .collect();
+            ids.sort();
+            ids
+        });
+        Self {
+            revision_id,
+            root,
+            graph: GraphDocument::of(graph),
+            valid_at,
+            matching_assertions,
+        }
+    }
 }
 
 /// `ekr.kernel.ExplainedSeed`: the actual seed admission an assertion originated in.
@@ -294,22 +322,12 @@ impl VerifiedRead {
     /// seed; see [`VerifiedRead::explain`] for the checks.
     pub fn snapshot(&self, valid_at: Option<Timestamp>) -> Result<SnapshotResult, ProjectionError> {
         let coordinate = self.bound()?;
-        let matching_assertions = valid_at.map(|at| {
-            let mut ids: Vec<AssertionId> = GraphSnapshot::of(&self.graph)
-                .valid_at(at)
-                .iter()
-                .map(|assertion| assertion.id)
-                .collect();
-            ids.sort();
-            ids
-        });
-        Ok(SnapshotResult {
-            revision_id: coordinate.revision_id,
-            root: self.root,
-            graph: GraphDocument::of(&self.graph),
+        Ok(SnapshotResult::of(
+            coordinate.revision_id,
+            self.root,
+            &self.graph,
             valid_at,
-            matching_assertions,
-        })
+        ))
     }
 
     /// `ekr.kernel.Explain` over this capture.

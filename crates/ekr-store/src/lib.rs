@@ -82,7 +82,7 @@ pub use eventlog::{
 pub use log::knowledge_roots_hashed;
 pub use log::{
     evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,
-    Publication, PublicationObject, RecordedOccurrence, RetainedHistory, RetainedObject,
+    Publication, PublicationObject, ReadModel, RecordedOccurrence, RetainedHistory, RetainedObject,
     RevisionLog,
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};

@@ -1,5 +1,7 @@
 //! `ekr ontology`: the node types, edge types and properties at the head or at one committed
-//! revision, by name and id, with the schema version in force there, through one `Runtime::read`.
+//! revision, by name and id, with the schema version in force there, through one
+//! `Runtime::read_ontology`: served from the persisted read model where the kernel verifies it
+//! (design § 108).
 
 use std::collections::BTreeMap;
 
@@ -50,8 +52,8 @@ struct EdgeType {
 /// The ontology of the requested (or newest) committed revision; a missing revision is the
 /// kernel's `RevisionNotFound`, as for `ekr snapshot --at`.
 pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failure> {
-    let read = runtime.read(at.map(RevisionNumber::new))?;
-    let document = read.graph.ontology.to_document();
+    let read = runtime.read_ontology(at.map(RevisionNumber::new))?;
+    let document = read.ontology.to_document();
     let names: BTreeMap<TypeId, String> = document
         .node_types
         .iter()

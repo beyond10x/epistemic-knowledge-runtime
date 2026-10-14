@@ -215,6 +215,24 @@ pub trait CommitAuthority {
         Ok(None)
     }
 }
+/// The persisted read model, `ekr.store.ReadModel` (design § 108): the newest replay-checkpoint
+/// pointer's coverage and binding and the bytes of the retained checkpoint it names, which a
+/// one-shot read is answered from where the kernel verifies it.
+///
+/// Private cache data, as the checkpoint is: the store hands it over unjudged, and it confers no
+/// authority. The kernel serves nothing from it without checking it against the history and its
+/// own binding; whatever it refuses is answered through a complete verified read instead.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReadModel {
+    /// How many revision-stream occurrences the newest pointer says were verified.
+    pub covered: u64,
+    /// The verifying authority's own binding of that prefix.
+    pub binding: ContentHash,
+    /// The payload address of the retained checkpoint the pointer names.
+    pub checkpoint_hash: ContentHash,
+    /// That checkpoint's bytes, which hash to `checkpoint_hash`.
+    pub checkpoint: Vec<u8>,
+}
 /// One object staged for atomic publication. No provider bytes exist merely because it is staged.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -314,6 +332,24 @@ pub trait RevisionLog {
     /// # Errors
     /// Provider failure.
     fn checkpoint_covered(&self) -> Result<Option<u64>, StoreError> {
+        Ok(None)
+    }
+    /// The persisted read model (design § 108) with the history it is read against: every
+    /// revision-stream occurrence, checked as a history read checks them, and, of the objects,
+    /// only those `objects` names given those occurrences, each loaded and verified as a required
+    /// object is. Nothing else is loaded, and nothing is replayed or judged.
+    ///
+    /// `None` when the log keeps no checkpoint for this handle (full replay, or none written), the
+    /// newest pointer or the checkpoint it names cannot be read, or a named object cannot be
+    /// loaded: the caller then reads the complete history, whose own refusals stand. A log that
+    /// keeps none answers `None`.
+    /// # Errors
+    /// Provider failure reading the revision stream.
+    fn read_model(
+        &self,
+        objects: &dyn Fn(&[RecordedOccurrence]) -> BTreeSet<ContentHash>,
+    ) -> Result<Option<(RetainedHistory, ReadModel)>, StoreError> {
+        let _ = objects;
         Ok(None)
     }
     /// Records that the authority verified the first `covered` occurrences of the revision stream,

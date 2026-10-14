@@ -136,6 +136,36 @@ impl Runtime {
             Backend::Postgres(k) => k.read(revision),
         }
     }
+    /// The graph and root of `revision`, or of the head, as `ekr snapshot` prints them: served
+    /// from the persisted read model where the kernel verifies it (design § 108), and otherwise
+    /// through [`Self::read`].
+    /// # Errors
+    /// Whatever [`Self::read`] refuses.
+    pub fn read_graph(
+        &self,
+        revision: Option<RevisionNumber>,
+    ) -> Result<crate::GraphRead, crate::CommitError> {
+        match &self.backend {
+            Backend::File(k) => k.read_graph(revision),
+            Backend::Sqlite(k) => k.read_graph(revision),
+            Backend::Postgres(k) => k.read_graph(revision),
+        }
+    }
+    /// The schema in force at `revision`, or at the head, as `ekr ontology` prints it: served from
+    /// the persisted read model where the kernel verifies it (design § 108), and otherwise through
+    /// [`Self::read`].
+    /// # Errors
+    /// Whatever [`Self::read`] refuses.
+    pub fn read_ontology(
+        &self,
+        revision: Option<RevisionNumber>,
+    ) -> Result<crate::OntologyRead, crate::CommitError> {
+        match &self.backend {
+            Backend::File(k) => k.read_ontology(revision),
+            Backend::Sqlite(k) => k.read_ontology(revision),
+            Backend::Postgres(k) => k.read_ontology(revision),
+        }
+    }
     /// The graph at `revision` and the schema history of its lineage, from one verified replay.
     /// # Errors
     /// Missing seed/revision or invalid required history.

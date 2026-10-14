@@ -6095,3 +6095,115 @@ PostgreSQL tests run, both written once in `crates/ekr/tests/support/stage_run.r
   claim and differs (measured), as § 107.9 says. After publication `ekr head` is the stage's last
   revision by number and roots, `ekr snapshot` by revision identity and graph, and
   `ekr --full-replay head` equals `ekr head`.
+
+---
+
+# 108. One-shot Reads Served from the Persisted Read Model (2026-10-14)
+
+*Added 2026-10-14 by wave 2026-10-14a, unit R (`story:reads-served-from-a-persisted-read-model`).
+Extends §§ 96.3, 99.2 and 99.5. It adds one way of reading the retained replay checkpoint and two
+kernel reads; it adds no retained format, changes no canonical root, no validation rule, no
+checkpoint or pointer format, no cadence and no refusal, and writes nothing. The contract is
+`ekr.store.ReadModel` in `systems/ekr/domains/store.yaml`; this section explains it.*
+
+**What was measured.** A consumer's SQLite store (ekr 0.0.13; 4,127 nodes, 14,373 edges, 67,558
+assertions; 420 MB in 392 blobs, 741 events): one-shot `ekr head` 0.29 s, `ekr snapshot` 3.7 s,
+`ekr ontology` 9.9 s. This unit could not read that store, so it profiled by counting, on a
+fixture store of 40 nodes and 40 assertions per commit, one fresh reading handle per read, as one
+`ekr` invocation opens one (`crates/ekr-kernel/tests/read_model.rs`,
+`a_one_shot_read_of_a_verified_head_costs_what_the_history_length_does_not_change`, both
+providers; per read):
+
+
+So the time goes where § 99.5.3 found it: `Runtime::read`, which both verbs read through, loads and
+hashes every retained record of the lineage and decodes each one — every proposal, and every commit
+receipt with the proposal it embeds — to build the replay state the checkpoint continues from, even
+where the checkpoint is at the head and nothing is replayed. A read at an earlier revision replays
+the whole lineage from the seed, parsing every document. The cost of both grows with the history;
+neither verb needs any of it. `ekr snapshot` prints the head graph and its root, `ekr ontology` the
+schema in force and the revision; the replay checkpoint already holds the head graph and every
+schema version from the revision it came into force at.
+
+## 108.1 The read model
+
+The persisted read model is the retained replay checkpoint (§ 96.3) read as an answer rather than
+as a state to replay from, with the newest pointer that names it. The store hands it over beside
+the history's occurrences and the objects the kernel names (`RevisionLog::read_model`): the
+pointer's `covered` and `binding`, and the checkpoint's bytes, checked against the address the
+pointer names. It reads nothing else and judges nothing. A store that keeps no checkpoint for the
+handle — a handle opened with `--full-replay`, a store without an authority, no pointer, a
+checkpoint whose bytes are not the ones named — hands over none. Nothing is written for it: a
+checkpoint and its pointers are written exactly as §§ 99.1 and 99.5 say.
+
+Two kernel reads use it: `Runtime::read_graph` (the graph and root of a revision, and the
+`ekr.kernel.Snapshot` of it) and `Runtime::read_ontology` (the schema in force at a revision, and
+its root). Each serves the revision from the model when the kernel verifies it, and otherwise
+answers exactly as `Runtime::read` does, with its refusals. A snapshot is built in one place
+(`SnapshotResult::of`) from either.
+
+## 108.2 Verification: what is served is what the history reproduces
+
+The model is refused, and the complete read answers, unless every check below holds. Each is what
+admitting the checkpoint (§ 96.3) holds it to, for the part a read serves; a read serves only what
+it checked, and reads nothing else of the model.
+
+1. The pointer's `binding` is this authority's `ekr.replay-checkpoint-binding/1` of the first
+   `covered` occurrences: its own record of having verified exactly that prefix under this host's
+   context and anchor, the record `ekr head` answers from (§ 99.2). A seed carrying a migration
+   claim binds `/2` and is never served from the model.
+2. The revision read lies in that prefix. A head read requires the prefix to be every occurrence
+   the stream holds: after a proposal or a validation no pointer names every occurrence (§ 99.1
+   item 3), and the head is read completely, as `ekr head` reads it then.
+3. The checkpoint decodes as `ekr.replay-checkpoint/1` under this host's authority, its own prefix
+   digest is the digest of its own first `covered` occurrences of that prefix, and its head is the
+   last revision committed in them.
+4. The revision's retained record — the seed result, or the commit receipt, whose address the
+   prefix digest binds — names its own occurrence and revision, its root hashes to its
+   `result_hash`, and a receipt's knowledge root is the one its occurrence carries.
+5. The schema served is the checkpoint's version in force at the revision, and it must reproduce
+   that root's ontology root. Past the checkpoint's head that is its newest version, so a commit
+   since that changed the schema reads completely.
+6. A graph is served only for the checkpoint's own head. It must carry the seed envelope's graph
+   root, reproduce the root's knowledge and evidence roots, and the checkpoint's seed payloads must
+   be the envelope's; under a profile that keeps no identities it must hold none. An ontology read
+   skips the graph's bytes without decoding them.
+
+**What it takes on trust** is what a checkpoint takes (§ 96.3) and `ekr head` took since § 99.2:
+that the bound prefix was replayed, and every retained decision in it re-derived, when the binding
+was written. A read served from the model does not load the records it does not serve, so a record
+damaged after that write is found by the next read that loads it — any write verb, `ekr explain`,
+`ekr transactions`, or `--full-replay` — not by `ekr snapshot` or `ekr ontology`. A writer able to
+append a self-consistent history and a matching checkpoint could already have it read as canonical
+until a full replay (§ 96.3); this adds no such writer. Invariant 1 is unchanged: nothing the model
+holds is served without the kernel's verdict on it, and the store neither builds nor judges it.
+
+**Only a cold handle's first read** is served from the model. A handle that has reached a replay
+state, or served the model once, reads completely and keeps that state, so that a session's later
+reads cost it nothing again rather than decoding the checkpoint anew each time.
+
+## 108.3 Result, and what is not changed
+
+
+Answers are byte for byte a complete read's: after every commit of a profile-v2 store whose schema
+changes twice, for every revision and the head, on both providers
+(`every_revision_answers_byte_for_byte_what_a_complete_read_answers`). A checkpoint forged in any
+field a read serves or holds to the seed, and a pointer with another binding, a shorter or a
+longer coverage, are never served, and each read answers as a complete read
+(`a_read_model_that_does_not_match_the_history_is_refused_and_never_served`). A head past the
+checkpoint's reads its graph completely and its unchanged schema from the model, a head after an
+unverified proposal reads completely while a revision the pointer covers is served, and a
+full-replay handle reads no model
+(`the_model_serves_only_what_its_pointer_covers_and_never_under_full_replay`). The store's half is
+`crates/ekr-store/tests/read_model.rs`. All in `crates/ekr-kernel/tests/read_model.rs` unless
+named, on the SQLite and File providers; PostgreSQL reads through the same `EventlogStore` code and
+was not run here.
+
+Not changed: `Runtime::read`, which every other verb and `ekr-views` read through, and its cost;
+`ekr snapshot --at` a revision other than the checkpoint's head, and the graph of a head past the
+checkpoint's, which replay as before (a one-shot store whose commits are made by one process each
+has its checkpoint up to four commits behind the head, § 99.5.1; a session leaves it at the head);
+and `ekr head`. `ekr snapshot` and `ekr ontology` read through `Runtime::read_graph` and
+`Runtime::read_ontology` (`crates/ekr/src/cli/snapshot.rs`, `ontology.rs`). Reads past the
+checkpoint staying complete was decided, not deferred: serving them would need a read verb that
+writes, or a graph advanced outside replay. Not measured: wall time on a store of the
+consumer's size, which the story's first acceptance bullet asks for.

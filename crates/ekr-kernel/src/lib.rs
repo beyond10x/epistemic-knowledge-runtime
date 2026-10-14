@@ -155,7 +155,9 @@ pub use explain::{
 };
 pub use issue::{ValidationIssue, ValidatorName};
 pub use migrate::{CapturedStore, MigratedOccurrence, StoreMigrationV1};
-pub use read::{SchemaHistory, VerifiedRead, VerifiedRevision};
+#[doc(hidden)]
+pub use read::{read_cost, ReadCost};
+pub use read::{GraphRead, OntologyRead, SchemaHistory, VerifiedRead, VerifiedRevision};
 pub use records::{
     CommitReceiptV1, CreatedIdentitiesV1, ProposalRecordV1, RecordedValidationIssue,
     RejectionRecordV1, SeedResultV1, StaleRecordV1, ValidationBasisV1, ValidationMaterialV1,
