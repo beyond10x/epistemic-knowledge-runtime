@@ -11,6 +11,7 @@ pub mod document;
 pub mod evidence;
 pub mod extraction;
 pub mod read;
+pub mod redact;
 pub mod reply;
 pub mod resolve;
 pub mod session;

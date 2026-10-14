@@ -18,6 +18,13 @@
 //! seed through the kernel's `AddEvidence` operation (`decision-blocker:evidence-entry-after-seed`,
 //! option 1), which admits `HumanStatement` evidence only until an observation is retained. There
 //! is no source adapter and no checkpoint.
+//!
+//! [`redact`] is the model-facing projection of an observed text (predecessors A6, invariant 9):
+//! credentials replaced, each replacement recorded by shape and span, the observed bytes left as
+//! they were. The observation layer calls it from here; the code is `ekr_core::redact`, kept in
+//! `ekr-core` so that `ekr-sdk` can offer the same function without linking this crate.
+
+pub use ekr_core::redact;
 
 use ekr_core::{Canonical, ContentHash, Encoder, ObservationId, Timestamp};
 use ekr_graph::{Observation, ObservationContent};
@@ -25,7 +32,7 @@ use serde::Deserialize;
 use uuid::Builder;
 
 /// What identifies the source record an observation was made from:
-/// `ekr.observe.ObservationIdempotencyKey`, `systems/ekr/domains/observe.yaml:45-56`.
+/// `ekr.observe.ObservationIdempotencyKey`, `systems/ekr/domains/observe.yaml:48-59`.
 ///
 /// Design § 56: source identity, source-native id, content hash. Two observations of one source
 /// record carry equal keys, and so equal ids. `source` and `source_native_id` mean what the fields
