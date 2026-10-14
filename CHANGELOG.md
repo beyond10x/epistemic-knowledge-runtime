@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.34] — 2026-10-14
+
 ### Added
 
 - `ekr compare --other <store>` says whether two stores hold the same knowledge, on any providers,
