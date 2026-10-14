@@ -616,6 +616,23 @@ pub fn build_long(runtime: &Runtime, extra: u64) {
     }
 }
 
+/// The first evidence id [`build_evidenced`] adds; revision `r` adds `EVIDENCED_FROM + r - 1`.
+pub const EVIDENCED_FROM: u64 = 0x7_0000;
+
+/// Seeds `store`, then commits `extra` revisions, each an `AddEvidence` of one retained human
+/// statement: a store whose every revision lists a change, and whose evidence grows with it.
+pub fn build_evidenced(runtime: &Runtime, extra: u64) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS,
+        transactions: TRANSACTIONS,
+    };
+    writer.seed(seed(3, true, false, 2));
+    for n in 0..extra {
+        writer.commit(vec![added_statement(EVIDENCED_FROM + n)], None);
+    }
+}
+
 /// Commits one more transaction onto a built [`Fixture::Evolved`] store, updating `beta`'s note
 /// to `note {n}`: a commit unrelated to any earlier revision, which moves only the head. Each `n`
 /// is a distinct transaction, timed after everything the fixture itself committed.
