@@ -105,6 +105,15 @@
     "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision": {
       "planted_early": "rejections-two-issues.yaml",
       "planted_late": "propose-rejected.yaml"
+    },
+    "ekr.kernel/authored/a-schema-transaction-citing-retained-evidence-commits-as-a-new-version": {
+      "citing": "schema-cites-retained-evidence.yaml"
+    },
+    "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version": {
+      "citing": "schema-adds-and-cites-evidence.yaml"
+    },
+    "ekr.kernel/authored/a-schema-transaction-carrying-another-data-operation-is-still-mixed": {
+      "citing": "schema-cites-evidence-mixed.yaml"
     }
   },
   "setups": {
@@ -137,6 +146,21 @@
       "host": "host.json",
       "seed": "seed.yaml",
       "revision_1": "revision-1-alias.yaml"
+    },
+    "ekr.kernel/authored/a-schema-transaction-citing-retained-evidence-commits-as-a-new-version": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored-evidence.yaml"
+    },
+    "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
+    },
+    "ekr.kernel/authored/a-schema-transaction-carrying-another-data-operation-is-still-mixed": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
     }
   },
   "proposals": {

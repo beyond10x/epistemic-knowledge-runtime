@@ -87,6 +87,7 @@ impl AliasCache {
                 | GraphOperation::SupersedeAssertion(_)
                 | GraphOperation::AddEvidence(_)
                 | GraphOperation::AttachEvidence(_)
+                | GraphOperation::CiteEvidence(_)
                 | GraphOperation::WidenEdgeType(_) => None,
             };
             if let Some(node) = changed.and_then(|id| graph.nodes.get(&id)) {

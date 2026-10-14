@@ -1,0 +1,69 @@
+# story:schema-transaction-cites-evidence, acceptance 1, evidence the transaction adds.
+#
+# The target runs validation profile v2 (`host-v2.json`), is seeded from `seed-authored.yaml` and
+# has committed revision 1 (`revision-1-authored.yaml`) before the first act. The fixture
+# `schema-adds-and-cites-evidence.yaml` carries an AddEvidence of evidence 0442 with its 19 payload
+# bytes, one DefineNodeType and a CiteEvidence of 0442. The AddEvidence travels with
+# the schema change because the version cites what it adds: a target that counted it as data would
+# reject the transaction as mixed-schema-transaction. It is validated against revision 1 and
+# committed as revision 2. Afterwards evidence 0442 is retained with its payload held at its
+# content hash, as evidence any other commit adds is.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version
+summary: A transaction of schema changes and one AddEvidence whose entry the schema version cites validates and commits, and the evidence is then retained.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: citing
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: proposal}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: proposal}
+      state: Committed
+      validated_against: 1
+
+  - view: ekr.kernel.CurrentRevision
+    contains:
+      number: 2
+
+  - view: ekr.kernel.RetainedEvidence
+    contains:
+      evidence_id: 00000000-0000-4000-8000-000000000442
+      content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+      extracted_by: 00000000-0000-4000-8000-000000000101

@@ -177,6 +177,7 @@ impl Revision {
             | GraphOperation::SupersedeAssertion(_)
             | GraphOperation::AddEvidence(_)
             | GraphOperation::AttachEvidence(_)
+            | GraphOperation::CiteEvidence(_)
             | GraphOperation::WidenEdgeType(_) => false,
         });
         if changes {

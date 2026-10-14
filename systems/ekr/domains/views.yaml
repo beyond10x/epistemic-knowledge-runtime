@@ -412,6 +412,12 @@ types:
   # the type and property ids this version declares and its parent does not (for the seed's
   # version, every id it declares). Only versions whose `revision` is at most the projected
   # revision are listed.
+  #
+  # `evidence` (design § 109, story:schema-transaction-cites-evidence): the evidence ids the
+  # schema transaction that made this version cited (ekr.ontology.SchemaVersion's `evidence`), as
+  # strings, ascending. Empty for the seed's version and for every version made without a
+  # citation; empty, the key is absent, so a store whose versions cite nothing renders exactly the
+  # bytes it rendered before the field existed and no format version changes.
   - name: ekr.views.ProjectedSchemaVersion
     kind: struct
     fields:
@@ -425,6 +431,8 @@ types:
         type: ekr.kernel.RevisionNumber
       - name: added
         type: List<Uuid>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
 
   # One committed revision up to and including the projected one. `transaction_id` is omitted for
   # the seed; `schema_version` is the id of the version its canonical state is valid against.

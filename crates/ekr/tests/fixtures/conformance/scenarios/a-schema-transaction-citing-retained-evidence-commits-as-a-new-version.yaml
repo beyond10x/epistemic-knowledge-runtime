@@ -1,0 +1,64 @@
+# story:schema-transaction-cites-evidence, acceptance 1, evidence the store retains.
+#
+# The target runs validation profile v2 (`host-v2.json`), is seeded from `seed-authored.yaml` and
+# has committed revision 1 (`revision-1-authored-evidence.yaml`, an AddEvidence of evidence 0441
+# and nothing citing it) before the first act. The fixture `schema-cites-retained-evidence.yaml`
+# is one DefineNodeType and one CiteEvidence of 0441, naming the version it produces and listing
+# 0441 in its manifest. It is a schema change alone, validated against revision 1 and committed as
+# revision 2, the next schema version. A target that left the cited id out of what the manifest is
+# held to would reject it as evidence-set-mismatch. That the committed version records
+# 0441 is not observable through the kernel's views; crates/ekr-kernel/tests/schema_evidence.rs
+# holds it on both providers.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-schema-transaction-citing-retained-evidence-commits-as-a-new-version
+summary: A schema-only transaction that cites evidence an earlier revision retains validates and commits as the next revision.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: citing
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: proposal}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: proposal}
+      state: Committed
+      validated_against: 1
+
+  - view: ekr.kernel.CurrentRevision
+    contains:
+      number: 2

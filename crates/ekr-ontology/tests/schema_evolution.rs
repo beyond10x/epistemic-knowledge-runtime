@@ -79,6 +79,7 @@ fn successor_document(prior: &Ontology) -> OntologyDocument {
         number: prior.version().number + 1,
         parent: Some(prior.version().id),
         created_at: LATER,
+        evidence: Default::default(),
     };
     document
 }

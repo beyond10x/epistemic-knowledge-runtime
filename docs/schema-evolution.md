@@ -391,6 +391,59 @@ What is refused, each as one `OntologyConstraint` issue:
 | both ends exactly as they are | `schema-change-without-effect` |
 | two `WidenEdgeType` of one edge type in one transaction (`Structural`) | `conflicting-write` |
 
+## 6. Cite the evidence that introduced a version
+
+*Added with `CiteEvidence` (design § 109), after 0.0.33. Like section 5, the file below continues
+this page's store but was not run against it, so no output is shown. The same operation, its use
+and its refusals run on both providers against the CLI reference's catalogue in
+[Evolve the schema, step 6](cli.md#6-cite-the-evidence-a-version-rests-on), which
+`crates/ekr/tests/docs_cli.rs` executes as written.*
+
+A store that grows its schema one type at a time, each just before the first fact that uses it, can
+say which statement introduced each type. `!CiteEvidence <evidence id>` beside the schema changes
+cites one evidence entry, and the version the commit makes records every cited id. The entry is one
+the store retains, or one an `!AddEvidence` of the same transaction adds: that `!AddEvidence`
+travels with the schema changes because the version cites it, and is not data mixed with them.
+Each cited id is also listed in `transaction.evidence`.
+
+Say an earlier commit added the on-call team's message announcing rotations, as evidence `…0411`.
+`Rotation` cites it without adding anything:
+
+```yaml
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-c000-000000000720
+  proposer: 00000000-0000-4000-c000-000000000011
+  operations:
+  - !DefineNodeType
+    id: 00000000-0000-4000-c000-000000000107
+    name: Rotation
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - !CiteEvidence 00000000-0000-4000-c000-000000000411
+  evidence:
+  - 00000000-0000-4000-c000-000000000411
+  schema_version: 00000000-0000-4000-c000-000000000008
+```
+
+Committed, it makes schema version `…0008`, and `ekr ontology --at` that revision, and every later
+revision until the next schema change, prints `"schema_version_evidence":
+["00000000-0000-4000-c000-000000000411"]`. Every version made without a citation prints `[]`, and
+its ontology root is the one it had before versions could cite: a version that cites nothing encodes
+exactly as before.
+
+| the citation | refusal |
+|---|---|
+| evidence the store does not retain and the transaction does not add (`Reference`) | `unresolved-evidence` |
+| in a transaction that changes no schema (`Structural`) | `citation-without-schema-change` |
+| the same id twice in one transaction (`Structural`) | `duplicate-citation` |
+| an id `transaction.evidence` leaves out (`Structural`) | `evidence-set-mismatch` |
+| beside any other data operation, a create or an `!AddEvidence` it does not cite (`Structural`) | `mixed-schema-transaction` |
+| in a store under profile v1 (`Structural`) | `unsupported-operation` |
+
 ## What is not possible in 0.0.6
 
 | you want to | in 0.0.6 | where it is planned |

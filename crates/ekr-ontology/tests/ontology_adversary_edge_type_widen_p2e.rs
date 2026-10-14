@@ -70,6 +70,7 @@ fn an_end_gained_beside_any_other_declaration_change_is_still_a_declaration_chan
             number: 1,
             parent: Some(prior.version().id),
             created_at: Timestamp::from_millis(1),
+            evidence: Default::default(),
         };
         for at in &mut document.edge_types {
             if at.id == cites {
@@ -111,6 +112,7 @@ fn a_source_end_replaced_rather_than_widened_is_a_declaration_change_under_edges
             number: 1,
             parent: Some(prior.version().id),
             created_at: Timestamp::from_millis(1),
+            evidence: Default::default(),
         };
         let replaced = &mut document.edge_types[0];
         if end == "source_types" {

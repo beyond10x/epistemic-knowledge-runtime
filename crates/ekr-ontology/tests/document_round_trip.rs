@@ -54,6 +54,7 @@ fn declared() -> OntologyDocument {
             number: 3,
             parent: Some(id::<SchemaVersionId>(8)),
             created_at: Timestamp::from_millis(1_790_035_200_000),
+            evidence: Default::default(),
         },
         node_types: vec![subject, NodeType::new(unused, "Unreferenced"), base],
         edge_types: vec![relation, loop_edge],

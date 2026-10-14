@@ -13,6 +13,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   are not compared, so two stores built from the same documents at different times compare equal.
   It writes to neither store. `docs/cli.md` describes it.
 
+- A schema change can cite the evidence that introduced it. `!CiteEvidence <evidence id>` beside
+  the schema changes of a transaction names evidence the store retains, or evidence an
+  `!AddEvidence` of the same transaction adds, and that `!AddEvidence` no longer makes the
+  transaction `mixed-schema-transaction`; any other data operation still does. The schema version
+  the commit makes records every cited id, and `ekr ontology` (with or without `--at`) prints them
+  as `schema_version_evidence`. Under validation profiles v2 and v3 only; v1 refuses the kind as
+  `unsupported-operation`. A citation is refused as `unresolved-evidence`,
+  `citation-without-schema-change`, `duplicate-citation` or `evidence-set-mismatch` (the cited id
+  belongs in `transaction.evidence`). `ekr operations` lists seventeen kinds. A version that cites
+  nothing encodes as before, so no existing ontology root moves; a store holding a citing version
+  is refused by earlier binaries. The projection (`ekr.graph-projection/1`, what `ekr view`
+  serves at `/projection`) carries a version's citations as `evidence` on its `schema.versions`
+  entry, omitted when it cites none, so a projection without a citation is unchanged; the viewer
+  page does not display them yet. In `ekr-sdk`, `read::Ontology` carries
+  `schema_version_evidence`, and `TransactionBuilder::build` refuses a citation without a schema
+  change as `DocumentError::CitationWithoutSchemaChange`, the kernel's
+  `citation-without-schema-change`, rather than `MixedSchemaTransaction`.
+
 ### Changed
 
 - One-shot `ekr snapshot` and `ekr ontology` answer from the retained replay checkpoint, which

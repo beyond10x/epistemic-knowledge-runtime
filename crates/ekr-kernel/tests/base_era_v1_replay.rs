@@ -263,6 +263,7 @@ fn every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes() {
             GraphOperation::WidenEdgeType(_) => "WidenEdgeType",
             GraphOperation::AddAlias(_) => "AddAlias",
             GraphOperation::AttachEvidence(_) => "AttachEvidence",
+            GraphOperation::CiteEvidence(_) => "CiteEvidence",
         })
         .collect();
     assert_eq!(kinds.len(), 12, "{kinds:?}");
