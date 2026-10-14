@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:projection-lineage-evidence
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether the projection document's schema lineage names the cited evidence
 relations:
 - blocks: story:schema-transaction-cites-evidence
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T14:10:59Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Question
 
@@ -39,3 +41,10 @@ The close of `story:schema-transaction-cites-evidence`.
 ## Clears when
 
 The operator records the answer; under option 1 it lands in `views.yaml` before the field is built.
+
+## Decided
+
+Option 1, in this wave: each `schema.versions[]` entry of `ekr.graph-projection/1` carries an optional
+`evidence` list of the evidence ids its version cites, omitted when empty, declared in
+`systems/ekr/domains/views.yaml` first. Documents of stores without citations stay byte-identical;
+no format bump. The adversary case for the lineage is un-ignored and must pass.
