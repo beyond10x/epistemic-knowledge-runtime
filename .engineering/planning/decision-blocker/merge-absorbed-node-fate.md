@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:merge-absorbed-node-fate
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether a merged-away node stays in canonical state, or whether a merge rewrites the references to it
 relations:
 - blocks: epic:p3-incubation-integration
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T12:20:57Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Question
 
@@ -23,3 +25,7 @@ Applying `MergeEntity` (today refused as `unsupported-operation`), the merge lin
 ## Related
 
 `decision-blocker:split-reverting-merge-identity` depends on this answer.
+
+## Answer
+
+Decided 2026-10-14 by the operator: after `MergeEntity { absorbed, into }`, `absorbed` stays in canonical state in a new `Absorbed` lifecycle state pointing at `into`, and every edge and assertion naming it is rewritten to `into` in the merging revision; a later merge repoints earlier absorbed nodes to the new survivor, so readers never follow chains. This is option A; one architecture decision record carries it together with merge-across-node-types and split-reverting-merge-identity.
