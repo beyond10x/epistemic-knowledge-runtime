@@ -646,6 +646,8 @@ const BINDINGS: &[(&str, Carrier)] = &[
         "ekr.store.PublicationPreparationV4",
         Carrier::Whole("PublicationPreparationV4"),
     ),
+    // Design § 108: the persisted read model the store hands the kernel.
+    ("ekr.store.ReadModel", Carrier::Whole("ReadModel")),
 ];
 
 /// Every declaration under the top-level `types:` and `entities:` keys of `document`, as

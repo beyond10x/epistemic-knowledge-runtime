@@ -2,8 +2,8 @@
 //! envelopes and bytes and atomically publishes conditional event/blob groups.
 use crate::{
     AdmittedRevision, Appended, CommitAuthority, GraphDocument, Initialize, ObjectStore,
-    Publication, RecordedOccurrence, RetainedHistory, RetainedObject, RevisionLog, StorageClass,
-    StoreError, StoredObject,
+    Publication, ReadModel, RecordedOccurrence, RetainedHistory, RetainedObject, RevisionLog,
+    StorageClass, StoreError, StoredObject,
 };
 use ekr_core::{ContentHash, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, RevisionEvent, RevisionPayload, Root};
@@ -2112,6 +2112,52 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
     fn checkpoint_covered(&self) -> Result<Option<u64>, StoreError> {
         self.entered()?;
         Ok(self.checkpoint_pointer()?.0.map(|pointer| pointer.covered))
+    }
+    /// Reads the revision stream, the newest pointer, the checkpoint it names and the objects
+    /// `objects` names, and nothing else (design § 108). The pointer is read before the stream, so
+    /// a writer appending in between leaves a stream longer than the pointer covers, never a
+    /// pointer covering occurrences the stream read did not return.
+    fn read_model(
+        &self,
+        objects: &dyn Fn(&[RecordedOccurrence]) -> BTreeSet<ContentHash>,
+    ) -> Result<Option<(RetainedHistory, ReadModel)>, StoreError> {
+        self.entered()?;
+        if !self.checkpoints || self.authority.is_none() {
+            return Ok(None);
+        }
+        let Ok((Some(pointer), _)) = self.checkpoint_pointer() else {
+            return Ok(None);
+        };
+        let occurrences = self.occurrences(MAX_READ_LIMIT, None)?;
+        if occurrences.is_empty() {
+            return Ok(None);
+        }
+        let Ok(Some(checkpoint)) = self.runtime().block_on(
+            self.store
+                .get_blob(&self.tenant, &checkpoint_key(pointer.checkpoint_hash)),
+        ) else {
+            return Ok(None);
+        };
+        if ContentHash::of_bytes(&checkpoint) != pointer.checkpoint_hash {
+            return Ok(None);
+        }
+        let mut history = RetainedHistory {
+            occurrences,
+            objects: BTreeMap::new(),
+        };
+        let wanted = objects(&history.occurrences);
+        if self.load_objects(&mut history, wanted).is_err() {
+            return Ok(None);
+        }
+        Ok(Some((
+            history,
+            ReadModel {
+                covered: pointer.covered,
+                binding: pointer.binding,
+                checkpoint_hash: pointer.checkpoint_hash,
+                checkpoint,
+            },
+        )))
     }
     fn write_checkpoint(
         &self,

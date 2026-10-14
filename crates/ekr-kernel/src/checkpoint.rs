@@ -219,6 +219,7 @@ impl KernelAuthority {
             return Ok(None);
         };
         let bytes = history.content(head.event.record_hash, StorageClass::Canonical)?;
+        crate::read::count(|cost| cost.records_decoded += 1);
         let root = match head.event.payload {
             RevisionPayload::Seeded { revision_id, .. } => {
                 let record = SeedResultV1::from_bytes(bytes)?;
@@ -304,6 +305,7 @@ impl KernelAuthority {
         history: &RetainedHistory,
         bytes: &[u8],
     ) -> Result<(), StoreError> {
+        crate::read::count(|cost| cost.checkpoints_decoded += 1);
         let mut checkpoint: CheckpointV1 = serde_json::from_slice(bytes)
             .map_err(|error| StoreError::Document(format!("checkpoint-decode: {error}")))?;
         require(checkpoint.format == FORMAT, "checkpoint-format")?;
@@ -496,6 +498,7 @@ fn restored(
     let seed = SeedResultV1::from_bytes(
         history.content(first.event.record_hash, StorageClass::Canonical)?,
     )?;
+    crate::read::count(|cost| cost.records_decoded += 1);
     require(
         seed.event_id == first.event.event_id && seed.revision_id == revision_id,
         "checkpoint-seed",
@@ -524,6 +527,7 @@ fn restored(
         )?;
         version = occurrence.version;
         let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
+        crate::read::count(|cost| cost.records_decoded += 1);
         match event.payload {
             RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
             RevisionPayload::TransactionProposed { transaction_id, .. } => {
@@ -622,32 +626,7 @@ fn restored(
 
     let document = checkpoint.graph;
     require(document.revision == head, "checkpoint-graph-revision")?;
-    let narrowed = |error: ekr_store::MembraneError| refuse(&format!("checkpoint-graph: {error}"));
-    let graph = CanonicalGraph {
-        attachments: document.attachments,
-        root: document.root,
-        revision: document.revision,
-        ontology: (*schema_at(head)?.1).clone(),
-        nodes: document
-            .nodes
-            .into_iter()
-            .map(|(id, node)| Ok((id, narrow_node(node)?)))
-            .collect::<Result<_, _>>()
-            .map_err(narrowed)?,
-        edges: document
-            .edges
-            .into_iter()
-            .map(|(id, edge)| Ok((id, narrow_edge(edge)?)))
-            .collect::<Result<_, _>>()
-            .map_err(narrowed)?,
-        assertions: document
-            .assertions
-            .into_iter()
-            .map(|(id, assertion)| Ok((id, narrow_assertion(assertion)?)))
-            .collect::<Result<_, _>>()
-            .map_err(narrowed)?,
-        evidence: document.evidence,
-    };
+    let graph = checkpoint_graph(document, (*schema_at(head)?.1).clone())?;
     let head_root = coordinates[&head].root;
     require(
         knowledge_root(&graph) == head_root.knowledge_root
@@ -697,6 +676,288 @@ fn restored(
         held: HeldIdentities::default(),
         earlier_bases,
     })
+}
+
+/// The canonical graph a checkpoint's head graph document holds under `ontology`, each node, edge
+/// and assertion narrowed across the membrane as a seed's are. Nothing here says it is the head's:
+/// callers hold it to the roots of the revision's retained record.
+fn checkpoint_graph(
+    document: GraphDocument,
+    ontology: Ontology,
+) -> Result<CanonicalGraph, StoreError> {
+    let narrowed = |error: ekr_store::MembraneError| refuse(&format!("checkpoint-graph: {error}"));
+    Ok(CanonicalGraph {
+        attachments: document.attachments,
+        root: document.root,
+        revision: document.revision,
+        ontology,
+        nodes: document
+            .nodes
+            .into_iter()
+            .map(|(id, node)| Ok((id, narrow_node(node)?)))
+            .collect::<Result<_, _>>()
+            .map_err(narrowed)?,
+        edges: document
+            .edges
+            .into_iter()
+            .map(|(id, edge)| Ok((id, narrow_edge(edge)?)))
+            .collect::<Result<_, _>>()
+            .map_err(narrowed)?,
+        assertions: document
+            .assertions
+            .into_iter()
+            .map(|(id, assertion)| Ok((id, narrow_assertion(assertion)?)))
+            .collect::<Result<_, _>>()
+            .map_err(narrowed)?,
+        evidence: document.evidence,
+    })
+}
+
+/// What the persisted read model serves for one revision (design § 108): that revision's root and
+/// identity from its retained record, the schema in force there, and, where asked for and held,
+/// its graph. Built only by [`KernelAuthority::serve_model`], after every check holds.
+pub(crate) struct Served {
+    pub(crate) root: ekr_graph::Root,
+    pub(crate) revision_id: ekr_core::RevisionId,
+    pub(crate) ontology: Arc<Ontology>,
+    pub(crate) graph: Option<Arc<CanonicalGraph>>,
+}
+
+/// The revision an occurrence makes, if it makes one: the seed or a commit.
+fn made(occurrence: &ekr_store::RecordedOccurrence) -> Option<RevisionNumber> {
+    match occurrence.event.payload {
+        RevisionPayload::Seeded { .. } => Some(RevisionNumber::SEED),
+        RevisionPayload::RevisionCommitted { number, .. } => Some(number),
+        _ => None,
+    }
+}
+
+/// The occurrence among `occurrences` that made `revision`, or the newest that made any for
+/// `None`: the head.
+fn making(
+    occurrences: &[ekr_store::RecordedOccurrence],
+    revision: Option<RevisionNumber>,
+) -> Option<&ekr_store::RecordedOccurrence> {
+    match revision {
+        None => occurrences.iter().rev().find(|held| made(held).is_some()),
+        Some(wanted) => occurrences.iter().find(|held| made(held) == Some(wanted)),
+    }
+}
+
+impl KernelAuthority {
+    /// The objects a read of `revision` (the head for `None`) served from the read model loads:
+    /// the revision's retained record and, for a read of its graph, the seed envelope, whose
+    /// graph root no revision root binds. Nothing else, whatever the history's length.
+    pub(crate) fn model_objects(
+        occurrences: &[ekr_store::RecordedOccurrence],
+        revision: Option<RevisionNumber>,
+        graph: bool,
+    ) -> BTreeSet<ContentHash> {
+        let mut objects = BTreeSet::new();
+        if let Some(target) = making(occurrences, revision) {
+            objects.insert(target.event.record_hash);
+        }
+        if graph {
+            if let Some(RevisionPayload::Seeded { seed_hash, .. }) =
+                occurrences.first().map(|first| &first.event.payload)
+            {
+                objects.insert(*seed_hash);
+            }
+        }
+        objects
+    }
+
+    /// Serves `revision` (the head for `None`) from the persisted read model `model`, read against
+    /// `history` — every occurrence and the objects [`Self::model_objects`] names — or refuses it
+    /// (design § 108). A refusal is never a verdict about the history: the caller answers through
+    /// a complete verified read instead, whose own refusals stand.
+    ///
+    /// It holds `model` to exactly what admitting its checkpoint holds it to, for what it serves:
+    /// the pointer's binding must be this authority's own record of having verified the prefix it
+    /// covers (an `/1` binding: a migrated seed is never served), and a head read must find that
+    /// prefix to be every occurrence; the checkpoint must be this host's, bound to a prefix of
+    /// that one, and headed by the last revision committed in it; the revision's record must name
+    /// its own occurrence and root; the schema must reproduce that root's ontology root; and a
+    /// graph, served only for the checkpoint's own head, must reproduce its knowledge and evidence
+    /// roots and carry the seed envelope's graph root, beside the envelope's seed payloads and,
+    /// under a profile that keeps none, no held identities. A read serves only what it checked and
+    /// reads nothing else of the model. What it takes on trust is what a checkpoint takes (design
+    /// § 96.3): that the bound prefix was replayed when it was written.
+    /// # Errors
+    /// The first check `model` fails, by name.
+    pub(crate) fn serve_model(
+        &self,
+        history: &RetainedHistory,
+        model: &ekr_store::ReadModel,
+        revision: Option<RevisionNumber>,
+        graph: bool,
+    ) -> Result<Served, StoreError> {
+        let covered = usize::try_from(model.covered).map_err(|_| refuse("model-coverage"))?;
+        require(
+            covered >= 1 && covered <= history.occurrences.len(),
+            "model-coverage",
+        )?;
+        require(
+            revision.is_some() || covered == history.occurrences.len(),
+            "model-head-unverified",
+        )?;
+        let prefix = &history.occurrences[..covered];
+        let digests = prefix_digests(prefix);
+        require(
+            self.checkpoint_binding(model.covered, digests[covered], false) == model.binding,
+            "model-binding",
+        )?;
+        let target = making(prefix, revision).ok_or_else(|| refuse("model-revision-absent"))?;
+        let bytes = history.content(target.event.record_hash, StorageClass::Canonical)?;
+        crate::read::count(|cost| cost.records_decoded += 1);
+        let (root, revision_id) = match target.event.payload {
+            RevisionPayload::Seeded { revision_id, .. } => {
+                let record = SeedResultV1::from_bytes(bytes)?;
+                require(
+                    record.event_id == target.event.event_id
+                        && record.revision_id == revision_id
+                        && record.result.revision == RevisionNumber::SEED
+                        && record.result_hash == ContentHash::of(&record.result),
+                    "model-record",
+                )?;
+                (record.result, revision_id)
+            }
+            RevisionPayload::RevisionCommitted {
+                revision_id,
+                number,
+                knowledge_root,
+                ..
+            } => {
+                let record = CommitReceiptV1::from_bytes(bytes)?;
+                require(
+                    record.event_id == target.event.event_id
+                        && record.revision_id == revision_id
+                        && record.result.revision == number
+                        && record.result.knowledge_root == knowledge_root
+                        && record.result_hash == ContentHash::of(&record.result),
+                    "model-record",
+                )?;
+                (record.result, revision_id)
+            }
+            _ => return Err(refuse("model-revision-absent")),
+        };
+
+        // An ontology read reads no graph: it skips the head graph's bytes without decoding them,
+        // so a model whose graph does not hold serves it no graph, and nothing else either.
+        if !graph {
+            let checkpoint: CheckpointV1<serde::de::IgnoredAny> = decode_model(&model.checkpoint)?;
+            self.model_checkpoint(&checkpoint, prefix, &digests)?;
+            let ontology = in_force(checkpoint.ontologies, &root)?;
+            return Ok(Served {
+                root,
+                revision_id,
+                ontology: Arc::new(ontology),
+                graph: None,
+            });
+        }
+        let checkpoint: CheckpointV1 = decode_model(&model.checkpoint)?;
+        self.model_checkpoint(&checkpoint, prefix, &digests)?;
+        let CheckpointV1 {
+            ontologies,
+            graph: document,
+            revision: checkpoint_head,
+            seed_payloads,
+            held,
+            ..
+        } = checkpoint;
+        let ontology = in_force(ontologies, &root)?;
+        require(root.revision == checkpoint_head, "model-graph-not-held")?;
+        require(document.revision == root.revision, "model-graph-revision")?;
+        // What no revision root binds is the seed's: the graph root, and the evidence payloads the
+        // seed requires. The identities a profile-v3 lineage held are not served; a store under
+        // any other profile holds none, so its model says none.
+        let Some(RevisionPayload::Seeded { seed_hash, .. }) = history
+            .occurrences
+            .first()
+            .map(|first| &first.event.payload)
+        else {
+            return Err(StoreError::NotSeeded);
+        };
+        let seed_hash = *seed_hash;
+        let envelope = match self.held_envelope(seed_hash)? {
+            Some(envelope) => crate::seed::SeedOutline::Full(envelope),
+            None => crate::seed::outline(history.content(seed_hash, StorageClass::Canonical)?)?,
+        };
+        require(envelope.migration_claim().is_none(), "model-migrated-seed")?;
+        require(
+            document.root == envelope.graph().root,
+            "model-graph-root-identity",
+        )?;
+        require(envelope.payloads_are(&seed_payloads), "model-seed-payloads")?;
+        require(
+            self.anchor.validation_profile.keeps_identities() || held.is_empty(),
+            "model-held-identities",
+        )?;
+        let graph = checkpoint_graph(document, ontology.clone())?;
+        require(
+            knowledge_root(&graph) == root.knowledge_root
+                && evidence_root(&graph) == root.evidence_root,
+            "model-graph-root",
+        )?;
+        Ok(Served {
+            root,
+            revision_id,
+            ontology: Arc::new(ontology),
+            graph: Some(Arc::new(graph)),
+        })
+    }
+
+    /// Holds a read model's checkpoint to this host and to the verified prefix `prefix`, whose
+    /// prefix digests are `digests`: its format and authority, its own coverage and prefix digest
+    /// within that prefix, and its head, the last revision committed in what it covers.
+    fn model_checkpoint<G>(
+        &self,
+        checkpoint: &CheckpointV1<G>,
+        prefix: &[ekr_store::RecordedOccurrence],
+        digests: &[ContentHash],
+    ) -> Result<(), StoreError> {
+        require(checkpoint.format == FORMAT, "model-checkpoint-format")?;
+        require(
+            checkpoint.authority == self.checkpoint_authority(),
+            "model-checkpoint-authority",
+        )?;
+        let own =
+            usize::try_from(checkpoint.covered).map_err(|_| refuse("model-checkpoint-coverage"))?;
+        require(own >= 1 && own <= prefix.len(), "model-checkpoint-coverage")?;
+        require(digests[own] == checkpoint.prefix, "model-checkpoint-prefix")?;
+        require(
+            prefix[..own].iter().rev().find_map(made) == Some(checkpoint.revision),
+            "model-checkpoint-head",
+        )
+    }
+}
+
+/// A read model's checkpoint bytes as `ekr.replay-checkpoint/1`, with its graph as `G`.
+fn decode_model<G: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+) -> Result<CheckpointV1<G>, StoreError> {
+    crate::read::count(|cost| cost.checkpoints_decoded += 1);
+    serde_json::from_slice(bytes)
+        .map_err(|error| StoreError::Document(format!("model-checkpoint-decode: {error}")))
+}
+
+/// The schema in force at `root`'s revision, as a checkpoint's `ontologies` say it: the newest
+/// version from a revision at or before it, which must reproduce `root`'s ontology root. Past the
+/// checkpoint's head that is its newest version, and a commit since that changed the schema
+/// leaves it disagreeing with the root.
+fn in_force(ontologies: Vec<OntologyAt>, root: &ekr_graph::Root) -> Result<Ontology, StoreError> {
+    let at = ontologies
+        .into_iter()
+        .rev()
+        .find(|at| at.from <= root.revision)
+        .ok_or_else(|| refuse("model-ontology-absent"))?;
+    let ontology =
+        Ontology::load(at.ontology).map_err(|error| refuse(&format!("model-ontology: {error}")))?;
+    require(
+        ContentHash::of(&ontology) == root.ontology_root,
+        "model-ontology-root",
+    )?;
+    Ok(ontology)
 }
 
 /// The node and edge identities the lineage of `state` held: those of the seed graph at the seed
