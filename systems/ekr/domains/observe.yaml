@@ -8,7 +8,10 @@ summary: >-
   observation itself is `ekr.graph.Observation` and is referenced here, not redeclared. Checkpoint
   state is durable but is not canonical knowledge (§ 55). How units, checkpoints, poll health and
   observations link to one another is held open by four decision-blockers, each named below where
-  it applies. Redaction (A6), the coverage report and adapter declarations are not modelled yet.
+  it applies. Credential redaction before model input (A6) is modelled as the value a model-facing
+  projection takes of an observed text: the credential shapes it detects, each redaction it
+  records and the redacted text. The coverage report, adapter declarations and the PII and
+  restricted-source halves of invariant 9 are not modelled yet.
 
 naming:
   wire: observe
@@ -68,6 +71,61 @@ types:
         type: ekr.observe.ObservationIdempotencyKey
       - name: observation_id
         type: ekr.graph.ObservationId
+
+  # Predecessors A6, invariant 9: the credential shapes a model-facing projection detects and
+  # replaces. Which fields of which source reach a model is instance policy and is not modelled;
+  # these shapes are generic.
+  - name: ekr.observe.CredentialShape
+    kind: enum
+    variants:
+      - AwsAccessKeyId
+      - GitHubToken
+      - SlackToken
+      - JsonWebToken
+      - BearerToken
+      - PrivateKeyBlock
+
+  # Where a credential sat in the observed text: the byte offset of its first byte in the text as
+  # observed, and its length in bytes. Offsets, not content: a span carries no byte of the
+  # credential. A start and a length rather than two ends, so that a span is never empty is an
+  # invariant of one field.
+  - name: ekr.observe.RedactionSpan
+    kind: struct
+    fields:
+      - name: start
+        type: Integer
+      - name: length
+        type: Integer
+    invariants:
+      - start >= 0
+      - length >= 1
+
+  # One credential replaced: its shape and its span, and nothing else. The credential's value is
+  # never recorded, hashed or echoed (story:credential-redaction-before-model-input).
+  - name: ekr.observe.Redaction
+    kind: struct
+    fields:
+      - name: shape
+        type: ekr.observe.CredentialShape
+      - name: span
+        type: ekr.observe.RedactionSpan
+
+  # The model-facing projection of an observed text: the text with every detected credential
+  # replaced by a marker naming its shape, and one redaction per replacement, in span order. A
+  # value computed from the observed text and never stored: the observation and the bytes it was
+  # observed from are left as they were. A text with no credential projects to itself, byte for
+  # byte, with no redactions.
+  #
+  # UNMAPPED: decision-blocker:observation-retention-path — nothing retains an observed text yet,
+  # so nothing here names the pipeline step, adapter or checkpoint a projection runs at; it is a
+  # pure function over the text it is given.
+  - name: ekr.observe.ModelInput
+    kind: struct
+    fields:
+      - name: text
+        type: String
+      - name: redactions
+        type: List<ekr.observe.Redaction>
 
 entities:
   # A source unit is the unit of source-side progress this domain names. Its granularity is held
