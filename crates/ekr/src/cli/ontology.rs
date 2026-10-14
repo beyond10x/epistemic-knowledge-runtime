@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use ekr_core::{RevisionNumber, SchemaVersionId, TypeId};
+use ekr_core::{EvidenceId, RevisionNumber, SchemaVersionId, TypeId};
 use ekr_kernel::Runtime;
 use ekr_ontology::{Cardinality, PropertyDefinition};
 use serde::Serialize;
@@ -18,6 +18,9 @@ pub(super) struct Ontology {
     schema_version_number: u64,
     /// The version it was derived from; `null` at the seed.
     schema_version_parent: Option<SchemaVersionId>,
+    /// The evidence the schema transaction that made the version cited (design § 109); empty when
+    /// it cited none, the seed's included.
+    schema_version_evidence: std::collections::BTreeSet<EvidenceId>,
     node_types: Vec<NodeType>,
     edge_types: Vec<EdgeType>,
 }
@@ -70,6 +73,7 @@ pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failur
         schema_version: document.version.id,
         schema_version_number: document.version.number,
         schema_version_parent: document.version.parent,
+        schema_version_evidence: document.version.evidence.clone(),
         node_types: document
             .node_types
             .iter()

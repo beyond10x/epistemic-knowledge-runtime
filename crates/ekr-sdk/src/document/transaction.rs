@@ -57,7 +57,8 @@ pub struct Transaction {
     pub proposer: AgentId,
     /// One or more operations, applied all or nothing.
     pub operations: Vec<Operation>,
-    /// Exactly the evidence ids its `!AddAssertion`s cite and its `!AttachEvidence`s attach.
+    /// Exactly the evidence ids its `!AddAssertion`s cite, its `!AttachEvidence`s attach and its
+    /// `!CiteEvidence`s cite.
     pub evidence: BTreeSet<EvidenceId>,
     /// The schema version a schema change produces; absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -124,7 +125,28 @@ impl TransactionBuilder {
             .iter()
             .filter(|operation| operation.is_schema_change())
             .count();
-        if schema != 0 && schema != self.operations.len() {
+        // A `!CiteEvidence`, and the `!AddEvidence` of an entry one cites, travel with schema
+        // changes (design § 109); anything else beside them is mixed.
+        let cited: BTreeSet<EvidenceId> = self
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                Operation::CiteEvidence(evidence) => Some(*evidence),
+                _ => None,
+            })
+            .collect();
+        let travelling = self
+            .operations
+            .iter()
+            .filter(|operation| match operation {
+                Operation::CiteEvidence(_) => true,
+                Operation::AddEvidence(addition) => cited.contains(&addition.evidence.id),
+                _ => false,
+            })
+            .count();
+        if (schema != 0 && schema + travelling != self.operations.len())
+            || (schema == 0 && !cited.is_empty())
+        {
             return Err(DocumentError::MixedSchemaTransaction);
         }
         let evidence = self
@@ -185,6 +207,9 @@ pub enum Operation {
     AddAlias(AliasAddition),
     /// `!AttachEvidence`: evidence attached to an assertion the store holds.
     AttachEvidence(EvidenceAttachment),
+    /// `!CiteEvidence <evidence id>`: evidence the schema version a schema change makes rests on,
+    /// beside schema changes only (design § 109).
+    CiteEvidence(EvidenceId),
 }
 
 impl Operation {
@@ -208,17 +233,19 @@ impl Operation {
             Self::WidenEdgeType(_) => OperationKind::WidenEdgeType,
             Self::AddAlias(_) => OperationKind::AddAlias,
             Self::AttachEvidence(_) => OperationKind::AttachEvidence,
+            Self::CiteEvidence(_) => OperationKind::CiteEvidence,
         }
     }
 
     /// The evidence ids it rests on: those an `!AddAssertion` cites, the one an
-    /// `!AttachEvidence` attaches, and none for any other kind. A transaction's `evidence` is
-    /// exactly the union of these over its operations.
+    /// `!AttachEvidence` attaches, the one a `!CiteEvidence` cites, and none for any other kind.
+    /// A transaction's `evidence` is exactly the union of these over its operations.
     #[must_use]
     pub fn rests_on(&self) -> Vec<EvidenceId> {
         match self {
             Self::AddAssertion(assertion) => assertion.evidence.iter().copied().collect(),
             Self::AttachEvidence(attachment) => vec![attachment.evidence],
+            Self::CiteEvidence(evidence) => vec![*evidence],
             _ => Vec::new(),
         }
     }
@@ -265,11 +292,13 @@ pub enum OperationKind {
     AddAlias,
     /// `!AttachEvidence`.
     AttachEvidence,
+    /// `!CiteEvidence`.
+    CiteEvidence,
 }
 
 impl OperationKind {
     /// Every kind, in the order `ekr operations` lists them.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::CreateNode,
         Self::UpdateProperty,
         Self::CreateEdge,
@@ -286,6 +315,7 @@ impl OperationKind {
         Self::WidenEdgeType,
         Self::AddAlias,
         Self::AttachEvidence,
+        Self::CiteEvidence,
     ];
 
     /// Its tag without `!`, as `ekr operations` prints it.
@@ -308,6 +338,7 @@ impl OperationKind {
             Self::WidenEdgeType => "WidenEdgeType",
             Self::AddAlias => "AddAlias",
             Self::AttachEvidence => "AttachEvidence",
+            Self::CiteEvidence => "CiteEvidence",
         }
     }
 

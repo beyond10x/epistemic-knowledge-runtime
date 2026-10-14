@@ -148,7 +148,10 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty, WidenEdgeType
      v3, \"ruleset\": \"ekr.p3-deterministic/1\" with \"application\": \"ekr.p2-apply/1\",
      admits them as v2 does, and also refuses a CreateNode or CreateEdge whose id an earlier
      revision held, such as a deleted edge's (identity-previously-held).
-  2. The transaction holds only schema changes (mixed-schema-transaction otherwise).
+  2. The transaction holds only schema changes (mixed-schema-transaction otherwise), and the
+     evidence the new version cites: CiteEvidence operations and the AddEvidence of each entry
+     they cite. The version records every cited id; ekr ontology prints them as
+     schema_version_evidence (`ekr operations CiteEvidence`).
   3. It names the version it produces in transaction.schema_version, a fresh id from
      `ekr mint schema-version` (schema-version-missing without one;
      schema-version-without-schema-change on a transaction that changes no schema).
@@ -161,7 +164,7 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty, WidenEdgeType
   valid. `ekr example schema-change` prints a complete schema change; `ekr ontology --at
   <revision>` prints the schema, with its version, as of a revision.
   MergeEntity is not applied under either profile: validation rejects it with the issue code
-  unsupported-operation. `ekr operations` marks all five.
+  unsupported-operation. `ekr operations` marks all six.
 
 WHERE VALUES COME FROM
   new ids          ekr mint <kind>; ids are never derived from names
@@ -170,10 +173,10 @@ WHERE VALUES COME FROM
   revision numbers ekr head; a commit prints its revision
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
-  evidence         a transaction's `evidence` list is exactly the evidence its assertions cite
-                   and its AttachEvidence operations attach, and each must be retained (seeded,
-                   or added by an earlier commit) or be added by an AddEvidence of the same
-                   transaction (see ADDING EVIDENCE)
+  evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
+                   its AttachEvidence operations attach and its CiteEvidence operations cite,
+                   and each must be retained (seeded, or added by an earlier commit) or be
+                   added by an AddEvidence of the same transaction (see ADDING EVIDENCE)
   content hashes   ekr hash <file | ->
 
 RESOLVE BEFORE YOU CREATE: ekr resolve
@@ -311,6 +314,8 @@ pub enum OperationKind {
     AddAlias,
     /// `!AttachEvidence`.
     AttachEvidence,
+    /// `!CiteEvidence`.
+    CiteEvidence,
 }
 
 impl OperationKind {
@@ -335,6 +340,7 @@ impl OperationKind {
             GraphOperation::WidenEdgeType(_) => Self::WidenEdgeType,
             GraphOperation::AddAlias(_) => Self::AddAlias,
             GraphOperation::AttachEvidence(_) => Self::AttachEvidence,
+            GraphOperation::CiteEvidence(_) => Self::CiteEvidence,
         }
     }
 
@@ -356,6 +362,7 @@ impl OperationKind {
             Self::WidenEdgeType => "WidenEdgeType",
             Self::AddAlias => "AddAlias",
             Self::AttachEvidence => "AttachEvidence",
+            Self::CiteEvidence => "CiteEvidence",
         }
     }
 
@@ -379,6 +386,7 @@ impl OperationKind {
             | Self::DefineEdgeType
             | Self::ModifyProperty
             | Self::WidenEdgeType => Applied::SchemaChange,
+            Self::CiteEvidence => Applied::SchemaCitation,
             Self::MergeEntity => Applied::Never,
         }
     }
@@ -659,6 +667,18 @@ impl OperationKind {
   assertion: 00000000-0000-4000-8000-000000000511
   evidence: 00000000-0000-4000-8000-000000000403",
             ),
+            Self::CiteEvidence => (
+                "cite evidence the schema version a schema change makes rests on",
+                "  (the value)  EvidenceId  retained (ekr snapshot graph.graph.evidence), or added by an
+                          AddEvidence of the same transaction (unresolved-evidence otherwise);
+                          cited once (duplicate-citation)
+  List the evidence id in transaction.evidence. Only beside schema changes, in a transaction
+  that names its schema_version (citation-without-schema-change otherwise). The version the
+  commit makes records every cited id; ekr ontology prints them as schema_version_evidence.
+  The AddEvidence of an entry the transaction cites travels with the schema changes; any other
+  operation beside them is still mixed-schema-transaction.",
+                "- !CiteEvidence 00000000-0000-4000-8000-000000000401",
+            ),
         }
     }
 }
@@ -671,6 +691,9 @@ enum Applied {
     /// Under validation profile v2 only, in a schema-only transaction naming its
     /// `schema_version`; profile v1 rejects it as `unsupported-operation`.
     SchemaChange,
+    /// Beside schema changes only, under the profiles that apply them: it cites evidence for the
+    /// version they make (design § 109); profile v1 rejects it as `unsupported-operation`.
+    SchemaCitation,
     /// Under neither: validation rejects it as `unsupported-operation`.
     Never,
 }
@@ -686,6 +709,11 @@ pub(super) fn operation_list() -> String {
             Applied::SchemaChange => out.push_str(
                 " [schema change: applied under validation profile v2 only, in a schema-only \
                  transaction with schema_version; profile v1 rejects it as unsupported-operation]",
+            ),
+            Applied::SchemaCitation => out.push_str(
+                " [schema citation: applied under validation profile v2 only, beside schema changes \
+                 in a transaction with schema_version; profile v1 rejects it as \
+                 unsupported-operation]",
             ),
             Applied::Never => {
                 out.push_str(" [not applied: validation rejects it as unsupported-operation]");
@@ -704,6 +732,14 @@ transaction that holds only schema changes and names the version \
 it produces in transaction.schema_version (ekr mint schema-version). Under profile v1 validation \
 rejects it with the issue code unsupported-operation. `ekr example schema-change` prints a complete \
 schema change; `ekr guide` says more under SCHEMA CHANGES.";
+
+/// What a page says about the schema citation.
+const SCHEMA_CITATION: &str = "A schema citation: applied only under validation profile v2 or \
+v3, beside the schema changes of a transaction that names its schema_version. The version they \
+make records the cited evidence id, and `ekr ontology` prints it as schema_version_evidence. Beside \
+schema changes a transaction may carry CiteEvidence and the AddEvidence of an entry it cites; any \
+other operation is still mixed-schema-transaction. Under profile v1 validation rejects it with \
+the issue code unsupported-operation. `ekr guide` says more under SCHEMA CHANGES.";
 
 /// What a page says about a kind the kernel applies under no profile.
 const NOT_APPLIED: &str = "This kind is not applied under any validation profile: validation \
@@ -727,6 +763,12 @@ pub(super) fn operation(kind: OperationKind) -> String {
             format!("{SCHEMA_CHANGE}\n\n"),
             "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it \
              under profile v2, alone in a transaction with schema_version):",
+        ),
+        Applied::SchemaCitation => (
+            format!("{SCHEMA_CITATION}\n\n"),
+            "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it \
+             under profile v2, beside a schema change in a transaction with schema_version and \
+             the evidence id in transaction.evidence):",
         ),
         Applied::Never => (
             format!("{NOT_APPLIED}\n\n"),

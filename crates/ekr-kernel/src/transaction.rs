@@ -556,6 +556,12 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// record of its own rather than as an edit.
     #[cfg_attr(feature = "schema", schemars(rename = "!AttachEvidence"))]
     AttachEvidence(EvidenceAttachment),
+    /// Cite one evidence entry as evidence the schema version this transaction makes rests on: a
+    /// schema citation, which travels with the schema changes and is recorded in the version
+    /// (design § 109). The entry is retained, or added by an `AddEvidence` of the same
+    /// transaction.
+    #[cfg_attr(feature = "schema", schemars(rename = "!CiteEvidence"))]
+    CiteEvidence(EvidenceId),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -599,7 +605,8 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// stored transaction can say what it rested on without re-reading every operation. A declared
     /// value nothing compares to the operations is an address over a number the proposer chose, so
     /// [`Structural`](crate::Structural) holds it equal to the evidence the transaction's
-    /// assertions cite and its `AttachEvidence` operations attach. The domain's `operation_count`
+    /// assertions cite, its `AttachEvidence` operations attach and its `CiteEvidence` operations
+    /// cite. The domain's `operation_count`
     /// is the same shape: equally derivable from the operations, equally declared, and equally
     /// checked.
     #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
@@ -792,6 +799,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 out.variant(15);
                 attachment.encode(out);
             }
+            Self::CiteEvidence(evidence) => {
+                out.variant(16);
+                evidence.encode(out);
+            }
         }
     }
 }
@@ -920,6 +931,7 @@ fn canonical_operation(
         GraphOperation::WidenEdgeType(widening) => GraphOperation::WidenEdgeType(widening),
         GraphOperation::AddAlias(addition) => GraphOperation::AddAlias(addition),
         GraphOperation::AttachEvidence(attachment) => GraphOperation::AttachEvidence(attachment),
+        GraphOperation::CiteEvidence(evidence) => GraphOperation::CiteEvidence(evidence),
         GraphOperation::MergeEntity(merge) => GraphOperation::MergeEntity(merge),
         GraphOperation::Invoke {
             node,

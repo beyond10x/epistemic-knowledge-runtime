@@ -4,6 +4,21 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- A schema change can cite the evidence that introduced it. `!CiteEvidence <evidence id>` beside
+  the schema changes of a transaction names evidence the store retains, or evidence an
+  `!AddEvidence` of the same transaction adds, and that `!AddEvidence` no longer makes the
+  transaction `mixed-schema-transaction`; any other data operation still does. The schema version
+  the commit makes records every cited id, and `ekr ontology` (with or without `--at`) prints them
+  as `schema_version_evidence`. Under validation profiles v2 and v3 only; v1 refuses the kind as
+  `unsupported-operation`. A citation is refused as `unresolved-evidence`,
+  `citation-without-schema-change`, `duplicate-citation` or `evidence-set-mismatch` (the cited id
+  belongs in `transaction.evidence`). `ekr operations` lists seventeen kinds. A version that cites
+  nothing encodes as before, so no existing ontology root moves; a store holding a citing version
+  is refused by earlier binaries. The viewer's projection (`ekr.graph-projection/1`, `ekr view`)
+  does not show a version's citations yet; that is left for a later change.
+
 ## [0.0.33] — 2026-10-08
 
 ### Added

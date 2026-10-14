@@ -49,7 +49,9 @@ types:
   # (story:evidence-attaches-to-a-held-assertion, design § 103): data, applied under every
   # validation profile; it attaches evidence canonical state retains, or an AddEvidence of the
   # same transaction adds, to an accepted and active assertion canonical state holds, as an
-  # ekr.graph.EvidenceAttachment (ekr.kernel.EvidenceAttachmentProjection).
+  # ekr.graph.EvidenceAttachment (ekr.kernel.EvidenceAttachmentProjection). CiteEvidence is index
+  # 16 (story:schema-transaction-cites-evidence, design § 109): one evidence id the schema version
+  # the transaction produces cites; see ekr.kernel.CanonicalOperationProjection.
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -69,6 +71,7 @@ types:
       - WidenEdgeType
       - AddAlias
       - AttachEvidence
+      - CiteEvidence
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -732,6 +735,20 @@ types:
       - name: payload
         type: Bytes
 
+  # CiteEvidence (design § 109, story:schema-transaction-cites-evidence) carries one evidence id,
+  # encoded as variant 16 and the id. It belongs to a schema transaction: the version the
+  # transaction produces cites the evidence, and commit records every cited id in that version
+  # (ekr.ontology.SchemaVersion.evidence), so `ekr ontology --at` names it. Validation, as named
+  # issues of a Rejected transaction: evidence canonical state does not retain and no AddEvidence of
+  # the transaction adds (unresolved-evidence, Reference); a citation in a transaction that changes
+  # no schema (citation-without-schema-change, Structural); the same id cited twice
+  # (duplicate-citation, Structural); a cited id missing from the transaction's evidence manifest,
+  # which holds what its assertions cite, its attachments attach and its citations cite
+  # (evidence-set-mismatch, Structural); under validation profile v1, unsupported-operation. Beside
+  # the schema changes a transaction may carry CiteEvidence and the AddEvidence of an entry it
+  # cites; any other operation is still mixed-schema-transaction. A transaction without a
+  # CiteEvidence is validated exactly as before the kind existed, so no retained rejection replays
+  # differently and no retained address moves.
   - name: ekr.kernel.CanonicalOperationProjection
     kind: union
     tag: kind
@@ -752,6 +769,7 @@ types:
       WidenEdgeType: ekr.kernel.EdgeWideningProjection
       AddAlias: ekr.kernel.AliasAdditionProjection
       AttachEvidence: ekr.kernel.EvidenceAttachmentProjection
+      CiteEvidence: ekr.graph.EvidenceId
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct

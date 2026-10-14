@@ -678,6 +678,8 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
                 "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
                 "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
+                "ekr.kernel/authored/a-schema-transaction-citing-retained-evidence-commits-as-a-new-version",
+                "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version",
             ],
         ),
         (
@@ -699,6 +701,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name",
                 "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name",
                 "ekr.kernel/authored/evidence-already-attached-is-rejected-by-name",
+                "ekr.kernel/authored/a-schema-transaction-carrying-another-data-operation-is-still-mixed",
             ],
         ),
         (
@@ -706,6 +709,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
             vec![
                 "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
                 "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
+                "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version",
             ],
         ),
         (

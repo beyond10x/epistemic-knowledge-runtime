@@ -1,15 +1,15 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/suite.json",
-  "suite_digest": "sha256:ed0fbcc2d3aeef33fce7097cd20a088d50758dd7d56c60df1bffa395fcd6361d",
+  "suite_digest": "sha256:41107c9d31672751787f0bfa9670691cc69dc162bda8d6623d8402acb152f5d7",
   "suite_version": "ess-conformance/13",
   "component": "ekr-kernel",
   "providers": [
     "file",
     "sqlite"
   ],
-  "total": 62,
-  "answered_floor": 62,
+  "total": 65,
+  "answered_floor": 65,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -53,6 +53,9 @@
     "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
     "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
     "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
+    "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version",
+    "ekr.kernel/authored/a-schema-transaction-carrying-another-data-operation-is-still-mixed",
+    "ekr.kernel/authored/a-schema-transaction-citing-retained-evidence-commits-as-a-new-version",
     "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name",
     "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name",
     "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name",

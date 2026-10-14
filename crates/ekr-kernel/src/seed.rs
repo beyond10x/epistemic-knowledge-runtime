@@ -764,7 +764,10 @@ fn admitted(
     check_version(format)?;
     let ontology = Ontology::load(ontology.clone())
         .map_err(|error| SeedError::Invalid(format!("seed-ontology: {error}")))?;
-    if ontology.version().number != 0 || ontology.version().parent.is_some() {
+    // A first version: number zero, no parent, and citing nothing, since a version cites evidence
+    // only through the schema transaction that makes it (design § 109.3).
+    let version = ontology.version();
+    if version.number != 0 || version.parent.is_some() || !version.evidence.is_empty() {
         return invalid("seed-ontology-lineage");
     }
     let document = graph;

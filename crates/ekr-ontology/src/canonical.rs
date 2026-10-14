@@ -107,11 +107,18 @@ impl Canonical for EdgeType {
 }
 
 impl Canonical for SchemaVersion {
+    /// `evidence` is written only when it is not empty, as a tagged `Some` (design § 109.3): a
+    /// version that cites nothing encodes to exactly the bytes it had before the field existed, so
+    /// no ontology root a store records moves, and the `Some` tag cannot be mistaken for the map
+    /// an [`Ontology`] writes next.
     fn encode(&self, out: &mut Encoder) {
         self.id.encode(out);
         self.number.encode(out);
         self.parent.encode(out);
         self.created_at.encode(out);
+        if !self.evidence.is_empty() {
+            out.option(Some(&self.evidence));
+        }
     }
 }
 

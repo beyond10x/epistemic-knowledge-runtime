@@ -24,7 +24,7 @@
 
 use std::collections::BTreeSet;
 
-use ekr_core::{PropertyId, SchemaVersionId, TypeId};
+use ekr_core::{EvidenceId, PropertyId, SchemaVersionId, TypeId};
 use ekr_graph::{
     AssertionLifecycle, CanonicalGraph, CanonicalValue, GraphSnapshot, Object, Predicate, Subject,
     ValueSpace,
@@ -49,11 +49,40 @@ pub(crate) const fn is_schema_change<V: ValueSpace>(operation: &GraphOperation<V
     )
 }
 
-/// The operations of `tx` as the ontology's changes, in the order written, or `None` if any
-/// operation is of another kind, or a `ModifyProperty` in the ownerless P1 shape.
-pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<SchemaChange>> {
+/// The evidence ids `tx`'s `CiteEvidence` operations cite (design § 109): what the schema version
+/// it makes records.
+pub(crate) fn citations<V: ValueSpace>(tx: &GraphTransaction<V>) -> BTreeSet<EvidenceId> {
     tx.operations
         .iter()
+        .filter_map(|operation| match operation {
+            GraphOperation::CiteEvidence(evidence) => Some(*evidence),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether `operation` travels with schema changes without being one (design § 109.2): a
+/// `CiteEvidence`, or the `AddEvidence` of an entry `cited`, the transaction's citations, names.
+pub(crate) fn cites_with_schema<V: ValueSpace>(
+    operation: &GraphOperation<V>,
+    cited: &BTreeSet<EvidenceId>,
+) -> bool {
+    match operation {
+        GraphOperation::CiteEvidence(_) => true,
+        GraphOperation::AddEvidence(addition) => cited.contains(&addition.evidence.id),
+        _ => false,
+    }
+}
+
+/// The operations of `tx` as the ontology's changes, in the order written, or `None` if any
+/// operation is of another kind, or a `ModifyProperty` in the ownerless P1 shape. A citation, and
+/// the `AddEvidence` of an entry it cites, is not a change and is not of another kind: it is
+/// passed over ([`cites_with_schema`]).
+pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<SchemaChange>> {
+    let cited = citations(tx);
+    tx.operations
+        .iter()
+        .filter(|operation| !cites_with_schema(operation, &cited))
         .map(|operation| match operation {
             GraphOperation::DefineNodeType(declared) => {
                 Some(SchemaChange::DefineNodeType((**declared).clone()))
@@ -143,6 +172,12 @@ fn admission(
     let (Some(version), Some(changes)) = (tx.schema_version, changes(tx)) else {
         return Vec::new();
     };
+    // Citations and nothing to cite them for: the structural validator's
+    // `citation-without-schema-change`, which `Ontology::evolve` would repeat as
+    // `empty-schema-change`.
+    if changes.is_empty() && !tx.operations.is_empty() {
+        return Vec::new();
+    }
     let prior = &graph.ontology;
     let (mut defined, mut widened) = (BTreeSet::new(), BTreeSet::new());
     for change in &changes {

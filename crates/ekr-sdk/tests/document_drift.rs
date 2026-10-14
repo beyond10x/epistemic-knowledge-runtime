@@ -101,6 +101,7 @@ fn kernel_kind(operation: &ekr_kernel::GraphOperation) -> &'static str {
         G::WidenEdgeType(_) => "WidenEdgeType",
         G::AddAlias(_) => "AddAlias",
         G::AttachEvidence(_) => "AttachEvidence",
+        G::CiteEvidence(_) => "CiteEvidence",
     }
 }
 
@@ -222,6 +223,7 @@ fn example(kind: OperationKind, operator: AgentId) -> Operation {
         OperationKind::AttachEvidence => {
             EvidenceAttachment::new(AssertionId::mint(), EvidenceId::mint()).into()
         }
+        OperationKind::CiteEvidence => sdk::Operation::CiteEvidence(EvidenceId::mint()),
     }
 }
 

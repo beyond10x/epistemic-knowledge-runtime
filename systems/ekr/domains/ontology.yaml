@@ -285,6 +285,14 @@ entities:
         type: Optional<ekr.ontology.SchemaVersionId>
       - name: created_at
         type: Timestamp
+      # Design § 109 (story:schema-transaction-cites-evidence): the evidence the schema
+      # transaction that made this version cited, one id per CiteEvidence operation
+      # (ekr.kernel.OperationKind), as a set. Empty for the seed and for every version made
+      # without a citation; empty, it is absent from the version's document and from its canonical
+      # encoding, so every ontology root a store already records stays what it was. Non-empty, the
+      # encoding continues after created_at with it as a tagged Some.
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
     invariants:
       - number >= 0
     relations:
