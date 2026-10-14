@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: story:overview-sections
 kind: story
-status: active
+status: implemented
 title: An overview answers only the sections a caller asks for
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-14T23:12:22Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

@@ -2,7 +2,7 @@
 
 Skill: aep:implementing 0.22.8 (wave mode). Coordinator: the repository's controlling Claude session
 of 2026-10-14.
-Status: **running**.
+Status: **integrated**: units T, R, O, C, E and V merged into `wave/20261014a`; stories R, O, C, E and V implemented, T stays active; the pull request is next.
 
 Approved 2026-10-14: every ready unit with disjoint scope, up to six, preferring what a consumer's
 seven-day unattended run needs. The stories that run needs most (source-adapter contract, retained
@@ -50,10 +50,28 @@ Deferred, with the file they share with a unit here: `story:read-answers-name-ty
 
 | unit | branch | head | worktree id | build dir | scratch | stage |
 |---|---|---|---|---|---|---|
-| int | `wave/20261014a` | — | `ekr-wave-20261014a` | `<int>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/int` | open (`68842eaba8d`) |
-| T | `unit/w20261014a-t` | `68842eaba8d` | `ekr-w20261014a-t` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/t` | implementor dispatched |
-| R | `unit/w20261014a-r` | `68842eaba8d` | `ekr-w20261014a-r` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/r` | implementor dispatched |
-| O | `unit/w20261014a-o` | `68842eaba8d` | `ekr-w20261014a-o` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/o` | implementor dispatched |
-| C | `unit/w20261014a-c` | `68842eaba8d` | `ekr-w20261014a-c` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/c` | implementor dispatched |
-| E | `unit/w20261014a-e` | `68842eaba8d` | `ekr-w20261014a-e` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/e` | implementor dispatched |
-| V | `unit/w20261014a-v` | `68842eaba8d` | `ekr-w20261014a-v` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/v` | implementor dispatched |
+| int | `wave/20261014a` | `75304ceec81` | `ekr-wave-20261014a` | `<int>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/int` | open until the merge |
+| T | `unit/w20261014a-t` | `a4998099755` | `ekr-w20261014a-t` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/t` | finished |
+| R | `unit/w20261014a-r` | `33110753070` | `ekr-w20261014a-r` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/r` | finished |
+| O | `unit/w20261014a-o` | `057a3c92fcb` | `ekr-w20261014a-o` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/o` | finished |
+| C | `unit/w20261014a-c` | `916c635f45a` | `ekr-w20261014a-c` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/c` | finished |
+| E | `unit/w20261014a-e` | `b08a621b2ee` | `ekr-w20261014a-e` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/e` | finished |
+| V | `unit/w20261014a-v` | `1ffc4bf3a9a` | `ekr-w20261014a-v` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/v` | finished |
+
+## Gate
+
+One full `task check` on `0b1ed6a28` (the six units merged): clippy, format and the search-web
+check green; 2391 tests passed and 6 test targets failed. Four of them (`ekr` conformance and
+conformance_integrate, `ekr-views` conformance and determinism) had one cause: unit C declared
+`start >= 0` and `length >= 1` on `ekr.observe.RedactionSpan`, a type no view publishes, so ESS
+refused the claim (ESS-SYNTH-013) and every suite's coverage inventory read incomplete, which
+makes a run's conformance Inconclusive although every scenario passed. The invariants moved to
+`ekr_core::RedactionSpan`, which already holds them; the three suites were re-synthesized with
+no refusal (`939dd73bc`). The fifth, `public_surface`, named `ekr_store::evidence_root_of`
+as untested; `current_root_sensitivity.rs` now calls it by path (`75304ceec81`). The sixth,
+the code-names adversary, failed a wall-clock bound at 5.48 s under load; its two bounds are
+now ratios of two measurements in one process (`939dd73bc`).
+
+After the fixes, each failed target was rerun alone and passed, then the package gates of the
+crates the fixes touch, on `75304ceec81`: `cargo clippy -D warnings` and `cargo test --no-fail-fast`
+for `ekr-store`, `ekr-views` and `ekr`, all green. The pull request's CI is the gate for the merge.

@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-14T23:12:22Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:store-equivalence-check",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Wave 2026-10-14a package gates on commit 75304ceec8169342f622d4d372e1a8eb8fdbbc63: clippy -D warnings and cargo test --no-fail-fast for ekr-store, ekr-views and ekr, all passed, after the full task check on 0b1ed6a28 left only the targets fixed since"
+  }
+}

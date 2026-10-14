@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: story:reads-served-from-a-persisted-read-model
 kind: story
-status: active
+status: implemented
 title: One-shot reads are served from a persisted, verified read model instead of a rebuild
 relations:
 - serves: vision:o5
 - decomposes: epic:read-and-storage-cost
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-14T23:12:22Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 
