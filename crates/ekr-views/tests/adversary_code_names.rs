@@ -107,45 +107,76 @@ log(\"it is\", \"alpha\"); // don't
     );
 }
 
+/// The fastest of three runs of `work`. Each comparison below sets two such measurements, taken in
+/// one process moments apart, against each other: a ratio, not a wall-clock bound, so load moves
+/// both sides together.
+fn fastest(mut work: impl FnMut()) -> Duration {
+    (0..3)
+        .map(|_| {
+            let started = Instant::now();
+            work();
+            started.elapsed()
+        })
+        .min()
+        .expect("three runs")
+}
+
+/// Linear work grows four times when its input does; quadratic work grows sixteen times. Eight
+/// lies between them with a factor of two to spare on either side.
+const QUADRUPLED_INPUT_CEILING: f64 = 8.0;
+
+fn grows_linearly(name: &str, small: Duration, large: Duration) {
+    let ratio = large.as_secs_f64() / small.as_secs_f64().max(1e-6);
+    assert!(
+        ratio < QUADRUPLED_INPUT_CEILING,
+        "{name}: four times the input took {ratio:.1} times as long ({small:?} -> {large:?})"
+    );
+}
+
 /// The literal scan of one line is linear in the line's length. An opening quote with no
 /// unescaped partner scans to the end of its line, and the scan for openings does not skip
 /// escaped quotes, so a line of `n` escaped quotes costs `n` scans of the line.
 #[test]
 fn scanning_a_long_line_of_escaped_quotes_is_linear() {
-    let line = format!("data = '{}';\n", "\\\"".repeat(50_000));
-    let started = Instant::now();
-    let literals = ekr_views::literals(&line);
-    let elapsed = started.elapsed();
-    assert_eq!(literals.len(), 1, "only the single-quoted literal");
-    assert!(
-        elapsed < Duration::from_secs(1),
-        "a 100 000-character line took {elapsed:?}"
+    let line = |quotes: usize| format!("data = '{}';\n", "\\\"".repeat(quotes));
+    let (short, long) = (line(12_500), line(50_000));
+    assert_eq!(
+        ekr_views::literals(&long).len(),
+        1,
+        "only the single-quoted literal"
     );
+    let small = fastest(|| assert_eq!(ekr_views::literals(&short).len(), 1));
+    let large = fastest(|| assert_eq!(ekr_views::literals(&long).len(), 1));
+    grows_linearly("a line of escaped quotes", small, large);
 }
 
 /// Many sources: the answer's cost is not quadratic in the number of files. Measured on the unit's
-/// tree (debug build): 5 000 sources 0.19 s, 10 000 0.71 s, 20 000 3.4 s, 40 000 15.3 s — each
-/// doubling costs four times, from the path dedup in `code_names`, which compares every source
-/// with every one kept before it.
+/// tree (debug build), before the fix: 5 000 sources 0.19 s, 10 000 0.71 s, 20 000 3.4 s, 40 000
+/// 15.3 s — each doubling costs four times, from the path dedup in `code_names`, which compared
+/// every source with every one kept before it.
 #[test]
-fn forty_thousand_sources_answer_in_bounded_time() {
+fn many_sources_answer_in_time_linear_in_their_number() {
     let (_work, runtime) = built();
     let loaded = ekr_views::load(&runtime, None).expect("the head loads");
-    let sources: Vec<SourceText> = (0..40_000)
-        .map(|n| {
-            source(
-                &format!("src/module_{n:06}/reader.ts"),
-                "const kind = \"Subject\";\nconst other = 'nothing';\n",
-            )
-        })
-        .collect();
-    let started = Instant::now();
-    let answer = ekr_views::code_names(&loaded, &sources).expect("an answer");
-    let elapsed = started.elapsed();
+    let sources = |count: usize| -> Vec<SourceText> {
+        (0..count)
+            .map(|n| {
+                source(
+                    &format!("src/module_{n:06}/reader.ts"),
+                    "const kind = \"Subject\";\nconst other = 'nothing';\n",
+                )
+            })
+            .collect()
+    };
+    let (few, many) = (sources(10_000), sources(40_000));
+    let answer = ekr_views::code_names(&loaded, &many).expect("an answer");
     assert_eq!(answer.summary.files, 40_000);
     assert_eq!(answer.summary.findings, 40_000);
-    assert!(
-        elapsed < Duration::from_secs(5),
-        "40 000 sources took {elapsed:?}"
-    );
+    let small = fastest(|| {
+        ekr_views::code_names(&loaded, &few).expect("an answer");
+    });
+    let large = fastest(|| {
+        ekr_views::code_names(&loaded, &many).expect("an answer");
+    });
+    grows_linearly("code names over many sources", small, large);
 }

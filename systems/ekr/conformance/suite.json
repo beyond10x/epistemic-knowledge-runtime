@@ -182,7 +182,7 @@
       "authored": 29,
       "generated": 36,
       "outside": 93,
-      "refused": 1
+      "refused": 0
     },
     "generated": [
       "ekr.kernel.Commit/outcome/committed",
@@ -1644,23 +1644,7 @@
         "scenario": "ekr.views.SearchNodes/outcome/searched"
       }
     ],
-    "refused": [
-      {
-        "code": "ESS-SYNTH-013",
-        "effect": "candidate_not_emitted",
-        "message": "refusal[ESS-SYNTH-013]: type ekr.observe.RedactionSpan has no scenario\n  no view publishes a field position that can answer what `ekr.observe.RedactionSpan` declares of every value\n    - `start >= 0`\n    - `length >= 1`\n  help: publish a field that holds a value of this type in some view — outside a list, a map, a union and an `Optional` — or state the claim as an entity invariant over what a view already publishes",
-        "needs": [],
-        "origin": "generated",
-        "retained": null,
-        "scenario": null,
-        "scope": "in_scope",
-        "source": null,
-        "subject": {
-          "kind": "type",
-          "name": "ekr.observe.RedactionSpan"
-        }
-      }
-    ],
+    "refused": [],
     "selection": {
       "filter": {
         "kind": "all"
@@ -1674,8 +1658,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "b9479aac76f324fa94859d92aa5b5dec2882c3b75bc0ed0f6310f59df54c1180",
-    "spec_digest": "77eff65751c8678bd1e550ecbea5fc915b62f7e985135debe045bff7c584da1b",
+    "contract_digest": "db1c9f30b7f9e5d8b6e2907542f61561e68ac735679e1c4957cc77d556369827",
+    "spec_digest": "dcf8c5bf7b44384be1b217c1fcab5f3d822b7e547a1b8dd5711693c0b2e166d3",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"

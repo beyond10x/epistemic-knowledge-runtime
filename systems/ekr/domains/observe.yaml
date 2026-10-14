@@ -104,6 +104,11 @@ types:
   # observed, and its length in bytes. Offsets, not content: a span carries no byte of the
   # credential. A start and a length rather than two ends, so that a span is never empty is an
   # invariant of one field.
+  #
+  # UNMAPPED: `start >= 0` and `length >= 1`. No view publishes a span, so ESS can derive no
+  # scenario for a claim declared here and refuses it (ESS-SYNTH-013). Both are held by
+  # `ekr_core::RedactionSpan` instead: its fields are unsigned and private, and only the detector
+  # constructs one, from a match that is never empty.
   - name: ekr.observe.RedactionSpan
     kind: struct
     fields:
@@ -111,9 +116,6 @@ types:
         type: Integer
       - name: length
         type: Integer
-    invariants:
-      - start >= 0
-      - length >= 1
 
   # One credential replaced: its shape and its span, and nothing else. The credential's value is
   # never recorded, hashed or echoed (story:credential-redaction-before-model-input).
