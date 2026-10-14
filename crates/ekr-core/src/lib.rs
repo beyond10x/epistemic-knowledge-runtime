@@ -13,7 +13,7 @@
 //! * [`time`] — [`Timestamp`], the point-in-time scalar every domain above dates its records
 //!   with (`architecture-decision-record:0004-timestamp-in-ekr-core`).
 //!
-//! Beside them, [`redact`] holds the credential redaction of `ekr.observe` (predecessors A6): a
+//! Beside them, [`redaction`] holds the credential redaction of `ekr.observe` (predecessors A6): a
 //! pure function over text, here so that `ekr-sdk`, which links only this crate, can offer it.
 //!
 //! This crate names no domain concept and no graph concept — `AGENTS.md` invariant 8 — and
@@ -32,7 +32,7 @@ pub mod canonical;
 pub mod decode;
 pub mod hash;
 pub mod identity;
-pub mod redact;
+pub mod redaction;
 pub mod time;
 
 #[cfg(feature = "schema")]
