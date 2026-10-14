@@ -50,4 +50,10 @@ Deferred, with the file they share with a unit here: `story:read-answers-name-ty
 
 | unit | branch | head | worktree id | build dir | scratch | stage |
 |---|---|---|---|---|---|---|
-| int | `wave/20261014a` | — | `ekr-wave-20261014a` | `<int>/target` | `~/.cache/ekr-w20261014a/int` | open |
+| int | `wave/20261014a` | — | `ekr-wave-20261014a` | `<int>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/int` | open (`68842eaba8d`) |
+| T | `unit/w20261014a-t` | `68842eaba8d` | `ekr-w20261014a-t` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/t` | implementor dispatched |
+| R | `unit/w20261014a-r` | `68842eaba8d` | `ekr-w20261014a-r` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/r` | implementor dispatched |
+| O | `unit/w20261014a-o` | `68842eaba8d` | `ekr-w20261014a-o` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/o` | implementor dispatched |
+| C | `unit/w20261014a-c` | `68842eaba8d` | `ekr-w20261014a-c` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/c` | implementor dispatched |
+| E | `unit/w20261014a-e` | `68842eaba8d` | `ekr-w20261014a-e` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/e` | implementor dispatched |
+| V | `unit/w20261014a-v` | `68842eaba8d` | `ekr-w20261014a-v` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261014a/v` | implementor dispatched |

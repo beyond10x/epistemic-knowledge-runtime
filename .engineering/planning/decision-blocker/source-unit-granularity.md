@@ -2,13 +2,15 @@
 format: aep.planning-md/3
 id: decision-blocker:source-unit-granularity
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether a source unit is one observed item or the stream a checkpoint advances over
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:observations-are-retained
 - blocks: story:source-adapter-contract
-revision: 2
+revision: 4
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T07:29:18Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 ## Question
 
@@ -33,3 +35,7 @@ The two readings both appear, and nothing typed settles them:
 ## What it stops
 
 The `SourceAdapter` trait signature, per-unit checkpoints, poll health (`checked_through`, attempt | complete | partial | failed), and the coverage denominators. `story:observe-domain-model` carries this as an `UNMAPPED:` marker. `story:fixture-records-become-observations` uses one observation per fixture record and does not use the word unit.
+
+## Answer
+
+Decided 2026-10-14: two named levels. A `SourceStream` is what a checkpoint advances over: it is checkpointed, health-reported and declared by the adapter (ADR 0012). A `SourceItem` is one observed item; a stream yields many items. This is option C; `story:source-adapter-contract` writes both entities into `ekr.observe`.

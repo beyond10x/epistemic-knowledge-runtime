@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:constraint-language
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided which constraint language a property's constraints hold
 relations:
 - blocks: story:property-constraints-are-enforced
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T07:29:19Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Question
 
@@ -35,3 +37,7 @@ write touching a declared constraint (`crates/ekr-kernel/src/validate/ontology.r
 ## Clears when
 
 The operator records the answer and it lands in `ontology.yaml` before the story is scheduled.
+
+## Answer
+
+Decided 2026-10-14: a closed set of typed constraints (range, length, pattern, enumeration, uniqueness within a type), parsed from the existing constraint strings at evaluation time, so the canonical schema encoding is unchanged. An expression language may come later as a new constraint kind. This is option 1 (A).
