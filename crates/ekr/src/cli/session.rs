@@ -744,6 +744,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::Mcp => Err(verb_refused("mcp")),
         Command::McpHttp { .. } => Err(verb_refused("mcp-http")),
         Command::Migrate { .. } => Err(verb_refused("migrate")),
+        Command::Compare { .. } => Err(verb_refused("compare")),
         Command::PostgresSchema { .. } => Err(verb_refused("postgres-schema")),
         Command::Stage { .. } => Err(verb_refused("stage")),
         Command::Guide => Err(verb_refused("guide")),

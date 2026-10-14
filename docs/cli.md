@@ -167,6 +167,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
+| `ekr compare` | reads | `--other <store>`, optional `--other-backend <provider>`, `--other-host <file>`, `--at <revision>`, `--other-at <revision>` | the `ekr.store-comparison/1` document: whether two stores hold the same knowledge, commit times and transaction ids aside, and per category the first differing ids with the fields that differ |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
 | `ekr process-map` | reads | `--revision <revision>`, `--events <type name>...`, `--event-time <type.property>...` | the `ekr.process-map/1` document: that log as a process, per object type its variants with their case counts and its directly-follows edges with their counts |
 | `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
@@ -629,6 +630,67 @@ The document is printed as every verb prints its
 JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.
+
+### `ekr compare`
+
+`ekr compare --other <store>` answers whether two stores hold the same knowledge: after a rebuild,
+or after a move to another provider, where the root hashes `ekr head` prints cannot answer it,
+because they differ whenever commit times differ. The configured store (`--store`) is the left
+one; `--other` names the right one, `--other-backend` its provider (the configured `--backend`
+when absent) and `--other-host` its host document (the configured `--host` when absent). Each is
+read at its head, or at `--at N` and `--other-at N`. Both are opened as every verb that only reads
+opens a store, and neither is written: no record, no event, no checkpoint.
+
+It prints the `ekr.store-comparison/1` document (`ekr.cli.CompareStores` in
+`systems/ekr/domains/cli.yaml`):
+
+```json
+{
+  "categories": [
+    {
+      "category": "nodes",
+      "differences": 1,
+      "differing": [
+        {
+          "fields": ["aliases"],
+          "id": "00000000-0000-4000-8000-000000000302",
+          "presence": "both"
+        }
+      ],
+      "equal": false,
+      "left": 4,
+      "right": 4
+    }
+  ],
+  "equal": false,
+  "format": "ekr.store-comparison/1",
+  "left": { "revision": 1 },
+  "right": { "revision": 1 }
+}
+```
+
+`categories` lists six, in this order (one is shown above): `types`, `properties`, `nodes`,
+`edges`, `assertions` and `evidence`. `left` and `right` count the ids each store holds there;
+`differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
+`presence` is `left` or `right` for an id only one store holds, and `both` for one both hold
+differently, with `fields` naming the fields that differ. `equal` is `true` exactly when every
+category's is.
+
+| category | keyed by | compared |
+|---|---|---|
+| `types` | type id | the whole node or edge type declaration, its properties included, and `kind` (`node` or `edge`) |
+| `properties` | property id | its definition, the lowest declaring type id's, and `declared_by`, every type declaring it |
+| `nodes` | node id | `type_id`, `canonical_name`, `aliases`, `type_state`, `properties` |
+| `edges` | edge id | `type_id`, `source`, `target`, `properties` |
+| `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
+| `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
+
+Nothing a commit's clock or its transaction decides is compared: not an assertion's
+`transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
+built from the same seed and the same transaction documents at different times compare equal, on
+one provider or on two. A store never seeded is refused as `ekr.views.NotSeeded`, and a revision a
+store does not hold as `ekr.kernel.RevisionNotFound`, exit 2, the message naming which store.
+`ekr session` refuses the verb: it opens a second store.
 
 ### `ekr ocel`
 
@@ -1469,7 +1531,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `mcp-http`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `mcp-http`, `migrate`, `compare`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, open a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
