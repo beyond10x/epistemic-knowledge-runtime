@@ -353,8 +353,9 @@
 // Data: the only code that talks to the server, through one `get`. It reads the seven addresses of the
 // `ekr view` data contract and nothing else:
 //   /head          the newest committed revision of the store, after every overview: no document names it
-//   /overview      once per revision: meta, ontology, schema lineage with what each version added and
-//                  removed, growth per revision, type counts, roles, timeline buckets and the top nodes
+//   /overview      once per revision, every section named: meta, ontology, schema lineage with what each
+//                  version added and removed, growth per revision, type counts, roles, timeline buckets
+//                  and the top nodes
 //   /expand        a neighbourhood, streamed as NDJSON and handed on in batches as the lines arrive
 //   /node/<id>     one node's detail, when it is opened
 //   /search        nodes whose name or alias holds a text
@@ -366,6 +367,7 @@
 const Data = (() => {
   const HEAD = "/head";
   const OVERVIEW = "/overview";
+  const SECTIONS = ["ontology", "schema", "roles", "timeline"];   // ekr.graph-overview/2 answers only those named
   const EXPAND = "/expand";
   const NODE = "/node/";
   const SEARCH = "/search";
@@ -422,7 +424,7 @@ const Data = (() => {
   const still = (load, at) => load === loads && at === revision();
   async function overview(at) {
     const mine = ++loads;
-    const answer = await get(OVERVIEW + query({revision: at})).then(json);
+    const answer = await get(OVERVIEW + query({revision: at, sections: SECTIONS})).then(json);
     // read after the overview, so the head it names is never older than the revision it answered
     const newest = await get(HEAD).then(json);
     if (mine !== loads) return null;

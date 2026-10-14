@@ -633,6 +633,33 @@ pub fn build_evidenced(runtime: &Runtime, extra: u64) {
     }
 }
 
+/// Commits `versions` schema changes onto a built [`Fixture::SeedOnly`] store, each its own schema
+/// version and revision, each declaring one more String property on `Subject`: so revision `n`'s
+/// ontology has `n` more properties and its lineage `n` more versions than the seed's, and no
+/// node, edge, assertion or evidence is added.
+pub fn commit_schema_growth(runtime: &Runtime, versions: u64) {
+    const GROWN_PROPERTY: u64 = 0xb0_0000;
+    const GROWN_VERSION: u64 = 0xb1_0000;
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS + 2_000_000,
+        transactions: TRANSACTIONS + 0x3000,
+    };
+    for n in 0..versions {
+        writer.commit(
+            vec![GraphOperation::ModifyProperty(PropertyModification {
+                owner: Some(id(SUBJECT)),
+                property: PropertyDefinition::new(
+                    id(GROWN_PROPERTY + n),
+                    format!("grown {n}"),
+                    ValueType::String,
+                ),
+            })],
+            Some(id(GROWN_VERSION + n)),
+        );
+    }
+}
+
 /// Commits one more transaction onto a built [`Fixture::Evolved`] store, updating `beta`'s note
 /// to `note {n}`: a commit unrelated to any earlier revision, which moves only the head. Each `n`
 /// is a distinct transaction, timed after everything the fixture itself committed.

@@ -33,15 +33,15 @@ use ekr_sdk::read::{
     ListedTransaction, MatchField, MatchTier, MatchesMeta, ModifiedProperty, NamedType, NodeDetail,
     NodeMatch, NodeMatches, NodeSummary, OneShotReader, Ontology, OntologyCardinality,
     OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType, Overview,
-    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline, ReadError,
-    Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since,
-    Slice, SliceEdge, SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment,
-    SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode,
-    SnapshotPredicate, SnapshotRoot, SnapshotSubject, Timeline, TimelineBucket, TimelineCell,
-    TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep,
-    TransactionState, Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion,
-    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
-    ViewProperty, ViewValue, WidenedEnd,
+    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewSection,
+    OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember,
+    SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
+    SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
+    SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
+    Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineQuery,
+    TimelineRow, TimelineRowType, TimelineStep, TransactionState, Transactions, TypeCount,
+    TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle,
+    ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -281,16 +281,19 @@ fn exact<T: DeserializeOwned + Serialize>(what: &str, bytes: &[u8]) -> T {
 
 // ---- what each typed document says, checked on every one read ---------------------------------
 
-fn overview_holds(overview: &Overview) {
+/// `format` is `ekr.graph-overview/1` for [`Index::overview`]'s document and
+/// `ekr.graph-overview/2` for the session's, which [`Reader::overview`] asks every section of;
+/// either carries all four optional sections.
+fn overview_holds(overview: &Overview, format: &str) {
     let meta: &OverviewMeta = &overview.meta;
-    assert_eq!(meta.format, "ekr.graph-overview/1");
+    assert_eq!(meta.format, format);
     let counted = |types: &[TypeCount]| types.iter().map(|t| t.count).sum::<u64>();
     assert_eq!(counted(&overview.node_types), meta.node_count);
     assert_eq!(counted(&overview.edge_types), meta.edge_count);
     assert!(overview.top.len() as u64 <= meta.limit);
     let top: &[NodeSummary] = &overview.top;
     assert!(top.windows(2).all(|pair| pair[0].degree >= pair[1].degree));
-    let ontology: &ViewOntology = &overview.ontology;
+    let ontology: &ViewOntology = overview.ontology.as_ref().expect("ontology");
     let properties: BTreeSet<&str> = ontology
         .properties
         .iter()
@@ -309,7 +312,7 @@ fn overview_holds(overview: &Overview) {
         assert!(!edge_type.source_types.is_empty() && !edge_type.target_types.is_empty());
         edge_type.assertions.iter().for_each(assertion_holds);
     }
-    let schema: &OverviewSchema = &overview.schema;
+    let schema: &OverviewSchema = overview.schema.as_ref().expect("schema");
     let versions: &[SchemaVersionChange] = &schema.versions;
     assert!(!versions.is_empty());
     for version in versions {
@@ -332,12 +335,12 @@ fn overview_holds(overview: &Overview) {
         revisions.last().map(|revision| revision.number),
         Some(meta.revision)
     );
-    let roles: &OverviewRoles = &overview.roles;
+    let roles: &OverviewRoles = overview.roles.as_ref().expect("roles");
     assert!(roles
         .types
         .iter()
         .all(|timing: &TypeTiming| timing.timestamped <= timing.nodes));
-    let timeline: &OverviewTimeline = &overview.timeline;
+    let timeline: &OverviewTimeline = overview.timeline.as_ref().expect("timeline");
     let buckets: &[TimelineBucket] = &timeline.buckets;
     assert!(buckets.iter().all(|bucket| bucket.assertions > 0));
 }
@@ -492,8 +495,26 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
                 .overview(&OverviewRequest::new(Some(OverviewRequest::MAX_LIMIT)).unwrap())
                 .unwrap();
             let typed = exact::<Overview>(&at, &overview.bytes);
-            overview_holds(&typed);
-            for version in &typed.schema.versions {
+            overview_holds(&typed, "ekr.graph-overview/1");
+            // Named no section, ekr.graph-overview/2 reads exactly too: the four sections are
+            // absent, and what it carries is /1's.
+            let slim = index
+                .overview_sections(&OverviewRequest::new(Some(OverviewRequest::MAX_LIMIT)).unwrap())
+                .unwrap();
+            let slim = exact::<Overview>(&at, &slim.bytes);
+            assert_eq!(slim.meta.format, "ekr.graph-overview/2", "{at}");
+            assert_eq!(
+                (&slim.ontology, &slim.schema, &slim.roles, &slim.timeline),
+                (&None, &None, &None, &None),
+                "{at}"
+            );
+            assert_eq!(
+                (&slim.node_types, &slim.edge_types, &slim.top),
+                (&typed.node_types, &typed.edge_types, &typed.top),
+                "{at}"
+            );
+            *read.entry("overview without sections").or_default() += 1;
+            for version in &typed.schema.as_ref().unwrap().versions {
                 *read.entry("widened").or_default() += version.widened.len();
                 *read.entry("modified").or_default() += version.modified.len();
             }
@@ -597,6 +618,7 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
     }
     for (what, least) in [
         ("overview", 20),
+        ("overview without sections", 20),
         // `schema-changes`: two widened ends at revisions 2, 3 and 4; one modified property at
         // 3 and two at 4.
         ("widened", 6),
@@ -998,7 +1020,10 @@ fn every_views_read_of_a_real_session_is_the_document_it_printed() {
     let alice: NodeId = ALICE.parse().unwrap();
     let person: TypeId = "00000000-0000-4000-8000-000000000201".parse().unwrap();
     let mut reader = Reader::new(RecordingTransport::record(&mut session));
-    overview_holds(&reader.overview(Some(0), Some(2)).unwrap());
+    overview_holds(
+        &reader.overview(Some(0), Some(2)).unwrap(),
+        "ekr.graph-overview/2",
+    );
     matches_hold(&reader.search("-", Some(5), None).unwrap(), 5);
     matches_hold(&reader.search("", Some(5), Some(0)).unwrap(), 5);
     detail_holds(&reader.describe(alice, None).unwrap(), alice);
@@ -1020,6 +1045,19 @@ fn every_views_read_of_a_real_session_is_the_document_it_printed() {
     ] {
         changes_hold(&reader.changes(since, Some(1), Some(1), Some(0)).unwrap());
     }
+    let slim = reader.overview_sections(Some(0), Some(2), &[]).unwrap();
+    assert_eq!(slim.meta.format, "ekr.graph-overview/2");
+    assert!(slim.ontology.is_none() && slim.schema.is_none());
+    assert!(slim.roles.is_none() && slim.timeline.is_none());
+    let schema = reader
+        .overview_sections(
+            None,
+            None,
+            &[OverviewSection::Schema, OverviewSection::Schema],
+        )
+        .unwrap();
+    assert!(schema.schema.is_some() && schema.ontology.is_none());
+    assert!(schema.roles.is_none() && schema.timeline.is_none());
     let refused = reader.overview(Some(9), None).unwrap_err();
     assert!(
         matches!(&refused, ReadError::Refused { verb, refusal }
@@ -1028,7 +1066,7 @@ fn every_views_read_of_a_real_session_is_the_document_it_printed() {
     );
 
     let recording = reader.into_inner().into_recording();
-    assert_eq!(recording.exchanges.len(), 11);
+    assert_eq!(recording.exchanges.len(), 13);
     for exchange in &recording.exchanges {
         let what = format!("{:?}", exchange.request.argv);
         let Some(document) = &exchange.reply.document else {

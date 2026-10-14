@@ -818,7 +818,7 @@ fn ekr_view_answers_from_a_store_replaced_by_rename() {
         let expected = [
             Index::load(&runtime, Some(RevisionNumber::new(0)))
                 .unwrap()
-                .overview(&ekr_views::OverviewRequest::new(None).unwrap())
+                .overview_sections(&ekr_views::OverviewRequest::new(None).unwrap())
                 .unwrap()
                 .bytes,
             ekr_views::project(&runtime, Some(RevisionNumber::new(0)))

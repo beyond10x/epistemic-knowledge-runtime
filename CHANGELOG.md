@@ -33,6 +33,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
     A damaged or absent seed envelope or evidence payload is still refused by both verbs: the
     model loads and verifies each one a complete read requires (design § 108.2 item 7).
 
+- `overview` answers `ekr.graph-overview/2` and takes `sections`, any of `ontology`, `schema`,
+  `roles` and `timeline`, on `GET /overview` (`sections=ontology,schema`), the MCP tool
+  (`"sections": ["ontology"]`) and the session verb (`--sections ontology,schema`). Named none, the
+  answer is the counts, the type counts and the top nodes only, so its size no longer grows with
+  the ontology's properties, the schema's versions or the revisions committed. Named all four, it
+  is `ekr.graph-overview/1`'s content under the new format name. A section not named is absent,
+  never empty. A client that reads the ontology, schema, roles or timeline from `overview` now
+  names them; the viewer page and the SDK's `Reader::overview` name all four. The SDK's
+  `Overview` holds `ontology`, `schema`, `roles` and `timeline` as `Option`s, and
+  `Reader::overview_sections` names the sections to read.
+
 ## [0.0.33] — 2026-10-08
 
 ### Added

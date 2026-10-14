@@ -9,9 +9,10 @@ summary: >-
   evidence ids for the explain chain (§ 62), the schema version lineage (§ 95) and evidence
   identities without their bytes (§ 86). The format names no domain concept: it is generic over any
   ontology, and every name a viewer shows is taken from the projection's ontology or graph state.
-  Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/1
-  (ProjectOverview), ekr.graph-slice/1 (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode),
-  ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
+  Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/2
+  (ProjectOverview, which answers only the sections a request names; its predecessor
+  ekr.graph-overview/1 is every section, and stays specified below), ekr.graph-slice/1
+  (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode), ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
   any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
   revisions up to one revision changed after a revision or a time. ekr.store-quality/1
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
@@ -62,6 +63,11 @@ summary: >-
   modified by owner id, then property id, and each one's changed in the order
   ekr.views.PropertyAspect declares its variants; node_types, edge_types and roles.types by
   type id; timeline.buckets by start ascending, then type id; top by degree descending, then id.
+  ekr.graph-overview/2 — as ekr.graph-overview/1, for each section it carries. Its sections are
+  /1's in /1's key order, and its arrays are /1's ordered as /1 orders them; ontology, schema,
+  roles and timeline appear exactly when the request names them, and a section the request does
+  not name is absent, never emitted empty or null. With all four named, the document is /1's of
+  the same revision and limit byte for byte but meta.format.
   ekr.graph-slice/1 — nodes and edges in record-sequence order (ekr.views.GraphSliceV1: distance
   ascending, degree descending, id ascending, each node followed by the edges it closes by id),
   which is not id order; meta.seeds and each edge's assertions by id.
@@ -473,6 +479,15 @@ types:
     kind: enum
     variants: [ekr.graph-overview/1]
 
+  - name: ekr.views.GraphOverviewFormatV2
+    kind: enum
+    variants: [ekr.graph-overview/2]
+
+  # An optional section of ekr.graph-overview/2, by the name of the key it is answered under.
+  - name: ekr.views.OverviewSection
+    kind: enum
+    variants: [ontology, schema, roles, timeline]
+
   - name: ekr.views.GraphSliceFormatV1
     kind: enum
     variants: [ekr.graph-slice/1]
@@ -823,6 +838,51 @@ types:
         type: ekr.views.OverviewRoles
       - name: timeline
         type: ekr.views.OverviewTimeline
+      - name: top
+        type: List<ekr.views.NodeSummary>
+
+  # ekr.graph-overview/2's meta: ekr.views.OverviewMeta with this format.
+  - name: ekr.views.OverviewMetaV2
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphOverviewFormatV2
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: node_count
+        type: Integer
+      - name: edge_count
+        type: Integer
+      - name: assertion_count
+        type: Integer
+      - name: evidence_count
+        type: Integer
+      - name: limit
+        type: Integer
+
+  # ekr.graph-overview/2: ekr.graph-overview/1 with ontology, schema, roles and timeline each
+  # present exactly when the request names it (ekr.views.OverviewSection). meta, node_types,
+  # edge_types and top are always present, so a request that names no section answers counts,
+  # type counts and the top nodes only, and its size does not grow with the ontology's
+  # properties, the schema's versions or the revisions committed: it is meta, one entry per
+  # declared type and at most `limit` nodes. Each present section is /1's, built as /1 builds it.
+  - name: ekr.views.GraphOverviewV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.OverviewMetaV2
+      - name: ontology
+        type: Optional<ekr.views.ProjectedOntology>
+      - name: schema
+        type: Optional<ekr.views.OverviewSchema>
+      - name: node_types
+        type: List<ekr.views.TypeCount>
+      - name: edge_types
+        type: List<ekr.views.TypeCount>
+      - name: roles
+        type: Optional<ekr.views.OverviewRoles>
+      - name: timeline
+        type: Optional<ekr.views.OverviewTimeline>
       - name: top
         type: List<ekr.views.NodeSummary>
 
@@ -2245,6 +2305,9 @@ commands:
   # ProjectGraph's are: what decides them is store state, which no guard reads.
 
   # `limit` is how many of the highest-degree nodes the overview lists: 1 to 500, 300 when absent.
+  # `sections` names the optional sections of the answer, ekr.graph-overview/2: absent or empty,
+  # none, so the answer is meta, node_types, edge_types and top. A section named twice is named
+  # once; the order the request names them in does not change the answer.
   - name: ekr.views.ProjectOverview
     naming:
       wire: project-overview
@@ -2256,9 +2319,11 @@ commands:
         type: Optional<ekr.kernel.RevisionNumber>
       - name: limit
         type: Optional<Integer>
+      - name: sections
+        type: Optional<List<ekr.views.OverviewSection>>
     response:
       - name: overview
-        type: ekr.views.GraphOverviewV1
+        type: ekr.views.GraphOverviewV2
     outcomes:
       - name: overviewed
         emits:
@@ -2290,8 +2355,9 @@ commands:
             dated_assertions: {generated: true}
             undated_assertions: {generated: true}
             top: {generated: true}
+            sections: {generated: true}
             overview_hash: {generated: true}
-        summary: One ekr.graph-overview/1 document of the requested revision, byte-identical to every other answer to the same request.
+        summary: One ekr.graph-overview/2 document of the requested revision and sections, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -2967,7 +3033,11 @@ events:
   # `observation_type` is roles.observation_type; `bucket_ms` is timeline.bucket_ms,
   # `timeline_buckets` the length of timeline.buckets, `dated_assertions` the sum of their
   # assertions and `undated_assertions` timeline.undated; `top` the length of the top list;
-  # `overview_hash` the hex SHA-256 of the document's exact bytes.
+  # `sections` the optional sections the document carries, in the order ekr.views.OverviewSection
+  # declares them; `overview_hash` the hex SHA-256 of the document's exact bytes. A field drawn
+  # from a section the document does not carry is absent: the schema counts without `schema`,
+  # `event_types` and `observation_type` without `roles`, and the timeline counts without
+  # `timeline`.
   - name: ekr.views.GraphOverviewed
     fields:
       - name: revision
@@ -2985,41 +3055,43 @@ events:
       - name: edge_types
         type: Integer
       - name: schema_versions
-        type: Integer
+        type: Optional<Integer>
       - name: revisions
-        type: Integer
+        type: Optional<Integer>
       - name: added
-        type: Integer
+        type: Optional<Integer>
       - name: removed
-        type: Integer
+        type: Optional<Integer>
       - name: widened
-        type: Integer
+        type: Optional<Integer>
       - name: modified
-        type: Integer
+        type: Optional<Integer>
       - name: unrecorded_nodes
-        type: Integer
+        type: Optional<Integer>
       - name: unrecorded_edges
-        type: Integer
+        type: Optional<Integer>
       - name: revision_zero_nodes
-        type: Integer
+        type: Optional<Integer>
       - name: revision_zero_edges
-        type: Integer
+        type: Optional<Integer>
       - name: revision_zero_assertions
-        type: Integer
+        type: Optional<Integer>
       - name: event_types
-        type: Integer
+        type: Optional<Integer>
       - name: observation_type
         type: Optional<ekr.ontology.TypeId>
       - name: bucket_ms
-        type: Integer
+        type: Optional<Integer>
       - name: timeline_buckets
-        type: Integer
+        type: Optional<Integer>
       - name: dated_assertions
-        type: Integer
+        type: Optional<Integer>
       - name: undated_assertions
-        type: Integer
+        type: Optional<Integer>
       - name: top
         type: Integer
+      - name: sections
+        type: List<ekr.views.OverviewSection>
       - name: overview_hash
         type: ekr.kernel.ContentHash
 

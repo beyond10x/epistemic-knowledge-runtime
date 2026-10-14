@@ -25,6 +25,7 @@
       "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
       "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
       "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest",
+      "ekr.views/authored/an-overview-answers-only-the-sections-it-names",
       "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
       "ekr.views/authored/an-unknown-seed-is-refused-by-name",
       "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
@@ -56,12 +57,12 @@
         "scenario": "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision"
       },
       "a-lineage-lists-widened-ends-and-modified-properties.yaml": {
-        "digest": "sha256:32b3fe5d95bd60801aac8513548100747a12adebe1498bd69e73bdcf81594f54",
+        "digest": "sha256:df4cd290bd3dbd5439915b05c7dc9b26c13545bf3eac2110f93cb3f1621fd8bd",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties"
       },
       "a-node-is-not-found-at-a-revision-before-it-existed.yaml": {
-        "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227",
+        "digest": "sha256:28468353011466283af648c786428dfab3e00a651c0b26a85402f76e99e18425",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed"
       },
@@ -71,7 +72,7 @@
         "scenario": "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log"
       },
       "a-property-a-subtype-redeclares-is-projected-for-each-type.yaml": {
-        "digest": "sha256:3aa0e798160e5b6d878899c35d0d1fb3955798df252145b889a3dd137a4f7411",
+        "digest": "sha256:c779429699250d330c711a8af5a4a193c4312bef85208977d48249964f67621f",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type"
       },
@@ -155,8 +156,13 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest"
       },
+      "an-overview-answers-only-the-sections-it-names.yaml": {
+        "digest": "sha256:63a49b8fe125515e6077a10e2bc10c360ca090f2fd00bf1df96a4853ce4e5918",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/an-overview-answers-only-the-sections-it-names"
+      },
       "an-overview-lists-at-most-its-limit-of-top-nodes.yaml": {
-        "digest": "sha256:b47fe99058aa5390735a8bb046b762bac04c29c17e7d1e1415fefacaddb8eaf6",
+        "digest": "sha256:bea45bf0b49583145f1bc1348bd60fe5ebdb044aea4199ce6166518dda677702",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes"
       },
@@ -191,16 +197,16 @@
         "scenario": "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges"
       },
       "the-overview-derives-roles-and-timeline-from-valid-time.yaml": {
-        "digest": "sha256:716b6d89bc6c60e53f33df251a0e0b7446ead66d0e2d9221ec1736237640b720",
+        "digest": "sha256:693a7cdeb7661de3ddde446d5b5ebd349280d478417edc5027b8a6654e0559bb",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
       }
     },
     "counts": {
-      "authored": 32,
+      "authored": 33,
       "generated": 52,
-      "outside": 74,
-      "refused": 0
+      "outside": 77,
+      "refused": 1
     },
     "generated": [
       "ekr.views.ChangesSince/outcome/limit-exceeded",
@@ -436,6 +442,43 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.cli.BeginStage/outcome/unsupported-provider"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.cli.StoresCompared"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/compared"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/not-seeded"
       },
       {
         "needs": [
@@ -1953,7 +1996,23 @@
         "scenario": "ekr.store.Stage/transition/seal/by/ekr.cli.SealStage/sealed"
       }
     ],
-    "refused": [],
+    "refused": [
+      {
+        "code": "ESS-SYNTH-013",
+        "effect": "candidate_not_emitted",
+        "message": "refusal[ESS-SYNTH-013]: type ekr.observe.RedactionSpan has no scenario\n  no view publishes a field position that can answer what `ekr.observe.RedactionSpan` declares of every value\n    - `start >= 0`\n    - `length >= 1`\n  help: publish a field that holds a value of this type in some view — outside a list, a map, a union and an `Optional` — or state the claim as an entity invariant over what a view already publishes",
+        "needs": [],
+        "origin": "generated",
+        "retained": null,
+        "scenario": null,
+        "scope": "in_scope",
+        "source": null,
+        "subject": {
+          "kind": "type",
+          "name": "ekr.observe.RedactionSpan"
+        }
+      }
+    ],
     "selection": {
       "filter": {
         "kind": "all"
@@ -1967,8 +2026,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "dd4e3ec32575f67dd80b49ad421b41a1140710156a570b70a5cbd7f4d76b2cef",
-    "spec_digest": "658f305452e0ca4078fc3da67109f13953d603c55edd92cb2d18266025d7c1ff",
+    "contract_digest": "2f097f81a63f4bfefac8836ffb69759361ecc74a90a9210db73f6c851fc54dff",
+    "spec_digest": "930d602d3c01a4ecd73195775cb2c33bd60b31184b3d6407e28bbe2827e7cda3",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -2003,6 +2062,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -2177,6 +2240,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -2331,6 +2398,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "listed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -2561,6 +2632,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -2748,6 +2823,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -2926,6 +3005,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -3076,6 +3159,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -3257,6 +3344,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -3407,6 +3498,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "since-malformed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -3581,6 +3676,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -3731,6 +3830,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "described"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -3922,6 +4025,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -4064,6 +4171,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "node-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -4233,6 +4344,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -4379,6 +4494,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -4548,6 +4667,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -4694,6 +4817,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -4863,6 +4990,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -5017,6 +5148,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "drawn"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -5222,6 +5357,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -5364,6 +5503,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -5534,6 +5677,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -5680,6 +5827,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -5857,6 +6008,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -6003,6 +6158,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -6180,6 +6339,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -6334,6 +6497,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "expanded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -6553,6 +6720,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -6699,6 +6870,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -6877,6 +7052,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -7027,6 +7206,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "node-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -7212,6 +7395,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -7362,6 +7549,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -7547,6 +7738,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -7697,6 +7892,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -7882,6 +8081,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -8024,6 +8227,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "event-time-invalid"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -8197,6 +8404,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -8339,6 +8550,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "event-type-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -8512,6 +8727,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -8658,6 +8877,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "exported"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -8874,6 +9097,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -9012,6 +9239,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -9185,6 +9416,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -9327,6 +9562,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -9500,6 +9739,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -9654,6 +9897,10 @@
             "command": "ekr.views.FindCodeNames",
             "outcome": "found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -9876,6 +10123,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -10022,6 +10273,10 @@
             "command": "ekr.views.FindCodeNames",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -10193,6 +10448,10 @@
         {
           "error": "ekr.views.RevisionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -10348,6 +10607,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -10518,6 +10781,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -10660,6 +10927,10 @@
             "command": "ekr.views.ProjectGraph",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -10825,6 +11096,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -10967,6 +11242,10 @@
             "command": "ekr.views.ProjectGraph",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -11132,6 +11411,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -11278,6 +11561,10 @@
             "command": "ekr.views.ProjectGraph",
             "outcome": "projected"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -11494,6 +11781,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -11620,6 +11911,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -11632,6 +11927,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -11775,6 +12074,10 @@
               "kind": "literal",
               "value": 0.0
             },
+            "sections": {
+              "kind": "literal",
+              "value": []
+            },
             "store": {
               "kind": "literal",
               "value": "store"
@@ -11792,6 +12095,10 @@
         {
           "error": "ekr.views.LimitExceeded",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -11924,6 +12231,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -11936,6 +12247,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -12086,6 +12401,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "sections": {
+              "kind": "literal",
+              "value": []
+            },
             "store": {
               "kind": "literal",
               "value": "store"
@@ -12103,6 +12422,10 @@
         {
           "error": "ekr.views.RevisionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -12235,6 +12558,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -12247,6 +12574,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -12397,6 +12728,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "sections": {
+              "kind": "literal",
+              "value": []
+            },
             "store": {
               "kind": "literal",
               "value": "store"
@@ -12414,6 +12749,10 @@
         {
           "error": "ekr.views.NotSeeded",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -12554,6 +12893,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -12566,6 +12909,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "overviewed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -12705,6 +13052,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "sections": {
+              "kind": "literal",
+              "value": []
+            },
             "store": {
               "kind": "literal",
               "value": "store"
@@ -12724,7 +13075,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -12732,11 +13084,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -12748,7 +13102,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -12756,7 +13111,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -12777,7 +13133,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -12785,27 +13142,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -12813,22 +13179,30 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -12969,6 +13343,10 @@
             "command": "ekr.views.ProjectProcessMap",
             "outcome": "event-time-invalid"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -13142,6 +13520,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -13284,6 +13666,10 @@
             "command": "ekr.views.ProjectProcessMap",
             "outcome": "event-type-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -13457,6 +13843,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -13603,6 +13993,10 @@
             "command": "ekr.views.ProjectProcessMap",
             "outcome": "mapped"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -13795,6 +14189,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -13933,6 +14331,10 @@
             "command": "ekr.views.ProjectProcessMap",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -14106,6 +14508,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -14248,6 +14654,10 @@
             "command": "ekr.views.ProjectProcessMap",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -14421,6 +14831,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -14575,6 +14989,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -14753,6 +15171,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -14907,6 +15329,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -15092,6 +15518,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -15246,6 +15676,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -15431,6 +15865,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -15589,6 +16027,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "timelined"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -15830,6 +16272,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -15984,6 +16430,10 @@
             "command": "ekr.views.ReportFactQuality",
             "outcome": "judged-twice"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -16158,6 +16608,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -16316,6 +16770,10 @@
             "command": "ekr.views.ReportFactQuality",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -16483,6 +16941,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -16645,6 +17107,10 @@
             "command": "ekr.views.ReportFactQuality",
             "outcome": "reported"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -16843,6 +17309,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -16981,6 +17451,10 @@
             "command": "ekr.views.ReportStoreQuality",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -17146,6 +17620,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -17288,6 +17766,10 @@
             "command": "ekr.views.ReportStoreQuality",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -17453,6 +17935,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -17599,6 +18085,10 @@
             "command": "ekr.views.ReportStoreQuality",
             "outcome": "reported"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -17799,6 +18289,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -17937,6 +18431,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -18103,6 +18601,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -18245,6 +18747,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -18418,6 +18924,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -18560,6 +19070,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -18733,6 +19247,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -18883,6 +19401,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "searched"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -19077,6 +19599,10 @@
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -21424,6 +21950,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -21459,6 +21989,12 @@
               "kind": "literal",
               "value": null
             },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
+            },
             "store": {
               "kind": "literal",
               "value": "schema-changes"
@@ -21486,7 +22022,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -21494,11 +22031,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -21510,7 +22049,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -21518,7 +22058,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -21539,7 +22080,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -21547,27 +22089,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -21575,19 +22126,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -21603,6 +22158,12 @@
             "limit": {
               "kind": "literal",
               "value": null
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
             },
             "store": {
               "kind": "literal",
@@ -21631,7 +22192,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -21639,11 +22201,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -21655,7 +22219,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -21663,7 +22228,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -21684,7 +22250,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -21692,27 +22259,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -21720,19 +22296,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -21748,6 +22328,12 @@
             "limit": {
               "kind": "literal",
               "value": null
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
             },
             "store": {
               "kind": "literal",
@@ -21776,7 +22362,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -21784,11 +22371,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -21800,7 +22389,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -21808,7 +22398,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -21829,7 +22420,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -21837,27 +22429,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -21865,19 +22466,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -21893,6 +22498,12 @@
             "limit": {
               "kind": "literal",
               "value": null
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
             },
             "store": {
               "kind": "literal",
@@ -21921,7 +22532,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -21929,11 +22541,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -21945,7 +22559,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -21953,7 +22568,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -21974,7 +22590,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -21982,27 +22599,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -22010,19 +22636,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -22051,6 +22681,10 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewSection"
         },
         {
           "kind": "type",
@@ -22631,6 +23265,12 @@
               "kind": "literal",
               "value": null
             },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
+            },
             "store": {
               "kind": "literal",
               "value": "growth"
@@ -22663,7 +23303,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -22671,11 +23312,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -22687,7 +23330,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -22695,7 +23339,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -22716,7 +23361,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -22724,27 +23370,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -22752,19 +23407,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -23145,6 +23804,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -23385,6 +24048,12 @@
               "kind": "literal",
               "value": null
             },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
+            },
             "store": {
               "kind": "literal",
               "value": "property-redeclared"
@@ -23410,7 +24079,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -23418,11 +24088,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -23434,7 +24106,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -23442,7 +24115,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -23463,7 +24137,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -23471,27 +24146,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -23499,19 +24183,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30232,6 +30920,1250 @@
         }
       ]
     },
+    "ekr.views/authored/an-overview-answers-only-the-sections-it-names": {
+      "purpose": "The overview answers its counts, type counts and top nodes, and only the sections a request names, each on its own.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectOverview"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "assertions": 0.0,
+            "edge_types": 1.0,
+            "edges": 600.0,
+            "evidence": 0.0,
+            "node_types": 1.0,
+            "nodes": 601.0,
+            "revision": 0.0,
+            "sections": [],
+            "top": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "sections": [],
+            "top": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "ontology"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "node_types": 1.0,
+            "sections": [
+              "ontology"
+            ],
+            "top": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "added": 2.0,
+            "removed": 0.0,
+            "revision_zero_assertions": 0.0,
+            "revision_zero_edges": 600.0,
+            "revision_zero_nodes": 601.0,
+            "revisions": 1.0,
+            "schema_versions": 1.0,
+            "sections": [
+              "schema"
+            ],
+            "top": 2.0,
+            "unrecorded_edges": 600.0,
+            "unrecorded_nodes": 601.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "roles"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "event_types": 0.0,
+            "sections": [
+              "roles"
+            ],
+            "top": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "timeline"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "bucket_ms": 86400000.0,
+            "dated_assertions": 0.0,
+            "sections": [
+              "timeline"
+            ],
+            "timeline_buckets": 0.0,
+            "top": 2.0,
+            "undated_assertions": 0.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "timeline",
+                "ontology",
+                "timeline"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "bucket_ms": 86400000.0,
+            "sections": [
+              "ontology",
+              "timeline"
+            ],
+            "top": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "purpose": "The overview lists 300 top nodes by default, 500 and 1 at the bounds, and refuses a limit of 501 or 0.",
       "source": [
@@ -30250,6 +32182,10 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewSection"
         },
         {
           "kind": "type",
@@ -30299,6 +32235,15 @@
               "kind": "literal",
               "value": null
             },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "ontology",
+                "schema",
+                "roles",
+                "timeline"
+              ]
+            },
             "store": {
               "kind": "literal",
               "value": "hub"
@@ -30332,6 +32277,12 @@
             "revision_zero_nodes": 601.0,
             "revisions": 1.0,
             "schema_versions": 1.0,
+            "sections": [
+              "ontology",
+              "schema",
+              "roles",
+              "timeline"
+            ],
             "timeline_buckets": 0.0,
             "top": 300.0,
             "undated_assertions": 0.0,
@@ -30341,7 +32292,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -30349,11 +32301,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -30365,7 +32319,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -30373,7 +32328,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -30394,7 +32350,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -30402,27 +32359,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -30430,19 +32396,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30476,12 +32446,14 @@
         {
           "event": "ekr.views.GraphOverviewed",
           "payload": {
+            "sections": [],
             "top": 500.0
           },
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -30489,11 +32461,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -30505,7 +32479,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -30513,7 +32488,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -30534,7 +32510,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -30542,27 +32519,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -30570,19 +32556,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30621,7 +32611,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -30629,11 +32620,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -30645,7 +32638,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -30653,7 +32647,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -30674,7 +32669,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -30682,27 +32678,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -30710,19 +32715,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -33022,6 +35031,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -33056,6 +35069,14 @@
             "limit": {
               "kind": "literal",
               "value": null
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema",
+                "roles",
+                "timeline"
+              ]
             },
             "store": {
               "kind": "literal",
@@ -33096,7 +35117,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -33104,11 +35126,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -33120,7 +35144,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -33128,7 +35153,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -33149,7 +35175,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -33157,27 +35184,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -33185,19 +35221,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -33213,6 +35253,14 @@
             "limit": {
               "kind": "literal",
               "value": null
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema",
+                "roles",
+                "timeline"
+              ]
             },
             "store": {
               "kind": "literal",
@@ -33245,7 +35293,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -33253,11 +35302,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -33269,7 +35320,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -33277,7 +35329,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -33298,7 +35351,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -33306,27 +35360,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -33334,19 +35397,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -33362,6 +35429,14 @@
             "limit": {
               "kind": "literal",
               "value": null
+            },
+            "sections": {
+              "kind": "literal",
+              "value": [
+                "schema",
+                "roles",
+                "timeline"
+              ]
             },
             "store": {
               "kind": "literal",
@@ -33394,7 +35469,8 @@
           "shape": {
             "added": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "assertions": {
               "holds": "primitive",
@@ -33402,11 +35478,13 @@
             },
             "bucket_ms": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "dated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "edge_types": {
               "holds": "primitive",
@@ -33418,7 +35496,8 @@
             },
             "event_types": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "evidence": {
               "holds": "primitive",
@@ -33426,7 +35505,8 @@
             },
             "modified": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "node_types": {
               "holds": "primitive",
@@ -33447,7 +35527,8 @@
             },
             "removed": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -33455,27 +35536,36 @@
             },
             "revision_zero_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revision_zero_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "revisions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "schema_versions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
             },
             "timeline_buckets": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "top": {
               "holds": "primitive",
@@ -33483,19 +35573,23 @@
             },
             "undated_assertions": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_edges": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "unrecorded_nodes": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             },
             "widened": {
               "holds": "primitive",
-              "kind": "integer"
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"

@@ -5,8 +5,8 @@
     "counts": {
       "authored": 0,
       "generated": 2,
-      "outside": 124,
-      "refused": 0
+      "outside": 127,
+      "refused": 1
     },
     "generated": [
       "ekr.integrate.ApplyExtraction/outcome/applied",
@@ -192,6 +192,43 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.cli.BeginStage/outcome/unsupported-provider"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.cli.StoresCompared"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/compared"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/not-seeded"
       },
       {
         "needs": [
@@ -2307,7 +2344,23 @@
         "scenario": "ekr.views.SearchNodes/outcome/searched"
       }
     ],
-    "refused": [],
+    "refused": [
+      {
+        "code": "ESS-SYNTH-013",
+        "effect": "candidate_not_emitted",
+        "message": "refusal[ESS-SYNTH-013]: type ekr.observe.RedactionSpan has no scenario\n  no view publishes a field position that can answer what `ekr.observe.RedactionSpan` declares of every value\n    - `start >= 0`\n    - `length >= 1`\n  help: publish a field that holds a value of this type in some view — outside a list, a map, a union and an `Optional` — or state the claim as an entity invariant over what a view already publishes",
+        "needs": [],
+        "origin": "generated",
+        "retained": null,
+        "scenario": null,
+        "scope": "in_scope",
+        "source": null,
+        "subject": {
+          "kind": "type",
+          "name": "ekr.observe.RedactionSpan"
+        }
+      }
+    ],
     "selection": {
       "filter": {
         "kind": "all"
@@ -2321,8 +2374,8 @@
   },
   "provenance": {
     "component": "ekr-integrate",
-    "contract_digest": "dd4e3ec32575f67dd80b49ad421b41a1140710156a570b70a5cbd7f4d76b2cef",
-    "spec_digest": "658f305452e0ca4078fc3da67109f13953d603c55edd92cb2d18266025d7c1ff",
+    "contract_digest": "2f097f81a63f4bfefac8836ffb69759361ecc74a90a9210db73f6c851fc54dff",
+    "spec_digest": "930d602d3c01a4ecd73195775cb2c33bd60b31184b3d6407e28bbe2827e7cda3",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -2345,6 +2398,10 @@
             "command": "ekr.integrate.ApplyExtraction",
             "outcome": "applied"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -2517,6 +2574,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2655,6 +2716,10 @@
             "command": "ekr.integrate.ApplyExtraction",
             "outcome": "refused"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -2818,6 +2883,10 @@
         {
           "error": "ekr.integrate.ExtractionRefused",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",

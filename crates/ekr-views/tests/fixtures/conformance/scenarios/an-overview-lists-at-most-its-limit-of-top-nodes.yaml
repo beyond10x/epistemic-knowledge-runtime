@@ -10,6 +10,9 @@
 # edge n from the hub to leaf n, and no assertion and no evidence. The hub's degree is 600; each
 # leaf's is 1.
 #
+# The first request names every section and so carries what ekr.graph-overview/1 carried; the
+# others name none, so their answers carry no schema, roles or timeline counts.
+#
 # Absent, the limit is 300; 500 and 1 are the bounds and are answered; 501 and 0 are refused
 # before the store is read. With no assertion there is no dated fact, so no type is judged, none
 # is an event type, there is no observation type and no bucket, and every node and edge has no
@@ -28,6 +31,7 @@ timeline:
       store: hub
       at: null
       limit: null
+      sections: [ontology, schema, roles, timeline]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed
@@ -53,6 +57,7 @@ timeline:
           dated_assertions: 0
           undated_assertions: 0
           top: 300
+          sections: [ontology, schema, roles, timeline]
 
   - at: 2027-01-15T09:01:00Z
     command: ekr.views.ProjectOverview
@@ -66,6 +71,7 @@ timeline:
       - event: ekr.views.GraphOverviewed
         payload:
           top: 500
+          sections: []
 
   - at: 2027-01-15T09:02:00Z
     command: ekr.views.ProjectOverview

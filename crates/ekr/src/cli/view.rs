@@ -69,7 +69,7 @@
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`ekr_views::Index::view_roles_document`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>[?revision=N]` | that revision's evidence's retained bytes (head when absent), `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown revision, id or bytes not retained |
-//! | `GET /overview[?revision=N&limit=L]` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes, `application/json` |
+//! | `GET /overview[?revision=N&limit=L&sections=S]` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes: meta, the type counts and the `L` highest-degree nodes, and of `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; an unknown name is 400 `invalid-query`), `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
@@ -107,8 +107,8 @@ use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::{PersistenceError, Runtime};
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded, Lineage,
-    OverviewRequest, ProjectError, QueryError, RevisionIdentity, SearchRequest, SinceKind,
-    SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
+    OverviewRequest, OverviewSection, ProjectError, QueryError, RevisionIdentity, SearchRequest,
+    SinceKind, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -1043,6 +1043,23 @@ fn decode(text: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| format!("{text:?} does not decode to UTF-8"))
 }
 
+/// The sections an overview names, as `/overview`'s `sections` and a session's
+/// `overview --sections` both read them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct OverviewSections(pub(super) Vec<OverviewSection>);
+
+/// `text` as overview sections: section names joined by `,`, each one of `ontology`, `schema`,
+/// `roles` and `timeline`. Empty names none; a name given twice is named once.
+pub(super) fn overview_sections(text: &str) -> Result<OverviewSections, String> {
+    if text.is_empty() {
+        return Ok(OverviewSections::default());
+    }
+    text.split(',')
+        .map(|name| name.parse().map_err(|error| format!("sections: {error}")))
+        .collect::<Result<_, _>>()
+        .map(OverviewSections)
+}
+
 fn invalid_query(message: impl std::fmt::Display) -> Reply {
     Reply::refusal(400, "invalid-query", message)
 }
@@ -1080,17 +1097,21 @@ fn query_refused(what: &str, error: QueryError) -> Reply {
     }
 }
 
-/// `/overview[?revision=N&limit=L]`.
+/// `/overview[?revision=N&limit=L&sections=S]`.
 fn overview(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
-    let query = Query::parse(query, &["revision", "limit"]).map_err(invalid_query)?;
+    let query = Query::parse(query, &["revision", "limit", "sections"]).map_err(invalid_query)?;
     let at = query.revision().map_err(invalid_query)?;
     let limit = query.integer("limit").map_err(invalid_query)?;
-    let request = OverviewRequest::new(limit).map_err(|error| limit_exceeded(&error))?;
+    let sections =
+        overview_sections(query.get("sections").unwrap_or_default()).map_err(invalid_query)?;
+    let request = OverviewRequest::new(limit)
+        .map_err(|error| limit_exceeded(&error))?
+        .with_sections(sections.0);
     let index = indexes
         .index(runtime, at)
         .map_err(|error| refused("overview", error))?;
     let answer = index
-        .overview(&request)
+        .overview_sections(&request)
         .map_err(|error| refused("overview", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
 }

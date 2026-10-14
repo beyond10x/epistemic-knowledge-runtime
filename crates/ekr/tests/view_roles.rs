@@ -549,8 +549,11 @@ fn roles_the_overview_and_ocel_name_the_same_event_types() {
         };
         let observed = with("observation");
         let roles = with("event").union(&observed).cloned().collect();
-        let overview = server.get(&format!("/overview?revision={revision}"));
-        assert_eq!(overview.status, 200, "GET /overview?revision={revision}");
+        let overview = server.get(&format!("/overview?revision={revision}&sections=roles"));
+        assert_eq!(
+            overview.status, 200,
+            "GET /overview?revision={revision}&sections=roles"
+        );
         let overview: Value = serde_json::from_slice(&overview.body).unwrap();
         let observation = overview["roles"]["observation_type"]
             .as_str()

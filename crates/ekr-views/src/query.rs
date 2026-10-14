@@ -1,5 +1,6 @@
-//! The four bounded reads of `ekr.views` and their formats: `ekr.graph-overview/1`
-//! ([`Index::overview`]), `ekr.graph-slice/1` ([`Index::expand`]), `ekr.node-detail/1`
+//! The four bounded reads of `ekr.views` and their formats: `ekr.graph-overview/2`
+//! ([`Index::overview_sections`], with `ekr.graph-overview/1` its every-section predecessor,
+//! [`Index::overview`]), `ekr.graph-slice/1` ([`Index::expand`]), `ekr.node-detail/1`
 //! ([`Index::describe`]) and `ekr.node-matches/1` ([`Index::search`]).
 //!
 //! A request is bounded when it is built — [`OverviewRequest::new`], [`ExpandRequest::new`],
@@ -28,6 +29,8 @@ use crate::ProjectError;
 
 /// The format literal of [`Index::overview`]'s documents.
 pub const OVERVIEW_FORMAT: &str = "ekr.graph-overview/1";
+/// The format literal of [`Index::overview_sections`]'s documents.
+pub const OVERVIEW_V2_FORMAT: &str = "ekr.graph-overview/2";
 /// The format literal of [`Index::expand`]'s documents.
 pub const SLICE_FORMAT: &str = "ekr.graph-slice/1";
 /// The format literal of [`Index::describe`]'s documents.
@@ -89,10 +92,70 @@ pub(crate) fn bounded(
     Ok(requested.unsigned_abs())
 }
 
-/// A bounded `ProjectOverview` request: how many of the highest-degree nodes to list.
+/// `ekr.views.OverviewSection`: an optional section of `ekr.graph-overview/2`, named by the key
+/// it is answered under. Variants are in the order the specification declares them, which is
+/// the order [`OverviewRequest::sections`] and [`GraphOverviewed::sections`] list them in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OverviewSection {
+    /// `ontology`: the projected ontology.
+    Ontology,
+    /// `schema`: the schema lineage and the revisions.
+    Schema,
+    /// `roles`: each node type's roles in valid time.
+    Roles,
+    /// `timeline`: dated assertions per bucket.
+    Timeline,
+}
+
+impl OverviewSection {
+    /// Every section, in declared order.
+    pub const ALL: [Self; 4] = [Self::Ontology, Self::Schema, Self::Roles, Self::Timeline];
+
+    /// The section's name: its key in the document and its wire value.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Ontology => "ontology",
+            Self::Schema => "schema",
+            Self::Roles => "roles",
+            Self::Timeline => "timeline",
+        }
+    }
+
+    const fn bit(self) -> u8 {
+        1 << self as u8
+    }
+}
+
+impl std::fmt::Display for OverviewSection {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.name())
+    }
+}
+
+/// A text that names no [`OverviewSection`]: only the four names, exactly, are sections.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{0:?} is no overview section; the sections are ontology, schema, roles and timeline")]
+pub struct UnknownOverviewSection(pub String);
+
+impl std::str::FromStr for OverviewSection {
+    type Err = UnknownOverviewSection;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|section| section.name() == text)
+            .ok_or_else(|| UnknownOverviewSection(text.to_owned()))
+    }
+}
+
+/// A bounded `ProjectOverview` request: how many of the highest-degree nodes to list, and which
+/// optional sections `ekr.graph-overview/2` carries — none unless [`Self::with_sections`] names
+/// them. [`Index::overview`]'s `ekr.graph-overview/1` carries every section whatever is named.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewRequest {
     limit: u64,
+    sections: u8,
 }
 
 impl OverviewRequest {
@@ -113,13 +176,36 @@ impl OverviewRequest {
             1,
             Some(Self::MAX_LIMIT),
         )?;
-        Ok(Self { limit })
+        Ok(Self { limit, sections: 0 })
+    }
+
+    /// This request with `sections` named as well. A section named twice is named once, and the
+    /// order they are named in does not change the answer; none named is the request's default.
+    #[must_use]
+    pub fn with_sections(mut self, sections: impl IntoIterator<Item = OverviewSection>) -> Self {
+        for section in sections {
+            self.sections |= section.bit();
+        }
+        self
     }
 
     /// The limit, after the default is applied.
     #[must_use]
     pub const fn limit(&self) -> u64 {
         self.limit
+    }
+
+    /// The sections named, in declared order; empty when none is.
+    #[must_use]
+    pub fn sections(&self) -> Vec<OverviewSection> {
+        OverviewSection::ALL
+            .into_iter()
+            .filter(|section| self.names(*section))
+            .collect()
+    }
+
+    const fn names(&self, section: OverviewSection) -> bool {
+        self.sections & section.bit() != 0
     }
 }
 
@@ -259,7 +345,9 @@ pub(crate) fn encode(document: &impl Serialize) -> Result<Vec<u8>, ProjectError>
         .map_err(|error| ProjectError::Inconsistent(format!("encoding the document: {error}")))
 }
 
-/// `ekr.views.GraphOverviewed`.
+/// `ekr.views.GraphOverviewed`. A field drawn from a section the document does not carry is `None`:
+/// the schema counts without `schema`, `event_types` and `observation_type` without `roles`, the
+/// timeline counts without `timeline`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GraphOverviewed {
     /// `meta.revision`.
@@ -277,41 +365,43 @@ pub struct GraphOverviewed {
     /// Entries of `edge_types`.
     pub edge_types: u64,
     /// Entries of `schema.versions`.
-    pub schema_versions: u64,
+    pub schema_versions: Option<u64>,
     /// Entries of `schema.revisions`.
-    pub revisions: u64,
+    pub revisions: Option<u64>,
     /// Members of every listed version's `added`.
-    pub added: u64,
+    pub added: Option<u64>,
     /// Members of every listed version's `removed`.
-    pub removed: u64,
+    pub removed: Option<u64>,
     /// Entries of every listed version's `widened`.
-    pub widened: u64,
+    pub widened: Option<u64>,
     /// Entries of every listed version's `modified`.
-    pub modified: u64,
+    pub modified: Option<u64>,
     /// `schema.unrecorded_nodes`.
-    pub unrecorded_nodes: u64,
+    pub unrecorded_nodes: Option<u64>,
     /// `schema.unrecorded_edges`.
-    pub unrecorded_edges: u64,
+    pub unrecorded_edges: Option<u64>,
     /// Revision 0's `nodes`.
-    pub revision_zero_nodes: u64,
+    pub revision_zero_nodes: Option<u64>,
     /// Revision 0's `edges`.
-    pub revision_zero_edges: u64,
+    pub revision_zero_edges: Option<u64>,
     /// Revision 0's `assertions`.
-    pub revision_zero_assertions: u64,
+    pub revision_zero_assertions: Option<u64>,
     /// Entries of `roles.types` whose `event` is true.
-    pub event_types: u64,
+    pub event_types: Option<u64>,
     /// `roles.observation_type`.
     pub observation_type: Option<TypeId>,
     /// `timeline.bucket_ms`.
-    pub bucket_ms: u64,
+    pub bucket_ms: Option<u64>,
     /// Entries of `timeline.buckets`.
-    pub timeline_buckets: u64,
+    pub timeline_buckets: Option<u64>,
     /// The sum of the buckets' `assertions`.
-    pub dated_assertions: u64,
+    pub dated_assertions: Option<u64>,
     /// `timeline.undated`.
-    pub undated_assertions: u64,
+    pub undated_assertions: Option<u64>,
     /// Entries of `top`.
     pub top: u64,
+    /// The optional sections the document carries, in declared order.
+    pub sections: Vec<OverviewSection>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub overview_hash: String,
 }
@@ -765,9 +855,10 @@ fn subject_id(subject: &Subject) -> String {
 // ---- the four reads -----------------------------------------------------------------------------
 
 impl Index {
-    /// `ProjectOverview`: this revision's `ekr.graph-overview/1`. Every section but `top` was
-    /// built with the index; `top` is the first `limit` of the nodes the index keeps in degree
-    /// order, so the answer costs the document's size.
+    /// `ekr.graph-overview/1`: this revision's every section, whatever `request` names but its
+    /// limit. It is [`Self::overview_sections`] with all four sections named, under its own
+    /// format name: every section but `top` was built with the index; `top` is the first `limit`
+    /// of the nodes the index keeps in degree order, so the answer costs the document's size.
     ///
     /// # Errors
     ///
@@ -778,53 +869,110 @@ impl Index {
         &self,
         request: &OverviewRequest,
     ) -> Result<Answer<GraphOverviewed>, ProjectError> {
+        self.render_overview(
+            OVERVIEW_FORMAT,
+            request.limit(),
+            &request.with_sections(OverviewSection::ALL),
+        )
+    }
+
+    /// `ProjectOverview`: this revision's `ekr.graph-overview/2`, carrying meta, node_types,
+    /// edge_types and top, and of ontology, schema, roles and timeline only the ones `request`
+    /// names. A section not named is absent, never empty, and is not encoded: the answer named
+    /// none costs meta, one entry per declared type and the `top` nodes, whatever the ontology's
+    /// properties, the lineage's versions or the revisions committed.
+    ///
+    /// # Errors
+    ///
+    /// [`ProjectError::Inconsistent`] for a named `ontology` or `schema` the format cannot carry,
+    /// as [`Self::overview`] refuses it; a request that names neither is answered.
+    pub fn overview_sections(
+        &self,
+        request: &OverviewRequest,
+    ) -> Result<Answer<GraphOverviewed>, ProjectError> {
+        self.render_overview(OVERVIEW_V2_FORMAT, request.limit(), request)
+    }
+
+    fn render_overview(
+        &self,
+        format: &'static str,
+        limit: u64,
+        request: &OverviewRequest,
+    ) -> Result<Answer<GraphOverviewed>, ProjectError> {
         #[derive(Serialize)]
-        struct GraphOverviewV1<'a> {
+        struct GraphOverview<'a> {
             meta: OverviewMeta,
-            ontology: &'a ProjectedOntology,
-            schema: &'a OverviewSchema,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            ontology: Option<&'a ProjectedOntology>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            schema: Option<&'a OverviewSchema>,
             node_types: &'a [TypeCount],
             edge_types: &'a [TypeCount],
-            roles: &'a OverviewRoles,
-            timeline: &'a OverviewTimeline,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            roles: Option<&'a OverviewRoles>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            timeline: Option<&'a OverviewTimeline>,
             top: Vec<NodeSummary>,
         }
         let parts = &self.overview;
-        let ontology = parts
-            .ontology
-            .as_ref()
-            .map_err(|error| ProjectError::Inconsistent(error.clone()))?;
-        let schema = parts
-            .schema
-            .as_ref()
-            .map_err(|error| ProjectError::Inconsistent(error.clone()))?;
+        let ontology = if request.names(OverviewSection::Ontology) {
+            Some(
+                parts
+                    .ontology
+                    .as_ref()
+                    .map_err(|error| ProjectError::Inconsistent(error.clone()))?,
+            )
+        } else {
+            None
+        };
+        let schema = if request.names(OverviewSection::Schema) {
+            Some(
+                parts
+                    .schema
+                    .as_ref()
+                    .map_err(|error| ProjectError::Inconsistent(error.clone()))?,
+            )
+        } else {
+            None
+        };
+        let roles = request
+            .names(OverviewSection::Roles)
+            .then_some(&parts.roles);
+        let timeline = request
+            .names(OverviewSection::Timeline)
+            .then_some(&parts.timeline);
         let graph = &self.loaded.graph;
         let top: Vec<NodeSummary> = self
             .by_degree
             .iter()
-            .take(usize::try_from(request.limit()).unwrap_or(usize::MAX))
+            .take(usize::try_from(limit).unwrap_or(usize::MAX))
             .map(|node| self.summary(*node))
             .collect();
-        let document = GraphOverviewV1 {
+        let document = GraphOverview {
             meta: OverviewMeta {
-                format: OVERVIEW_FORMAT,
+                format,
                 revision: graph.revision.get(),
                 node_count: graph.nodes.len() as u64,
                 edge_count: graph.edges.len() as u64,
                 assertion_count: graph.assertions.len() as u64,
                 evidence_count: graph.evidence.len() as u64,
-                limit: request.limit(),
+                limit,
             },
             ontology,
             schema,
             node_types: &parts.node_types,
             edge_types: &parts.edge_types,
-            roles: &parts.roles,
-            timeline: &parts.timeline,
+            roles,
+            timeline,
             top,
         };
         let bytes = encode(&document)?;
-        let revision_zero = schema.revisions.first();
+        let versions = |count: fn(&OverviewSchemaVersion) -> usize| {
+            schema.map(|schema| schema.versions.iter().map(|v| count(v) as u64).sum())
+        };
+        let revision_zero = |count: fn(&OverviewRevision) -> u64| {
+            schema.map(|schema| schema.revisions.first().map_or(0, count))
+        };
         let summary = GraphOverviewed {
             revision: document.meta.revision,
             nodes: document.meta.node_count,
@@ -833,28 +981,26 @@ impl Index {
             evidence: document.meta.evidence_count,
             node_types: parts.node_types.len() as u64,
             edge_types: parts.edge_types.len() as u64,
-            schema_versions: schema.versions.len() as u64,
-            revisions: schema.revisions.len() as u64,
-            added: schema.versions.iter().map(|v| v.added.len() as u64).sum(),
-            removed: schema.versions.iter().map(|v| v.removed.len() as u64).sum(),
-            widened: schema.versions.iter().map(|v| v.widened.len() as u64).sum(),
-            modified: schema
-                .versions
-                .iter()
-                .map(|v| v.modified.len() as u64)
-                .sum(),
-            unrecorded_nodes: schema.unrecorded_nodes,
-            unrecorded_edges: schema.unrecorded_edges,
-            revision_zero_nodes: revision_zero.map_or(0, |entry| entry.nodes),
-            revision_zero_edges: revision_zero.map_or(0, |entry| entry.edges),
-            revision_zero_assertions: revision_zero.map_or(0, |entry| entry.assertions),
-            event_types: parts.roles.types.iter().filter(|t| t.event).count() as u64,
-            observation_type: parts.roles.observation_type,
-            bucket_ms: parts.timeline.bucket_ms,
-            timeline_buckets: parts.timeline.buckets.len() as u64,
-            dated_assertions: parts.timeline.buckets.iter().map(|b| b.assertions).sum(),
-            undated_assertions: parts.timeline.undated,
+            schema_versions: schema.map(|schema| schema.versions.len() as u64),
+            revisions: schema.map(|schema| schema.revisions.len() as u64),
+            added: versions(|v| v.added.len()),
+            removed: versions(|v| v.removed.len()),
+            widened: versions(|v| v.widened.len()),
+            modified: versions(|v| v.modified.len()),
+            unrecorded_nodes: schema.map(|schema| schema.unrecorded_nodes),
+            unrecorded_edges: schema.map(|schema| schema.unrecorded_edges),
+            revision_zero_nodes: revision_zero(|entry| entry.nodes),
+            revision_zero_edges: revision_zero(|entry| entry.edges),
+            revision_zero_assertions: revision_zero(|entry| entry.assertions),
+            event_types: roles.map(|roles| roles.types.iter().filter(|t| t.event).count() as u64),
+            observation_type: roles.and_then(|roles| roles.observation_type),
+            bucket_ms: timeline.map(|timeline| timeline.bucket_ms),
+            timeline_buckets: timeline.map(|timeline| timeline.buckets.len() as u64),
+            dated_assertions: timeline
+                .map(|timeline| timeline.buckets.iter().map(|b| b.assertions).sum()),
+            undated_assertions: timeline.map(|timeline| timeline.undated),
             top: document.top.len() as u64,
+            sections: request.sections(),
             overview_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })

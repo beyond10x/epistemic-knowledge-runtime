@@ -725,7 +725,7 @@ selectors deduplicate. `--events` and `--event-time` cannot be combined. Without
 the existing default and `--events` document bytes are unchanged.
 
 The event types are EKR's one event-type rule, the same types the overview marks as events
-(`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks
+(`roles.types[].event` of `ekr.graph-overview/2` with `roles` named), the timeline walks to and `GET /roles` marks
 `event` or `observation` (§ Roles). The rule: a node is judged when it holds a timestamp-like
 property value (a `Timestamp`, or an `Integer` of epoch milliseconds from 1,000,000,000,000 up to
 10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
@@ -1202,7 +1202,7 @@ option retains the admitted store for serving and is used by SDK viewer startup.
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>[?revision=N]` | that evidence's retained bytes at revision `N` (the head when absent): `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an absent revision, an id that revision does not hold or bytes the store did not retain |
-| `GET /overview[?revision=N&limit=L]` | the `ekr.graph-overview/1` document of revision `N` (the head when absent), listing the `L` highest-degree nodes (1 to 500, 300 when absent), `application/json` |
+| `GET /overview[?revision=N&limit=L&sections=S]` | the `ekr.graph-overview/2` document of revision `N` (the head when absent): its counts, its node and edge type counts and the `L` highest-degree nodes (1 to 500, 300 when absent), and of the sections `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; a section not named is absent, never empty, and all four answer `ekr.graph-overview/1`'s content under the new format name), `application/json` |
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
@@ -1317,7 +1317,8 @@ percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by comm
 `depth` and `limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by
 `/timeline`, and exactly one of `since_revision`, `since_valid` and `since_recorded` by
 `/changes`. A query that breaks this, a `type` or `subject` that is not an id, a `bucket` other
-than `day` or `week`, or an `at` that is not a revision number, is 400 with
+than `day` or `week`, a `sections` naming anything but `ontology`, `schema`, `roles` and
+`timeline`, or an `at` that is not a revision number, is 400 with
 `{"refusal": "invalid-query", …}`.
 A `since_revision` below 0 is 400 `ekr.views.SinceMalformed`, and a bound outside its range 400
 `ekr.views.LimitExceeded`, both before the store is read; a node or seed the revision does not
@@ -1555,7 +1556,7 @@ the 3 revisions used most recently:
 
 | verb | arguments (required in bold) | answers | as |
 |---|---|---|---|
-| `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent) | the `ekr.graph-overview/1` document | `GET /overview` |
+| `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent), `--sections S` (`ontology`, `schema`, `roles`, `timeline`, joined by `,`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **the text** (empty matches every node; put `--` before a text that starts with `-`), `--limit L` (1 to 100, 20 when absent), `--revision N` | the `ekr.node-matches/1` document | `GET /search` |
 | `describe` | **the node id**, `--revision N` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
 | `expand` | the seed node ids (none answers an empty page), **`--depth D`** (0 to 2), **`--limit L`** (1 to 2,000 nodes), `--edges E` (1 to 5,000, 5,000 when absent), `--after A` (a cursor), `--revision N` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `--after` | `GET /expand`, as one document rather than NDJSON |
@@ -1691,7 +1692,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|
-| `overview` | `revision`, `limit` (1 to 500, 300 when absent) | the `ekr.graph-overview/1` document | `GET /overview` |
+| `overview` | `revision`, `limit` (1 to 500, 300 when absent), `sections` (a list of `ontology`, `schema`, `roles`, `timeline`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **`text`**, `limit` (1 to 100, 20 when absent), `revision` | the `ekr.node-matches/1` document | `GET /search` |
 | `describe_node` | **`node`** (a node id), `revision` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |

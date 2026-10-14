@@ -110,14 +110,14 @@ fn each_version_lists_the_ends_it_widened_and_the_properties_it_modified_on_both
                 summary.widened,
                 summary.modified
             ),
-            (5, 0, 2, 2),
+            (Some(5), Some(0), Some(2), Some(2)),
             "{}",
             provider.name()
         );
         // Each version's changes appear from its own revision on, and not before.
         let counts: Vec<(u64, u64)> = answers
             .iter()
-            .map(|(_, summary)| (summary.widened, summary.modified))
+            .map(|(_, summary)| (summary.widened.unwrap(), summary.modified.unwrap()))
             .collect();
         assert_eq!(counts, [(0, 0), (0, 0), (2, 0), (2, 1), (2, 2)]);
         rendered.push(
@@ -208,7 +208,11 @@ fn a_store_without_widened_ends_or_modified_properties_answers_the_bytes_it_answ
                 !text.contains("\"widened\"") && !text.contains("\"modified\""),
                 "{name}: {text}"
             );
-            assert_eq!((summary.widened, summary.modified), (0, 0), "{name}");
+            assert_eq!(
+                (summary.widened, summary.modified),
+                (Some(0), Some(0)),
+                "{name}"
+            );
         }
         let now = digest(&answers);
         if now != before {

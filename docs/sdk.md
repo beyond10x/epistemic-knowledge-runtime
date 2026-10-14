@@ -605,7 +605,8 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 
 | method | `ekr` verb | value |
 |---|---|---|
-| `overview(revision, limit)` | `overview` | `Overview`, `ekr.graph-overview/1` |
+| `overview(revision, limit)` | `overview --sections ontology,schema,roles,timeline` | `Overview`, `ekr.graph-overview/2` with every section |
+| `overview_sections(revision, limit, &[OverviewSection])` | `overview --sections <named>` | `Overview`, `ekr.graph-overview/2` with only the named sections; the others are `None` |
 | `search(text, limit, revision)` | `search` | `NodeMatches`, `ekr.node-matches/1` |
 | `describe(node, revision)` | `describe` | `NodeDetail`, `ekr.node-detail/1` |
 | `expand(query)`, `expand_page(&query, after)` | `expand` | `Slice` pages, `ekr.graph-slice/1` |

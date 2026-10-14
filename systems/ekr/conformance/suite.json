@@ -163,8 +163,8 @@
     "counts": {
       "authored": 26,
       "generated": 36,
-      "outside": 90,
-      "refused": 0
+      "outside": 93,
+      "refused": 1
     },
     "generated": [
       "ekr.kernel.Commit/outcome/committed",
@@ -384,6 +384,43 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.cli.BeginStage/outcome/unsupported-provider"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.cli.StoresCompared"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/compared"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.CompareStores"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.CompareStores/outcome/not-seeded"
       },
       {
         "needs": [
@@ -1589,7 +1626,23 @@
         "scenario": "ekr.views.SearchNodes/outcome/searched"
       }
     ],
-    "refused": [],
+    "refused": [
+      {
+        "code": "ESS-SYNTH-013",
+        "effect": "candidate_not_emitted",
+        "message": "refusal[ESS-SYNTH-013]: type ekr.observe.RedactionSpan has no scenario\n  no view publishes a field position that can answer what `ekr.observe.RedactionSpan` declares of every value\n    - `start >= 0`\n    - `length >= 1`\n  help: publish a field that holds a value of this type in some view — outside a list, a map, a union and an `Optional` — or state the claim as an entity invariant over what a view already publishes",
+        "needs": [],
+        "origin": "generated",
+        "retained": null,
+        "scenario": null,
+        "scope": "in_scope",
+        "source": null,
+        "subject": {
+          "kind": "type",
+          "name": "ekr.observe.RedactionSpan"
+        }
+      }
+    ],
     "selection": {
       "filter": {
         "kind": "all"
@@ -1603,8 +1656,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "dd4e3ec32575f67dd80b49ad421b41a1140710156a570b70a5cbd7f4d76b2cef",
-    "spec_digest": "658f305452e0ca4078fc3da67109f13953d603c55edd92cb2d18266025d7c1ff",
+    "contract_digest": "2f097f81a63f4bfefac8836ffb69759361ecc74a90a9210db73f6c851fc54dff",
+    "spec_digest": "930d602d3c01a4ecd73195775cb2c33bd60b31184b3d6407e28bbe2827e7cda3",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -1673,6 +1726,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -2011,6 +2068,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -2208,6 +2269,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -3557,6 +3622,10 @@
           "view": "ekr.kernel.Transactions"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -3737,6 +3806,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -4039,6 +4112,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -4210,6 +4287,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -4359,6 +4440,10 @@
         {
           "error": "ekr.kernel.TransactionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -4514,6 +4599,10 @@
             "command": "ekr.kernel.Propose",
             "outcome": "proposed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -4983,6 +5072,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -5121,6 +5214,10 @@
             "command": "ekr.kernel.Explain",
             "outcome": "explained"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -5284,6 +5381,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -5418,6 +5519,10 @@
             "command": "ekr.kernel.Explain",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -5577,6 +5682,10 @@
         {
           "error": "ekr.kernel.AssertionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -6731,6 +6840,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -7154,6 +7267,10 @@
         {
           "error": "ekr.kernel.TransactionStateConflict",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -8052,6 +8169,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -8464,6 +8585,10 @@
         {
           "error": "ekr.kernel.TransactionStateConflict",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -9036,6 +9161,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -9468,6 +9597,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -9642,6 +9775,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "wrong-state"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -10052,6 +10189,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -10247,6 +10388,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -10585,6 +10730,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -10780,6 +10929,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "rejected"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -11039,6 +11192,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -11245,6 +11402,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -11547,6 +11708,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -11746,6 +11911,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -12005,6 +12174,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -12176,6 +12349,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -12334,6 +12511,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -12476,6 +12657,10 @@
             "command": "ekr.kernel.Propose",
             "outcome": "misattributed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -12635,6 +12820,10 @@
         {
           "error": "ekr.kernel.ProposalAttribution",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -12799,6 +12988,10 @@
             "command": "ekr.kernel.Propose",
             "outcome": "proposed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -13027,6 +13220,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -13200,6 +13397,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -13358,6 +13559,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -13496,6 +13701,10 @@
             "command": "ekr.kernel.Seed",
             "outcome": "invalid-seed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -13657,6 +13866,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -13806,6 +14019,10 @@
             "command": "ekr.kernel.Seed",
             "outcome": "seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -14455,6 +14672,10 @@
           "view": "ekr.kernel.Revisions"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -14613,6 +14834,10 @@
             "command": "ekr.kernel.Seed",
             "outcome": "seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -14854,6 +15079,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -15019,6 +15248,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -15181,6 +15414,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -15323,6 +15560,10 @@
             "command": "ekr.kernel.Snapshot",
             "outcome": "taken"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -15485,6 +15726,10 @@
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -15652,6 +15897,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "rejected"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -15911,6 +16160,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -16082,6 +16335,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
           "name": "ekr.integrate.ExtractionApplied"
         },
         {
@@ -16244,6 +16501,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.integrate.ExtractionApplied",
           "step": "expect_no_event"
         },
@@ -16382,6 +16643,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "transaction-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -16538,6 +16803,10 @@
         {
           "error": "ekr.kernel.TransactionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",
@@ -16709,6 +16978,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
         },
         {
           "kind": "event",
@@ -16966,6 +17239,10 @@
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.integrate.ExtractionApplied",

@@ -204,33 +204,69 @@ pub struct NodeSummary {
     pub degree: u64,
 }
 
-// ---- ekr.graph-overview/1 ----------------------------------------------------------------------
+// ---- ekr.graph-overview/1 and /2 ----------------------------------------------------------------
 
-/// `ekr.graph-overview/1`: a revision's counts, schema, types, roles, timeline and top nodes.
+/// `ekr.graph-overview/1` or `ekr.graph-overview/2`: a revision's counts, type counts and top
+/// nodes, and its ontology, schema, roles and timeline. `/1` carries all four; `/2` carries those
+/// the request named ([`OverviewSection`]) and leaves the rest absent, which reads as `None` and
+/// writes back absent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Overview {
     /// The revision and its counts.
     pub meta: OverviewMeta,
-    /// The ontology in force.
-    pub ontology: ViewOntology,
-    /// The schema's history up to the revision.
-    pub schema: OverviewSchema,
+    /// The ontology in force; `None` when the request did not name `ontology`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ontology: Option<ViewOntology>,
+    /// The schema's history up to the revision; `None` when the request did not name `schema`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<OverviewSchema>,
     /// Nodes per node type.
     pub node_types: Vec<TypeCount>,
     /// Edges per edge type.
     pub edge_types: Vec<TypeCount>,
-    /// The node types' roles in time.
-    pub roles: OverviewRoles,
-    /// Dated assertions per time bucket.
-    pub timeline: OverviewTimeline,
+    /// The node types' roles in time; `None` when the request did not name `roles`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roles: Option<OverviewRoles>,
+    /// Dated assertions per time bucket; `None` when the request did not name `timeline`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeline: Option<OverviewTimeline>,
     /// The highest-degree nodes, at most `meta.limit`.
     pub top: Vec<NodeSummary>,
+}
+
+/// An optional section of `ekr.graph-overview/2`, named by the key it is answered under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OverviewSection {
+    /// `ontology`.
+    Ontology,
+    /// `schema`.
+    Schema,
+    /// `roles`.
+    Roles,
+    /// `timeline`.
+    Timeline,
+}
+
+impl OverviewSection {
+    /// Every section, in the order the format declares them.
+    pub const ALL: [Self; 4] = [Self::Ontology, Self::Schema, Self::Roles, Self::Timeline];
+
+    /// The section's name: its key in the document and its value on the command line.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Ontology => "ontology",
+            Self::Schema => "schema",
+            Self::Roles => "roles",
+            Self::Timeline => "timeline",
+        }
+    }
 }
 
 /// The overview's meta.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OverviewMeta {
-    /// `ekr.graph-overview/1`.
+    /// `ekr.graph-overview/1` or `ekr.graph-overview/2`.
     pub format: String,
     /// The revision read.
     pub revision: u64,

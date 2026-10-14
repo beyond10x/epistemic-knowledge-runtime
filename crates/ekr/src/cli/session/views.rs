@@ -26,8 +26,8 @@ use ekr_views::{
 use serde_json::Value;
 
 use super::super::view::{
-    not_a_node_id, project_refusal, since_not_one, LIMIT_EXCEEDED, NODE_NOT_FOUND, SEARCH_LIMIT,
-    SINCE_MALFORMED,
+    not_a_node_id, overview_sections, project_refusal, since_not_one, OverviewSections,
+    LIMIT_EXCEEDED, NODE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::super::Backend;
 use crate::exit::Failure;
@@ -76,7 +76,7 @@ pub(super) enum Bucket {
 /// The six views verbs, each with the arguments of its `ekr view` route's query.
 #[derive(Clone, Debug, Subcommand)]
 pub(super) enum Verb {
-    /// `GET /overview`: the `ekr.graph-overview/1` document.
+    /// `GET /overview`: the `ekr.graph-overview/2` document.
     Overview {
         /// The committed revision to read; the head when absent.
         #[arg(long, value_parser = revision_number)]
@@ -84,6 +84,10 @@ pub(super) enum Verb {
         /// How many of the highest-degree nodes to list, 1 to 500; 300 when absent.
         #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: Option<i64>,
+        /// The optional sections to answer as well, joined by `,`: `ontology`, `schema`,
+        /// `roles`, `timeline`; none when absent or empty.
+        #[arg(long, value_parser = overview_sections)]
+        sections: Option<OverviewSections>,
     },
     /// `GET /search`: the `ekr.node-matches/1` document.
     Search {
@@ -228,10 +232,17 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
         Verb::Overview {
             revision: at,
             limit,
+            sections,
         } => {
-            let request = OverviewRequest::new(*limit).map_err(limit_exceeded)?;
+            let request = OverviewRequest::new(*limit)
+                .map_err(limit_exceeded)?
+                .with_sections(
+                    sections
+                        .iter()
+                        .flat_map(|sections| sections.0.iter().copied()),
+                );
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            index.overview(&request).map_err(project)?.bytes
+            index.overview_sections(&request).map_err(project)?.bytes
         }
         Verb::Search {
             text,

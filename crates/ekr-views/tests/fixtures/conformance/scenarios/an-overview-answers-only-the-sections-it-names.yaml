@@ -1,0 +1,146 @@
+# ProjectOverview's `sections` (story:overview-sections): ekr.graph-overview/2 carries meta,
+# node_types, edge_types and top always, and of ontology, schema, roles and timeline only the ones
+# the request names.
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes: a seed
+# and nothing else (head 0), one node type and one edge type, 601 nodes and 600 edges, no
+# assertion and no evidence.
+#
+# Named none, the answer's event lists no section, and none of the counts drawn from schema,
+# roles or timeline. Each section named alone is the one section listed, and its counts are the
+# ones the full overview reports. A section named twice is named once, and the order sections are
+# named in does not matter: they are listed in the order ekr.views.OverviewSection declares them.
+# A renderer that answers every section whatever is named lists all four in each step and fails.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-overview-answers-only-the-sections-it-names
+summary: The overview answers its counts, type counts and top nodes, and only the sections a request names, each on its own.
+
+timeline:
+  - at: 2027-01-15T10:00:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 0
+          nodes: 601
+          edges: 600
+          assertions: 0
+          evidence: 0
+          node_types: 1
+          edge_types: 1
+          top: 2
+          sections: []
+
+  - at: 2027-01-15T10:01:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: []
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          top: 2
+          sections: []
+
+  - at: 2027-01-15T10:02:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: [ontology]
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          node_types: 1
+          top: 2
+          sections: [ontology]
+
+  - at: 2027-01-15T10:03:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: [schema]
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          schema_versions: 1
+          revisions: 1
+          added: 2
+          removed: 0
+          unrecorded_nodes: 601
+          unrecorded_edges: 600
+          revision_zero_nodes: 601
+          revision_zero_edges: 600
+          revision_zero_assertions: 0
+          top: 2
+          sections: [schema]
+
+  - at: 2027-01-15T10:04:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: [roles]
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          event_types: 0
+          top: 2
+          sections: [roles]
+
+  - at: 2027-01-15T10:05:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: [timeline]
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          bucket_ms: 86400000
+          timeline_buckets: 0
+          dated_assertions: 0
+          undated_assertions: 0
+          top: 2
+          sections: [timeline]
+
+  - at: 2027-01-15T10:06:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 2
+      sections: [timeline, ontology, timeline]
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          bucket_ms: 86400000
+          top: 2
+          sections: [ontology, timeline]

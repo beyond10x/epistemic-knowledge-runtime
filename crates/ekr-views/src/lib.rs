@@ -22,7 +22,9 @@
 //! graph state (AGENTS.md invariant 8).
 //!
 //! Five bounded reads draw from the same loaded revision without exporting it. [`Index::build`]
-//! indexes a [`LoadedRevision`] once; [`Index::overview`] (`ekr.graph-overview/1`),
+//! indexes a [`LoadedRevision`] once; [`Index::overview_sections`] (`ekr.graph-overview/2`, the
+//! sections an [`OverviewRequest`] names; [`Index::overview`] is every section as
+//! `ekr.graph-overview/1`),
 //! [`Index::expand`] (`ekr.graph-slice/1`, with [`Index::page`] for a host that streams the
 //! records), [`Index::describe`] (`ekr.node-detail/1`), [`Index::search`]
 //! (`ekr.node-matches/1`) and [`Index::timeline`] (`ekr.graph-timeline/1`) then answer from it,
@@ -89,9 +91,9 @@ pub use process_map::{
 pub use quality::{quality, report_quality, StoreQualityReported, QUALITY_FORMAT};
 pub use query::{
     Answer, ExpandRequest, GraphOverviewed, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodeSummary, NodesSearched, OverviewRequest, QueryError, SearchRequest, SliceEdge, SliceMeta,
-    SliceNode, SlicePage, SliceRecord, DETAIL_FORMAT, MATCHES_FORMAT, OVERVIEW_FORMAT,
-    SLICE_FORMAT,
+    NodeSummary, NodesSearched, OverviewRequest, OverviewSection, QueryError, SearchRequest,
+    SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, UnknownOverviewSection, DETAIL_FORMAT,
+    MATCHES_FORMAT, OVERVIEW_FORMAT, OVERVIEW_V2_FORMAT, SLICE_FORMAT,
 };
 pub use roles::{Role, ROLES_FORMAT};
 pub use sample::{

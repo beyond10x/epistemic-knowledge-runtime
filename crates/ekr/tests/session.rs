@@ -1535,6 +1535,18 @@ fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
             vec!["overview", "--revision", "0", "--limit", "1"],
             "/overview?revision=0&limit=1".into(),
         ),
+        (
+            vec!["overview", "--sections", "timeline,ontology,timeline"],
+            "/overview?sections=timeline,ontology,timeline".into(),
+        ),
+        (
+            vec!["overview", "--revision", "0", "--sections", "schema,roles"],
+            "/overview?revision=0&sections=schema,roles".into(),
+        ),
+        (
+            vec!["overview", "--sections", ""],
+            "/overview?sections=".into(),
+        ),
         (vec!["search", "Globex"], "/search?q=Globex".into()),
         (
             vec!["search", "--limit", "2", "--revision", "0", "--", ""],
@@ -1684,7 +1696,7 @@ fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
                 refusals += 1;
             }
         }
-        assert_eq!((documents, refusals), (14, 8), "{backend}");
+        assert_eq!((documents, refusals), (17, 8), "{backend}");
     }
 }
 

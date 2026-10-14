@@ -488,7 +488,7 @@ fn one_version_with_every_schema_operation_lists_each_change_once_on_both_provid
                 summary.modified
             ),
             // the seed adds Alpha, Beta, Gamma, e, f, g, six properties and q: 13
-            (13 + 3, 0, 4, 8),
+            (Some(13 + 3), Some(0), Some(4), Some(8)),
             "{}",
             provider.name()
         );

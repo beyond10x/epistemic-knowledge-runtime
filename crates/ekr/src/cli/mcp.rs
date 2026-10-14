@@ -16,7 +16,7 @@
 //!
 //! | tool | document |
 //! |---|---|
-//! | `overview` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes |
+//! | `overview` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes |
 //! | `search` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes |
 //! | `describe_node` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes |
 //! | `expand` | [`ekr_views::Index::expand`]'s whole `ekr.graph-slice/1` page |
@@ -57,7 +57,8 @@ use ekr_core::{AssertionId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, ExpandRequest, Index, IndexCache, LimitExceeded,
-    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, TimelineRequest,
+    OverviewRequest, OverviewSection, ProjectError, QueryError, SearchRequest, SinceKind,
+    TimelineRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -454,9 +455,19 @@ impl Server {
     }
 
     fn overview(&mut self, arguments: Value) -> Result<String, Unanswered> {
-        let OverviewArguments { revision, limit } = decode(arguments)?;
-        let request = OverviewRequest::new(limit)?;
-        text(self.index(revision)?.overview(&request)?.bytes)
+        let OverviewArguments {
+            revision,
+            limit,
+            sections,
+        } = decode(arguments)?;
+        let sections = sections
+            .unwrap_or_default()
+            .iter()
+            .map(|name| name.parse::<OverviewSection>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| Unanswered::params(format!("arguments: {error}")))?;
+        let request = OverviewRequest::new(limit)?.with_sections(sections);
+        text(self.index(revision)?.overview_sections(&request)?.bytes)
     }
 
     fn search(&mut self, arguments: Value) -> Result<String, Unanswered> {
@@ -673,6 +684,8 @@ struct OverviewArguments {
     revision: Option<u64>,
     #[serde(default)]
     limit: Option<i64>,
+    #[serde(default)]
+    sections: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -847,13 +860,19 @@ fn tools() -> Vec<Value> {
         tool(
             "overview",
             "Project overview",
-            "The ekr.graph-overview/1 document of a revision: its counts, its node and edge \
-             types, and the highest-degree nodes.",
+            "The ekr.graph-overview/2 document of a revision: its counts, its node and edge \
+             types, the highest-degree nodes, and of its ontology, schema history, type roles \
+             and timeline only the sections named.",
             object(
                 json!({
                     "revision": revision(),
                     "limit": bounded(1, Some(OverviewRequest::MAX_LIMIT),
                         "How many of the highest-degree nodes to list; 300 when absent."),
+                    "sections": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": OverviewSection::ALL.map(OverviewSection::name)},
+                        "description": "The optional sections to answer as well; none when absent or empty.",
+                    },
                 }),
                 &[],
             ),
