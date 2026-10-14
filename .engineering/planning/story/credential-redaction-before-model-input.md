@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: story:credential-redaction-before-model-input
 kind: story
-status: draft
+status: active
 title: Credentials are redacted before any model-facing projection
 relations:
 - serves: vision:o5
 - decomposes: epic:p2-observation-layer
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 2}
+- {from: "proposed", to: "active", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Context
 

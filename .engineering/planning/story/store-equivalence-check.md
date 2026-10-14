@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: story:store-equivalence-check
 kind: story
-status: draft
+status: active
 title: Two stores can be compared for equal content, ignoring commit times
 relations:
 - serves: vision:o2
 - decomposes: epic:p7-migration-cutover
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 2}
+- {from: "proposed", to: "active", at: "2026-10-14T07:25:56Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Context
 
