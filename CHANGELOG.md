@@ -16,8 +16,13 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `citation-without-schema-change`, `duplicate-citation` or `evidence-set-mismatch` (the cited id
   belongs in `transaction.evidence`). `ekr operations` lists seventeen kinds. A version that cites
   nothing encodes as before, so no existing ontology root moves; a store holding a citing version
-  is refused by earlier binaries. The viewer's projection (`ekr.graph-projection/1`, `ekr view`)
-  does not show a version's citations yet; that is left for a later change.
+  is refused by earlier binaries. The projection (`ekr.graph-projection/1`, what `ekr view`
+  serves at `/projection`) carries a version's citations as `evidence` on its `schema.versions`
+  entry, omitted when it cites none, so a projection without a citation is unchanged; the viewer
+  page does not display them yet. In `ekr-sdk`, `read::Ontology` carries
+  `schema_version_evidence`, and `TransactionBuilder::build` refuses a citation without a schema
+  change as `DocumentError::CitationWithoutSchemaChange`, the kernel's
+  `citation-without-schema-change`, rather than `MixedSchemaTransaction`.
 
 ## [0.0.33] — 2026-10-08
 

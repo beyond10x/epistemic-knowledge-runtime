@@ -640,8 +640,8 @@ fn the_configuration_table_equals_the_global_options_and_names_their_variables()
 // 4 --------------------------------------------------------------------------------------------
 
 /// `ekr operations`: each kind and what its line says of it — `applied`, `schema change` (applied
-/// under validation profile v2 in a schema-only transaction) or `refused` (applied under neither
-/// profile).
+/// under validation profile v2 or v3 in a schema-only transaction), `schema citation` (applied
+/// beside schema changes) or `refused` (applied under no profile).
 fn binary_kinds() -> BTreeMap<String, &'static str> {
     stdout(&["operations"])
         .lines()

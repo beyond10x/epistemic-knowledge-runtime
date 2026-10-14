@@ -6198,6 +6198,18 @@ force at that revision cites, `[]` when it cites none. The views' verified read
 declared by `systems/ekr/domains/views.yaml`, and adding one is a change to that contract, left
 for a later change. The overview (`ekr.graph-overview/1`) does not carry them and is not meant to.
 
+**Amended 2026-10-14 (wave 2026-10-14a), before the wave closed:** the projection prints them.
+The story's acceptance says the lineage names the evidence, so the later change is this one.
+`systems/ekr/domains/views.yaml` declares `evidence` on `ekr.views.ProjectedSchemaVersion`: each
+`schema.versions` entry of `ekr.graph-projection/1` carries the ids its version cites, as strings
+in ascending order, and omits the key when the version cites none. Every store whose versions cite
+nothing renders the bytes it rendered before, so the format name does not change.
+`crates/ekr-views/tests/adversary_w20261014a_v.rs` drives a store whose version 1 cites one entry
+on both providers and finds the id in that version's entry. For versions without a citation,
+`crates/ekr-views/tests/document.rs`
+(`the_schema_lists_each_version_from_its_first_revision_and_every_revision_up_to_the_projected_one`)
+compares whole `schema.versions` entries, which still have no `evidence` key.
+
 ## 109.5 Result, and what is not changed
 
 A schema transaction citing one retained evidence entry, and one adding and citing one, each

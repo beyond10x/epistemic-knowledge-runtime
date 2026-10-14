@@ -475,9 +475,10 @@ impl Canonical for Supersession {
 
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
 /// `SupersedeAssertion` from amendment 88, `AddEvidence`, `WidenEdgeType` (amendment 101),
-/// `AddAlias` (`story:node-gains-an-alias`) and `AttachEvidence` (amendment 103).
+/// `AddAlias` (`story:node-gains-an-alias`), `AttachEvidence` (amendment 103) and `CiteEvidence`
+/// (amendment 109).
 ///
-/// Sixteen variants, which are the sixteen `ekr.kernel.OperationKind` names of
+/// Seventeen variants, which are the seventeen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.

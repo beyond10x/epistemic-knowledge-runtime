@@ -113,7 +113,9 @@ impl TransactionBuilder {
     ///
     /// # Errors
     /// [`DocumentError::EmptyTransaction`] with no operation,
-    /// [`DocumentError::MixedSchemaTransaction`] when schema and data operations are mixed, and
+    /// [`DocumentError::CitationWithoutSchemaChange`] for a `!CiteEvidence` with no schema change
+    /// beside it, [`DocumentError::MixedSchemaTransaction`] when schema and data operations are
+    /// mixed, and
     /// [`DocumentError::Limit`] for a document past one of the format's frozen limits
     /// ([`TransactionDocument::check_limits`]).
     pub fn build(self) -> Result<TransactionDocument, DocumentError> {
@@ -144,9 +146,10 @@ impl TransactionBuilder {
                 _ => false,
             })
             .count();
-        if (schema != 0 && schema + travelling != self.operations.len())
-            || (schema == 0 && !cited.is_empty())
-        {
+        if schema == 0 && !cited.is_empty() {
+            return Err(DocumentError::CitationWithoutSchemaChange);
+        }
+        if schema != 0 && schema + travelling != self.operations.len() {
             return Err(DocumentError::MixedSchemaTransaction);
         }
         let evidence = self

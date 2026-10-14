@@ -528,6 +528,7 @@ fn names_the_prose_uses(
         error,
         DocumentError::EmptyTransaction
             | DocumentError::MixedSchemaTransaction
+            | DocumentError::CitationWithoutSchemaChange
             | DocumentError::Limit { .. }
             | DocumentError::Yaml(_)
     );

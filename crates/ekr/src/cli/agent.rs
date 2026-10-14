@@ -686,9 +686,9 @@ impl OperationKind {
 /// Under which validation profile the kernel applies an operation kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Applied {
-    /// Under both profiles.
+    /// Under every profile.
     Always,
-    /// Under validation profile v2 only, in a schema-only transaction naming its
+    /// Under validation profiles v2 and v3 only, in a schema-only transaction naming its
     /// `schema_version`; profile v1 rejects it as `unsupported-operation`.
     SchemaChange,
     /// Beside schema changes only, under the profiles that apply them: it cites evidence for the
@@ -707,12 +707,13 @@ pub(super) fn operation_list() -> String {
         match kind.applied() {
             Applied::Always => {}
             Applied::SchemaChange => out.push_str(
-                " [schema change: applied under validation profile v2 only, in a schema-only \
-                 transaction with schema_version; profile v1 rejects it as unsupported-operation]",
+                " [schema change: applied under validation profile v2 or v3 only, in a \
+                 schema-only transaction with schema_version; profile v1 rejects it as \
+                 unsupported-operation]",
             ),
             Applied::SchemaCitation => out.push_str(
-                " [schema citation: applied under validation profile v2 only, beside schema changes \
-                 in a transaction with schema_version; profile v1 rejects it as \
+                " [schema citation: applied under validation profile v2 or v3 only, beside schema \
+                 changes in a transaction with schema_version; profile v1 rejects it as \
                  unsupported-operation]",
             ),
             Applied::Never => {

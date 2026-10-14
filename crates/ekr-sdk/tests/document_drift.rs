@@ -290,7 +290,14 @@ fn every_operation_kind_ekr_lists_has_a_builder() {
 fn every_builder_output_is_read_by_the_kernel_and_passes_ekr_schema() {
     let operator = AgentId::mint();
     for kind in OperationKind::ALL {
-        let document = TransactionBuilder::new(operator)
+        // A citation travels with the schema change whose version it cites (design § 109), so it
+        // is built beside one; every other kind is built alone.
+        let cites = kind == OperationKind::CiteEvidence;
+        let mut builder = TransactionBuilder::new(operator);
+        if cites {
+            builder = builder.push(example(OperationKind::DefineNodeType, operator));
+        }
+        let document = builder
             .push(example(kind, operator))
             .build()
             .unwrap_or_else(|e| panic!("{kind:?}: {e}"));
@@ -302,12 +309,15 @@ fn every_builder_output_is_read_by_the_kernel_and_passes_ekr_schema() {
         assert!(yaml.ends_with('\n'));
         let read = kernel_reads(&yaml);
         let operations = &read.transaction().operations;
-        assert_eq!(operations.len(), 1);
-        assert_eq!(kernel_kind(&operations[0]), kind.name());
+        assert_eq!(operations.len(), if cites { 2 } else { 1 });
+        assert_eq!(
+            kernel_kind(operations.last().expect("one operation at least")),
+            kind.name()
+        );
         assert_eq!(read.format().name(), sdk::TRANSACTION_FORMAT);
         assert_eq!(
             read.transaction().schema_version.is_some(),
-            kind.is_schema_change(),
+            kind.is_schema_change() || cites,
             "{kind:?}: a schema change names the version it produces, nothing else does"
         );
         assert_eq!(
@@ -369,6 +379,21 @@ fn the_transaction_builder_derives_the_evidence_manifest_and_refuses_what_every_
     assert!(
         matches!(mixed, Err(DocumentError::MixedSchemaTransaction)),
         "{mixed:?}"
+    );
+    // A citation with no schema change beside it is the kernel's
+    // `citation-without-schema-change`, not a mixture: it is named as the kernel names it.
+    let lone = TransactionBuilder::new(operator)
+        .push(example(OperationKind::CiteEvidence, operator))
+        .build();
+    assert!(
+        matches!(lone, Err(DocumentError::CitationWithoutSchemaChange)),
+        "{lone:?}"
+    );
+    assert!(
+        DocumentError::CitationWithoutSchemaChange
+            .to_string()
+            .contains("citation-without-schema-change"),
+        "the SDK's refusal carries the kernel's name"
     );
 }
 

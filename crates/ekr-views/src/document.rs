@@ -242,6 +242,10 @@ struct ProjectedSchemaVersion {
     parent: Option<String>,
     revision: u64,
     added: Vec<String>,
+    /// The evidence ids the schema transaction that made the version cited (design § 109),
+    /// ascending; absent when it cited none, so a projection without a citation is unchanged.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    evidence: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -502,6 +506,7 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
             parent: version.parent.map(|parent| parent.to_string()),
             revision: first.get(),
             added: added.into_iter().collect(),
+            evidence: version.evidence.iter().map(ToString::to_string).collect(),
         });
     }
     versions.sort_by_key(|version| version.number);

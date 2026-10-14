@@ -1255,8 +1255,8 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
 /// The one kind the kernel applies under no profile, refused as `unsupported-operation`.
 const NOT_APPLIED: [&str; 1] = ["MergeEntity"];
 
-/// The four schema kinds: applied under validation profile v2 in a schema-only transaction that
-/// names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
+/// The four schema kinds: applied under validation profile v2 or v3 in a schema-only transaction
+/// that names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
 const SCHEMA_KINDS: [&str; 4] = [
     "DefineNodeType",
     "DefineEdgeType",
