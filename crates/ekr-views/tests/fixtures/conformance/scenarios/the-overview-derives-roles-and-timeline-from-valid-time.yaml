@@ -49,6 +49,7 @@ timeline:
       store: timeline
       at: 0
       limit: null
+      sections: [schema, roles, timeline]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed
@@ -79,6 +80,7 @@ timeline:
       store: timeline
       at: 1
       limit: null
+      sections: [schema, roles, timeline]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed
@@ -101,6 +103,7 @@ timeline:
       store: timeline
       at: null
       limit: null
+      sections: [schema, roles, timeline]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed

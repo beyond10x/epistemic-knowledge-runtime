@@ -1,0 +1,47 @@
+# story:schema-transaction-cites-evidence, acceptance 3.
+#
+# The target runs validation profile v2 (`host-v2.json`), is seeded from `seed-authored.yaml` and
+# has committed revision 1 (`revision-1-authored.yaml`) before the first act. The fixture
+# `schema-cites-evidence-mixed.yaml` is the transaction of
+# `a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version` with one CreateNode
+# of a type the seed declares added. Citing evidence admits only the AddEvidence of what the
+# version cites beside schema changes: validation rejects the transaction with exactly one issue,
+# which the Structural validator raises under the name mixed-schema-transaction.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-schema-transaction-carrying-another-data-operation-is-still-mixed
+summary: A schema transaction that cites the evidence it adds and also creates a node is rejected with one issue, mixed-schema-transaction, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: citing
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: mixed-schema-transaction

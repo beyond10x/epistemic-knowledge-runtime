@@ -3,7 +3,7 @@
 use ekr_graph::ObservationKind;
 use ekr_observe::{observe_jsonl, ObserveError};
 
-/// Coordinator decision, correction round 1: `observe.yaml:45-56` keys on source, source-native id
+/// Coordinator decision, correction round 1: `observe.yaml:48-59` keys on source, source-native id
 /// and content hash, and the story hashes the line's bytes, `captured_at` included. Two lines that
 /// differ only in their timestamp are therefore two records, and get two ids.
 #[test]
@@ -22,7 +22,7 @@ fn two_lines_differing_only_in_timestamp_are_two_records_with_two_ids() {
     assert_ne!(
         first[0].id, again[0].id,
         "story:fixture-records-become-observations: a different timestamp is a different record, \
-         so a different id (observe.yaml:45-56)"
+         so a different id (observe.yaml:48-59)"
     );
 }
 

@@ -1,9 +1,11 @@
 //! `ekr ontology`: the node types, edge types and properties at the head or at one committed
-//! revision, by name and id, with the schema version in force there, through one `Runtime::read`.
+//! revision, by name and id, with the schema version in force there, through one
+//! `Runtime::read_ontology`: served from the persisted read model where the kernel verifies it
+//! (design § 108).
 
 use std::collections::BTreeMap;
 
-use ekr_core::{RevisionNumber, SchemaVersionId, TypeId};
+use ekr_core::{EvidenceId, RevisionNumber, SchemaVersionId, TypeId};
 use ekr_kernel::Runtime;
 use ekr_ontology::{Cardinality, PropertyDefinition};
 use serde::Serialize;
@@ -18,6 +20,9 @@ pub(super) struct Ontology {
     schema_version_number: u64,
     /// The version it was derived from; `null` at the seed.
     schema_version_parent: Option<SchemaVersionId>,
+    /// The evidence the schema transaction that made the version cited (design § 109); empty when
+    /// it cited none, the seed's included.
+    schema_version_evidence: std::collections::BTreeSet<EvidenceId>,
     node_types: Vec<NodeType>,
     edge_types: Vec<EdgeType>,
 }
@@ -50,8 +55,8 @@ struct EdgeType {
 /// The ontology of the requested (or newest) committed revision; a missing revision is the
 /// kernel's `RevisionNotFound`, as for `ekr snapshot --at`.
 pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failure> {
-    let read = runtime.read(at.map(RevisionNumber::new))?;
-    let document = read.graph.ontology.to_document();
+    let read = runtime.read_ontology(at.map(RevisionNumber::new))?;
+    let document = read.ontology.to_document();
     let names: BTreeMap<TypeId, String> = document
         .node_types
         .iter()
@@ -70,6 +75,7 @@ pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failur
         schema_version: document.version.id,
         schema_version_number: document.version.number,
         schema_version_parent: document.version.parent,
+        schema_version_evidence: document.version.evidence.clone(),
         node_types: document
             .node_types
             .iter()

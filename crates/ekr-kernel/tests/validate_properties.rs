@@ -550,7 +550,8 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::AddAlias(_)
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_)
-        | GraphOperation::AttachEvidence(_) => false,
+        | GraphOperation::AttachEvidence(_)
+        | GraphOperation::CiteEvidence(_) => false,
     }
 }
 

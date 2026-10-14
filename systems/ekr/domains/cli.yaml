@@ -11,6 +11,95 @@ naming:
   wire: cli
   display: CLI
 
+# story:store-equivalence-check. `ekr compare` reads two stores, each at its head or at a given
+# revision, and answers whether they hold the same knowledge: ekr.store-comparison/1. Root hashes
+# cannot answer it, because they differ whenever commit times differ. What is compared, per
+# category, keyed by id:
+#
+# - Types: every node and edge type of the ontology, the whole declaration (its properties
+#   included) and its kind. The schema version's id, number, parent and creation time are not
+#   compared: a schema change's version is a fact about when it was committed.
+# - Properties: every property id the ontology declares, its definition (the lowest declaring
+#   type id's) and `declared_by`, the type ids declaring it.
+# - Nodes: type, canonical name, aliases, type state and properties.
+# - Edges: type, source, target and properties.
+# - Assertions: subject, predicate, object, evidence ids (those it was added with as `evidence`,
+#   those attached later as `attached_evidence`), valid time, assessment and lifecycle. Not its
+#   transaction time, its proposer or its root id.
+# - Evidence: source, payload hash (`content_hash`), extractor, observation time and confidence.
+#
+# Nothing a commit's clock or its transaction id decides is compared. A difference is named by
+# the id it is under and, where both stores hold that id, by the fields that differ.
+# Held by `crates/ekr/tests/store_comparison.rs`.
+types:
+  - name: ekr.cli.StoreComparisonFormatV1
+    kind: enum
+    variants: [ekr.store-comparison/1]
+
+  # Where the other store lives, as the host names it (--other); never part of the answer.
+  - name: ekr.cli.StoreLocation
+    kind: newtype
+    of: String
+
+  - name: ekr.cli.ComparisonCategory
+    kind: enum
+    variants: [types, properties, nodes, edges, assertions, evidence]
+
+  # Which store holds an id: `both` (then `fields` names the fields that differ), or only one.
+  - name: ekr.cli.Presence
+    kind: enum
+    variants: [both, left, right]
+
+  - name: ekr.cli.Difference
+    kind: struct
+    fields:
+      - name: id
+        type: String
+      - name: presence
+        type: ekr.cli.Presence
+      - name: fields
+        type: List<String>
+
+  # `left` and `right` count the ids each store holds; `differences` counts every differing id,
+  # and `differing` lists the first of them in id order, at most 20.
+  - name: ekr.cli.CategoryComparison
+    kind: struct
+    fields:
+      - name: category
+        type: ekr.cli.ComparisonCategory
+      - name: equal
+        type: Boolean
+      - name: left
+        type: Integer
+      - name: right
+        type: Integer
+      - name: differences
+        type: Integer
+      - name: differing
+        type: List<ekr.cli.Difference>
+
+  - name: ekr.cli.ComparedSide
+    kind: struct
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  # `left` is the configured store (--store), `right` the other (--other). `equal` holds exactly
+  # when every category's does; `categories` lists all six, in the order of ComparisonCategory.
+  - name: ekr.cli.StoreComparisonV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.cli.StoreComparisonFormatV1
+      - name: equal
+        type: Boolean
+      - name: left
+        type: ekr.cli.ComparedSide
+      - name: right
+        type: ekr.cli.ComparedSide
+      - name: categories
+        type: List<ekr.cli.CategoryComparison>
+
 # Design § 107. Begin, seal, publish and abandon. `ekr stage begin` is BeginStage and `ekr stage
 # abandon` is AbandonStage. `ekr stage publish` reads the stage's record first: on a Begun stage it
 # runs SealStage then PublishStage (a publication first seals the stage); on any other state it
@@ -320,6 +409,47 @@ commands:
         error: ekr.store.StageStateConflict
         summary: A Published stage refuses without an event or a subject change; what remains of its tenant after a publication interrupted before its forgetting is forgotten first.
 
+  # story:store-equivalence-check: `ekr compare --other <store>`. Both stores are opened as every
+  # verb that only reads opens one (read-only where this process may not write), on any provider
+  # each, and each is read once, through the kernel's verified read, at `at` and `other_at` or its
+  # head. Nothing is written to either: no record, no event, no checkpoint. A refusal names the
+  # store it came from. The comparison is the types section's above.
+  - name: ekr.cli.CompareStores
+    naming:
+      wire: compare
+      display: Compare two stores
+    input:
+      - name: other
+        type: ekr.cli.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: other_at
+        type: Optional<ekr.kernel.RevisionNumber>
+    response:
+      - name: comparison
+        type: ekr.cli.StoreComparisonV1
+    outcomes:
+      - name: compared
+        emits:
+          - ekr.cli.StoresCompared
+        payload:
+          ekr.cli.StoresCompared:
+            equal: {generated: true}
+            left_revision: {generated: true}
+            right_revision: {generated: true}
+            differences: {generated: true}
+        summary: >-
+          One ekr.store-comparison/1 document; both stores are byte for byte what they were, and
+          their heads are where they were.
+      - name: not-found
+        external: a store holds no committed revision with the requested number
+        error: ekr.kernel.RevisionNotFound
+        summary: Nothing was compared or written.
+      - name: not-seeded
+        external: a store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was compared or written.
+
 views:
   # Every stage the store has recorded, in every state, from the stage records that stay after each
   # stage's tenant is forgotten: `ekr stage list` prints it (unit L), and it is how a stage whose
@@ -344,3 +474,18 @@ views:
         type: List<ekr.kernel.RevisionId>
       - name: state
         type: ekr.store.Stage.State
+
+events:
+  # What one comparison answered, counted over the document it printed, as ekr.views' render
+  # events are: the answer's observable fact for a suite, never written to either store.
+  # `differences` sums the categories' `differences`.
+  - name: ekr.cli.StoresCompared
+    fields:
+      - name: equal
+        type: Boolean
+      - name: left_revision
+        type: ekr.kernel.RevisionNumber
+      - name: right_revision
+        type: ekr.kernel.RevisionNumber
+      - name: differences
+        type: Integer

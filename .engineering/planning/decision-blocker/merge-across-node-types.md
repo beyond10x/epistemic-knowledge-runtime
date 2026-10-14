@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:merge-across-node-types
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether a merge may join two nodes of different types, and which type survives
 relations:
 - blocks: epic:p3-incubation-integration
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T12:20:57Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Question
 
@@ -19,3 +21,7 @@ The defect behind the resolver slice is one real-world entity held as two nodes 
 ## What it stops
 
 Validation rules for `MergeEntity` and any repair of the existing cross-type duplicates. Not drafted.
+
+## Answer
+
+Decided 2026-10-14 by the operator: a merge may join two nodes whose types are related through `parents` (one conforms to the other); `into`'s type survives; the merge is refused while `absorbed` holds a property the surviving type does not declare, so the proposer retracts it first. Unrelated types are fixed first by an explicit retype or retraction. This is option B, recorded in the merge and split architecture decision record.

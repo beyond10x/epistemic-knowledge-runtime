@@ -6,7 +6,8 @@
 //!
 //! | method | verb | value |
 //! |---|---|---|
-//! | [`Reader::overview`] | `overview` | [`Overview`], `ekr.graph-overview/1` |
+//! | [`Reader::overview`] | `overview --sections ontology,schema,roles,timeline` | [`Overview`], `ekr.graph-overview/2` with every section |
+//! | [`Reader::overview_sections`] | `overview --sections <named>` | [`Overview`], `ekr.graph-overview/2` with the named sections |
 //! | [`Reader::search`] | `search` | [`NodeMatches`], `ekr.node-matches/1` |
 //! | [`Reader::describe`] | `describe` | [`NodeDetail`], `ekr.node-detail/1` |
 //! | [`Reader::expand`], [`Reader::expand_page`] | `expand` | [`Slice`] pages, `ekr.graph-slice/1` |
@@ -60,11 +61,12 @@ pub use ocel::{
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,
     MatchesMeta, ModifiedProperty, NodeDetail, NodeMatch, NodeMatches, NodeSummary, Overview,
-    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline,
-    ReferencingAssertion, SchemaMember, SchemaVersionChange, Slice, SliceEdge, SliceMeta,
-    SliceNode, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineRow,
-    TimelineRowType, TimelineStep, TypeCount, TypeTiming, ViewAssertion, ViewAssessment, ViewEdge,
-    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
+    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewSection,
+    OverviewTimeline, ReferencingAssertion, SchemaMember, SchemaVersionChange, Slice, SliceEdge,
+    SliceMeta, SliceNode, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta,
+    TimelineRow, TimelineRowType, TimelineStep, TypeCount, TypeTiming, ViewAssertion,
+    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
+    ViewProperty, ViewValue, WidenedEnd,
 };
 
 /// Reads an enum whose unit `Other` is its catch-all. `derived` is the reader serde derives for
@@ -293,7 +295,9 @@ impl<T: Transport> Reader<T> {
     }
 
     /// `overview`: the revision's counts, schema, types, roles, timeline and the `limit`
-    /// highest-degree nodes (1 to 500, 300 when `None`).
+    /// highest-degree nodes (1 to 500, 300 when `None`). It names every section of
+    /// `ekr.graph-overview/2`, so the document carries what `ekr.graph-overview/1` carried, under
+    /// the format name `ekr.graph-overview/2`.
     ///
     /// # Errors
     /// [`ReadError`]; `ekr.views.LimitExceeded`, `ekr.views.NotSeeded` and
@@ -303,10 +307,28 @@ impl<T: Transport> Reader<T> {
         revision: Option<u64>,
         limit: Option<u64>,
     ) -> Result<Overview, ReadError> {
+        self.overview_sections(revision, limit, &OverviewSection::ALL)
+    }
+
+    /// `overview` naming `sections`: the revision's counts, type counts and the `limit`
+    /// highest-degree nodes, and of the ontology, schema, roles and timeline only the sections
+    /// named; the others are `None`. Naming none answers no section; a section named twice is
+    /// named once.
+    ///
+    /// # Errors
+    /// As [`Self::overview`].
+    pub fn overview_sections(
+        &mut self,
+        revision: Option<u64>,
+        limit: Option<u64>,
+        sections: &[OverviewSection],
+    ) -> Result<Overview, ReadError> {
+        let names: Vec<&str> = sections.iter().map(|section| section.name()).collect();
         self.read(
             Argv::new("overview")
                 .flag("revision", revision)
-                .flag("limit", limit),
+                .flag("limit", limit)
+                .flag("sections", (!names.is_empty()).then(|| names.join(","))),
         )
     }
 

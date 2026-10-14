@@ -2,13 +2,15 @@
 format: aep.planning-md/3
 id: decision-blocker:checkpoint-unit-cardinality
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided how many checkpoints a source unit has, or which of the two outlives the other
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:observations-are-retained
 - blocks: story:source-adapter-contract
-revision: 2
+revision: 4
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T07:29:18Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 ## Question
 
@@ -34,3 +36,7 @@ For `SourceCheckpoint → SourceUnit`:
 ## What it stops
 
 Checkpoint persistence, and the "resume from checkpoint" behaviour of `SourceAdapter`. `story:observe-domain-model` carries this as an `UNMAPPED:` marker.
+
+## Answer
+
+Decided 2026-10-14: a source unit has one current checkpoint, replaced as it advances, plus an immutable poll record per attempt that carries its window and its result (attempt, complete, partial or failed). A poll proves only its own window, through its record, not through the cursor. A retired unit's checkpoint is frozen, not deleted. This is option C; `story:source-adapter-contract` writes it into `ekr.observe`.

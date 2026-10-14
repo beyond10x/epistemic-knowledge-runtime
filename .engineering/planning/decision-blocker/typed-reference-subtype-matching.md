@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:typed-reference-subtype-matching
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether a typed reference to a type matches nodes of its subtypes
 relations:
 - blocks: epic:p3-incubation-integration
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T07:29:18Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Question
 
@@ -23,3 +25,7 @@ Exact-type matching proposes a duplicate when the same entity already exists und
 ## What it stops
 
 Resolution for a reference whose type is abstract or has descendants. `story:typed-reference-resolver` refuses such a reference with a named refusal instead of choosing.
+
+## Answer
+
+Decided 2026-10-14: a typed reference to a type matches nodes of that type and of every descendant (`Ontology::conforms_to`). Several candidates is a named ambiguity, never a choice. A reference to an abstract type never proposes a new node; it refuses by name. This is option B.

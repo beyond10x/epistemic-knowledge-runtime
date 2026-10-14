@@ -210,6 +210,21 @@ impl Check for Reference {
                         ));
                     }
                 }
+                // The evidence a schema version cites resolves as cited and attached evidence does
+                // (design § 109.2).
+                GraphOperation::CiteEvidence(evidence) => {
+                    if !known.holds_evidence(evidence) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            UNRESOLVED_EVIDENCE,
+                            format!(
+                                "the schema version cites evidence {evidence}, which canonical \
+                                 state does not retain and no AddEvidence of the transaction adds"
+                            ),
+                        ));
+                    }
+                }
                 // Names no graph identity but its own, which is new (`Structural`). Its source
                 // is a `HumanStatement` or refused by `Provenance`, so it names no assertion.
                 GraphOperation::AddEvidence(_)

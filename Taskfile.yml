@@ -46,7 +46,7 @@ tasks:
   test:
     desc: every unit, integration and doc test
     cmds:
-      - cargo test --workspace --locked
+      - cargo test --workspace --locked --no-fail-fast
       - cargo test -p ekr-kernel --features bench --no-run --locked
 
   doc-check:

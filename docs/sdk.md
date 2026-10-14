@@ -238,14 +238,15 @@ push reads `.push(draft.into())`. `!DeleteEdge` carries only an `EdgeId`, which 
 conversion: push `Operation::DeleteEdge(edge_id)`. The proposer is the host's `context.operator`.
 
 `TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
-list is exactly the set the `!AddAssertion`s cite and the `!AttachEvidence`s attach, and a schema
-change names a minted `schema_version` (`TransactionBuilder::with_schema_version` sets a given
-one). It refuses:
+list is exactly the set the `!AddAssertion`s cite, the `!AttachEvidence`s attach and the
+`!CiteEvidence`s cite, and a schema change names a minted `schema_version`
+(`TransactionBuilder::with_schema_version` sets a given one). It refuses:
 
 | refusal | when |
 |---|---|
 | `DocumentError::EmptyTransaction` | the transaction has no operation |
-| `DocumentError::MixedSchemaTransaction` | it mixes schema changes and data operations, which every profile refuses |
+| `DocumentError::MixedSchemaTransaction` | it mixes schema changes and data operations, which every profile refuses; beside schema changes it may carry `!CiteEvidence` and the `!AddEvidence` of an entry one cites |
+| `DocumentError::CitationWithoutSchemaChange` | it carries a `!CiteEvidence` and no schema change, which the kernel refuses as `citation-without-schema-change` |
 | `DocumentError::Limit` | the document is past one of the ten limits ([below](#the-ten-limits)) |
 | `DocumentError::Yaml` | the YAML writer refused a value |
 
@@ -605,7 +606,8 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 
 | method | `ekr` verb | value |
 |---|---|---|
-| `overview(revision, limit)` | `overview` | `Overview`, `ekr.graph-overview/1` |
+| `overview(revision, limit)` | `overview --sections ontology,schema,roles,timeline` | `Overview`, `ekr.graph-overview/2` with every section |
+| `overview_sections(revision, limit, &[OverviewSection])` | `overview --sections <named>` | `Overview`, `ekr.graph-overview/2` with only the named sections; the others are `None` |
 | `search(text, limit, revision)` | `search` | `NodeMatches`, `ekr.node-matches/1` |
 | `describe(node, revision)` | `describe` | `NodeDetail`, `ekr.node-detail/1` |
 | `expand(query)`, `expand_page(&query, after)` | `expand` | `Slice` pages, `ekr.graph-slice/1` |
@@ -613,7 +615,7 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `changes(since, at, limit, after)` | `changes` | `Changes`, `ekr.graph-changes/1` |
 | `head()` | `head` | `Head`: `revision` and `root` |
 | `snapshot(at, valid_at)` | `snapshot` | `Snapshot`: `root` and the graph, every map keyed by id |
-| `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version |
+| `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version and the evidence it cites (`schema_version_evidence`) |
 | `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
 | `explain(assertion)` | `explain` | `Explanation`, `ekr.explanation/2`: `links`, one `ExplanationLink` per kind, each record by hash |
 | `explain_documents(assertion)` | `explain --documents` | the same `Explanation` with the whole records: each evidence link's `payload` and `text` |

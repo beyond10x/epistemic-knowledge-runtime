@@ -17,7 +17,8 @@ use ekr::host::CliHostConfigurationV1;
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ExpandRequest, Index, OverviewRequest, SearchRequest, SliceRecord, TimelineRequest,
+    BucketWidth, ExpandRequest, Index, OverviewRequest, OverviewSection, SearchRequest,
+    SliceRecord, TimelineRequest,
 };
 use serde_json::Value;
 
@@ -451,7 +452,7 @@ fn overview_node_and_search_answer_the_engines_bytes_on_both_providers() {
         let (head, zero) = (world.index(None), world.index(Some(0)));
         let overview = |index: &Index, limit| {
             index
-                .overview(&OverviewRequest::new(limit).unwrap())
+                .overview_sections(&OverviewRequest::new(limit).unwrap())
                 .unwrap()
                 .bytes
         };
@@ -471,6 +472,17 @@ fn overview_node_and_search_answer_the_engines_bytes_on_both_providers() {
                 "/overview?revision=0&limit=2".to_owned(),
                 overview(&zero, Some(2)),
             ),
+            (
+                "/overview?sections=timeline,ontology,timeline".to_owned(),
+                head.overview_sections(
+                    &OverviewRequest::new(None)
+                        .unwrap()
+                        .with_sections([OverviewSection::Ontology, OverviewSection::Timeline]),
+                )
+                .unwrap()
+                .bytes,
+            ),
+            ("/overview?sections=".to_owned(), overview(&head, None)),
             (
                 format!("/node/{ALICE}"),
                 head.describe(alice).unwrap().bytes,
@@ -860,6 +872,17 @@ fn the_bounded_reads_refuse_as_whole_json_before_any_byte() {
             "invalid-query",
         ),
         ("/overview?q=a".to_owned(), 400, "invalid-query"),
+        ("/overview?sections=top".to_owned(), 400, "invalid-query"),
+        (
+            "/overview?sections=Ontology".to_owned(),
+            400,
+            "invalid-query",
+        ),
+        (
+            "/overview?sections=schema,".to_owned(),
+            400,
+            "invalid-query",
+        ),
         ("/overview?&".to_owned(), 400, "invalid-query"),
         ("/search".to_owned(), 400, "invalid-query"),
         (

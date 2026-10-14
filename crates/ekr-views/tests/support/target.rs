@@ -45,9 +45,9 @@ use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
     FactJudgements, FactQualityError, FactQualityReported, FactSampleDrawn, GraphOverviewed,
     GraphProjected, Index, Judgement, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OcelError, OcelExported, OverviewRequest, ProcessMapped, ProjectError,
-    QueryError, SampleRequest, SearchRequest, SinceKind, SourceText, StoreQualityReported,
-    SubjectsTimelined, TimelineRequest, Verdict,
+    NodesSearched, OcelError, OcelExported, OverviewRequest, OverviewSection, ProcessMapped,
+    ProjectError, QueryError, SampleRequest, SearchRequest, SinceKind, SourceText,
+    StoreQualityReported, SubjectsTimelined, TimelineRequest, Verdict,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -206,6 +206,10 @@ fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetEr
         ("evidence", summary.evidence),
         ("node_types", summary.node_types),
         ("edge_types", summary.edge_types),
+        ("top", summary.top),
+    ])?;
+    // A count drawn from a section the document does not carry is absent from the event.
+    for (field, value) in [
         ("schema_versions", summary.schema_versions),
         ("revisions", summary.revisions),
         ("added", summary.added),
@@ -222,8 +226,21 @@ fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetEr
         ("timeline_buckets", summary.timeline_buckets),
         ("dated_assertions", summary.dated_assertions),
         ("undated_assertions", summary.undated_assertions),
-        ("top", summary.top),
-    ])?;
+    ] {
+        if let Some(value) = value {
+            fields.push((field, integer(value)?));
+        }
+    }
+    fields.push((
+        "sections",
+        Node::Seq(
+            summary
+                .sections
+                .iter()
+                .map(|section| Node::Text(section.name().to_owned()))
+                .collect(),
+        ),
+    ));
     if let Some(observation) = summary.observation_type {
         fields.push(("observation_type", Node::Text(observation.to_string())));
     }
@@ -389,6 +406,23 @@ fn event_names(request: &SemanticCommandRequest) -> Result<Vec<String>, TargetEr
             _ => Err(unavailable("reading `events`", "a name is not a text")),
         })
         .collect()
+}
+
+/// `ProjectOverview`'s `sections`: absent or null names none.
+fn sections(request: &SemanticCommandRequest) -> Result<Vec<OverviewSection>, TargetError> {
+    match request.input.get("sections") {
+        None | Some(Node::Null) => Ok(Vec::new()),
+        Some(Node::Seq(names)) => names
+            .iter()
+            .map(|name| match name {
+                Node::Text(text) => text
+                    .parse()
+                    .map_err(|error| unavailable("reading `sections`", error)),
+                _ => Err(unavailable("reading `sections`", "a section is not text")),
+            })
+            .collect(),
+        _ => Err(unavailable("reading `sections`", "not a list")),
+    }
 }
 
 fn event_times(request: &SemanticCommandRequest) -> Result<Vec<String>, TargetError> {
@@ -732,7 +766,11 @@ fn revision_input(request: &SemanticCommandRequest) -> Result<Option<RevisionNum
 fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetError> {
     Ok(match command {
         PROJECT_OVERVIEW => {
-            Read::Overview(OverviewRequest::new(optional_integer(request, "limit")?))
+            let sections = sections(request)?;
+            Read::Overview(
+                OverviewRequest::new(optional_integer(request, "limit")?)
+                    .map(|overview| overview.with_sections(sections)),
+            )
         }
         EXPAND_NEIGHBOURHOOD => {
             let seeds = match request.input.get("seeds") {
@@ -933,7 +971,7 @@ fn answer(
             Read::Overview(request) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.overview(&request)?;
+                let answer = index.overview_sections(&request)?;
                 Ok(graph_overviewed(&answer.summary).and_then(|e| took("overviewed", e)))
             }
             Read::Expand(request) => {

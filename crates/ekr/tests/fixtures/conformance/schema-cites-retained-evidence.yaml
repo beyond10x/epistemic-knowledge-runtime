@@ -1,0 +1,17 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000712
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !DefineNodeType
+    id: 00000000-0000-4000-8000-000000000215
+    name: Review
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - !CiteEvidence 00000000-0000-4000-8000-000000000441
+  evidence:
+  - 00000000-0000-4000-8000-000000000441
+  schema_version: 00000000-0000-4000-8000-000000000013

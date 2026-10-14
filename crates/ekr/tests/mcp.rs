@@ -27,8 +27,8 @@ use ekr::host::CliHostConfigurationV1;
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, ProjectError,
-    SearchRequest, SinceKind, TimelineRequest,
+    BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, OverviewSection,
+    ProjectError, SearchRequest, SinceKind, TimelineRequest,
 };
 use serde_json::{json, Value};
 
@@ -441,6 +441,15 @@ fn initialize_then_tools_list_names_exactly_the_nine_read_tools_with_input_schem
             names.iter().map(|name| (*name).to_owned()).collect()
         };
         assert_eq!(required("overview"), set(&[]));
+        let overview = tools
+            .iter()
+            .find(|tool| tool["name"] == "overview")
+            .unwrap();
+        assert_eq!(
+            overview["inputSchema"]["properties"]["sections"]["items"]["enum"],
+            json!(["ontology", "schema", "roles", "timeline"]),
+            "{overview}"
+        );
         assert_eq!(required("search"), set(&["text"]));
         assert_eq!(required("describe_node"), set(&["node"]));
         assert_eq!(required("expand"), set(&["seeds", "depth", "limit"]));
@@ -518,7 +527,7 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "overview",
                 json!({}),
-                head.overview(&OverviewRequest::new(None).unwrap())
+                head.overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -527,7 +536,25 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                 json!({"limit": 2, "revision": 0}),
                 world
                     .index(Some(0))
-                    .overview(&OverviewRequest::new(Some(2)).unwrap())
+                    .overview_sections(&OverviewRequest::new(Some(2)).unwrap())
+                    .unwrap()
+                    .bytes,
+            ),
+            (
+                "overview",
+                json!({"sections": ["timeline", "ontology", "timeline"]}),
+                head.overview_sections(
+                    &OverviewRequest::new(None)
+                        .unwrap()
+                        .with_sections([OverviewSection::Ontology, OverviewSection::Timeline]),
+                )
+                .unwrap()
+                .bytes,
+            ),
+            (
+                "overview",
+                json!({"sections": []}),
+                head.overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -838,6 +865,8 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             ("search", json!({"text": "A", "revision": -1})),
             ("search", json!({"text": "A", "q": "A"})),
             ("overview", json!([])),
+            ("overview", json!({"sections": ["top"]})),
+            ("overview", json!({"sections": "schema"})),
             ("describe_node", json!({})),
             (
                 "expand",
@@ -965,7 +994,7 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
         assert_eq!(
             overview,
             utf8(
-                head.overview(&OverviewRequest::new(None).unwrap())
+                head.overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             )
@@ -977,7 +1006,7 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
             utf8(
                 world
                     .index(Some(0))
-                    .overview(&OverviewRequest::new(None).unwrap())
+                    .overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             )
@@ -1125,7 +1154,7 @@ fn a_running_server_answers_from_a_store_replaced_by_rename() {
             utf8(
                 world
                     .index(Some(1))
-                    .overview(&OverviewRequest::new(None).unwrap())
+                    .overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             ),

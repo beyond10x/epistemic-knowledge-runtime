@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:typed-reference-identifying-keys
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided where a node type declares its identifying keys, or whether a key value is unique within the type
 relations:
 - blocks: epic:p3-incubation-integration
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T12:20:57Z", actor: "agent:claude-ekr-controller", revision: 3}
 ---
 ## Question
 
@@ -29,3 +31,7 @@ Resolution by identifying key. `story:typed-reference-resolver` resolves by alia
 ## Clears when
 
 The operator records the answer; the answer lands as an `ess/1` declaration before a key-resolution story is drafted.
+
+## Answer
+
+Decided 2026-10-14 by the operator: a node type declares its identifying keys in the ontology, versioned by schema evolution, and a validator refuses a second node of that type holding the same key value. A source id is one such declared key. This is option A; an architecture decision record carries the ontology encoding change and the uniqueness rule.

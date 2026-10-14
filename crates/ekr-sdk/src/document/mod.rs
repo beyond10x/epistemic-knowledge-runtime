@@ -89,6 +89,15 @@ pub enum DocumentError {
     /// mixture (`mixed-schema-transaction`, or `unsupported-operation` under profile v1).
     #[error("a schema change travels alone: this transaction mixes schema and data operations")]
     MixedSchemaTransaction,
+    /// A `!CiteEvidence` in a transaction that changes no schema: a citation names evidence for
+    /// the schema version a schema change makes, so it travels only beside one. The kernel refuses
+    /// it by the same name (`citation-without-schema-change`, or `unsupported-operation` under
+    /// profile v1).
+    #[error(
+        "citation-without-schema-change: a !CiteEvidence travels beside the schema changes whose \
+         version it cites, and this transaction changes no schema"
+    )]
+    CitationWithoutSchemaChange,
     /// The document is past one of the format's frozen limits, which `ekr propose` would refuse
     /// by the same name: split the change into several transactions, or put a larger statement
     /// into the seed.

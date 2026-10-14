@@ -2,13 +2,15 @@
 format: aep.planning-md/3
 id: decision-blocker:observation-retention-path
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided where an observation is retained, or whether it depends on a committed revision
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:observations-are-retained
 - blocks: story:source-adapter-contract
-revision: 2
+revision: 4
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T12:20:56Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 ## Question
 
@@ -36,3 +38,7 @@ Relation: `Observation → Revision / store`. Nobody has said which one owns the
 - the `SourceAdapter` poll loop that persists what it returns.
 
 `story:observe-domain-model` carries this as an `UNMAPPED:` marker. `story:fixture-records-become-observations` does not depend on it.
+
+## Answer
+
+Decided 2026-10-14 by the operator: an observation is retained beside canonical state, in an append-only, content-addressed observation log on both providers, keyed by the idempotency key, and evidence cites it by `ObservationId`. Storage classes apply: an observation that evidence cites is `Provenance`; one nothing cites is `Cache` and reclaimable (design § 86). Revisions do not carry observations. This is option C; an architecture decision record carries it, since canonical evidence depends on a store outside revisions (invariant 2).

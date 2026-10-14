@@ -2,12 +2,16 @@
 format: aep.planning-md/3
 id: story:schema-transaction-cites-evidence
 kind: story
-status: draft
+status: implemented
 title: A schema transaction cites the evidence that introduced it
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o2
-revision: 1
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-14T07:25:57Z", actor: "agent:claude-ekr-controller", revision: 2}
+- {from: "proposed", to: "active", at: "2026-10-14T07:25:57Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-14T23:12:23Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

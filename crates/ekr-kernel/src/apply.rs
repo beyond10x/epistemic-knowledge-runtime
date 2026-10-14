@@ -109,7 +109,8 @@ fn append_only(tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>) -> bool 
             | GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
             | GraphOperation::ModifyProperty(_)
-            | GraphOperation::WidenEdgeType(_) => false,
+            | GraphOperation::WidenEdgeType(_)
+            | GraphOperation::CiteEvidence(_) => false,
         })
 }
 
@@ -494,7 +495,8 @@ fn apply_to_graph(
             | GraphOperation::CreateEdge(_)
             | GraphOperation::AddAssertion(_)
             | GraphOperation::AttachEvidence(_)
-            | GraphOperation::AddEvidence(_) => {}
+            | GraphOperation::AddEvidence(_)
+            | GraphOperation::CiteEvidence(_) => {}
         }
     }
     // `ekr.p2-apply/1`: a schema change replaces the ontology with the version it names, derived
@@ -502,12 +504,15 @@ fn apply_to_graph(
     // its `created_at`. `GraphRoot.schema_version_id` stays the seed's: it is the root's identity,
     // and the ontology root is what carries the version (wave p5-01, decision 4). Validation has
     // already evolved the same changes over the same ontology, so a refusal here is unreachable.
+    // The version records every id the transaction's `CiteEvidence` operations cite (design
+    // § 109.3); a cited `AddEvidence` was applied above, as every `AddEvidence` is.
     if let Some(version) = tx.schema_version {
         let changes = crate::validate::schema::changes(tx)
             .ok_or_else(|| StoreError::Document("admitted-mixed-schema-transaction".into()))?;
+        let cited = crate::validate::schema::citations(tx);
         graph.ontology = graph
             .ontology
-            .evolve(version, at, &changes)
+            .evolve_citing(version, at, &changes, cited)
             .map_err(|error| StoreError::Document(error.code().into()))?;
     }
     Ok(graph)

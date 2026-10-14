@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:relation-assertion-edge-correspondence
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether a relation assertion and an Edge with the same source, edge type and target are one edge in a projection
 relations:
 - blocks: epic:p4-operator-surface
-revision: 3
+revision: 5
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T07:29:19Z", actor: "agent:claude-ekr-controller", revision: 5}
 ---
 ## Question
 
@@ -31,3 +33,7 @@ The operator's prototype viewer merges them (its edges carry `lifecycle`, `valid
 Any projection or viewer behaviour that merges a relation assertion into an Edge, or treats one as the other, and the edge-level `lifecycle`, `valid_from`, `valid_to`, `evidence` and `has_edge` fields the prototype carries. No story is drafted for that part.
 
 The first P4 slice (`story:graph-projection-specification`, `story:graph-projection-renderer`, `story:ekr-view-server`, `story:data-free-graph-viewer`) does not depend on the answer: it projects each Edge and each Assertion exactly as the store holds them and joins neither to the other. Whichever option is chosen, the join arrives as a later story and, if it changes the document, a new version of `ekr.graph-projection`.
+
+## Answer
+
+Decided 2026-10-14: in a projection only, a relation assertion and an `Edge` with the same source, edge type and target are one projected edge, keyed by that triple and carrying every Edge and relation assertion with it. Canonical state does not change. This is option B; a model change (option C) stays open for later.

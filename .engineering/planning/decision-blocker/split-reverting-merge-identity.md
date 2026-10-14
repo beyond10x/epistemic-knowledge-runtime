@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: decision-blocker:split-reverting-merge-identity
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether a split that reverts a merge restores the absorbed node id or mints new nodes
 relations:
 - blocks: epic:p3-incubation-integration
-revision: 2
+revision: 4
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-14T12:20:57Z", actor: "agent:claude-ekr-controller", revision: 4}
 ---
 ## Question
 
@@ -23,3 +25,7 @@ The epic exit is "a wrong merge is reverted by a split with provenance intact". 
 ## What it stops
 
 The split transaction and the exit fixture (wrong merge reverted with provenance intact). Not drafted.
+
+## Answer
+
+Decided 2026-10-14 by the operator: a split that reverts a recorded merge restores the absorbed node's original id; any other split mints new nodes. The proposer assigns every edge and assertion explicitly, and an assignment it marks uncertain is recorded as flagged on the split record. This is option C, recorded in the merge and split architecture decision record.

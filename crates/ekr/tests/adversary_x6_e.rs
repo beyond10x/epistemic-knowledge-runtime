@@ -188,7 +188,7 @@ impl Server {
 
     /// `/overview`'s `roles.observation_type`, last four digits.
     fn observation_type(&self) -> Option<String> {
-        let body: Value = serde_json::from_slice(&self.get("/overview")).unwrap();
+        let body: Value = serde_json::from_slice(&self.get("/overview?sections=roles")).unwrap();
         body["roles"]["observation_type"]
             .as_str()
             .map(|type_id| type_id.trim_start_matches(P).to_owned())

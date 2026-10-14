@@ -6095,3 +6095,267 @@ PostgreSQL tests run, both written once in `crates/ekr/tests/support/stage_run.r
   claim and differs (measured), as § 107.9 says. After publication `ekr head` is the stage's last
   revision by number and roots, `ekr snapshot` by revision identity and graph, and
   `ekr --full-replay head` equals `ekr head`.
+
+---
+
+# 108. One-shot Reads Served from the Persisted Read Model (2026-10-14)
+
+*Added 2026-10-14 by wave 2026-10-14a, unit R (`story:reads-served-from-a-persisted-read-model`).
+Extends §§ 96.3, 99.2 and 99.5. It adds one way of reading the retained replay checkpoint and two
+kernel reads; it adds no retained format, changes no canonical root, no validation rule, no
+checkpoint or pointer format, no cadence and no refusal, and writes nothing. The contract is
+`ekr.store.ReadModel` in `systems/ekr/domains/store.yaml`; this section explains it.*
+
+**What was measured.** A consumer's SQLite store (ekr 0.0.13; 4,127 nodes, 14,373 edges, 67,558
+assertions; 420 MB in 392 blobs, 741 events): one-shot `ekr head` 0.29 s, `ekr snapshot` 3.7 s,
+`ekr ontology` 9.9 s. This unit could not read that store, so it profiled by counting, on a
+fixture store of 40 nodes and 40 assertions per commit, one fresh reading handle per read, as one
+`ekr` invocation opens one (`crates/ekr-kernel/tests/read_model.rs`,
+`a_one_shot_read_of_a_verified_head_costs_what_the_history_length_does_not_change`, both
+providers; per read):
+
+
+So the time goes where § 99.5.3 found it: `Runtime::read`, which both verbs read through, loads and
+hashes every retained record of the lineage and decodes each one — every proposal, and every commit
+receipt with the proposal it embeds — to build the replay state the checkpoint continues from, even
+where the checkpoint is at the head and nothing is replayed. A read at an earlier revision replays
+the whole lineage from the seed, parsing every document. The cost of both grows with the history;
+neither verb needs any of it. `ekr snapshot` prints the head graph and its root, `ekr ontology` the
+schema in force and the revision; the replay checkpoint already holds the head graph and every
+schema version from the revision it came into force at.
+
+## 108.1 The read model
+
+The persisted read model is the retained replay checkpoint (§ 96.3) read as an answer rather than
+as a state to replay from, with the newest pointer that names it. The store hands it over beside
+the history's occurrences and the objects the kernel names (`RevisionLog::read_model`): the
+pointer's `covered` and `binding`, and the checkpoint's bytes, checked against the address the
+pointer names. It reads nothing else and judges nothing. A store that keeps no checkpoint for the
+handle — a handle opened with `--full-replay`, a store without an authority, no pointer, a
+checkpoint whose bytes are not the ones named — hands over none. Nothing is written for it: a
+checkpoint and its pointers are written exactly as §§ 99.1 and 99.5 say.
+
+Two kernel reads use it: `Runtime::read_graph` (the graph and root of a revision, and the
+`ekr.kernel.Snapshot` of it) and `Runtime::read_ontology` (the schema in force at a revision, and
+its root). Each serves the revision from the model when the kernel verifies it, and otherwise
+answers exactly as `Runtime::read` does, with its refusals. A snapshot is built in one place
+(`SnapshotResult::of`) from either.
+
+## 108.2 Verification: what is served is what the history reproduces
+
+The model is refused, and the complete read answers, unless every check below holds. Each is what
+admitting the checkpoint (§ 96.3) holds it to, for the part a read serves; a read serves only what
+it checked, and reads nothing else of the model.
+
+1. The pointer's `binding` is this authority's `ekr.replay-checkpoint-binding/1` of the first
+   `covered` occurrences: its own record of having verified exactly that prefix under this host's
+   context and anchor, the record `ekr head` answers from (§ 99.2). A seed carrying a migration
+   claim binds `/2` and is never served from the model.
+2. The revision read lies in that prefix. A head read requires the prefix to be every occurrence
+   the stream holds: after a proposal or a validation no pointer names every occurrence (§ 99.1
+   item 3), and the head is read completely, as `ekr head` reads it then.
+3. The checkpoint decodes as `ekr.replay-checkpoint/1` under this host's authority, its own prefix
+   digest is the digest of its own first `covered` occurrences of that prefix, and its head is the
+   last revision committed in them.
+4. The revision's retained record — the seed result, or the commit receipt, whose address the
+   prefix digest binds — names its own occurrence and revision, its root hashes to its
+   `result_hash`, and a receipt's knowledge root is the one its occurrence carries.
+5. The schema served is the checkpoint's version in force at the revision, and it must reproduce
+   that root's ontology root. Past the checkpoint's head that is its newest version, so a commit
+   since that changed the schema reads completely.
+6. A graph is served only for the checkpoint's own head. It must carry the seed envelope's graph
+   root, reproduce the root's knowledge and evidence roots, and the checkpoint's seed payloads must
+   be the envelope's; under a profile that keeps no identities it must hold none. An ontology read
+   skips the graph's bytes without decoding them.
+7. Every retained object a complete read of the revision requires that is not a decision record
+   is loaded and verified, as a history read loads a required object
+   (`RevisionLog::load_required`): the seed envelope, for an ontology read as for a graph read,
+   and every evidence payload, which invariant 2 rests canonical knowledge on. The payloads are
+   the checkpoint's seed payloads, which must be the envelope's, and the payload of each evidence
+   entry of its head graph, an entry list that must reproduce the read revision's evidence root
+   (an ontology read decodes those entries and skips the rest of the graph). Retained evidence is
+   never removed, so that list names every payload added through the revision; where it does not
+   reproduce the revision's evidence root, because evidence was added between the revision and
+   the checkpoint's head, the revision reads completely. An absent payload, or one whose bytes do
+   not hash to its address, refuses the model, and the complete read that answers instead refuses
+   the store by its own name. A damaged seed or added evidence payload is held on both providers
+   by `crates/ekr-kernel/tests/adversary_w20261014a_r.rs`, a damaged seed envelope by
+   `a_damaged_seed_envelope_is_refused_by_both_reads_as_by_a_complete_read` in
+   `crates/ekr-kernel/tests/read_model.rs`.
+
+**What it takes on trust** is what a checkpoint takes (§ 96.3) and `ekr head` took since § 99.2:
+that the bound prefix was replayed, and every retained decision in it re-derived, when the binding
+was written. A read served from the model does not load the records it does not serve, so a record
+damaged after that write is found by the next read that loads it — any write verb, `ekr explain`,
+`ekr transactions`, or `--full-replay` — not by `ekr snapshot` or `ekr ontology`. A writer able to
+append a self-consistent history and a matching checkpoint could already have it read as canonical
+until a full replay (§ 96.3); this adds no such writer. Invariant 1 is unchanged: nothing the model
+holds is served without the kernel's verdict on it, and the store neither builds nor judges it.
+
+**Only a cold handle's first read** is served from the model. A handle that has reached a replay
+state, or served the model once, reads completely and keeps that state, so that a session's later
+reads cost it nothing again rather than decoding the checkpoint anew each time.
+
+## 108.3 Result, and what is not changed
+
+
+Answers are byte for byte a complete read's: after every commit of a profile-v2 store whose schema
+changes twice, for every revision and the head, on both providers
+(`every_revision_answers_byte_for_byte_what_a_complete_read_answers`). A checkpoint forged in any
+field a read serves or holds to the seed, and a pointer with another binding, a shorter or a
+longer coverage, are never served, and each read answers as a complete read
+(`a_read_model_that_does_not_match_the_history_is_refused_and_never_served`). A head past the
+checkpoint's reads its graph completely and its unchanged schema from the model, a head after an
+unverified proposal reads completely while a revision the pointer covers is served, and a
+full-replay handle reads no model
+(`the_model_serves_only_what_its_pointer_covers_and_never_under_full_replay`). The store's half is
+`crates/ekr-store/tests/read_model.rs`. All in `crates/ekr-kernel/tests/read_model.rs` unless
+named, on the SQLite and File providers; PostgreSQL reads through the same `EventlogStore` code and
+was not run here.
+
+Not changed: `Runtime::read`, which every other verb and `ekr-views` read through, and its cost;
+`ekr snapshot --at` a revision other than the checkpoint's head, and the graph of a head past the
+checkpoint's, which replay as before (a one-shot store whose commits are made by one process each
+has its checkpoint up to four commits behind the head, § 99.5.1; a session leaves it at the head);
+and `ekr head`. `ekr snapshot` and `ekr ontology` read through `Runtime::read_graph` and
+`Runtime::read_ontology` (`crates/ekr/src/cli/snapshot.rs`, `ontology.rs`). Reads past the
+checkpoint staying complete was decided, not deferred: serving them would need a read verb that
+writes, or a graph advanced outside replay. Not measured: wall time on a store of the
+consumer's size, which the story's first acceptance bullet asks for.
+
+---
+
+# 109. A Schema Transaction Cites Evidence (2026-10-14)
+
+*Added 2026-10-14 by `story:schema-transaction-cites-evidence` (wave 2026-10-14a). Extends §§ 19,
+26, 95, 101 and 103. It adds one operation kind and one field of a schema version. It moves no
+retained encoding, no refusal a store already retains and no root of an existing revision. The
+contract is `systems/ekr/domains/kernel.yaml` (`ekr.kernel.OperationKind`,
+`ekr.kernel.CanonicalOperationProjection`) and `systems/ekr/domains/ontology.yaml`
+(`ekr.ontology.SchemaVersion.evidence`); this section explains it.*
+
+**What was asked.** A consumer asked on 2026-10-01 for schema transactions that cite evidence. It
+grows its schema one type, edge type or property per version, each just before the first fact that
+uses it, and wants each version to name that fact's message, so that `ekr ontology --at` and the
+viewer's schema lineage show which message introduced each type; it kept the link in a file of its
+own. Three rules blocked it: a transaction's `evidence` was exactly what its `AddAssertion`s cite
+(and, since § 103, what its `AttachEvidence`s attach); `AddEvidence` is data, so carrying it in a
+schema transaction was `mixed-schema-transaction`; and `GraphTransaction` denies unknown fields.
+
+## 109.1 The operation
+
+`CiteEvidence` is `ekr.kernel.OperationKind` index 16, after `AttachEvidence` (15). Its payload is
+one evidence id, written `!CiteEvidence <evidence id>` and encoded as variant 16 and the id.
+Appending the variant renumbers nothing, so no `validation_hash` or transaction address a store
+retains moves.
+
+It is a **schema citation**: it travels with the schema changes of § 95 and § 101, under validation
+profiles v2 and v3 only, and names one evidence entry the version they make rests on. Under v1 it
+is refused as `unsupported-operation` with the P1 message form, `CiteEvidence is not supported in
+P1`, as every schema change is. The cited id is part of what the transaction rests on, so it is in
+`GraphTransaction.evidence`, which the structural validator holds equal to what the transaction's
+assertions cite, its attachments attach and its citations cite. The message of
+`evidence-set-mismatch` names citations only for a transaction that carries one; every other
+transaction is refused in the words it was refused with before.
+
+**Why an operation and not a field.** A transaction-level field (`schema_evidence`, say) would mark
+the citation as clearly, and § 95's `schema_version` is the precedent for adding one. Two things
+decided against it. Reusing the existing `evidence` manifest as the citation, with no marker at
+all, would turn a retained rejection into a valid transaction: a v2 store that had once been
+refused a schema transaction naming evidence (`evidence-set-mismatch`) or carrying an
+`AddEvidence` (`mixed-schema-transaction`) would fail its next replay with
+`rejection-of-valid-transaction`. Any marker no earlier transaction could carry avoids that. A new
+field is such a marker, but every struct literal of `GraphTransaction` in the workspace (158 of
+them, measured at the wave's base) would have to name it. A new operation kind is the same marker,
+§ 103's shape for the same kind of change, and a transaction without one is validated, encoded and
+replayed exactly as before.
+
+## 109.2 What validation decides
+
+A schema transaction may hold, beside its schema changes, `CiteEvidence` operations and the
+`AddEvidence` of each entry they cite. Any other operation is still `mixed-schema-transaction` —
+a create, an update, an assertion, an attachment, or an `AddEvidence` of an entry no citation of the
+transaction names. The message of that refusal is unchanged for a transaction without a citation;
+with one, it counts the citations and the cited additions too. The ontology-constraint validator
+reads the schema changes alone, so a cited `AddEvidence` does not silence `Ontology::evolve`'s
+refusals. Refused, as named issues:
+
+| case | validator | code |
+|---|---|---|
+| the evidence is neither retained nor added by an `AddEvidence` of the transaction | Reference | `unresolved-evidence` |
+| the transaction changes no schema | Structural | `citation-without-schema-change` |
+| one id is cited by two `CiteEvidence` operations | Structural | `duplicate-citation` |
+| `transaction.evidence` leaves a cited id out | Structural | `evidence-set-mismatch` |
+| profile v1 | Structural | `unsupported-operation` |
+
+`unresolved-evidence` is the code an unknown id already earned; the two new codes name the two
+refusals no earlier operation could reach. The added entry is held to the provenance profile of
+§ 91.1 exactly as any `AddEvidence` is (`evidence-payload-mismatch`, `evidence-unsupported-source`).
+
+## 109.3 The version record, and the ontology root
+
+`ekr.ontology.SchemaVersion` gains `evidence`, a set of evidence ids. Commit (`ekr.p2-apply/1`)
+derives the next version as § 95.4 says and records in it every id the transaction cites
+(`Ontology::evolve_citing`; `Ontology::evolve` is the same with no citation). The version cites only
+what its own transaction cited: a later version does not inherit an earlier one's citations, and an
+earlier version keeps its own at every revision it is in force.
+
+**The encoding is versioned by presence.** A schema version's canonical encoding is its id, number,
+parent and creation time, and now continues with the cited set written as a tagged `Some` **only
+when the set is non-empty**. A version that cites nothing encodes to exactly the bytes it encoded
+to before the field existed, so every ontology root a store records stays what it was; the `Some`
+tag cannot be mistaken for the map an ontology writes next. This is the shape § 95.3 gave
+`schema_version` and § 103.3 gave the attachment collection. In the version's document (a seed's
+`ontology.version`, a checkpoint's ontology, `ekr.graph-document/2`) `evidence` is an optional key,
+omitted when empty, so every document written for a version without a citation is byte for byte
+the one written before. A store whose lineage holds a citing version is refused by an earlier
+binary, which does not know the key.
+
+A seed's version cites nothing: a seed whose `ontology.version.evidence` is not empty is refused as
+`seed-ontology-lineage`, the refusal a seed version that is not a first version already earns. A
+citation is made by a commit, as an attachment is.
+
+## 109.4 What reads it
+
+`ekr ontology`, at the head or `--at N`, prints `schema_version_evidence`: the ids the version in
+force at that revision cites, `[]` when it cites none. The views' verified read
+(`ekr_views::load`) keeps every version of the projected revision's lineage whole in
+`LoadedRevision.schemas`, so its citations travel with it to every renderer. The
+`ekr.graph-projection/1` document's `schema.versions` does not print them yet: its entries are
+declared by `systems/ekr/domains/views.yaml`, and adding one is a change to that contract, left
+for a later change. The overview (`ekr.graph-overview/1`) does not carry them and is not meant to.
+
+**Amended 2026-10-14 (wave 2026-10-14a), before the wave closed:** the projection prints them.
+The story's acceptance says the lineage names the evidence, so the later change is this one.
+`systems/ekr/domains/views.yaml` declares `evidence` on `ekr.views.ProjectedSchemaVersion`: each
+`schema.versions` entry of `ekr.graph-projection/1` carries the ids its version cites, as strings
+in ascending order, and omits the key when the version cites none. Every store whose versions cite
+nothing renders the bytes it rendered before, so the format name does not change.
+`crates/ekr-views/tests/adversary_w20261014a_v.rs` drives a store whose version 1 cites one entry
+on both providers and finds the id in that version's entry. For versions without a citation,
+`crates/ekr-views/tests/document.rs`
+(`the_schema_lists_each_version_from_its_first_revision_and_every_revision_up_to_the_projected_one`)
+compares whole `schema.versions` entries, which still have no `evidence` key.
+
+## 109.5 Result, and what is not changed
+
+A schema transaction citing one retained evidence entry, and one adding and citing one, each
+commit as a new schema version on both providers under profiles v2 and v3; the version records
+the cited id; the added entry is retained with its payload at its content hash; reopening, from the
+checkpoint and with a full replay from the seed, reproduces every root and every version's
+citation. A schema transaction that carries any other data operation is refused as
+`mixed-schema-transaction`. No retained transaction, rejection or root moves.
+
+Executed by `crates/ekr-kernel/tests/schema_evidence.rs`
+(`a_schema_transaction_citing_retained_or_added_evidence_commits_and_the_version_records_it`,
+`a_schema_transaction_carrying_another_data_operation_is_still_mixed` and
+`a_citation_is_refused_by_name`), `crates/ekr-ontology/tests/schema_version_evidence.rs` (the
+ontology roots of a seed version and an evolved version pinned at the wave's base, a citing
+version's distinct root, and the document round trip), the kernel conformance scenarios
+`a-schema-transaction-citing-retained-evidence-commits-as-a-new-version`,
+`a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version` and
+`a-schema-transaction-carrying-another-data-operation-is-still-mixed` on both providers, and
+`crates/ekr/tests/docs_cli.rs`, which runs `docs/cli.md` § Evolve the schema, step 6, as written
+and reads `schema_version_evidence` back. That no retained store moves is held, beyond the pinned
+roots, by `crates/ekr-kernel/tests/attachment_base_store.rs`, which reopens a store written at an
+earlier base and compares every root.

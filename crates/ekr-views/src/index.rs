@@ -2,8 +2,8 @@
 //!
 //! [`Index::build`] reads one [`LoadedRevision`] — the value [`crate::load`] returns — once:
 //! adjacency and degree, the assertions by subject and by object, the lowercased names and
-//! aliases, the nodes in degree order, and every section of `ekr.graph-overview/1` that does not
-//! depend on the request (type counts, growth per revision from recorded time, the schema
+//! aliases, the nodes in degree order, and every section of `ekr.graph-overview/1` and `/2` that
+//! does not depend on the request (type counts, growth per revision from recorded time, the schema
 //! lineage, the valid-time roles and the timeline buckets). After that each read costs its
 //! answer, not the revision. It owns the loaded revision, so a host renders
 //! `ekr.graph-projection/1` from the same load through [`Index::loaded`].

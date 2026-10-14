@@ -414,7 +414,7 @@ fn the_default_overview_of_ten_types_dated_weekly_for_ten_years_stays_under_300_
         .unwrap();
     assert!(
         overview.bytes.len() < 300 * 1024,
-        "{TYPES} types and {} assertions: the default overview is {} bytes, {} timeline buckets \
+        "{TYPES} types and {} assertions: the default overview is {} bytes, {:?} timeline buckets \
          (limit 1: {} bytes)",
         TYPES * WEEKS as u64,
         overview.bytes.len(),
@@ -422,7 +422,7 @@ fn the_default_overview_of_ten_types_dated_weekly_for_ten_years_stays_under_300_
         smallest.bytes.len()
     );
     // 520 weeks are more than 200 buckets, so the width is the next one, 4 weeks: 130 columns.
-    assert_eq!(overview.summary.bucket_ms, 4 * WEEK as u64);
+    assert_eq!(overview.summary.bucket_ms, Some(4 * WEEK as u64));
     let columns: BTreeMap<i64, u64> = serde_json::from_slice::<Value>(&overview.bytes).unwrap()
         ["timeline"]["buckets"]
         .as_array()

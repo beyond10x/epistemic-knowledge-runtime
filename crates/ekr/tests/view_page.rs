@@ -1578,7 +1578,7 @@ fn a_subtype_redeclaring_a_property_is_served_and_each_type_shows_its_own_defini
     let (status, body) = server.get("/projection");
     assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
     assert_eq!(body, seeded.projection_bytes());
-    let (status, body) = server.get("/overview");
+    let (status, body) = server.get("/overview?sections=ontology");
     assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
     let overview: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(overview["meta"]["revision"], 1);
@@ -1590,7 +1590,7 @@ fn a_subtype_redeclaring_a_property_is_served_and_each_type_shows_its_own_defini
         ],
         "the head's overview gives each type its own definition"
     );
-    let (status, body) = server.get("/overview?revision=0");
+    let (status, body) = server.get("/overview?revision=0&sections=ontology");
     assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
     let before: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(

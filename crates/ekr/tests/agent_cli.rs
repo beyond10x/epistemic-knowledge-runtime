@@ -44,9 +44,10 @@ fn names<E: ValueEnum>() -> Vec<String> {
         .collect()
 }
 
-/// `GraphOperation` has sixteen variants (the eleven of design § 19 and amendment 87, plus
-/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias` and `AttachEvidence`).
-const KIND_COUNT: usize = 16;
+/// `GraphOperation` has seventeen variants (the eleven of design § 19 and amendment 87, plus
+/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias`, `AttachEvidence` and
+/// `CiteEvidence`).
+const KIND_COUNT: usize = 17;
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -840,6 +841,17 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             &["ekr.store-quality/1", "evidence", "ekr head", store],
         ),
         (
+            "compare",
+            &[
+                "ekr.store-comparison/1",
+                "commit times",
+                "writes nothing",
+                "--other",
+                "ekr head",
+                store,
+            ],
+        ),
+        (
             "ocel",
             &[
                 "ekr.ocel/1",
@@ -1254,8 +1266,8 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
 /// The one kind the kernel applies under no profile, refused as `unsupported-operation`.
 const NOT_APPLIED: [&str; 1] = ["MergeEntity"];
 
-/// The four schema kinds: applied under validation profile v2 in a schema-only transaction that
-/// names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
+/// The four schema kinds: applied under validation profile v2 or v3 in a schema-only transaction
+/// that names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
 const SCHEMA_KINDS: [&str; 4] = [
     "DefineNodeType",
     "DefineEdgeType",
@@ -1263,16 +1275,22 @@ const SCHEMA_KINDS: [&str; 4] = [
     "WidenEdgeType",
 ];
 
-/// What an `ekr operations` line says of its kind: applied, a schema change, or not applied.
+/// The schema citation (design § 109): applied beside schema changes, under profile v2 or v3.
+const CITATION_KINDS: [&str; 1] = ["CiteEvidence"];
+
+/// What an `ekr operations` line says of its kind: applied, a schema change, a schema citation, or
+/// not applied.
 fn marking(line: &str) -> &'static str {
     match (
         line.contains("[schema change:"),
+        line.contains("[schema citation:"),
         line.contains("[not applied:"),
     ) {
-        (false, false) => "applied",
-        (true, false) => "schema change",
-        (false, true) => "not applied",
-        (true, true) => panic!("a line marked both ways: {line:?}"),
+        (false, false, false) => "applied",
+        (true, false, false) => "schema change",
+        (false, true, false) => "schema citation",
+        (false, false, true) => "not applied",
+        _ => panic!("a line marked more than one way: {line:?}"),
     }
 }
 
@@ -1283,6 +1301,7 @@ fn cited(example: &str) -> Vec<String> {
             assertion.evidence.iter().map(ToString::to_string).collect()
         }
         GraphOperation::AttachEvidence(attachment) => vec![attachment.evidence.to_string()],
+        GraphOperation::CiteEvidence(evidence) => vec![evidence.to_string()],
         _ => Vec::new(),
     }
 }
@@ -1330,6 +1349,8 @@ fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
                 "not applied"
             } else if SCHEMA_KINDS.contains(&kind.as_str()) {
                 "schema change"
+            } else if CITATION_KINDS.contains(&kind.as_str()) {
+                "schema citation"
             } else {
                 "applied"
             };
@@ -1347,7 +1368,7 @@ fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
             );
             assert_eq!(
                 page.contains("validation profile v2"),
-                expected == "schema change",
+                expected == "schema change" || expected == "schema citation",
                 "{kind}: page\n{page}"
             );
             assert_eq!(
@@ -1388,7 +1409,7 @@ fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
         }
         assert_eq!(
             committed,
-            KIND_COUNT - NOT_APPLIED.len() - SCHEMA_KINDS.len(),
+            KIND_COUNT - NOT_APPLIED.len() - SCHEMA_KINDS.len() - CITATION_KINDS.len(),
             "{backend}"
         );
         assert_eq!(
@@ -2349,5 +2370,72 @@ fn guide_says_how_to_seed_a_v2_store_from_the_example_host() {
             proposed_and_validated(&world, "schema.yaml", &text(&["example", "schema-change"]));
         assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
         assert_eq!(world.ok(&["commit", &id])["kind"], "Committed");
+    }
+}
+
+/// `story:schema-transaction-cites-evidence` through the binary: under validation profile v2 the
+/// `CiteEvidence` example, beside the `DefineNodeType` example in a transaction that names its
+/// `schema_version` and lists the cited id, commits; `ekr ontology` then names the cited evidence
+/// as `schema_version_evidence`, and `ekr ontology --at 0` names none. Alone, the citation is
+/// `citation-without-schema-change`.
+#[test]
+fn ekr_ontology_names_the_evidence_a_schema_change_cited() {
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    let cite = example_operation("CiteEvidence");
+    let evidence = cited(&cite);
+    assert_eq!(evidence.len(), 1, "{cite}");
+    let evidence: Vec<&str> = evidence.iter().map(String::as_str).collect();
+    for backend in BACKENDS {
+        let world = World::schema_evolving(backend);
+        world.seed_from_example();
+
+        let (_, alone) = proposed_and_validated(
+            &world,
+            "cite-alone.yaml",
+            &document(
+                &minted("transaction"),
+                &operator,
+                std::slice::from_ref(&cite),
+                &evidence,
+            ),
+        );
+        assert_eq!(alone["kind"], "Rejected", "{backend}: {alone}");
+        assert!(
+            issue_codes(&alone).contains("citation-without-schema-change"),
+            "{backend}: {alone}"
+        );
+
+        let version = minted("schema-version");
+        let mut body = document(
+            &minted("transaction"),
+            &operator,
+            &[example_operation("DefineNodeType"), cite.clone()],
+            &evidence,
+        );
+        body.push_str(&format!("  schema_version: {version}\n"));
+        let (id, validated) = proposed_and_validated(&world, "cite.yaml", &body);
+        assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
+        assert_eq!(world.ok(&["commit", &id])["kind"], "Committed", "{backend}");
+
+        let head = world.ok(&["ontology"]);
+        assert_eq!(head["schema_version"], version.as_str(), "{head}");
+        assert_eq!(
+            head["schema_version_evidence"],
+            serde_json::json!(evidence),
+            "{backend}: {head}"
+        );
+        let at = world.ok(&["ontology", "--at", "1"]);
+        assert_eq!(
+            at["schema_version_evidence"],
+            serde_json::json!(evidence),
+            "{at}"
+        );
+        let seed = world.ok(&["ontology", "--at", "0"]);
+        assert_eq!(
+            seed["schema_version_evidence"],
+            serde_json::json!([]),
+            "{seed}"
+        );
     }
 }

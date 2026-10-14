@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_views::{
-    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, ProjectError,
-    QueryError, RevisionIdentity, SearchRequest, SliceRecord,
+    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, OverviewSection,
+    ProjectError, QueryError, RevisionIdentity, SearchRequest, SliceRecord,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -161,10 +161,10 @@ fn the_overview_opens_with_its_meta_and_lists_its_sections_in_declared_order() {
         hex::encode(Sha256::digest(&answer.bytes))
     );
     assert_eq!((summary.nodes, summary.edges, summary.top), (601, 600, 2));
-    assert_eq!((summary.added, summary.removed), (2, 0));
+    assert_eq!((summary.added, summary.removed), (Some(2), Some(0)));
     assert_eq!(
         (summary.unrecorded_nodes, summary.unrecorded_edges),
-        (601, 600)
+        (Some(601), Some(600))
     );
     assert_eq!(summary.observation_type, None);
 }
@@ -263,6 +263,259 @@ fn the_overview_derives_roles_and_monday_weeks_from_valid_time() {
         value["roles"]["types"][1]["judged"], 0,
         "one dated fact each"
     );
+}
+
+// ---- ekr.graph-overview/2 -----------------------------------------------------------------------
+
+/// The top-level keys an ekr.graph-overview/2 document carries, in the order its bytes write
+/// them (a `serde_json::Map` would sort them).
+fn keys(bytes: &[u8]) -> Vec<String> {
+    struct Ordered(Vec<String>);
+    impl<'de> serde::Deserialize<'de> for Ordered {
+        fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            struct Keys;
+            impl<'de> serde::de::Visitor<'de> for Keys {
+                type Value = Ordered;
+                fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str("an object")
+                }
+                fn visit_map<A: serde::de::MapAccess<'de>>(
+                    self,
+                    mut map: A,
+                ) -> Result<Ordered, A::Error> {
+                    let mut keys = Vec::new();
+                    while let Some((key, _)) = map.next_entry::<String, serde::de::IgnoredAny>()? {
+                        keys.push(key);
+                    }
+                    Ok(Ordered(keys))
+                }
+            }
+            deserializer.deserialize_map(Keys)
+        }
+    }
+    serde_json::from_slice::<Ordered>(bytes)
+        .expect("a JSON object")
+        .0
+}
+
+/// `story:overview-sections`, acceptance 1: with all four sections named, the answer is
+/// ekr.graph-overview/1's of the same revision and limit byte for byte but the format name — on
+/// every fixture whose revisions differ in ontology, lineage, roles and timeline, at each revision.
+#[test]
+fn with_all_four_sections_named_the_overview_is_v1_but_its_format_name() {
+    let all = OverviewRequest::new(Some(2))
+        .unwrap()
+        .with_sections(OverviewSection::ALL);
+    let v1 = OverviewRequest::new(Some(2)).unwrap();
+    let mut compared = 0;
+    for fixture in [
+        Fixture::Hub,
+        Fixture::Timeline,
+        Fixture::Growth,
+        Fixture::Evolved,
+        Fixture::SchemaChanges,
+        Fixture::PropertyRedeclared,
+    ] {
+        let (_work, runtime) = built(fixture, Provider::File);
+        let head = runtime.head().unwrap().unwrap().revision.get();
+        for at in 0..=head {
+            let index = Index::load(&runtime, Some(RevisionNumber::new(at))).unwrap();
+            let first = index.overview(&v1).unwrap();
+            let second = index.overview_sections(&all).unwrap();
+            let expected = String::from_utf8(first.bytes).unwrap().replacen(
+                "{\"meta\":{\"format\":\"ekr.graph-overview/1\",",
+                "{\"meta\":{\"format\":\"ekr.graph-overview/2\",",
+                1,
+            );
+            assert_eq!(
+                String::from_utf8(second.bytes).unwrap(),
+                expected,
+                "{fixture:?} at {at}"
+            );
+            let mut summary = second.summary.clone();
+            assert_eq!(summary.sections, OverviewSection::ALL.to_vec());
+            summary.overview_hash = first.summary.overview_hash.clone();
+            assert_eq!(summary, first.summary, "{fixture:?} at {at}");
+            compared += 1;
+        }
+    }
+    assert!(compared > 12, "{compared} revisions compared");
+}
+
+/// `story:overview-sections`, acceptance 2: named none, the answer is meta, node_types,
+/// edge_types and top, and its size does not grow with schema versions or ontology properties.
+/// One store commits eight schema versions, each declaring one more property; the answer at
+/// revision 1 and at revision 9 (one digit each, so meta.revision is the same width) is the same
+/// number of bytes, while the full answer grows by every version and property.
+#[test]
+fn with_no_section_named_the_overview_does_not_grow_with_versions_or_properties() {
+    let (_work, runtime) = built(Fixture::SeedOnly, Provider::File);
+    fixtures::commit_schema_growth(&runtime, 9);
+    let at = |n: u64| Index::load(&runtime, Some(RevisionNumber::new(n))).unwrap();
+    let (early, late) = (at(1), at(9));
+    let none = OverviewRequest::new(None).unwrap();
+    let all = OverviewRequest::new(None)
+        .unwrap()
+        .with_sections(OverviewSection::ALL);
+
+    let (small, large) = (
+        early.overview_sections(&all).unwrap(),
+        late.overview_sections(&all).unwrap(),
+    );
+    let count = |answer: &ekr_views::Answer<ekr_views::GraphOverviewed>, path: &[&str]| {
+        let value = json(&answer.bytes).1;
+        path.iter()
+            .fold(&value, |value, key| &value[*key])
+            .as_array()
+            .unwrap()
+            .len()
+    };
+    // What grew: eight more versions and eight more properties.
+    assert_eq!(
+        (
+            count(&small, &["schema", "versions"]),
+            count(&large, &["schema", "versions"])
+        ),
+        (2, 10)
+    );
+    assert_eq!(
+        count(&large, &["ontology", "properties"]) - count(&small, &["ontology", "properties"]),
+        8
+    );
+    assert!(large.bytes.len() > small.bytes.len() + 8 * 64);
+
+    let (before, after) = (
+        early.overview_sections(&none).unwrap(),
+        late.overview_sections(&none).unwrap(),
+    );
+    assert_eq!(
+        keys(&before.bytes),
+        ["meta", "node_types", "edge_types", "top"]
+    );
+    assert_eq!(
+        keys(&after.bytes),
+        ["meta", "node_types", "edge_types", "top"]
+    );
+    assert_eq!(
+        before.bytes.len(),
+        after.bytes.len(),
+        "{}\n{}",
+        String::from_utf8_lossy(&before.bytes),
+        String::from_utf8_lossy(&after.bytes)
+    );
+    let text = String::from_utf8(after.bytes.clone()).unwrap();
+    assert_eq!(
+        json(&after.bytes).1["meta"]["format"],
+        ekr_views::OVERVIEW_V2_FORMAT
+    );
+    assert!(
+        text.starts_with("{\"meta\":{\"format\":\"ekr.graph-overview/2\",\"revision\":9,"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("null") && !text.contains("\"ontology\""),
+        "{text}"
+    );
+    let summary = after.summary;
+    assert!(summary.sections.is_empty());
+    assert_eq!(
+        (
+            summary.schema_versions,
+            summary.revisions,
+            summary.added,
+            summary.event_types,
+            summary.bucket_ms,
+            summary.undated_assertions,
+            summary.observation_type,
+        ),
+        (None, None, None, None, None, None, None)
+    );
+    assert_eq!((summary.nodes, summary.node_types, summary.top), (1, 1, 1));
+    // An empty set of sections is no section.
+    assert_eq!(
+        late.overview_sections(&OverviewRequest::new(None).unwrap().with_sections([]))
+            .unwrap()
+            .bytes,
+        after.bytes
+    );
+}
+
+/// `story:overview-sections`, acceptance 3: each section can be requested alone. The answer is
+/// meta, the section, node_types, edge_types and top in /1's key order, and the section is /1's
+/// value of it; naming a section twice or in another order answers the same bytes.
+#[test]
+fn each_overview_section_can_be_requested_alone() {
+    let timeline = index(Fixture::Timeline, None);
+    let (_, whole) = json(
+        &timeline
+            .overview(&OverviewRequest::new(None).unwrap())
+            .unwrap()
+            .bytes,
+    );
+    for section in OverviewSection::ALL {
+        let request = OverviewRequest::new(None).unwrap().with_sections([section]);
+        assert_eq!(request.sections(), [section]);
+        let answer = timeline.overview_sections(&request).unwrap();
+        let name = section.name();
+        let mut expected = vec!["meta", "node_types", "edge_types", "top"];
+        let at = match section {
+            OverviewSection::Ontology | OverviewSection::Schema => 1,
+            OverviewSection::Roles | OverviewSection::Timeline => 3,
+        };
+        expected.insert(at, name);
+        assert_eq!(keys(&answer.bytes), expected, "{name}");
+        let (_, value) = json(&answer.bytes);
+        assert_eq!(value[name], whole[name], "{name}");
+        assert_eq!(answer.summary.sections, [section], "{name}");
+        assert_eq!(
+            answer.summary.schema_versions.is_some(),
+            section == OverviewSection::Schema
+        );
+        assert_eq!(
+            answer.summary.event_types.is_some(),
+            section == OverviewSection::Roles
+        );
+        assert_eq!(
+            answer.summary.timeline_buckets.is_some(),
+            section == OverviewSection::Timeline
+        );
+        assert_eq!(name.parse::<OverviewSection>(), Ok(section));
+        assert_eq!(section.to_string(), name);
+    }
+    let twice = OverviewRequest::new(None).unwrap().with_sections([
+        OverviewSection::Timeline,
+        OverviewSection::Ontology,
+        OverviewSection::Timeline,
+    ]);
+    let once = OverviewRequest::new(None)
+        .unwrap()
+        .with_sections([OverviewSection::Ontology, OverviewSection::Timeline]);
+    assert_eq!(
+        twice.sections(),
+        [OverviewSection::Ontology, OverviewSection::Timeline]
+    );
+    assert_eq!(
+        timeline.overview_sections(&twice).unwrap().bytes,
+        timeline.overview_sections(&once).unwrap().bytes
+    );
+    assert_eq!(
+        keys(&timeline.overview_sections(&once).unwrap().bytes),
+        [
+            "meta",
+            "ontology",
+            "node_types",
+            "edge_types",
+            "timeline",
+            "top"
+        ]
+    );
+    for refused in ["Ontology", "", "top", "meta", " schema"] {
+        assert_eq!(
+            refused.parse::<OverviewSection>(),
+            Err(ekr_views::UnknownOverviewSection(refused.to_owned())),
+            "{refused:?}"
+        );
+    }
 }
 
 // ---- ekr.graph-slice/1 --------------------------------------------------------------------------

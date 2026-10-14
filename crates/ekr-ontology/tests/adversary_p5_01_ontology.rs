@@ -160,6 +160,7 @@ fn a_parent_dropped_by_an_abstract_type_moves_the_conformance_of_its_concrete_ch
             number: 1,
             parent: Some(seed.id),
             created_at: LATER,
+            evidence: Default::default(),
         },
     ))
     .expect("next");

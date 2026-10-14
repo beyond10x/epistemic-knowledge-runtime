@@ -336,11 +336,14 @@ fn every_verb_the_page_says_writes_is_refused_and_every_one_that_reads_answers_a
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let source = world.source();
+        let own = world.store().display().to_string();
         let argv = |verb: &str| -> Option<Vec<String>> {
             let args: &[&str] = match verb {
                 "explain" => &["explain", ALICE],
                 "resolve" => &["resolve", "-"],
                 "code-names" => &["code-names", &source],
+                // The store compared with itself: both opens read-only.
+                "compare" => &["compare", "--other", &own],
                 "sample" => &["sample", "--seed", "1", "--size", "3"],
                 "view" | "mcp-http" => return None,
                 verb => &[verb],

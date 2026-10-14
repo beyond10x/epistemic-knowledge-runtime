@@ -12,7 +12,7 @@ use std::fmt;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{PropertyId, SchemaVersionId, Timestamp, TypeId};
+use ekr_core::{EvidenceId, PropertyId, SchemaVersionId, Timestamp, TypeId};
 use serde::{Deserialize, Serialize};
 
 use crate::lifecycle::Transition;
@@ -34,10 +34,18 @@ pub struct SchemaVersion {
     /// When it was created: `ekr.ontology.SchemaVersion.created_at`, declared `Timestamp` by
     /// `systems/ekr/domains/ontology.yaml` and carried as the `ekr-core` newtype ADR 0004 settled.
     pub created_at: Timestamp,
+    /// The evidence the schema transaction that made this version cited
+    /// (`ekr.ontology.SchemaVersion.evidence`, design § 109): one id per `CiteEvidence` of that
+    /// transaction. Empty for the seed and for every version made without a citation; empty, it is
+    /// absent from the document and from the canonical encoding, so a version that cites nothing
+    /// reads and hashes exactly as before the field existed.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(with = "Vec<ekr_core::EvidenceId>"))]
+    pub evidence: BTreeSet<EvidenceId>,
 }
 
 impl SchemaVersion {
-    /// The seed version: number zero, no parent.
+    /// The seed version: number zero, no parent, citing nothing.
     #[must_use]
     pub const fn seed(id: SchemaVersionId, created_at: Timestamp) -> Self {
         Self {
@@ -45,6 +53,7 @@ impl SchemaVersion {
             number: 0,
             parent: None,
             created_at,
+            evidence: BTreeSet::new(),
         }
     }
 }

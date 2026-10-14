@@ -229,6 +229,7 @@ const CARRIERS: &[(&str, Option<&str>)] = &[
         "ekr.store.PublicationPreparationV4",
         Some("PublicationPreparationV4"),
     ),
+    ("ekr.store.ReadModel", Some("ReadModel")),
 ];
 
 /// A declaration is seen whether its mapping opens with `name:` or with any other key.

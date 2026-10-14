@@ -4,6 +4,64 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr compare --other <store>` says whether two stores hold the same knowledge, on any providers,
+  each at its head or at `--at` and `--other-at`: the `ekr.store-comparison/1` document, equal or
+  not, and per category (types, properties, nodes, edges, assertions, evidence) the counts on each
+  side and the first differing ids with the fields that differ. Commit times and transaction ids
+  are not compared, so two stores built from the same documents at different times compare equal.
+  It writes to neither store. `docs/cli.md` describes it.
+
+- A schema change can cite the evidence that introduced it. `!CiteEvidence <evidence id>` beside
+  the schema changes of a transaction names evidence the store retains, or evidence an
+  `!AddEvidence` of the same transaction adds, and that `!AddEvidence` no longer makes the
+  transaction `mixed-schema-transaction`; any other data operation still does. The schema version
+  the commit makes records every cited id, and `ekr ontology` (with or without `--at`) prints them
+  as `schema_version_evidence`. Under validation profiles v2 and v3 only; v1 refuses the kind as
+  `unsupported-operation`. A citation is refused as `unresolved-evidence`,
+  `citation-without-schema-change`, `duplicate-citation` or `evidence-set-mismatch` (the cited id
+  belongs in `transaction.evidence`). `ekr operations` lists seventeen kinds. A version that cites
+  nothing encodes as before, so no existing ontology root moves; a store holding a citing version
+  is refused by earlier binaries. The projection (`ekr.graph-projection/1`, what `ekr view`
+  serves at `/projection`) carries a version's citations as `evidence` on its `schema.versions`
+  entry, omitted when it cites none, so a projection without a citation is unchanged; the viewer
+  page does not display them yet. In `ekr-sdk`, `read::Ontology` carries
+  `schema_version_evidence`, and `TransactionBuilder::build` refuses a citation without a schema
+  change as `DocumentError::CitationWithoutSchemaChange`, the kernel's
+  `citation-without-schema-change`, rather than `MixedSchemaTransaction`.
+
+### Changed
+
+- One-shot `ekr snapshot` and `ekr ontology` answer from the retained replay checkpoint, which
+  serves as a persisted read model, when the kernel verifies it for the revision read. They then
+  load the revision's record, the seed envelope and every evidence payload, and decode the
+  record with the checkpoint. They replay nothing and no longer read, hash or decode every record of the history
+  (design § 108). Answers are byte for byte what a complete read prints. A model that does not
+  verify is ignored, and the read answers as before.
+  - Still served by a complete read, as before: a snapshot of a head past the checkpoint's
+    revision (up to four commits made one process each, § 99.5.1), a snapshot `--at` any revision
+    other than the checkpoint's, a schema changed since the checkpoint, any head read after a
+    proposal or validation no checkpoint pointer covers yet, `--full-replay`, and every read after
+    the first on a long-lived handle (`ekr session`).
+  - A retained record damaged after the checkpoint pointer that covers it was written is no longer
+    refused by an `ekr snapshot` or `ekr ontology` served from the model, which does not load it.
+    This is what `ekr head` already did since § 99.2. The next read that loads the record refuses
+    it: any write verb, `ekr explain`, `ekr transactions`, or any verb under `--full-replay`.
+    A damaged or absent seed envelope or evidence payload is still refused by both verbs: the
+    model loads and verifies each one a complete read requires (design § 108.2 item 7).
+
+- `overview` answers `ekr.graph-overview/2` and takes `sections`, any of `ontology`, `schema`,
+  `roles` and `timeline`, on `GET /overview` (`sections=ontology,schema`), the MCP tool
+  (`"sections": ["ontology"]`) and the session verb (`--sections ontology,schema`). Named none, the
+  answer is the counts, the type counts and the top nodes only, so its size no longer grows with
+  the ontology's properties, the schema's versions or the revisions committed. Named all four, it
+  is `ekr.graph-overview/1`'s content under the new format name. A section not named is absent,
+  never empty. A client that reads the ontology, schema, roles or timeline from `overview` now
+  names them; the viewer page and the SDK's `Reader::overview` name all four. The SDK's
+  `Overview` holds `ontology`, `schema`, `roles` and `timeline` as `Option`s, and
+  `Reader::overview_sections` names the sections to read.
+
 ## [0.0.33] — 2026-10-08
 
 ### Added

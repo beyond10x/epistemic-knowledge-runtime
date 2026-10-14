@@ -54,6 +54,7 @@ timeline:
       store: property-redeclared
       at: null
       limit: null
+      sections: [schema]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed

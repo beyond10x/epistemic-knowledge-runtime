@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 84,
-  "answered_floor": 84,
+  "total": 85,
+  "answered_floor": 85,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -88,6 +88,7 @@
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
     "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
     "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest",
+    "ekr.views/authored/an-overview-answers-only-the-sections-it-names",
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
     "ekr.views/authored/an-unknown-seed-is-refused-by-name",
     "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
@@ -116,11 +117,11 @@
     },
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
       "file": "a-lineage-lists-widened-ends-and-modified-properties.yaml",
-      "digest": "sha256:32b3fe5d95bd60801aac8513548100747a12adebe1498bd69e73bdcf81594f54"
+      "digest": "sha256:df4cd290bd3dbd5439915b05c7dc9b26c13545bf3eac2110f93cb3f1621fd8bd"
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
-      "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227"
+      "digest": "sha256:28468353011466283af648c786428dfab3e00a651c0b26a85402f76e99e18425"
     },
     "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log": {
       "file": "a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log.yaml",
@@ -128,7 +129,7 @@
     },
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
       "file": "a-property-a-subtype-redeclares-is-projected-for-each-type.yaml",
-      "digest": "sha256:3aa0e798160e5b6d878899c35d0d1fb3955798df252145b889a3dd137a4f7411"
+      "digest": "sha256:c779429699250d330c711a8af5a4a193c4312bef85208977d48249964f67621f"
     },
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
       "file": "a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
@@ -194,9 +195,13 @@
       "file": "an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml",
       "digest": "sha256:3933948b2851580d10439ac748bd2d4ac1d19bdaa08cfb5a07a7f6e9d12d2ff1"
     },
+    "ekr.views/authored/an-overview-answers-only-the-sections-it-names": {
+      "file": "an-overview-answers-only-the-sections-it-names.yaml",
+      "digest": "sha256:63a49b8fe125515e6077a10e2bc10c360ca090f2fd00bf1df96a4853ce4e5918"
+    },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "file": "an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
-      "digest": "sha256:b47fe99058aa5390735a8bb046b762bac04c29c17e7d1e1415fefacaddb8eaf6"
+      "digest": "sha256:bea45bf0b49583145f1bc1348bd60fe5ebdb044aea4199ce6166518dda677702"
     },
     "ekr.views/authored/an-unknown-seed-is-refused-by-name": {
       "file": "an-unknown-seed-is-refused-by-name.yaml",
@@ -224,7 +229,7 @@
     },
     "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time": {
       "file": "the-overview-derives-roles-and-timeline-from-valid-time.yaml",
-      "digest": "sha256:716b6d89bc6c60e53f33df251a0e0b7446ead66d0e2d9221ec1736237640b720"
+      "digest": "sha256:693a7cdeb7661de3ddde446d5b5ebd349280d478417edc5027b8a6654e0559bb"
     }
   },
   "step_floors": {
@@ -704,6 +709,11 @@
       "expect_event": 4,
       "expect_no_event": 1,
       "expect_outcome": 5
+    },
+    "ekr.views/authored/an-overview-answers-only-the-sections-it-names": {
+      "execute_command": 7,
+      "expect_event": 7,
+      "expect_outcome": 7
     },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "execute_command": 5,

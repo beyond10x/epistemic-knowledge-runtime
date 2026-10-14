@@ -692,7 +692,7 @@ fn the_default_overview_of_ten_types_dated_weekly_for_ten_years_stays_under_300_
         .unwrap();
     assert!(
         overview.bytes.len() < 300 * 1024,
-        "{TYPES} types and {} assertions: the default overview is {} bytes, {} timeline buckets \
+        "{TYPES} types and {} assertions: the default overview is {} bytes, {:?} timeline buckets \
          (limit 1: {} bytes)",
         TYPES * WEEKS as u64,
         overview.bytes.len(),

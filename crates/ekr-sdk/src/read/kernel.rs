@@ -191,6 +191,11 @@ pub struct Ontology {
     pub schema_version_number: u64,
     /// The version it was derived from; `None` at the seed.
     pub schema_version_parent: Option<SchemaVersionId>,
+    /// The evidence the schema transaction that made the version cited, ascending; empty when it
+    /// cited none, the seed's version included. An `ekr` that predates citations does not print
+    /// it, and it reads as empty.
+    #[serde(default)]
+    pub schema_version_evidence: Vec<EvidenceId>,
     /// Its node types.
     pub node_types: Vec<OntologyNodeType>,
     /// Its edge types.

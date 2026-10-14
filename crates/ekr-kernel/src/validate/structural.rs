@@ -60,7 +60,16 @@
 //! `operation_count`, which is equally derivable and equally declared. Evidence an `AddEvidence`
 //! brings is in it exactly when an assertion of the transaction cites it: the set says what the
 //! transaction rests on, not what it adds. Evidence an `AttachEvidence` attaches is in it too, since
-//! the assertion now rests on it (design § 103.1).
+//! the assertion now rests on it (design § 103.1), and so is evidence a `CiteEvidence` cites, since
+//! the schema version the transaction makes rests on it (design § 109.1).
+//!
+//! # A citation travels with a schema change
+//!
+//! A schema change travels alone (`mixed-schema-transaction`), except for the evidence the
+//! version it makes cites: its `CiteEvidence` operations, and the `AddEvidence` of each entry they
+//! cite (design § 109.2). A citation in a transaction that changes no schema is
+//! `citation-without-schema-change`, and one id cited twice is `duplicate-citation`. Under profile
+//! v1 a `CiteEvidence` is `unsupported-operation`, as every schema change is.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -121,6 +130,14 @@ const MIXED_SCHEMA_TRANSACTION: &str = "mixed-schema-transaction";
 
 /// A `ModifyProperty` in the ownerless P1 shape, which profile v2 cannot place in the ontology.
 const MODIFY_PROPERTY_WITHOUT_OWNER: &str = "modify-property-without-owner";
+
+/// A `CiteEvidence` in a transaction that changes no schema: there is no version for it to cite
+/// evidence for (design § 109.2). Under profile v1 a citation is `unsupported-operation`
+/// instead, as a schema change is.
+const CITATION_WITHOUT_SCHEMA_CHANGE: &str = "citation-without-schema-change";
+
+/// One evidence id cited by two `CiteEvidence` operations of one transaction.
+const DUPLICATE_CITATION: &str = "duplicate-citation";
 
 impl Validator for Structural {
     fn name(&self) -> ValidatorName {
@@ -453,7 +470,7 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
         // Two declarations of one property of one owner compete in an unordered transaction as
         // two writes of one field do, and are refused the same way — identical ones too, since the
         // second has no effect. Two definitions of one type id are already `duplicate-identity`.
-        // v2 only: a v1 store's retained rejections replay against the P1 rules unchanged.
+        // v2 and v3 only: a v1 store's retained rejections replay against the P1 rules unchanged.
         let mut declared = BTreeSet::new();
         for operation in &tx.operations {
             if let GraphOperation::ModifyProperty(modification) = operation {
@@ -511,16 +528,52 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
             }
         }
     }
-    if admits_schema && changes > 0 && changes < tx.operations.len() {
+    // A citation, and the `AddEvidence` of an entry it cites, travel with the schema changes
+    // (design § 109.2). A transaction without a citation counts exactly as it always did, and is
+    // refused in the words it always was: replay compares every retained rejection's message with
+    // what this ruleset says now.
+    let cited = super::schema::citations(tx);
+    let travelling = tx
+        .operations
+        .iter()
+        .filter(|operation| super::schema::cites_with_schema(operation, &cited))
+        .count();
+    if admits_schema && !cited.is_empty() && changes == 0 {
         issues.push(issue(
             tx,
             ValidatorName::Structural,
-            MIXED_SCHEMA_TRANSACTION,
+            CITATION_WITHOUT_SCHEMA_CHANGE,
+            format!(
+                "the transaction cites {} with CiteEvidence and changes no schema; a citation names \
+                 evidence the schema version a schema change makes rests on",
+                cited
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ));
+    }
+    if admits_schema && changes > 0 && changes + travelling < tx.operations.len() {
+        let message = if cited.is_empty() {
             format!(
                 "{changes} of the transaction's {} operations change the schema; a schema change \
                  is proposed in a transaction of its own",
                 tx.operations.len()
-            ),
+            )
+        } else {
+            format!(
+                "{changes} of the transaction's {} operations change the schema and {travelling} \
+                 cite evidence for it or add evidence it cites; a schema change is proposed in a \
+                 transaction of its own, with only the evidence it cites",
+                tx.operations.len()
+            )
+        };
+        issues.push(issue(
+            tx,
+            ValidatorName::Structural,
+            MIXED_SCHEMA_TRANSACTION,
+            message,
         ));
     }
 }
@@ -835,6 +888,7 @@ fn check(
     let mut types = BTreeSet::new();
     let mut evidence: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut cited: BTreeSet<EvidenceId> = BTreeSet::new();
+    let mut citations: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut attached = false;
     let declared = |type_id: TypeId| {
         state.ontology.node_type(type_id).is_some() || state.ontology.edge_type(type_id).is_some()
@@ -921,6 +975,24 @@ fn check(
                 attached = true;
                 (None, None)
             }
+            // Names evidence and creates none; what the version cites is part of what the
+            // transaction rests on, so it is in the manifest too (design § 109.1). A second
+            // citation of one id says nothing the first did not, in an unordered transaction.
+            GraphOperation::CiteEvidence(evidence) => {
+                cited.insert(*evidence);
+                if !citations.insert(*evidence) {
+                    issues.push(issue(
+                        tx,
+                        ValidatorName::Structural,
+                        DUPLICATE_CITATION,
+                        format!(
+                            "evidence {evidence} is cited by more than one CiteEvidence in an \
+                             unordered transaction; cite it once"
+                        ),
+                    ));
+                }
+                (None, None)
+            }
             // Name an identity and create none: each is refused by `Reference` if what it
             // names is not there.
             GraphOperation::UpdateProperty(_)
@@ -955,12 +1027,14 @@ fn check(
     aliases(graph, tx, candidate, &mut issues);
     schema_shape(tx, admits_schema, &mut issues);
 
-    // A transaction that attaches nothing is refused in the words it always was: replay compares
-    // every retained rejection's message with what this ruleset says now.
-    let cite = if attached {
-        "its assertions cite or its attachments attach"
-    } else {
-        "its assertions cite"
+    // Replay compares every retained rejection's message with what this ruleset says now, so a
+    // transaction with no attachment and no citation is refused in the words it always was, and
+    // one with an attachment and no citation in the words of design § 103. Only a transaction
+    // with a citation, which no store retained before design § 109, reads the third form.
+    let cite = match (attached, citations.is_empty()) {
+        (false, true) => "its assertions cite",
+        (true, true) => "its assertions cite or its attachments attach",
+        (_, false) => "its assertions cite, its attachments attach or its citations cite",
     };
     if cited != tx.evidence {
         issues.push(issue(
@@ -1030,6 +1104,7 @@ fn check(
                 GraphOperation::DefineEdgeType(_) if !admits_schema => "DefineEdgeType",
                 GraphOperation::ModifyProperty(_) if !admits_schema => "ModifyProperty",
                 GraphOperation::WidenEdgeType(_) if !admits_schema => "WidenEdgeType",
+                GraphOperation::CiteEvidence(_) if !admits_schema => "CiteEvidence",
                 GraphOperation::MergeEntity(merge)
                     if node_types.contains_key(&merge.absorbed)
                         && node_types.contains_key(&merge.into) =>

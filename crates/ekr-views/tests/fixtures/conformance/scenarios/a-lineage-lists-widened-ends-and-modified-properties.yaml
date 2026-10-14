@@ -27,6 +27,7 @@ timeline:
       store: schema-changes
       at: 1
       limit: null
+      sections: [schema]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed
@@ -45,6 +46,7 @@ timeline:
       store: schema-changes
       at: 2
       limit: null
+      sections: [schema]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed
@@ -63,6 +65,7 @@ timeline:
       store: schema-changes
       at: 3
       limit: null
+      sections: [schema]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed
@@ -81,6 +84,7 @@ timeline:
       store: schema-changes
       at: null
       limit: null
+      sections: [schema]
     outcome: overviewed
     events:
       - event: ekr.views.GraphOverviewed

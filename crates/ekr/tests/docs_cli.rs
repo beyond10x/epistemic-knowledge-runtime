@@ -640,8 +640,8 @@ fn the_configuration_table_equals_the_global_options_and_names_their_variables()
 // 4 --------------------------------------------------------------------------------------------
 
 /// `ekr operations`: each kind and what its line says of it — `applied`, `schema change` (applied
-/// under validation profile v2 in a schema-only transaction) or `refused` (applied under neither
-/// profile).
+/// under validation profile v2 or v3 in a schema-only transaction), `schema citation` (applied
+/// beside schema changes) or `refused` (applied under no profile).
 fn binary_kinds() -> BTreeMap<String, &'static str> {
     stdout(&["operations"])
         .lines()
@@ -649,19 +649,22 @@ fn binary_kinds() -> BTreeMap<String, &'static str> {
         .map(|line| {
             let status = match (
                 line.contains("[schema change:"),
+                line.contains("[schema citation:"),
                 line.contains("[not applied:"),
             ) {
-                (false, false) => "applied",
-                (true, false) => "schema change",
-                (false, true) => "refused",
-                (true, true) => panic!("`ekr operations` marks a line both ways: {line:?}"),
+                (false, false, false) => "applied",
+                (true, false, false) => "schema change",
+                (false, true, false) => "schema citation",
+                (false, false, true) => "refused",
+                _ => panic!("`ekr operations` marks a line more than one way: {line:?}"),
             };
             (line.split_whitespace().next().unwrap().to_owned(), status)
         })
         .collect()
 }
 
-const KIND_PREFIXES: [&str; 11] = [
+const KIND_PREFIXES: [&str; 12] = [
+    "Cite",
     "Create",
     "Update",
     "Delete",
@@ -679,7 +682,7 @@ const KIND_PREFIXES: [&str; 11] = [
 fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
     let page = page();
     let binary = binary_kinds();
-    assert_eq!(binary.len(), 16, "ekr operations: {binary:?}");
+    assert_eq!(binary.len(), 17, "ekr operations: {binary:?}");
 
     let table: BTreeMap<String, &'static str> = rows(section(&page, "### Operation kinds"))
         .iter()
@@ -688,9 +691,13 @@ fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
             let status = match cells[1].as_str() {
                 "applied" => "applied",
                 "schema change" => "schema change",
+                "schema citation" => "schema citation",
                 "refused" => "refused",
                 other => {
-                    panic!("the {kind} row says {other:?}; write applied, schema change or refused")
+                    panic!(
+                        "the {kind} row says {other:?}; write applied, schema change, schema \
+                         citation or refused"
+                    )
                 }
             };
             Some((kind, status))
@@ -1633,12 +1640,15 @@ fn ontology_codes() -> BTreeSet<&'static str> {
         .collect()
 }
 
-/// The structural validator's three codes for the shape of a schema-changing transaction.
-const SCHEMA_SHAPE_CODES: [&str; 4] = [
+/// The structural validator's codes for the shape of a schema-changing transaction, its
+/// citations (design § 109) included.
+const SCHEMA_SHAPE_CODES: [&str; 6] = [
     "schema-version-missing",
     "schema-version-without-schema-change",
     "mixed-schema-transaction",
     "modify-property-without-owner",
+    "citation-without-schema-change",
+    "duplicate-citation",
 ];
 
 /// The seed version of the worked example, which the evolution example evolves.
@@ -1815,6 +1825,8 @@ fn the_schema_evolution_example_commits_and_reads_each_version_back_on_both_prov
         let evolution = Evolution::seeded(&page, backend);
         let mut revision = 0;
         let mut versions = vec![WORKED_SEED_VERSION.to_owned()];
+        // What the newest committed schema change cites (`!CiteEvidence`, design § 109).
+        let mut cited: Vec<String> = Vec::new();
         for block in &transactions {
             let file = block.attribute("evolve").unwrap();
             let outcome = block.attribute("outcome").unwrap_or_else(|| {
@@ -1844,6 +1856,19 @@ fn the_schema_evolution_example_commits_and_reads_each_version_back_on_both_prov
                 );
                 if let Some(version) = version {
                     versions.push(version.to_string());
+                    cited = TransactionDocument::parse(block.body.as_bytes())
+                        .unwrap()
+                        .transaction()
+                        .operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            ekr_kernel::GraphOperation::CiteEvidence(evidence) => {
+                                Some(evidence.to_string())
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    cited.sort();
                 }
             } else {
                 let codes = outcome
@@ -1864,6 +1889,11 @@ fn the_schema_evolution_example_commits_and_reads_each_version_back_on_both_prov
         assert_eq!(seed["schema_version"], WORKED_SEED_VERSION, "{backend}");
         assert_eq!(seed["schema_version_number"], 0, "{backend}");
         assert_eq!(seed["schema_version_parent"], Value::Null, "{backend}");
+        assert_eq!(
+            seed["schema_version_evidence"],
+            serde_json::json!([]),
+            "{backend}"
+        );
         let head = evolution.ok(&["ontology"]);
         assert_eq!(head["revision"], revision, "{backend}: {head}");
         let number = versions.len() - 1;
@@ -1877,6 +1907,15 @@ fn the_schema_evolution_example_commits_and_reads_each_version_back_on_both_prov
             head["schema_version_parent"],
             versions[number - 1].as_str(),
             "{backend}"
+        );
+        assert!(
+            !cited.is_empty(),
+            "{backend}: the example's last schema change cites evidence"
+        );
+        assert_eq!(
+            head["schema_version_evidence"],
+            serde_json::json!(cited),
+            "{backend}: the head's version names the evidence its schema change cited"
         );
         for (key, name) in &defined {
             assert!(
@@ -1965,6 +2004,7 @@ abstract_type: false\n    lifecycle: null\n    operations: {}";
 const PAGES: &str = "\n  - !UpdateProperty\n    node: 00000000-0000-4000-a000-000000000302\n    \
 property: 00000000-0000-4000-a000-000000000203\n    values:\n    - value_kind: Integer\n      value: 224";
 const VERSION: &str = "00000000-0000-4000-a000-000000000009";
+const CITE: &str = "\n  - !CiteEvidence 00000000-0000-4000-a000-000000000401";
 
 /// A transaction against the worked seed under profile v2 that draws `code`, or `None` for a code
 /// this suite has no trigger for.
@@ -1975,6 +2015,9 @@ fn schema_trigger(code: &str) -> Option<String> {
         "schema-version-missing" => schema_tx(1, None, JOURNAL),
         "schema-version-without-schema-change" => schema_tx(2, Some(VERSION), PAGES),
         "mixed-schema-transaction" => schema_tx(3, Some(VERSION), &format!("{JOURNAL}{PAGES}")),
+        // The worked seed retains evidence …0401.
+        "citation-without-schema-change" => schema_tx(20, None, CITE),
+        "duplicate-citation" => schema_tx(21, Some(VERSION), &format!("{JOURNAL}{CITE}{CITE}")),
         "modify-property-without-owner" => schema_tx(
             16,
             Some(VERSION),

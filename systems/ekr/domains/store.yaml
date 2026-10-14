@@ -387,6 +387,58 @@ types:
       - name: occurrences
         type: Optional<Integer>
 
+  # The persisted read model (design § 108, story:reads-served-from-a-persisted-read-model, wave
+  # 2026-10-14a). What the store hands the kernel for a one-shot read of a revision's graph or
+  # schema, beside the revision stream's occurrences and the few records the kernel names: the
+  # newest ekr.store.CheckpointWritten pointer's `covered` and `binding`, and the bytes of the
+  # retained replay checkpoint it names (`ekr.replay-checkpoint/1`, design § 96.3), checked against
+  # `checkpoint_hash`. That checkpoint already holds the head graph of its revision and every
+  # schema version from the revision it came into force at; the read model is that checkpoint read
+  # as an answer, not as a state to replay from. It is private cache data, never canonical and
+  # never an authority, and the store neither reads nor judges what it says.
+  #
+  # The verification rule. The kernel serves a revision from it only when every check holds, and
+  # otherwise answers through a complete verified read exactly as before (the model is refused,
+  # never served):
+  # 1. The store keeps checkpoints for this handle: not `--full-replay`, not read-only-without-one.
+  # 2. `binding` is the kernel's own `ekr.replay-checkpoint-binding/1` of the first `covered`
+  #    occurrences under this host's context and anchor: the record that it verified exactly that
+  #    prefix, as `ekr head` reads it (design § 99.2). A seed that carries a migration claim binds
+  #    `/2` and is never served from the model.
+  # 3. The revision read lies in that prefix; a head read requires `covered` to be every occurrence
+  #    the stream holds, so a head moved, or any occurrence not yet verified, sends the read on.
+  # 4. The checkpoint decodes as `ekr.replay-checkpoint/1` of this host's authority, its own
+  #    prefix digest is the digest of its first `covered` occurrences, and its head is the last
+  #    revision committed in them.
+  # 5. The revision's retained record (seed result or commit receipt, which the prefix digest
+  #    binds) names its own occurrence, revision and root. The schema served is the checkpoint's
+  #    version whose ontology root is that root's; a graph is served only for the checkpoint's own
+  #    head revision, and only when it reproduces that root's knowledge, evidence and ontology roots
+  #    and carries the seed envelope's graph root.
+  # 6. Every retained object a complete read of the revision requires that is not a decision record
+  #    is loaded and verified, as a required object is: the seed envelope, for a schema read as for
+  #    a graph read, and every evidence payload (`RevisionLog::load_required`), being the
+  #    checkpoint's seed payloads, which must be the envelope's, and the payload of each evidence
+  #    entry its head graph holds, an entry list that must reproduce the read revision's evidence
+  #    root. Retained evidence is never removed, so that list names every payload added through
+  #    the revision; where it does not reproduce the revision's evidence root the read goes on. An
+  #    object that is absent or whose bytes do not hash to its address refuses the model, and the
+  #    complete read refuses the store by its own name.
+  # What it takes on trust is what a replay checkpoint takes (design § 96.3): that the prefix was
+  # replayed and every decision in it re-derived when the binding was written. Records the read
+  # does not load are not re-read by it.
+  - name: ekr.store.ReadModel
+    kind: struct
+    fields:
+      - name: covered
+        type: Integer
+      - name: binding
+        type: ekr.kernel.ContentHash
+      - name: checkpoint_hash
+        type: ekr.kernel.ContentHash
+      - name: checkpoint
+        type: Bytes
+
 entities:
   # Design § 57. Identity is the content hash; two writes of the same bytes are one object.
   - name: ekr.store.StoredObject

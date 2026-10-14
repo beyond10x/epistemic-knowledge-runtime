@@ -339,6 +339,29 @@ fn graph_fields_neither_root_reads_move_neither_root() {
 }
 
 #[test]
+fn the_evidence_root_of_a_collection_is_the_evidence_root_of_its_graph() {
+    let mut graphs = vec![graph()];
+    for (_, change) in evidence_changes().into_iter().chain(knowledge_changes()) {
+        let mut changed = graph();
+        change(&mut changed);
+        graphs.push(changed);
+    }
+    for g in &graphs {
+        assert_eq!(ekr_store::evidence_root_of(&g.evidence), evidence_root(g));
+    }
+    let mut emptied = graph();
+    emptied.evidence.clear();
+    assert_eq!(
+        ekr_store::evidence_root_of(&BTreeMap::new()),
+        evidence_root(&emptied)
+    );
+    assert_ne!(
+        ekr_store::evidence_root_of(&emptied.evidence),
+        evidence_root(&graph())
+    );
+}
+
+#[test]
 fn the_two_roots_are_distinct_value_addresses() {
     let base = graph();
     assert_ne!(knowledge_root(&base), evidence_root(&base));

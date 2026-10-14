@@ -22,7 +22,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{PropertyId, SchemaVersionId, Timestamp, TypeId};
+use ekr_core::{EvidenceId, PropertyId, SchemaVersionId, Timestamp, TypeId};
 
 use crate::schema::{Ontology, OntologyDocument, OntologyError, SchemaVersion};
 use crate::types::{EdgeType, NodeType, PropertyDefinition};
@@ -78,6 +78,25 @@ impl Ontology {
         created_at: Timestamp,
         changes: &[SchemaChange],
     ) -> Result<Self, EvolveError> {
+        self.evolve_citing(next, created_at, changes, BTreeSet::new())
+    }
+
+    /// [`Ontology::evolve`], with the next version recording `evidence`, the evidence the schema
+    /// transaction that makes it cites (design § 109). Whether each id names evidence a store
+    /// retains is the kernel's question; the ontology holds the ids as data. An empty set is
+    /// [`Ontology::evolve`] exactly.
+    ///
+    /// # Errors
+    ///
+    /// As [`Ontology::evolve`]: the citation adds no refusal of its own, and a version whose only
+    /// difference from this one is a citation is [`EvolveError::WithoutEffect`].
+    pub fn evolve_citing(
+        &self,
+        next: SchemaVersionId,
+        created_at: Timestamp,
+        changes: &[SchemaChange],
+        evidence: BTreeSet<EvidenceId>,
+    ) -> Result<Self, EvolveError> {
         if changes.is_empty() {
             return Err(EvolveError::EmptyChanges);
         }
@@ -95,6 +114,7 @@ impl Ontology {
             number,
             parent: Some(prior.id),
             created_at,
+            evidence,
         };
 
         for change in changes {

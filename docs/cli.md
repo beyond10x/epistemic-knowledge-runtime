@@ -164,9 +164,10 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
-| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
+| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent`, `schema_version_evidence` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
+| `ekr compare` | reads | `--other <store>`, optional `--other-backend <provider>`, `--other-host <file>`, `--at <revision>`, `--other-at <revision>` | the `ekr.store-comparison/1` document: whether two stores hold the same knowledge, commit times and transaction ids aside, and per category the first differing ids with the fields that differ |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
 | `ekr process-map` | reads | `--revision <revision>`, `--events <type name>...`, `--event-time <type.property>...` | the `ekr.process-map/1` document: that log as a process, per object type its variants with their case counts and its directly-follows edges with their counts |
 | `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
@@ -498,9 +499,11 @@ printed; only a new rejection in the range does.
 Prints the schema in force at the head, or at `--at N` as of that committed revision:
 `node_types` and `edge_types` with their ids, names, parents, endpoint types and properties, and the
 schema version — `schema_version` (its id), `schema_version_number` (`0` at the seed, one more per
-committed schema change) and `schema_version_parent` (the version it was derived from, `null` at the
-seed). These are the ids a transaction document uses for `type_id`, `predicate: !Relation` and
-property keys. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`, exit 2,
+committed schema change), `schema_version_parent` (the version it was derived from, `null` at the
+seed) and `schema_version_evidence` (the evidence ids the schema transaction that made the version
+cited with [`!CiteEvidence`](#6-cite-the-evidence-a-version-rests-on), `[]` when it cited none).
+These are the ids a transaction document uses for `type_id`, `predicate: !Relation` and property
+keys. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`, exit 2,
 as for `ekr snapshot --at`.
 
 ### `ekr code-names`
@@ -630,6 +633,67 @@ JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A stor
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.
 
+### `ekr compare`
+
+`ekr compare --other <store>` answers whether two stores hold the same knowledge: after a rebuild,
+or after a move to another provider, where the root hashes `ekr head` prints cannot answer it,
+because they differ whenever commit times differ. The configured store (`--store`) is the left
+one; `--other` names the right one, `--other-backend` its provider (the configured `--backend`
+when absent) and `--other-host` its host document (the configured `--host` when absent). Each is
+read at its head, or at `--at N` and `--other-at N`. Both are opened as every verb that only reads
+opens a store, and neither is written: no record, no event, no checkpoint.
+
+It prints the `ekr.store-comparison/1` document (`ekr.cli.CompareStores` in
+`systems/ekr/domains/cli.yaml`):
+
+```json
+{
+  "categories": [
+    {
+      "category": "nodes",
+      "differences": 1,
+      "differing": [
+        {
+          "fields": ["aliases"],
+          "id": "00000000-0000-4000-8000-000000000302",
+          "presence": "both"
+        }
+      ],
+      "equal": false,
+      "left": 4,
+      "right": 4
+    }
+  ],
+  "equal": false,
+  "format": "ekr.store-comparison/1",
+  "left": { "revision": 1 },
+  "right": { "revision": 1 }
+}
+```
+
+`categories` lists six, in this order (one is shown above): `types`, `properties`, `nodes`,
+`edges`, `assertions` and `evidence`. `left` and `right` count the ids each store holds there;
+`differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
+`presence` is `left` or `right` for an id only one store holds, and `both` for one both hold
+differently, with `fields` naming the fields that differ. `equal` is `true` exactly when every
+category's is.
+
+| category | keyed by | compared |
+|---|---|---|
+| `types` | type id | the whole node or edge type declaration, its properties included, and `kind` (`node` or `edge`) |
+| `properties` | property id | its definition, the lowest declaring type id's, and `declared_by`, every type declaring it |
+| `nodes` | node id | `type_id`, `canonical_name`, `aliases`, `type_state`, `properties` |
+| `edges` | edge id | `type_id`, `source`, `target`, `properties` |
+| `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
+| `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
+
+Nothing a commit's clock or its transaction decides is compared: not an assertion's
+`transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
+built from the same seed and the same transaction documents at different times compare equal, on
+one provider or on two. A store never seeded is refused as `ekr.views.NotSeeded`, and a revision a
+store does not hold as `ekr.kernel.RevisionNotFound`, exit 2, the message naming which store.
+`ekr session` refuses the verb: it opens a second store.
+
 ### `ekr ocel`
 
 Prints the store at the head, or at `--revision N` as of that committed revision, as an
@@ -663,7 +727,7 @@ selectors deduplicate. `--events` and `--event-time` cannot be combined. Without
 the existing default and `--events` document bytes are unchanged.
 
 The event types are EKR's one event-type rule, the same types the overview marks as events
-(`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks
+(`roles.types[].event` of `ekr.graph-overview/2` with `roles` named), the timeline walks to and `GET /roles` marks
 `event` or `observation` (§ Roles). The rule: a node is judged when it holds a timestamp-like
 property value (a `Timestamp`, or an `Integer` of epoch milliseconds from 1,000,000,000,000 up to
 10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
@@ -1059,9 +1123,10 @@ how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the sixteen operation kinds, one per line, marking the four schema
-changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
-kind (`ekr operations AddAssertion`), prints its fields and an example operation.
+Without an argument, lists the seventeen operation kinds, one per line, marking the four schema
+changes (`[schema change: …]`), the citation that travels with them (`[schema citation: …]`)
+and the one kind that is not applied (`[not applied: …]`). With a kind
+(`ekr operations AddAssertion`), prints its fields and an example operation.
 The `AttachEvidence` example requires committing the `AddEvidence` example first, as its page
 states; its assertion comes from the example seed and its evidence comes from that commit.
 
@@ -1140,7 +1205,7 @@ option retains the admitted store for serving and is used by SDK viewer startup.
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>[?revision=N]` | that evidence's retained bytes at revision `N` (the head when absent): `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an absent revision, an id that revision does not hold or bytes the store did not retain |
-| `GET /overview[?revision=N&limit=L]` | the `ekr.graph-overview/1` document of revision `N` (the head when absent), listing the `L` highest-degree nodes (1 to 500, 300 when absent), `application/json` |
+| `GET /overview[?revision=N&limit=L&sections=S]` | the `ekr.graph-overview/2` document of revision `N` (the head when absent): its counts, its node and edge type counts and the `L` highest-degree nodes (1 to 500, 300 when absent), and of the sections `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; a section not named is absent, never empty, and all four answer `ekr.graph-overview/1`'s content under the new format name), `application/json` |
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
@@ -1255,7 +1320,8 @@ percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by comm
 `depth` and `limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by
 `/timeline`, and exactly one of `since_revision`, `since_valid` and `since_recorded` by
 `/changes`. A query that breaks this, a `type` or `subject` that is not an id, a `bucket` other
-than `day` or `week`, or an `at` that is not a revision number, is 400 with
+than `day` or `week`, a `sections` naming anything but `ontology`, `schema`, `roles` and
+`timeline`, or an `at` that is not a revision number, is 400 with
 `{"refusal": "invalid-query", …}`.
 A `since_revision` below 0 is 400 `ekr.views.SinceMalformed`, and a bound outside its range 400
 `ekr.views.LimitExceeded`, both before the store is read; a node or seed the revision does not
@@ -1469,7 +1535,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `mcp-http`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `mcp-http`, `migrate`, `compare`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, open a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
@@ -1493,7 +1559,7 @@ the 3 revisions used most recently:
 
 | verb | arguments (required in bold) | answers | as |
 |---|---|---|---|
-| `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent) | the `ekr.graph-overview/1` document | `GET /overview` |
+| `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent), `--sections S` (`ontology`, `schema`, `roles`, `timeline`, joined by `,`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **the text** (empty matches every node; put `--` before a text that starts with `-`), `--limit L` (1 to 100, 20 when absent), `--revision N` | the `ekr.node-matches/1` document | `GET /search` |
 | `describe` | **the node id**, `--revision N` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
 | `expand` | the seed node ids (none answers an empty page), **`--depth D`** (0 to 2), **`--limit L`** (1 to 2,000 nodes), `--edges E` (1 to 5,000, 5,000 when absent), `--after A` (a cursor), `--revision N` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `--after` | `GET /expand`, as one document rather than NDJSON |
@@ -1629,7 +1695,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|
-| `overview` | `revision`, `limit` (1 to 500, 300 when absent) | the `ekr.graph-overview/1` document | `GET /overview` |
+| `overview` | `revision`, `limit` (1 to 500, 300 when absent), `sections` (a list of `ontology`, `schema`, `roles`, `timeline`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **`text`**, `limit` (1 to 100, 20 when absent), `revision` | the `ekr.node-matches/1` document | `GET /search` |
 | `describe_node` | **`node`** (a node id), `revision` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
@@ -2083,8 +2149,9 @@ produces, from `ekr mint schema-version` ([Evolve the schema](#evolve-the-schema
 transaction omits it.
 
 `operations` is a non-empty list applied in order, all or nothing. `evidence` is exactly the set of
-evidence ids cited by the transaction's `!AddAssertion` operations — no more, no fewer
-(`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must be
+evidence ids cited by the transaction's `!AddAssertion` operations, attached by its
+`!AttachEvidence` operations and cited by its `!CiteEvidence` operations — no more, no fewer
+(`evidence-set-mismatch`) — and `[]` when it has none of them. Every cited evidence id must be
 retained — seeded, or added by an earlier commit — or be added by an `!AddEvidence` of the same
 transaction ([Evidence after the seed](#evidence-after-the-seed)). `ekr example
 ekr.transaction-document/2` prints a complete document, and `ekr operations <Kind>` prints each
@@ -2117,11 +2184,14 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are sixteen kinds. Eleven are applied under every validation profile. Four are **schema
+There are seventeen kinds. Eleven are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
-with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
-parses but is **refused** under either profile, with the same code.
+with the issue code `unsupported-operation`, so the schema is fixed at seeding. One,
+`CiteEvidence`, is a **schema citation**: it travels with schema changes, under the same profiles,
+and names evidence the version they make rests on
+([Evolve the schema, step 6](#6-cite-the-evidence-a-version-rests-on)). One, `MergeEntity`, parses
+but is **refused** under either profile, with the same code.
 
 | kind | applied | what it does |
 |---|---|---|
@@ -2140,6 +2210,7 @@ parses but is **refused** under either profile, with the same code.
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
 | `WidenEdgeType` | schema change | adds declared node types to an edge type's ends: `edge_type`, and `source_types` and `target_types` written whole, each holding every type it holds now plus the ones added ([below](#4-widen-an-edge-type)) |
+| `CiteEvidence` | schema citation | names evidence the schema version the transaction makes rests on, which the version records and `ekr ontology` prints: `!CiteEvidence <evidence id>`, an id the store retains or an `AddEvidence` of the same transaction adds, listed in `transaction.evidence`. Only beside schema changes ([below](#6-cite-the-evidence-a-version-rests-on)) |
 | `MergeEntity` | refused | would merge two nodes |
 
 ### Assertions
@@ -2949,7 +3020,10 @@ Three rules decide whether a schema change is applied:
   document's `authority.validation_profile`. The worked example's store runs profile v1, so its
   schema stays the seed's; nothing moves a store from v1 to v2.
 - **A schema change travels alone.** A transaction that holds a schema change holds nothing but
-  schema changes (`mixed-schema-transaction`). Commit the change, then write data against it.
+  schema changes (`mixed-schema-transaction`), and the evidence the new version cites: its
+  `!CiteEvidence` operations and the `!AddEvidence` of each entry they cite
+  ([step 6](#6-cite-the-evidence-a-version-rests-on)). Commit the change, then write data against
+  it.
 - **It names the version it produces.** The transaction carries `schema_version`, a fresh id from
   `ekr mint schema-version` (`schema-version-missing` without one, `schema-version-reused` for an
   id the lineage already has).
@@ -3205,13 +3279,99 @@ transaction:
 The head stays at revision 4 and schema version `…0004`. A rejected transaction does not put its
 version on the lineage, so `…0005` is still free after `narrow.yaml` was refused.
 
-### 6. Read each version back
+### 6. Cite the evidence a version rests on
+
+The catalogue starts taking book series, because the desk says so. A schema change can name the
+evidence it rests on: `!CiteEvidence <evidence id>` beside the schema changes cites one entry, and
+the version the commit makes records every cited id. The entry is one the store retains, seeded or
+added earlier, or one an `!AddEvidence` of the same transaction adds: that `!AddEvidence` travels
+with the schema changes because the version cites it. List each cited id in `transaction.evidence`,
+as a cited or attached one is. Here the transaction adds the desk's statement, the 45 bytes
+`The catalogue lists book series from 2026 on.` as `ekr hash` hashes them, and cites it:
+
+```yaml ekr.transaction-document/2 evolve=series.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000717
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !AddEvidence
+    evidence:
+      id: 00000000-0000-4000-a000-000000000411
+      source: !HumanStatement
+        identity: Library catalogue desk
+      content_hash: f73d6deb739e79c74895f66047fdd975eac1a908a9da4b535b3c85e667e22912
+      extracted_by: 00000000-0000-4000-a000-000000000011
+      observed_at: 1788220800000
+      confidence: 10000
+    payload: [84, 104, 101, 32, 99, 97, 116, 97, 108, 111, 103, 117, 101, 32, 108, 105, 115, 116, 115, 32, 98, 111, 111, 107, 32, 115, 101, 114, 105, 101, 115, 32, 102, 114, 111, 109, 32, 50, 48, 50, 54, 32, 111, 110, 46]
+  - !DefineNodeType
+    id: 00000000-0000-4000-a000-000000000107
+    name: Series
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - !CiteEvidence 00000000-0000-4000-a000-000000000411
+  evidence:
+  - 00000000-0000-4000-a000-000000000411
+  schema_version: 00000000-0000-4000-a000-000000000005
+```
+
+It commits as revision 5 and schema version `…0005`, whose `schema_version_evidence` in
+`ekr ontology` is `["00000000-0000-4000-a000-000000000411"]`. Evidence the store already retains is
+cited without an `!AddEvidence`. Any other data operation beside the schema changes is still
+`mixed-schema-transaction`, citing or not; here the same transaction also creates a series:
+
+```yaml ekr.transaction-document/2 evolve=series-mixed.yaml outcome=Rejected:mixed-schema-transaction
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000718
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !DefineNodeType
+    id: 00000000-0000-4000-a000-000000000108
+    name: Imprint
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - !CiteEvidence 00000000-0000-4000-a000-000000000411
+  - !CreateNode
+    id: 00000000-0000-4000-a000-000000000305
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000107
+    canonical_name: Lichens of the World
+    properties: {}
+  evidence:
+  - 00000000-0000-4000-a000-000000000411
+  schema_version: 00000000-0000-4000-a000-000000000006
+```
+
+A citation is refused, as a named issue, when:
+
+| issue | validator | when |
+|---|---|---|
+| `unresolved-evidence` | Reference | the store does not retain the id and no `!AddEvidence` of the transaction adds it |
+| `citation-without-schema-change` | Structural | the transaction changes no schema |
+| `duplicate-citation` | Structural | the transaction cites the same id twice |
+| `evidence-set-mismatch` | Structural | `transaction.evidence` leaves a cited id out |
+
+Under profile v1 `!CiteEvidence` is `unsupported-operation`, as every schema change is.
+
+### 7. Read each version back
 
 ```console
 ekr ontology --at 0      # schema_version …0001, schema_version_number 0, parent null: no Journal
 ekr ontology --at 2      # schema_version …0003, number 1, parent …0001: Journal and EDITED; WROTE to Book
-ekr ontology             # revision 4: schema_version …0004, number 2, parent …0003: WROTE to Book and Journal
+ekr ontology --at 4      # schema_version …0004, number 2, parent …0003: WROTE to Book and Journal
+ekr ontology             # revision 5: schema_version …0005, number 3, parent …0004: Series;
+                         # schema_version_evidence ["…0411"]
 ```
+
+Every version made without a citation has `schema_version_evidence: []`.
 
 `ekr snapshot --at 0` reads the graph as seeded, and `ekr snapshot` shows the journal at the head.
 
@@ -3291,7 +3451,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `seed-alias-expansion` | seed | 2 | YAML aliases make the document decode to more than 33554432 values and keys or 16777216 bytes of text | write fewer repetitions, or pass repeated payloads as `--evidence` files |
 | `seed-decode` | seed | 2 | the YAML does not have the expected shape: an unknown or missing field, a wrong type, a duplicate key, an empty property value list | the field and line it names |
 | `seed-ontology` | seed | 2 | the ontology does not cohere | the rule it names ([the ontology section](#the-ontology-section)) |
-| `seed-ontology-lineage` | seed | 2 | the ontology's `version` is not a first version: `number` is not `0` or `parent` is not `null` | `number: 0`, `parent: null` |
+| `seed-ontology-lineage` | seed | 2 | the ontology's `version` is not a first version: `number` is not `0`, `parent` is not `null`, or `evidence` is not empty (a version cites evidence only through a schema change) | `number: 0`, `parent: null`, no `evidence` |
 | `seed-space` | seed | 2 | the graph root's `space` is not `Canonical`: a seed is canonical state, and a `Transient` root is refused | `space: Canonical` |
 | `seed-root-lineage` | seed | 2 | the graph is not revision 0: `revision` is not `0` or `root.parent` is not `null` | `revision: 0`, `parent: null` |
 | `seed-schema-version` | seed | 2 | the graph root's `schema_version_id` is not the ontology's `version.id` | make them equal |
@@ -3322,7 +3482,9 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | none: `MergeEntity` is not applied under either profile |
 | `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |
 | `schema-version-without-schema-change` | validation issue | 0 | a `schema_version` on a transaction none of whose operations changes the schema | remove it |
-| `mixed-schema-transaction` | validation issue | 0 | a schema change and an operation of another kind in one transaction (profile v2) | propose the schema change alone, commit it, then the rest |
+| `mixed-schema-transaction` | validation issue | 0 | a schema change and an operation of another kind in one transaction (profile v2); `!CiteEvidence` and the `!AddEvidence` of an entry it cites are not another kind | propose the schema change alone, with only the evidence it cites, commit it, then the rest |
+| `citation-without-schema-change` | validation issue | 0 | a `!CiteEvidence` in a transaction that changes no schema (profile v2) | cite evidence in the schema change the version comes from |
+| `duplicate-citation` | validation issue | 0 | one evidence id cited by two `!CiteEvidence` operations of one transaction (profile v2) | cite it once |
 | `modify-property-without-owner` | validation issue | 0 | a `ModifyProperty` written as a bare property declaration (`id`, `name`, `value_type`, …) without `owner` and `property`, the shape the 0.0.2 and 0.0.3 pages showed (profile v2; profile v1 rejects it as `unsupported-operation`) | write `{owner: <type id from ekr ontology>, property: <the declaration>}`, as `ekr operations ModifyProperty` prints |
 | `schema-version-reused` | validation issue | 0 | a `schema_version` that is already a version of this store's lineage, such as the seed's | `ekr mint schema-version` |
 | `unknown-property-owner` | validation issue | 0 | a `ModifyProperty` whose `owner` is not a declared node or edge type, nor one defined earlier in the same transaction | take the type id from `ekr ontology` |
@@ -3346,7 +3508,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
 | `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
-| `unresolved-evidence` | validation issue | 0 | an assertion cites, or an `AttachEvidence` attaches, evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite or attach retained evidence, or add it with `!AddEvidence` |
+| `unresolved-evidence` | validation issue | 0 | an assertion cites, an `AttachEvidence` attaches or a `CiteEvidence` cites evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite or attach retained evidence, or add it with `!AddEvidence` |
 | `assertion-not-active` | validation issue | 0 | an `AttachEvidence` names an assertion that is not accepted and active, or one the same transaction retracts or supersedes | attach only to current assertions; check `lifecycle` in `ekr snapshot` |
 | `evidence-already-attached` | validation issue | 0 | an `AttachEvidence` attaches evidence the assertion already cites or already has attached, or attaches it twice in one transaction | attach each piece of evidence to an assertion once |
 | `unresolved-edge` | validation issue | 0 | an edge id (`!DeleteEdge`, an `!Edge` subject) that does not exist | take ids from `ekr snapshot` |
@@ -3356,7 +3518,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `conflicting-assertion-lifecycle` | validation issue | 0 | one transaction retracts or supersedes the same assertion twice | one lifecycle change per assertion per transaction |
 | `invalid-supersession` | validation issue | 0 | a [supersession rule](#supersession) fails, most often a replacement `valid_time.from` that is not exactly `effective_from` | set the replacement's `from` to `effective_from` |
 | `supersession-cycle` | validation issue | 0 | supersessions would lead back to the assertion they started from | supersede toward a new assertion |
-| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite and the `AttachEvidence` operations attach | list exactly those ids |
+| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite, the `AttachEvidence` operations attach and the `CiteEvidence` operations cite | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
