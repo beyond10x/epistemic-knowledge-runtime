@@ -6,7 +6,9 @@
 //! credential-shaped literal sits in this file for a secret scan to find, and none is real.
 
 use ekr_observe::observe_jsonl;
-use ekr_observe::redact::{redact, CredentialShape, ModelInput, Redaction, RedactionSpan};
+use ekr_observe::redaction::{
+    redact_for_model, CredentialShape, ModelInput, Redaction, RedactionSpan,
+};
 
 /// One synthetic credential of `shape`, built from pieces.
 fn credential(shape: CredentialShape) -> String {
@@ -33,6 +35,10 @@ fn credential(shape: CredentialShape) -> String {
             "RSA PRIVATE KEY-----",
         ]
         .concat(),
+        CredentialShape::AwsSecretAccessKey => {
+            "Fixture0/Fixture1+".chars().cycle().take(40).collect()
+        }
+        CredentialShape::UrlPassword => ["fixture", "-pass-", "0123456789"].concat(),
     }
 }
 
@@ -40,10 +46,20 @@ fn credential(shape: CredentialShape) -> String {
 fn observed_text(shape: CredentialShape) -> (String, String) {
     let secret = credential(shape);
     let before = match shape {
-        CredentialShape::BearerToken => "the request carried Authorization: Bearer ",
-        _ => "the deploy log printed ",
+        CredentialShape::BearerToken => "the request carried Authorization: Bearer ".to_owned(),
+        CredentialShape::AwsSecretAccessKey => {
+            ["the deploy log printed AWS_SECRET", "_ACCESS_KEY="].concat()
+        }
+        CredentialShape::UrlPassword => {
+            "the deploy log printed postgres://fixture-user:".to_owned()
+        }
+        _ => "the deploy log printed ".to_owned(),
     };
-    (format!("{before}{secret} and then stopped."), secret)
+    let after = match shape {
+        CredentialShape::UrlPassword => "@store.invalid/db and then stopped.",
+        _ => " and then stopped.",
+    };
+    (format!("{before}{secret}{after}"), secret)
 }
 
 /// One JSONL source record holding `text`, as the observation layer reads it.
@@ -73,7 +89,7 @@ fn each_credential_shape_is_replaced_and_the_stored_bytes_are_unchanged() {
         let kept = stored.clone();
         let observation = observe_jsonl(&stored).expect("the record maps").remove(0);
 
-        let projection: ModelInput = redact(&text_of(&stored));
+        let projection: ModelInput = redact_for_model(&text_of(&stored));
 
         assert!(
             !projection.text.contains(&secret),
@@ -118,7 +134,7 @@ fn every_shape_in_one_text_is_replaced_in_span_order() {
         secrets.push((shape, secret));
     }
 
-    let projection = redact(&text);
+    let projection = redact_for_model(&text);
 
     assert_eq!(
         projection
@@ -147,7 +163,7 @@ fn every_shape_in_one_text_is_replaced_in_span_order() {
 fn the_redaction_record_names_shape_and_span_and_holds_no_credential_bytes() {
     for shape in CredentialShape::ALL {
         let (text, secret) = observed_text(shape);
-        let projection = redact(&text);
+        let projection = redact_for_model(&text);
         assert_eq!(projection.redactions.len(), 1, "{shape}");
 
         // Exhaustive: a field added to the record fails to compile here.
@@ -207,9 +223,16 @@ fn a_text_with_no_credential_passes_through_byte_identical() {
         ]
         .concat(),
         "[REDACTED:AwsAccessKeyId] is a marker, not a credential.".to_owned(),
+        // A URL with a port, and one with a user but no password.
+        "fetched https://store.invalid:8443/path and postgres://fixture-user@store.invalid/db"
+            .to_owned(),
+        // A key: value pair is not a URL's userinfo.
+        "{\"source\":\"fixture\",\"at\":\"12:30\"}".to_owned(),
+        // A secret access key name whose value is not forty key characters.
+        ["aws_secret", "_access_key = unset"].concat(),
     ];
     for text in &clean {
-        let projection = redact(text);
+        let projection = redact_for_model(text);
         assert_eq!(
             projection.text.as_bytes(),
             text.as_bytes(),
@@ -228,7 +251,7 @@ fn a_text_with_no_credential_passes_through_byte_identical() {
 #[test]
 fn a_private_key_without_its_end_line_is_redacted_to_the_end() {
     let text = ["key: -----BEGIN ", "PRIVATE KEY-----\nZml4dHVyZQ==\nZml4"].concat();
-    let projection = redact(&text);
+    let projection = redact_for_model(&text);
     assert_eq!(projection.text, "key: [REDACTED:PrivateKeyBlock]");
     assert_eq!(projection.redactions[0].span.end(), text.len());
 }
@@ -278,11 +301,12 @@ fn the_detected_shapes_are_the_declared_shapes() {
     assert_eq!(fields_of("ekr.observe.ModelInput"), ["text", "redactions"]);
 }
 
-/// The observation layer's `redact` is `ekr_core::redact`'s, re-exported, not a second detector:
-/// the assignment below compiles only if both name one function, and both project alike.
+/// The observation layer's `redact_for_model` is `ekr_core::redaction`'s, re-exported, not a second
+/// detector: the assignment below compiles only if both name one function, and both project alike.
 #[test]
-fn the_observation_layer_calls_the_one_detector() {
-    let core: fn(&str) -> ekr_core::redact::ModelInput = ekr_observe::redact::redact;
+fn the_observation_layer_reexports_the_one_detector() {
+    let core: fn(&str) -> ekr_core::redaction::ModelInput =
+        ekr_observe::redaction::redact_for_model;
     let (text, _) = observed_text(CredentialShape::GitHubToken);
-    assert_eq!(redact(&text), core(&text));
+    assert_eq!(redact_for_model(&text), core(&text));
 }

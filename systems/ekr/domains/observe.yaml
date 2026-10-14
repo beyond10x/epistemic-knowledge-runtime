@@ -75,6 +75,19 @@ types:
   # Predecessors A6, invariant 9: the credential shapes a model-facing projection detects and
   # replaces. Which fields of which source reach a model is instance policy and is not modelled;
   # these shapes are generic.
+  #
+  # A shape whose value is self-delimiting (an access key id, a token, a JSON Web Token, a bearer
+  # credential, an AWS secret access key assignment) is detected where the byte before it does not
+  # continue a word, or where it follows an escape the observed text carries as characters: `\n`,
+  # `\t`, `\r`, `\b`, `\f`, `\uXXXX` or a percent-encoded byte such as `%3D`. A private key block
+  # and a URL password are detected wherever they stand. A bearer credential follows the scheme
+  # word `bearer` in any letter case and one or more spaces, tabs or `%20`. A private key block
+  # is a PEM or OpenPGP armoured private key (`… PRIVATE KEY` or `… PRIVATE KEY BLOCK`), and no
+  # token run extends into the `-----BEGIN ` that opens one. A JSON Web Token's third segment may
+  # be empty (an unsecured token). An AWS secret access key is the forty-character value assigned
+  # to the name `aws_secret_access_key`, in any letter case, by `=` or `:`. A URL password is the
+  # password of a URL's userinfo, `scheme://user:password@`; the scheme and user stay visible.
+  # Detection examines each byte of the observed text a bounded number of times.
   - name: ekr.observe.CredentialShape
     kind: enum
     variants:
@@ -84,6 +97,8 @@ types:
       - JsonWebToken
       - BearerToken
       - PrivateKeyBlock
+      - AwsSecretAccessKey
+      - UrlPassword
 
   # Where a credential sat in the observed text: the byte offset of its first byte in the text as
   # observed, and its length in bytes. Offsets, not content: a span carries no byte of the

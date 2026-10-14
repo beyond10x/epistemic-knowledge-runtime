@@ -19,12 +19,18 @@
 //! option 1), which admits `HumanStatement` evidence only until an observation is retained. There
 //! is no source adapter and no checkpoint.
 //!
-//! [`redact`] is the model-facing projection of an observed text (predecessors A6, invariant 9):
-//! credentials replaced, each replacement recorded by shape and span, the observed bytes left as
-//! they were. The observation layer calls it from here; the code is `ekr_core::redact`, kept in
-//! `ekr-core` so that `ekr-sdk` can offer the same function without linking this crate.
+//! [`redaction::redact_for_model`] is the model-facing projection of an observed text
+//! (predecessors A6, invariant 9): credentials replaced, each replacement recorded by shape and
+//! span, the observed bytes left as they were. No crate of the runtime calls it yet.
+//! [`observe_jsonl`] addresses a record by the bytes as observed and does not redact them, as it
+//! must not; no adapter here hands a text to a model; and a text read back through a store or an
+//! `ekr-sdk` session is not passed through it either. Whatever sends a text to a model applies it
+//! to that text first; which pipeline step that is waits on
+//! `decision-blocker:observation-retention-path`. It is re-exported here, the observation layer's
+//! own vocabulary; the code is `ekr_core::redaction`, kept in `ekr-core` so that `ekr-sdk` can
+//! offer the same function without linking this crate.
 
-pub use ekr_core::redact;
+pub use ekr_core::redaction;
 
 use ekr_core::{Canonical, ContentHash, Encoder, ObservationId, Timestamp};
 use ekr_graph::{Observation, ObservationContent};

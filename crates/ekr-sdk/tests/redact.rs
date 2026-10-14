@@ -1,20 +1,21 @@
 //! `story:credential-redaction-before-model-input`, through the library: a consumer redacts with
-//! `ekr_sdk::redact`, which is `ekr-core`'s function and links no kernel, store or graph.
+//! `ekr_sdk::redaction`, which is `ekr-core`'s function and links no kernel, store or graph.
 
-use ekr_sdk::redact::{redact, CredentialShape};
+use ekr_sdk::redaction::{redact_for_model, CredentialShape};
 
-/// The SDK's `redact` is `ekr_core::redact`'s: one synthetic credential, built from pieces so no
-/// credential-shaped literal sits in this file, is replaced and recorded by shape and span.
+/// The SDK's `redact_for_model` is `ekr_core::redaction`'s: one synthetic credential, built from
+/// pieces so no credential-shaped literal sits in this file, is replaced and recorded by shape and
+/// span.
 #[test]
 fn a_consumer_redacts_through_the_sdk() {
     // The same function, not a copy: this assignment compiles only if the SDK's item is
     // `ekr_core`'s.
-    let same: fn(&str) -> ekr_core::redact::ModelInput = ekr_sdk::redact::redact;
+    let same: fn(&str) -> ekr_core::redaction::ModelInput = ekr_sdk::redaction::redact_for_model;
 
     let secret = ["AK", "IA", "FIXTURE0", "FIXTURE1"].concat();
     let text = format!("printed {secret} once");
 
-    let projection = redact(&text);
+    let projection = redact_for_model(&text);
 
     assert_eq!(projection.text, "printed [REDACTED:AwsAccessKeyId] once");
     assert_eq!(projection.redactions.len(), 1);
@@ -26,7 +27,7 @@ fn a_consumer_redacts_through_the_sdk() {
     assert_eq!(projection, same(&text));
 
     let clean = "nothing to hide";
-    assert_eq!(redact(clean).text.as_bytes(), clean.as_bytes());
+    assert_eq!(redact_for_model(clean).text.as_bytes(), clean.as_bytes());
 }
 
 /// `epic:consumer-sdk`: redaction brings none of `ekr-graph`, `ekr-kernel`, `ekr-store` or
