@@ -11,14 +11,16 @@
 //! * on the `quality` fixture, an `AddEvidence` in the range is listed once as an EvidenceAdded
 //!   (`task:changes-since-lists-added-evidence`), and a range without one answers the bytes it
 //!   answered before that change kind existed.
+//! * a revision's change list is parsed once while a host holds its indexes, counted in
+//!   transaction documents parsed (ekr-mcp-fixes-20261015 #5).
 
 mod support;
 
 use ekr_core::RevisionNumber;
 use ekr_kernel::Runtime;
 use ekr_views::{
-    ChangesError, ChangesListed, ChangesRequest, Index, LimitExceeded, ProjectError, SinceKind,
-    SinceMalformed,
+    ChangesError, ChangesListed, ChangesRequest, Index, IndexCache, LimitExceeded, ProjectError,
+    SinceKind, SinceMalformed,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -416,6 +418,86 @@ fn two_reads_of_one_since_and_at_are_byte_identical_before_and_after_an_unrelate
         let last = changes(&head).pop().expect("a change");
         assert_eq!(last["id"], uuid(LATER_CLAIM));
         assert_eq!(last["revision"], 4);
+    }
+}
+
+// ---- the cost of ChangesSince: each revision's change list is parsed once ------------------
+
+/// ekr-mcp-fixes-20261015 #5: `views.yaml`'s cost of ChangesSince, counted in transaction
+/// documents parsed and never in time. Two identical `since_recorded` requests through one
+/// [`IndexCache`]: the first parses one document per chosen revision (1 to 3; the seed's changes
+/// come from its replay, which parses none), the second parses none, and both answer the bytes a
+/// freshly loaded index answers. After a commit, the same request read from the new head's index
+/// parses only the revision that commit added.
+#[test]
+fn a_second_changes_request_parses_no_transaction_document() {
+    for provider in PROVIDERS {
+        let (_work, runtime) = built(provider);
+        let mut indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+        let asked = request(SinceKind::TransactionTime, committed(0), None, None);
+        let answer = |indexes: &mut IndexCache| {
+            let index = indexes.index(&runtime, None).expect("the head indexes");
+            let before = index.transaction_documents_parsed();
+            let bytes = index
+                .changes(&runtime, &asked)
+                .expect("the changes are read")
+                .bytes;
+            (bytes, index.transaction_documents_parsed() - before)
+        };
+
+        let (first, parsed) = answer(&mut indexes);
+        assert_eq!(
+            parsed, 3,
+            "{provider:?}: the first request parses revisions 1 to 3, once each"
+        );
+        let (second, parsed) = answer(&mut indexes);
+        assert_eq!(
+            parsed, 0,
+            "{provider:?}: the second request parses no transaction document"
+        );
+        assert_eq!(
+            second, first,
+            "{provider:?}: both answers are the same bytes"
+        );
+        assert_eq!(
+            first,
+            read(&runtime, None, &asked).0,
+            "{provider:?}: a held change list answers what a fresh index answers"
+        );
+
+        fixtures::commit_later_change(&runtime);
+        let (third, parsed) = answer(&mut indexes);
+        assert_eq!(
+            parsed, 1,
+            "{provider:?}: after a commit, only the revision it added is parsed"
+        );
+        assert_eq!(
+            third,
+            read(&runtime, None, &asked).0,
+            "{provider:?}: after a commit, the held lists answer what a fresh index answers"
+        );
+        assert_eq!(
+            changes(&serde_json::from_slice(&third).expect("JSON"))
+                .last()
+                .expect("a change")["revision"],
+            4
+        );
+
+        // Every since kind, read twice through the cache and once fresh, answers alike: holding
+        // a change list changes no answer.
+        for asked in [
+            request(SinceKind::Revision, 0, None, None),
+            request(SinceKind::TransactionTime, i64::MIN, None, None),
+            request(SinceKind::ValidTime, 1_000, None, None),
+            request(SinceKind::Revision, 1, Some(2), Some(1)),
+        ] {
+            let fresh = read(&runtime, None, &asked).0;
+            for pass in ["first", "second"] {
+                let index = indexes.index(&runtime, None).expect("the head indexes");
+                let held = index.changes(&runtime, &asked).expect("read").bytes;
+                assert_eq!(held, fresh, "{provider:?}: {asked:?}, {pass} pass");
+            }
+        }
     }
 }
 

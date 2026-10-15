@@ -98,6 +98,24 @@ summary: >-
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
   does not hold answers NodeNotFound.
 
+  Defaults per surface. A bound a request leaves absent takes its surface's default before the
+  command runs, so the command always reads a named value: `ekr view` and the session verb take
+  ExpandNeighbourhood's edge_limit as 5,000 and ChangesSince's limit as 500, and the MCP tools,
+  whose one result an agent reads whole, take edge_limit as 200 and limit as 100. The MCP answer
+  to a request is byte for byte `ekr view`'s answer to the same request with that default named
+  explicitly; meta.limit (ChangesSince) carries the value applied. A page ends at whichever of its
+  limits comes first — for ExpandNeighbourhood limit nodes or edge_limit edges — and its `next`
+  is the cursor of the following page.
+
+  The cost of ChangesSince, counted as work and never as time. A committed revision never
+  changes, so neither does the change list its transaction document yields, and the indexes a
+  host holds share one store of change lists, keyed by each revision's identity (number,
+  revision id and root), so a list is never answered for another revision under the same number.
+  A revision's change list is derived from its transaction document once while those indexes are
+  held: a second request choosing the same revisions parses no transaction document, and a
+  request after a later commit parses only the revisions that commit added. Holding a change list
+  changes no answer: every answer is byte for byte the one a freshly loaded index gives.
+
   Evidence without retained bytes is unreachable. Evidence enters canonical state in two ways, and
   both carry its bytes: with the seed, whose envelope retains each payload, and through an
   ekr.kernel AddEvidence operation, which carries the payload beside the entry and whose commit
@@ -2387,8 +2405,9 @@ commands:
   # empty page with node_total 0. A lower bound of one seed was tried and dropped: with it, ess
   # 0.36.0 finds no candidate for the expanded branch among the 64 it tries (ESS-SYNTH-003).
   # `depth` is 0 to 2 (0 answers the seeds and the edges among them); `limit` 1 to 2,000 nodes
-  # per page; `edge_limit` 1 to 5,000 edges per page, 5,000 when absent; `after` a cursor from an
-  # earlier page's `next`, 0 or more.
+  # per page; `edge_limit` 1 to 5,000 edges per page, when absent 5,000 for `ekr view` and the
+  # session verb and 200 for the MCP tool (the domain summary's defaults per surface); `after` a
+  # cursor from an earlier page's `next`, 0 or more.
   # `edge_limit` is an input this specification adds to the approved plan's signature, so a store
   # smaller than 5,000 edges can hold the edge cap to account; the cap itself is the plan's.
   - name: ekr.views.ExpandNeighbourhood
@@ -2619,7 +2638,10 @@ commands:
   # A host that takes it as three inputs, since_revision, since_valid and since_recorded, takes
   # exactly one of them, and one given none or more than one refuses the request as its own
   # malformed input. `at` is the last revision read, the head when absent. `limit` is 1 to 2,000
-  # changes per page, 500 when absent; `after` a cursor from an earlier page's `next`, 0 or more.
+  # changes per page, when absent 500 for `ekr view` and the session verb and 100 for the MCP tool
+  # (the domain summary's defaults per surface); `after` a cursor from an earlier page's `next`,
+  # 0 or more. Each chosen revision's change list is parsed once while the host's indexes are held
+  # (the domain summary's cost of ChangesSince).
   # A revision since at or after `at` that the store holds chooses no change and is no refusal;
   # one beyond the head is not-found, decided after `at` is.
   - name: ekr.views.ChangesSince

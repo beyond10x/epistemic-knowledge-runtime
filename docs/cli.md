@@ -1356,6 +1356,9 @@ The answer never names the head: the same request naming the same `at` is the sa
 any later commit, and a request without `at` is the one naming the revision `meta.revision`
 reports, so a reader that pages passes that as `at`. A property update, a named operation, an
 edge deletion and a schema change are not changes here.
+A server (`ekr view`, `ekr session`, `ekr mcp`) derives each revision's changes from its
+transaction once and keeps them while it keeps its indexes, so asking again over the same
+revisions reads no transaction again, and after a commit only the new revisions are read.
 
 `/expand` answers `application/x-ndjson` with `Transfer-Encoding: chunked`: one JSON object per
 line, each ending in `\n` and opening with its `kind`, flushed a chunk at a time as it is written:
@@ -1691,16 +1694,21 @@ Every tool reads the store as it stands when the call is read, so a transaction 
 committed is what the next call reads. `revision` is a committed revision, the newest when
 absent; `overview`, `search`, `describe_node`, `expand`, `timeline` and `changes_since` read the
 revision's `ekr.views` index, loaded once per revision exactly as [`ekr view`](#ekr-view) keeps
-it, and answer its document byte for byte what the `ekr view` endpoint in the last column serves:
+it, and answer its document byte for byte what the `ekr view` endpoint in the last column serves.
+Two defaults are smaller than the endpoint's, because an agent reads a tool result whole:
+`expand` takes `edges` as 200 where `GET /expand` takes 5,000, and `changes_since` takes `limit` as
+100 where `GET /changes` takes 500. A call naming neither answers what the endpoint serves with
+`edges=200` or `limit=100` named; a call naming its bound answers what the endpoint serves for it.
+Ask for the next page with `after` set to the page's `next`.
 
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|
 | `overview` | `revision`, `limit` (1 to 500, 300 when absent), `sections` (a list of `ontology`, `schema`, `roles`, `timeline`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **`text`**, `limit` (1 to 100, 20 when absent), `revision` | the `ekr.node-matches/1` document | `GET /search` |
 | `describe_node` | **`node`** (a node id), `revision` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
-| `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
+| `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 200 when absent: a page ends at `limit` nodes or `edges` edges, whichever comes first), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
-| `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
+| `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 100 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
 | `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N]` prints | `ekr explain [--documents [--offset N] [--limit N]]` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |

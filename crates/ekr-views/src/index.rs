@@ -70,6 +70,9 @@ pub struct Index {
     pub(crate) edge_type: Vec<TypeId>,
     /// The timeline's row types, ranked on first use.
     pub(crate) row_types: OnceLock<Vec<RowTypeRank>>,
+    /// The change lists `changes` derived, shared with the indexes an [`IndexCache`] holds
+    /// together with this one (`changes.rs`).
+    pub(crate) change_lists: Arc<crate::changes::ChangeLists>,
 }
 
 /// One candidate row type of the timeline, with what ranks it (`ekr.views.TimelineRowType`).
@@ -258,6 +261,7 @@ impl Index {
             edge_source,
             edge_type,
             row_types: OnceLock::new(),
+            change_lists: Arc::default(),
             overview: OverviewParts {
                 ontology: Err(String::new()),
                 schema: Err(String::new()),
@@ -990,7 +994,9 @@ impl Natural {
 /// head, so a held index stays current however far the head moves — while the store holds that
 /// revision. A store restored to an older snapshot and committed to after holds another revision
 /// under the same number, so [`Self::index`] drops every held index whose [`RevisionIdentity`]
-/// the store's [`Lineage`] does not hold before it answers.
+/// the store's [`Lineage`] does not hold before it answers. An index it loads shares the change
+/// lists of the indexes it holds ([`Index::changes`]), so a revision's changes are derived once
+/// while any of them is held, whatever revision is read next.
 #[derive(Debug)]
 pub struct IndexCache {
     capacity: usize,
@@ -1079,6 +1085,12 @@ impl IndexCache {
         if let Some(index) = self.get(revision) {
             return Ok(index);
         }
-        Ok(self.insert(Arc::new(Index::load(runtime, Some(revision))?)))
+        let mut index = Index::load(runtime, Some(revision))?;
+        // The held indexes' change lists, each keyed by its revision's identity, so one the store
+        // no longer holds is never answered (ekr-mcp-fixes-20261015 #5).
+        if let Some(held) = self.entries.front() {
+            index.change_lists = Arc::clone(&held.change_lists);
+        }
+        Ok(self.insert(Arc::new(index)))
     }
 }

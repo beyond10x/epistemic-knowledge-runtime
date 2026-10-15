@@ -26,6 +26,12 @@
 //! | `resolve` | what `ekr resolve` prints for the reference, built by the verb's own `resolve::type_id` and `resolve::reference` from the JSON arguments and answered through the same `resolve::run` |
 //! | `head` | `{"format":"ekr.view-head/1","head":N}`, byte for byte what `ekr view` serves at `GET /head` ([`head_document`]) |
 //!
+//! **Smaller default pages** (`views.yaml`, defaults per surface; ekr-mcp-fixes-20261015 #4): an
+//! agent reads a tool result whole, so `expand` takes `edges` as 200 and `changes_since` takes
+//! `limit` as 100 when the call names none, where `ekr view` and the session verb take 5,000 and
+//! 500. The answer is then `ekr view`'s to the same request with `edges=200` or `limit=100`
+//! named, byte for byte; a call that names its bound answers exactly what `ekr view` answers.
+//!
 //! A refusal — each of the refusals `ekr view` answers for a bounded read, and the named refusals
 //! of `ekr explain` and `ekr resolve` — is a tool result with `isError: true` whose document is
 //! `{"message": …, "refusal": <name>}`, the body `ekr view` answers for the same refusal. Anything
@@ -96,6 +102,15 @@ const METHOD_NOT_FOUND: i64 = -32_601;
 const INVALID_PARAMS: i64 = -32_602;
 /// JSON-RPC 2.0: the server could not answer: the store could not be read.
 const INTERNAL_ERROR: i64 = -32_603;
+
+/// `expand`'s edges a page when the call names none: smaller than `ekr view`'s 5,000, since an
+/// agent reads one tool result whole (`views.yaml`, defaults per surface; ekr-mcp-fixes-20261015
+/// #4). The answer is `GET /expand`'s with `edges=200`.
+const EXPAND_EDGES: i64 = 200;
+/// `changes_since`'s changes a page when the call names none: smaller than `ekr view`'s 500
+/// (`views.yaml`, defaults per surface; ekr-mcp-fixes-20261015 #4). The answer is
+/// `GET /changes`'s with `limit=100`.
+const CHANGES_LIMIT: i64 = 100;
 
 /// What the server tells a client at `initialize`.
 const INSTRUCTIONS: &str = "Read-only tools over the canonical state of one Epistemic Knowledge \
@@ -510,6 +525,7 @@ impl Server {
                     .map_err(|_| Unanswered::params(format!("the seed {seed:?} is not a node id")))
             })
             .collect::<Result<Vec<NodeId>, Unanswered>>()?;
+        let edges = Some(edges.unwrap_or(EXPAND_EDGES));
         let request = ExpandRequest::new(seeds, depth, limit, edges, after)?;
         text(self.index(revision)?.expand(&request)?.bytes)
     }
@@ -557,6 +573,7 @@ impl Server {
         } = decode(arguments)?;
         let (kind, since) = SinceKind::one_of(since_revision, since_valid, since_recorded)
             .map_err(|given| Unanswered::params(since_not_one(&given)))?;
+        let limit = Some(limit.unwrap_or(CHANGES_LIMIT));
         let request = ChangesRequest::new(kind, since, limit, after)?;
         let (runtime, indexes) = self.read()?;
         let index = indexes.index(runtime, at.map(RevisionNumber::new))?;
@@ -896,7 +913,9 @@ fn tools() -> Vec<Value> {
             "describe_node",
             "Describe node",
             "The ekr.node-detail/1 document of one node: its record, every assertion about it or \
-             naming it, every edge at it, and the nodes those name.",
+             naming it, every edge at it, and the nodes those name. To walk its neighbours a \
+             page at a time, call expand with this node as the one seed, then again with after \
+             set to each page's next.",
             object(
                 json!({
                     "node": node_id("The node's id, as search, overview or expand answer it."),
@@ -909,7 +928,8 @@ fn tools() -> Vec<Value> {
             "expand",
             "Expand neighbourhood",
             "One ekr.graph-slice/1 page: the nodes within depth hops of the seeds and the edges \
-             among them. Ask again with after set to the page's next for the next page.",
+             among them. A page ends at `limit` nodes or `edges` edges (200 when absent), \
+             whichever comes first; ask again with after set to the page's next for the next page.",
             object(
                 json!({
                     "seeds": {
@@ -920,7 +940,7 @@ fn tools() -> Vec<Value> {
                     "depth": bounded(0, Some(ExpandRequest::MAX_DEPTH), "The hops from the seeds."),
                     "limit": bounded(1, Some(ExpandRequest::MAX_LIMIT), "The most nodes a page holds."),
                     "edges": bounded(1, Some(ExpandRequest::MAX_EDGE_LIMIT),
-                        "The most edges a page holds; 5000 when absent."),
+                        "The most edges a page holds; 200 when absent. A page ends at whichever of limit and edges comes first."),
                     "after": bounded(0, None, "The cursor a page starts at; 0 when absent."),
                     "revision": revision(),
                 }),
@@ -965,7 +985,7 @@ fn tools() -> Vec<Value> {
                     "at": {"type": "integer", "minimum": 0,
                         "description": "The last committed revision read; the newest when absent."},
                     "limit": bounded(1, Some(ChangesRequest::MAX_LIMIT),
-                        "The most changes a page holds; 500 when absent."),
+                        "The most changes a page holds; 100 when absent."),
                     "after": bounded(0, None, "The cursor a page starts at; 0 when absent."),
                 }),
                 &[],
