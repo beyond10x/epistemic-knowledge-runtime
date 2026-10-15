@@ -4,6 +4,22 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- The MCP tools take a few arguments under a second name: `describe_node`'s `node` as `id` or
+  `node_id`, `expand`'s `seeds` as `seed`, `node` or `nodes` (and one id where a list was
+  required), `explain`'s `assertion` as `id` or `assertion_id`, and `timeline`'s `subject` as
+  `node`. Each tool's `inputSchema` lists them. An alias answers exactly what the argument's own
+  name answers; naming one argument twice is `-32602`. `ekr view` is unchanged.
+
+### Changed
+
+- `ekr mcp-http` answers `initialize`, `ping`, `tools/list`, notifications and every transport
+  refusal on the request's own connection, never behind the store's queue: a client's handshake
+  no longer waits for another client's tool call or for the store's first open, and is answered
+  (with the same bytes) before the store is admitted. Only `tools/call` and `/readyz` wait for
+  the store.
+
 ## [0.0.34] — 2026-10-14
 
 ### Added
