@@ -1,13 +1,47 @@
-//! `ekr explain`: the kernel's explanation chain over one verified read.
+//! `ekr explain`: the kernel's explanation chain over one verified read, in `ekr.explanation/2`
+//! or, asked for it, `ekr.explanation/3`: the same document with `names`, the names map of the
+//! ids it holds (`kernel.yaml`, `ekr.kernel.ExplanationV3`; ekr-mcp-fixes-20261015 #3).
 
 use std::ops::Range;
 
 use ekr_core::{AssertionId, TransactionId};
 use ekr_graph::{CanonicalValue, Object};
-use ekr_kernel::{ExplanationLink, Runtime, TransactionRecord, VerifiedRead};
+use ekr_kernel::{ExplanationLink, ExplanationResult, Runtime, TransactionRecord, VerifiedRead};
 use serde_json::{Map, Value};
 
 use crate::exit::Failure;
+
+/// The format literal of `ekr.explanation/3`.
+pub(super) const EXPLANATION_V3_FORMAT: &str = "ekr.explanation/3";
+
+/// `ekr.kernel.ExplanationFormat`: which explanation `ekr explain --format` and the MCP tool
+/// `explain` answer. `ekr explain` answers /2 when none is named; the MCP tool /3.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum Format {
+    /// `ekr.explanation/2`: the kernel's result as it is.
+    #[value(name = "ekr.explanation/2")]
+    V2,
+    /// `ekr.explanation/3`: /2 with `names`.
+    #[value(name = "ekr.explanation/3")]
+    V3,
+}
+
+impl Format {
+    /// The format's literal.
+    pub(super) const fn name(self) -> &'static str {
+        match self {
+            Self::V2 => ExplanationResult::FORMAT,
+            Self::V3 => EXPLANATION_V3_FORMAT,
+        }
+    }
+
+    /// The format a literal names, if it names one.
+    pub(super) fn named(text: &str) -> Option<Self> {
+        [Self::V2, Self::V3]
+            .into_iter()
+            .find(|format| format.name() == text)
+    }
+}
 
 /// How much of each evidence record `--documents` answers: a byte range of the record's
 /// retained bytes, `limit` long, from `offset`.
@@ -88,12 +122,53 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 /// bytes) and `truncated: true` beside `payload` and `text`, which hold the range alone. The cited
 /// text a window is centred on is the string value of an assertion on the chain, in chain order:
 /// evidence names no span of its record.
+///
+/// In `ekr.explanation/3` the document, so rendered, also carries `names`, the names map of every
+/// id it holds (`ekr_views::ontology_names`), read from the ontology of the same capture, and
+/// `format` names /3.
 pub(super) fn run(
     runtime: &Runtime,
     assertion: AssertionId,
     documents: Option<Bounds>,
+    format: Format,
 ) -> Result<Value, Failure> {
     let read = runtime.read(None)?;
+    let mut value = rendered(runtime, &read, assertion, documents)?;
+    if format == Format::V3 {
+        named(&mut value, &read.graph.ontology, EXPLANATION_V3_FORMAT)?;
+    }
+    Ok(value)
+}
+
+/// `document` as the named format `format`: its `format` replaced and `names` added, the names
+/// map of every id the document held before, read from `ontology` (`views.yaml`, "Named
+/// formats"). Every key of a document `ekr` prints ascends by its text, so where they are
+/// inserted does not matter.
+pub(super) fn named(
+    document: &mut Value,
+    ontology: &ekr_ontology::Ontology,
+    format: &'static str,
+) -> Result<(), Failure> {
+    let names = ekr_views::ontology_names(ontology, document);
+    let Some(fields) = document.as_object_mut() else {
+        return Err(Failure::fault("a named document is not an object"));
+    };
+    fields.insert("format".to_owned(), Value::String(format.to_owned()));
+    fields.insert(
+        "names".to_owned(),
+        serde_json::to_value(names).map_err(Failure::fault)?,
+    );
+    Ok(())
+}
+
+/// The `ekr.explanation/2` rendering of `assertion`'s chain in the capture `read`, with the
+/// records `documents` asks for.
+fn rendered(
+    runtime: &Runtime,
+    read: &VerifiedRead,
+    assertion: AssertionId,
+    documents: Option<Bounds>,
+) -> Result<Value, Failure> {
     let explained = read.explain(assertion)?;
     let mut value = serde_json::to_value(&explained).map_err(Failure::fault)?;
     let Some(bounds) = documents else {
@@ -119,22 +194,22 @@ pub(super) fn run(
         };
         match link {
             ExplanationLink::Proposal(proposal) => {
-                let record = held(&read, proposal.transaction_id)?;
+                let record = held(read, proposal.transaction_id)?;
                 insert(fields, "record", &record.proposal)?;
             }
             ExplanationLink::Commit(commit) => {
-                let record = held(&read, commit.transaction_id)?;
+                let record = held(read, commit.transaction_id)?;
                 insert(fields, "receipt", &record.committed)?;
             }
             ExplanationLink::Lifecycle(change) => {
-                let record = held(&read, change.commit.transaction_id)?;
+                let record = held(read, change.commit.transaction_id)?;
                 let Some(commit) = fields.get_mut("commit").and_then(Value::as_object_mut) else {
                     return Err(Failure::fault("a Lifecycle link without its commit"));
                 };
                 insert(commit, "receipt", &record.committed)?;
             }
             ExplanationLink::Attachment(attached) => {
-                let record = held(&read, attached.commit.transaction_id)?;
+                let record = held(read, attached.commit.transaction_id)?;
                 let Some(commit) = fields.get_mut("commit").and_then(Value::as_object_mut) else {
                     return Err(Failure::fault("an Attachment link without its commit"));
                 };

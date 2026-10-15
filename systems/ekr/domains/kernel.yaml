@@ -1073,6 +1073,38 @@ types:
       - name: links
         type: List<ekr.kernel.ExplanationLink>
 
+  # ekr.explanation/3: ekr.explanation/2 — the same chain, link for link, rendered as /2 renders
+  # it, `--documents` included — with `names`, the names map ekr.views defines (its "Named
+  # formats" paragraph), read from the ontology of the revision the explanation captured, `at`:
+  # the node types, edge types and properties the links cite, by id. Like `--documents` it is
+  # the CLI's rendering of ekr.kernel.Explain's result, not another result of the command.
+  # Every object's keys ascend by their text, as in every document `ekr` prints. `ekr explain`
+  # prints /2 unless `--format ekr.explanation/3` asks for /3; the MCP tool `explain` answers /3
+  # unless its `format` names /2, and its answer is byte for byte what `ekr explain` prints for
+  # the same assertion and options with the format named.
+  - name: ekr.kernel.ExplanationFormatV3
+    kind: enum
+    variants: [ekr.explanation/3]
+
+  # Which explanation `ekr explain --format` and the MCP tool `explain` answer.
+  - name: ekr.kernel.ExplanationFormat
+    kind: enum
+    variants: [ekr.explanation/2, ekr.explanation/3]
+
+  - name: ekr.kernel.ExplanationV3
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.ExplanationFormatV3
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: at
+        type: ekr.kernel.RevisionNumber
+      - name: links
+        type: List<ekr.kernel.ExplanationLink>
+      - name: names
+        type: ekr.views.OntologyNames
+
   # `ekr rejections` (story:validation-findings-read): each rejected transaction whose retained
   # rejection was validated against a revision in a range, with the issues that rejection record
   # holds. A read of retained records; it adds no record format. A rejection has no revision of

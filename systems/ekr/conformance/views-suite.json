@@ -17,8 +17,10 @@
       "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches",
       "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
       "ekr.views/authored/a-seed-only-store-projects-revision-zero",
+      "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type",
       "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound",
       "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
+      "ekr.views/authored/a-timeline-v2-names-the-types-it-cites",
       "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
       "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
       "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added",
@@ -27,8 +29,10 @@
       "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest",
       "ekr.views/authored/an-overview-answers-only-the-sections-it-names",
       "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
+      "ekr.views/authored/an-overview-v3-names-its-types-and-says-when-its-revision-was-committed",
       "ekr.views/authored/an-unknown-seed-is-refused-by-name",
       "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
+      "ekr.views/authored/changes-v2-name-the-types-and-properties-they-cite",
       "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary",
       "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision",
       "ekr.views/authored/seeded-evidence-is-projected-as-retained",
@@ -116,6 +120,11 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-seed-only-store-projects-revision-zero"
       },
+      "a-slice-v2-names-each-node-and-edge-type.yaml": {
+        "digest": "sha256:e166fd3a569c82fdb2ab770b62c64d62ce1e1ec4d1d40822f85d3ad9afb34ba1",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type"
+      },
       "a-timeline-refuses-each-input-outside-its-bound.yaml": {
         "digest": "sha256:d8d8d7c471d07cf7ea998739536a0a25f3317485e97450677226e78fe76ae732",
         "disposition": "accepted",
@@ -125,6 +134,11 @@
         "digest": "sha256:20243123f149eb97f505dd4e6b1ea5af3be55463be405d05d6d9a6e826a3a631",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops"
+      },
+      "a-timeline-v2-names-the-types-it-cites.yaml": {
+        "digest": "sha256:fa9e877f0bec865275bcabbe9a332af5efa641ddc4c9f464d338411558ac55e1",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-timeline-v2-names-the-types-it-cites"
       },
       "a-transaction-time-since-lists-the-revisions-committed-after-it.yaml": {
         "digest": "sha256:297912dfb14df62ab603e1a6779155ed340f0c116b761fd66caf087c514a6c9f",
@@ -166,6 +180,11 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes"
       },
+      "an-overview-v3-names-its-types-and-says-when-its-revision-was-committed.yaml": {
+        "digest": "sha256:a71e91b142341855fd6cee9f09eb30f282dcc05b9cf6efaaf4ed958356b8818f",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/an-overview-v3-names-its-types-and-says-when-its-revision-was-committed"
+      },
       "an-unknown-seed-is-refused-by-name.yaml": {
         "digest": "sha256:deab4b014e2606a3f8828cbb009f58c57d6aecee56c75daf7cad6d870545618b",
         "disposition": "accepted",
@@ -175,6 +194,11 @@
         "digest": "sha256:a6ec46cfd4b13bc11f34c733afbc2e3b7552ea7a1f64b549c92ca1c66bc66d2a",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound"
+      },
+      "changes-v2-name-the-types-and-properties-they-cite.yaml": {
+        "digest": "sha256:82e3cfaa2399bdf3740181956f4d823bea292e3eb3ba757f7dc6f66daed08ace",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/changes-v2-name-the-types-and-properties-they-cite"
       },
       "code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml": {
         "digest": "sha256:7945670923222b2be7dd69635a43c6a2c6d60941d61bc7424cf06397e7792517",
@@ -203,7 +227,7 @@
       }
     },
     "counts": {
-      "authored": 33,
+      "authored": 37,
       "generated": 52,
       "outside": 77,
       "refused": 0
@@ -2010,8 +2034,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "db1c9f30b7f9e5d8b6e2907542f61561e68ac735679e1c4957cc77d556369827",
-    "spec_digest": "dcf8c5bf7b44384be1b217c1fcab5f3d822b7e547a1b8dd5711693c0b2e166d3",
+    "contract_digest": "e4177d41c9cb5e7fb1b3899503d5018f8bbe6fabf4d3cce9197759fb803d40f5",
+    "spec_digest": "ffc22384ce30166d85cd0a060a62a573fae33ca5fdd7797fd27ab192ba262c8f",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -2027,6 +2051,10 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
         },
         {
           "kind": "type",
@@ -2192,6 +2220,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
             },
             "limit": {
               "kind": "literal",
@@ -2366,6 +2398,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SinceKind"
         },
         {
@@ -2525,6 +2565,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -2591,9 +2635,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -2747,6 +2802,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -2785,6 +2844,10 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
         },
         {
           "kind": "type",
@@ -2958,6 +3021,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -3124,6 +3191,10 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
         },
         {
           "kind": "type",
@@ -3297,6 +3368,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -3466,6 +3541,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SinceKind"
         },
         {
@@ -3628,6 +3707,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
             },
             "limit": {
               "kind": "literal",
@@ -6465,6 +6548,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SliceCursor"
         },
         {
@@ -6632,6 +6719,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -6676,6 +6767,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -6699,6 +6797,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -6835,6 +6937,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
         },
         {
           "kind": "type",
@@ -7009,6 +7115,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -7171,6 +7281,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
         },
         {
           "kind": "type",
@@ -7352,6 +7466,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -7514,6 +7632,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
         },
         {
           "kind": "type",
@@ -7695,6 +7817,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/1"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -7857,6 +7983,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
         },
         {
           "kind": "type",
@@ -8037,6 +8167,10 @@
             "edge_limit": {
               "kind": "literal",
               "value": 1.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/1"
             },
             "limit": {
               "kind": "literal",
@@ -11895,6 +12029,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.OverviewFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.OverviewSection"
         },
         {
@@ -12054,6 +12192,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-overview/2"
+            },
             "limit": {
               "kind": "literal",
               "value": 0.0
@@ -12212,6 +12354,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
         },
         {
           "kind": "type",
@@ -12381,6 +12527,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-overview/2"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -12539,6 +12689,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
         },
         {
           "kind": "type",
@@ -12707,6 +12861,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-overview/2"
             },
             "limit": {
               "kind": "literal",
@@ -12877,6 +13035,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.OverviewSection"
         },
         {
@@ -13032,6 +13198,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-overview/2"
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -13071,9 +13241,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -13093,9 +13272,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -14957,6 +15147,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -15119,6 +15313,10 @@
             "bucket": {
               "kind": "literal",
               "value": "Day"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/1"
             },
             "hops": {
               "kind": "literal",
@@ -15297,6 +15495,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -15466,6 +15668,10 @@
             "bucket": {
               "kind": "literal",
               "value": "Day"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/1"
             },
             "hops": {
               "kind": "literal",
@@ -15644,6 +15850,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -15813,6 +16023,10 @@
             "bucket": {
               "kind": "literal",
               "value": "Day"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/1"
             },
             "hops": {
               "kind": "literal",
@@ -15995,6 +16209,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -16154,6 +16376,10 @@
               "kind": "literal",
               "value": "Day"
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/1"
+            },
             "hops": {
               "kind": "literal",
               "value": 1.0
@@ -16211,6 +16437,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -16218,6 +16451,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -19727,6 +19964,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SliceCursor"
         },
         {
@@ -19826,6 +20067,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -19849,6 +20097,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -19924,6 +20176,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -19947,6 +20206,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -20022,6 +20285,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -20045,6 +20315,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -20120,6 +20394,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -20143,6 +20424,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -20167,6 +20452,14 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -20286,9 +20579,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -20396,9 +20700,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -20506,9 +20821,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -20614,9 +20940,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -21934,6 +22271,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.OverviewSection"
         },
         {
@@ -22018,9 +22363,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -22040,9 +22394,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -22188,9 +22553,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -22210,9 +22584,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -22358,9 +22743,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -22380,9 +22774,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -22528,9 +22933,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -22550,9 +22964,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -22665,6 +23090,18 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
         },
         {
           "kind": "type",
@@ -22978,6 +23415,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -23001,6 +23445,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -23210,6 +23658,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -23233,6 +23688,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -23299,9 +23758,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -23321,9 +23789,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -23788,6 +24267,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.OverviewSection"
         },
         {
@@ -24075,9 +24562,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -24097,9 +24593,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -25164,6 +25671,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SinceKind"
         },
         {
@@ -25283,9 +25798,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -25397,9 +25923,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -25505,9 +26042,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -25619,9 +26167,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -26566,6 +27125,401 @@
         }
       ]
     },
+    "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type": {
+      "purpose": "An ekr.graph-slice/2 page around router names the types of its three nodes and two edges; the /1 page of the same request names none.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SliceCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ExpandNeighbourhood"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "expanded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "depth": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": [
+                "00000000-0000-4000-8000-000000f30201"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "expanded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "payload": {
+            "edge_total": 2.0,
+            "edges": 2.0,
+            "format": "ekr.graph-slice/2",
+            "node_total": 3.0,
+            "nodes": 3.0,
+            "remaining": 0.0,
+            "revision": 0.0,
+            "type_names": [
+              "Incident",
+              "Person",
+              "Service",
+              "affects",
+              "works_on"
+            ]
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "depth": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
+            "node_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "seeds": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "slice_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "depth": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-slice/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": [
+                "00000000-0000-4000-8000-000000f30201"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "expanded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "payload": {
+            "edges": 2.0,
+            "format": "ekr.graph-slice/1",
+            "nodes": 3.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "depth": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
+            "node_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "seeds": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "slice_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "depth": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": [
+                "00000000-0000-4000-8000-000000f30201"
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "expanded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "payload": {
+            "edges": 2.0,
+            "format": "ekr.graph-slice/1",
+            "nodes": 3.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "depth": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
+            "node_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "seeds": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "slice_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
     "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound": {
       "purpose": "Hops 1 and 3 and limits 1 and 500 are answered; hops 0 or 4 and limit 0 or 501 are refused naming the first broken input, and an unknown subject answers no row.",
       "source": [
@@ -26588,6 +27542,14 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -26700,6 +27662,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -26707,6 +27676,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -26814,6 +27787,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -26821,6 +27801,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27215,6 +28199,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27222,6 +28213,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27283,6 +28278,14 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -27395,6 +28398,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27402,6 +28412,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27516,6 +28530,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27523,6 +28544,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27634,6 +28659,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27641,6 +28673,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27752,6 +28788,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27759,6 +28802,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27869,6 +28916,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27876,6 +28930,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -27991,6 +29049,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -27998,6 +29063,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -28108,6 +29177,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -28115,6 +29191,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -28229,6 +29309,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -28236,6 +29323,10 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -28351,6 +29442,13 @@
               "kind": "uuid",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -28358,6 +29456,473 @@
             "listed_events": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-timeline-v2-names-the-types-it-cites": {
+      "purpose": "An ekr.graph-timeline/2 of router's Incident events names Service, Person, Incident and affects, and nothing else; the /1 answer of the same request carries no names.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/2"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000f30201"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "first_row": "00000000-0000-4000-8000-000000f30201",
+            "format": "ekr.graph-timeline/2",
+            "hops": 2.0,
+            "listed_events": 1.0,
+            "names": {
+              "00000000-0000-4000-8000-000000f30001": "Person",
+              "00000000-0000-4000-8000-000000f30002": "Service",
+              "00000000-0000-4000-8000-000000f30003": "Incident",
+              "00000000-0000-4000-8000-000000f30021": "affects"
+            },
+            "revision": 0.0,
+            "row_type": "00000000-0000-4000-8000-000000f30002",
+            "row_types": 2.0,
+            "rows": 1.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/1"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000f30201"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "format": "ekr.graph-timeline/1",
+            "listed_events": 1.0,
+            "rows": 1.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000f30201"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "format": "ekr.graph-timeline/1",
+            "listed_events": 1.0,
+            "rows": 1.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-timeline/1",
+                "ekr.graph-timeline/2"
+              ]
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
             },
             "revision": {
               "holds": "primitive",
@@ -28415,6 +29980,14 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -28535,9 +30108,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -28649,9 +30233,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -28693,6 +30288,14 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -28813,9 +30416,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -28927,9 +30541,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -28971,6 +30596,14 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -29094,9 +30727,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -29209,9 +30853,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -29320,9 +30975,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -29435,9 +31101,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -29618,6 +31295,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SliceCursor"
         },
         {
@@ -29730,6 +31411,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -29753,6 +31441,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -29828,6 +31520,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -29851,6 +31550,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -29924,6 +31627,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -29947,6 +31657,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30925,6 +32639,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.OverviewSection"
         },
         {
@@ -31010,9 +32732,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -31032,9 +32763,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -31174,9 +32916,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -31196,9 +32947,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -31343,9 +33105,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -31365,9 +33136,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -31520,9 +33302,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -31542,9 +33333,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -31689,9 +33491,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -31711,9 +33522,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -31861,9 +33683,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -31883,9 +33714,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -32033,9 +33875,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -32055,9 +33906,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -32166,6 +34028,14 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
         },
         {
           "kind": "type",
@@ -32288,9 +34158,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -32310,9 +34189,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -32448,9 +34338,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -32470,9 +34369,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -32607,9 +34517,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -32629,9 +34548,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -32802,6 +34732,649 @@
         }
       ]
     },
+    "ekr.views/authored/an-overview-v3-names-its-types-and-says-when-its-revision-was-committed": {
+      "purpose": "An ekr.graph-overview/3 answer with no section names each node and edge type and carries the revision's commit time; the /2 answer of the same request carries neither.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewSection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectOverview"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-overview/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 20.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "committed_at": 1800000000001.0,
+            "edge_type_names": [
+              "works_on",
+              "affects"
+            ],
+            "edge_types": 2.0,
+            "edges": 3.0,
+            "format": "ekr.graph-overview/3",
+            "node_type_names": [
+              "Person",
+              "Service",
+              "Incident"
+            ],
+            "node_types": 3.0,
+            "nodes": 5.0,
+            "revision": 0.0,
+            "sections": [],
+            "top": 5.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-overview/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 20.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "edge_types": 2.0,
+            "format": "ekr.graph-overview/2",
+            "node_types": 3.0,
+            "revision": 0.0,
+            "sections": [],
+            "top": 5.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 20.0
+            },
+            "sections": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "names"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "format": "ekr.graph-overview/2",
+            "sections": [],
+            "top": 5.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
+              "optional": true
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
+              "optional": true
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "sections": {
+              "holds": "list"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
     "ekr.views/authored/an-unknown-seed-is-refused-by-name": {
       "purpose": "An expansion with one unknown seed among known ones is refused naming it, two unknown seeds name the first given, and describing an unknown node is refused naming it.",
       "source": [
@@ -32816,6 +35389,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
         },
         {
           "kind": "type",
@@ -33037,6 +35614,14 @@
         {
           "kind": "type",
           "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
         },
         {
           "kind": "type",
@@ -33387,9 +35972,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -33493,9 +36089,20 @@
               "kind": "integer",
               "optional": true
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
             "last_revision": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
               "optional": true
             },
             "nodes_created": {
@@ -33566,6 +36173,435 @@
         {
           "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/changes-v2-name-the-types-and-properties-they-cite": {
+      "purpose": "The ekr.graph-changes/2 page since revision 0 at 3 names Subject and links, the types its changes cite; the /1 page of the same request carries no names.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "changes": 7.0,
+            "edges_created": 1.0,
+            "format": "ekr.graph-changes/2",
+            "names": {
+              "00000000-0000-4000-8000-000000000100": "Subject",
+              "00000000-0000-4000-8000-000000000102": "links"
+            },
+            "nodes_created": 1.0,
+            "revision": 3.0,
+            "total": 7.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-changes/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "changes": 7.0,
+            "format": "ekr.graph-changes/1"
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "changes": 7.0,
+            "format": "ekr.graph-changes/1"
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
         }
       ]
     },
@@ -34773,6 +37809,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.GraphSliceFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SliceCursor"
         },
         {
@@ -34869,6 +37909,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -34892,6 +37939,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -34965,6 +38016,13 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-slice/1",
+                "ekr.graph-slice/2"
+              ]
+            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -34988,6 +38046,10 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "type_names": {
+              "holds": "list",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -35012,6 +38074,14 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OverviewFormat"
         },
         {
           "kind": "type",
@@ -35113,9 +38183,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -35135,9 +38214,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -35289,9 +38379,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -35311,9 +38410,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {
@@ -35465,9 +38575,18 @@
               "kind": "integer",
               "optional": true
             },
+            "committed_at": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
             "dated_assertions": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "edge_type_names": {
+              "holds": "list",
               "optional": true
             },
             "edge_types": {
@@ -35487,9 +38606,20 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-overview/2",
+                "ekr.graph-overview/3"
+              ]
+            },
             "modified": {
               "holds": "primitive",
               "kind": "integer",
+              "optional": true
+            },
+            "node_type_names": {
+              "holds": "list",
               "optional": true
             },
             "node_types": {

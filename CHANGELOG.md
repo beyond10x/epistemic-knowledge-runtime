@@ -4,6 +4,29 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- Named formats, so an answer names the types and properties it cites and needs no ontology to
+  read: `ekr.graph-overview/3` (each `node_types` and `edge_types` entry with its `name`, and
+  `meta.committed_at`, when the revision read was committed), `ekr.graph-slice/2` (each node and
+  edge with its `type_name`), `ekr.graph-timeline/2` and `ekr.graph-changes/2` (with `names`, an
+  object mapping every node type, edge type and property id the document holds to its name),
+  `ekr.explanation/3` (`ekr explain`'s document with `names`) and `ekr.resolution/1` (`ekr
+  resolve`'s outcome under `outcome`, with `names`). `ekr view` serves them when asked for
+  (`format=` on `/overview`, `/expand`, `/timeline` and `/changes`), so do the session verbs
+  (`--format`), `ekr explain --format ekr.explanation/3` and `ekr resolve --format
+  ekr.resolution/1`. Without a format each answers what it answered before; the SDK keeps
+  reading the earlier formats.
+
+### Changed
+
+- The MCP tools `overview`, `expand`, `timeline`, `changes_since`, `explain` and `resolve` answer
+  the named formats unless `format` names the earlier one (`ekr.graph-overview/2`,
+  `ekr.graph-slice/1`, `ekr.graph-timeline/1`, `ekr.graph-changes/1`, `ekr.explanation/2`,
+  `outcome`). An agent reading `resolve` reads the outcome under `outcome`. For one request with
+  the format named, each answer is byte for byte what `ekr view`, the session verb, `ekr explain`
+  or `ekr resolve` answers.
+
 ## [0.0.34] — 2026-10-14
 
 ### Added

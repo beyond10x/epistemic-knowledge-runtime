@@ -12,6 +12,7 @@ use ekr_views::{
     ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, OverviewSection,
     ProjectError, QueryError, RevisionIdentity, SearchRequest, SliceRecord,
 };
+use ekr_views::{OverviewFormat, SliceFormat};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -167,6 +168,81 @@ fn the_overview_opens_with_its_meta_and_lists_its_sections_in_declared_order() {
         (Some(601), Some(600))
     );
     assert_eq!(summary.observation_type, None);
+    assert_eq!(summary.format, "ekr.graph-overview/1");
+    assert_eq!(
+        (summary.committed_at, summary.node_type_names),
+        (None, None)
+    );
+
+    // ekr-mcp-fixes-20261015 #3, #13: the same revision and limit in ekr.graph-overview/3, every
+    // section named. meta carries committed_at, the seed's commit time, after the revision, and
+    // each type count its type's name; every section is /1's above, byte for byte.
+    let plain = value;
+    let named = hub
+        .overview_as(
+            OverviewFormat::V3,
+            &OverviewRequest::new(Some(2))
+                .unwrap()
+                .with_sections(OverviewSection::ALL),
+        )
+        .expect("overview/3");
+    let (text, value) = json(&named.bytes);
+    assert!(
+        text.starts_with(
+            "{\"meta\":{\"format\":\"ekr.graph-overview/3\",\"revision\":0,\
+             \"committed_at\":1800000000001,\"node_count\":601,\"edge_count\":600,\
+             \"assertion_count\":0,\"evidence_count\":0,\"limit\":2},\"ontology\":{\"node_types\":["
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!(
+            "},\"node_types\":[{{\"type\":\"{}\",\"name\":\"vertex\",\"count\":601}}],\
+             \"edge_types\":[{{\"type\":\"{}\",\"name\":\"joins\",\"count\":600}}],\"roles\":",
+            uuid(0x11_0000),
+            uuid(0x11_0001)
+        )),
+        "{text}"
+    );
+    for section in ["ontology", "schema", "roles", "timeline", "top"] {
+        assert_eq!(value[section], plain[section], "{section}");
+    }
+    let summary = named.summary;
+    assert_eq!(summary.format, "ekr.graph-overview/3");
+    assert_eq!(summary.committed_at, Some(1_800_000_000_001));
+    assert_eq!(summary.node_type_names, Some(vec!["vertex".to_owned()]));
+    assert_eq!(summary.edge_type_names, Some(vec!["joins".to_owned()]));
+    assert_eq!(
+        summary.overview_hash,
+        hex::encode(Sha256::digest(&named.bytes))
+    );
+
+    // ekr.graph-overview/2 of the same request is unchanged by /3: no name, no committed_at.
+    let sections = hub
+        .overview_as(
+            OverviewFormat::V2,
+            &OverviewRequest::new(Some(2))
+                .unwrap()
+                .with_sections(OverviewSection::ALL),
+        )
+        .expect("overview/2");
+    assert_eq!(
+        sections.bytes,
+        hub.overview_sections(
+            &OverviewRequest::new(Some(2))
+                .unwrap()
+                .with_sections(OverviewSection::ALL)
+        )
+        .unwrap()
+        .bytes
+    );
+    let (text, _) = json(&sections.bytes);
+    assert!(
+        text.starts_with(
+            "{\"meta\":{\"format\":\"ekr.graph-overview/2\",\"revision\":0,\"node_count\":601,"
+        ) && !text.contains("\"name\":\"vertex\",\"count\""),
+        "{text}"
+    );
 }
 
 #[test]
@@ -523,9 +599,75 @@ fn each_overview_section_can_be_requested_alone() {
 #[test]
 fn a_slice_lists_each_node_before_the_edges_it_closes_and_pages_by_record() {
     let hub = index(Fixture::Hub, None);
+    // ekr-mcp-fixes-20261015 #3: ekr.graph-slice/2, each node and edge named by its type.
+    let named = hub
+        .expand_as(SliceFormat::V2, &expand(&[HUB, HUB], 1, 3, None, None))
+        .expect("expanded");
+    let (text, _) = json(&named.bytes);
+    assert_eq!(
+        text,
+        format!(
+            "{{\"meta\":{{\"format\":\"ekr.graph-slice/2\",\"revision\":0,\
+             \"seeds\":[\"{hub}\"],\"depth\":1,\"after\":0,\"node_total\":601,\"edge_total\":600}},\
+             \"nodes\":[\
+             {{\"id\":\"{hub}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\"name\":\"hub\",\"degree\":600,\"distance\":0}},\
+             {{\"id\":\"{l1}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\"name\":\"leaf-001\",\"degree\":1,\"distance\":1}},\
+             {{\"id\":\"{l2}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\"name\":\"leaf-002\",\"degree\":1,\"distance\":1}}],\
+             \"edges\":[\
+             {{\"id\":\"{e1}\",\"source\":\"{hub}\",\"target\":\"{l1}\",\"type\":\"{joins}\",\"type_name\":\"joins\",\"assertions\":[]}},\
+             {{\"id\":\"{e2}\",\"source\":\"{hub}\",\"target\":\"{l2}\",\"type\":\"{joins}\",\"type_name\":\"joins\",\"assertions\":[]}}],\
+             \"next\":5}}",
+            hub = uuid(HUB),
+            vertex = uuid(0x11_0000),
+            joins = uuid(0x11_0001),
+            l1 = uuid(HUB + 1),
+            l2 = uuid(HUB + 2),
+            e1 = uuid(0x20_0001),
+            e2 = uuid(0x20_0002),
+        )
+    );
+    assert_eq!(named.summary.format, "ekr.graph-slice/2");
+    assert_eq!(
+        named.summary.type_names,
+        Some(vec!["joins".to_owned(), "vertex".to_owned()])
+    );
+    assert_eq!(
+        named.summary.slice_hash,
+        hex::encode(Sha256::digest(&named.bytes))
+    );
+    // The same records in the same order as /1's, and the same pages.
+    let (named_page, plain_page) = (
+        hub.page_as(SliceFormat::V2, &expand(&[HUB], 1, 7, Some(5), Some(9)))
+            .unwrap(),
+        hub.page(&expand(&[HUB], 1, 7, Some(5), Some(9))).unwrap(),
+    );
+    assert_eq!(
+        (
+            named_page.next(),
+            named_page.remaining(),
+            named_page.records().len()
+        ),
+        (
+            plain_page.next(),
+            plain_page.remaining(),
+            plain_page.records().len()
+        )
+    );
+
+    // The kept case: ekr.graph-slice/1's bytes, as before /2 existed.
     let answer = hub
         .expand(&expand(&[HUB, HUB], 1, 3, None, None))
         .expect("expanded");
+    assert_eq!(
+        answer.bytes,
+        hub.expand_as(SliceFormat::V1, &expand(&[HUB, HUB], 1, 3, None, None))
+            .unwrap()
+            .bytes
+    );
+    assert_eq!(
+        (answer.summary.format, &answer.summary.type_names),
+        ("ekr.graph-slice/1", &None)
+    );
     let (text, value) = json(&answer.bytes);
     assert_eq!(
         text,

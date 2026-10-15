@@ -175,10 +175,18 @@ fn adversary_mcp_resolve_of_an_alias_holding_nel_answers_what_the_verb_prints() 
             "reference.json",
             &format!("{{\"type_id\": \"{ORGANIZATION}\", \"aliases\": [\"Ac\\u0085me Ltd\"]}}"),
         );
-        let verb = world.ok(&["resolve", "reference.json"]);
+        // The tool answers ekr.resolution/1 by default (ekr-mcp-fixes-20261015 #3): the verb asked
+        // for it, the outcome under `outcome`.
+        let verb = world.ok(&["resolve", "reference.json", "--format", "ekr.resolution/1"]);
         let printed: Value = serde_json::from_str(&verb).unwrap();
-        assert_eq!(printed["kind"], "Resolved", "{backend}: {printed}");
-        assert_eq!(printed["node_id"], HOLDER, "{backend}: {printed}");
+        assert_eq!(
+            printed["outcome"]["kind"], "Resolved",
+            "{backend}: {printed}"
+        );
+        assert_eq!(
+            printed["outcome"]["node_id"], HOLDER,
+            "{backend}: {printed}"
+        );
 
         let tool = resolve_over_mcp(&world, &reference);
         assert_eq!(
@@ -202,9 +210,14 @@ fn adversary_mcp_resolve_of_an_alias_holding_del_answers_what_the_verb_prints() 
             "reference.json",
             &format!("{{\"type_id\": \"{ORGANIZATION}\", \"aliases\": [\"Initech\\u007f\"]}}"),
         );
-        let verb = world.ok(&["resolve", "reference.json"]);
+        // The tool answers ekr.resolution/1 by default (ekr-mcp-fixes-20261015 #3): the verb asked
+        // for it, the outcome under `outcome`.
+        let verb = world.ok(&["resolve", "reference.json", "--format", "ekr.resolution/1"]);
         let printed: Value = serde_json::from_str(&verb).unwrap();
-        assert_eq!(printed["node_id"], DEL_HOLDER, "{backend}: {printed}");
+        assert_eq!(
+            printed["outcome"]["node_id"], DEL_HOLDER,
+            "{backend}: {printed}"
+        );
 
         let tool = resolve_over_mcp(&world, &reference);
         assert_eq!(

@@ -1,0 +1,91 @@
+# ekr-mcp-fixes-20261015 #3: ekr.graph-timeline/2 carries `names`, the names map of the document
+# (ekr.views.GraphTimelineV2).
+#
+# The store `names` is the one an-overview-v3-names-its-types-and-says-when-its-revision-was-committed
+# describes. Incident is its one event type: both incidents carry `opened`, a timestamp, and no
+# other node is judged. The row types are the non-event types with events within 2 hops: Service
+# (router reaches outage and ledger reaches latency at 1 hop, weight 4 over 2 nodes) before Person
+# (ada reaches outage at 2 hops through router, which has ada as its one Person and is the target
+# of affects: weight 1 over 1 node).
+#
+# The timeline of router's Incident events, at 2 hops: one row, router's, and one listed event,
+# outage, reached across affects …f30402. The document then holds the ids of Service (meta.row_type
+# and row_types), Person (row_types), Incident (the cells, the strip and the event) and affects
+# (the event's path), and no property id: `names` maps exactly those four, by id. works_on is
+# crossed by no listed path and is not named. The same request in /1, and with no format named,
+# answers ekr.graph-timeline/1, which carries no names.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-timeline-v2-names-the-types-it-cites
+summary: An ekr.graph-timeline/2 of router's Incident events names Service, Person, Incident and affects, and nothing else; the /1 answer of the same request carries no names.
+
+timeline:
+  - at: 2027-01-15T13:20:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      row_type: null
+      hops: 2
+      limit: 10
+      bucket: null
+      subject: 00000000-0000-4000-8000-000000f30201
+      format: ekr.graph-timeline/2
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          revision: 0
+          row_type: 00000000-0000-4000-8000-000000f30002
+          hops: 2
+          row_types: 2
+          rows: 1
+          first_row: 00000000-0000-4000-8000-000000f30201
+          listed_events: 1
+          format: ekr.graph-timeline/2
+          names:
+            00000000-0000-4000-8000-000000f30001: Person
+            00000000-0000-4000-8000-000000f30002: Service
+            00000000-0000-4000-8000-000000f30003: Incident
+            00000000-0000-4000-8000-000000f30021: affects
+
+  - at: 2027-01-15T13:21:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      row_type: null
+      hops: 2
+      limit: 10
+      bucket: null
+      subject: 00000000-0000-4000-8000-000000f30201
+      format: ekr.graph-timeline/1
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          rows: 1
+          listed_events: 1
+          format: ekr.graph-timeline/1
+
+  - at: 2027-01-15T13:22:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      row_type: null
+      hops: 2
+      limit: 10
+      bucket: null
+      subject: 00000000-0000-4000-8000-000000f30201
+      format: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          rows: 1
+          listed_events: 1
+          format: ekr.graph-timeline/1

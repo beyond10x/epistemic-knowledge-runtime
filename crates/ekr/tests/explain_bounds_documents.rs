@@ -328,7 +328,11 @@ fn explain_bounds_each_evidence_record_and_reads_any_part_of_it_on_every_lane() 
         let whole = world.ok(&["explain", ASSERTION, "--documents"]);
         holds_the_default_bound(&format!("{backend} one-shot"), &whole, &record);
         let mut server = Server::start(&world);
-        let tool = server.explain(json!({"assertion": ASSERTION, "documents": true}));
+        // The tool answers ekr.explanation/3 unless asked (ekr-mcp-fixes-20261015 #3); these lanes
+        // hold the bounds of /2, the verb's default, so the tool is asked for /2.
+        let tool = server.explain(
+            json!({"assertion": ASSERTION, "documents": true, "format": "ekr.explanation/2"}),
+        );
         assert_eq!(tool, whole, "{backend}: MCP answers what the verb prints");
 
         // 2. The first 1,000 bytes.
@@ -343,7 +347,8 @@ fn explain_bounds_each_evidence_record_and_reads_any_part_of_it_on_every_lane() 
         ]);
         holds_the_first_thousand(&format!("{backend} one-shot"), &first, &record);
         let tool = server.explain(
-            json!({"assertion": ASSERTION, "documents": true, "offset": 0, "limit": 1000}),
+            json!({"assertion": ASSERTION, "documents": true, "offset": 0, "limit": 1000,
+                "format": "ekr.explanation/2"}),
         );
         assert_eq!(tool, first, "{backend}: MCP answers what the verb prints");
 
@@ -390,7 +395,7 @@ fn explain_bounds_each_evidence_record_and_reads_any_part_of_it_on_every_lane() 
         let mut offset = 0;
         while offset < RECORD_BYTES {
             let part = server.explain(json!({"assertion": ASSERTION, "documents": true,
-                "offset": offset, "limit": DEFAULT_LIMIT}));
+                "offset": offset, "limit": DEFAULT_LIMIT, "format": "ekr.explanation/2"}));
             let answered = bytes(evidence(&part));
             assert!(!answered.is_empty(), "{backend}: offset {offset}");
             reassembled.extend_from_slice(&answered);

@@ -64,6 +64,7 @@ mod changes;
 mod code_names;
 mod document;
 mod index;
+mod names;
 mod ocel;
 mod process_map;
 mod quality;
@@ -81,6 +82,10 @@ pub use code_names::{
     EMBEDDED_DOMAINS,
 };
 pub use index::{Index, IndexCache};
+pub use names::{
+    ontology_names, ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat,
+    CHANGES_V2_FORMAT, OVERVIEW_V3_FORMAT, SLICE_V2_FORMAT, TIMELINE_V2_FORMAT,
+};
 pub use ocel::{
     export_ocel, export_ocel_with_event_time, ocel, ocel_with_event_time, OcelError, OcelExported,
     OCEL_FORMAT,

@@ -21,6 +21,9 @@
 //! whole history; what does not narrow is the kernel's capture of the retained transaction
 //! records, which [`Runtime`] offers only whole, and a valid-time since, which chooses by the
 //! valid time of each change and so reads every revision up to `at`.
+//!
+//! `ekr.graph-changes/2` ([`Index::changes_as`]) is the same page with `names`, the names map of
+//! the types its changes cite (`names.rs`; ekr-mcp-fixes-20261015 #3).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -30,6 +33,7 @@ use ekr_kernel::{GraphOperation, Runtime, TransactionDocument};
 use serde::Serialize;
 
 use crate::index::Index;
+use crate::names::{names_of, ChangesFormat};
 use crate::query::{bounded, encode, hash, Answer, LimitExceeded};
 use crate::{LoadedRevisionEntry, ProjectError};
 
@@ -217,6 +221,10 @@ pub struct ChangesListed {
     pub first_revision: Option<u64>,
     /// The revision of the page's last change; `None` for an empty page.
     pub last_revision: Option<u64>,
+    /// `meta.format`: [`CHANGES_FORMAT`] or [`crate::CHANGES_V2_FORMAT`].
+    pub format: &'static str,
+    /// `ekr.graph-changes/2`'s `names`; `None` under /1.
+    pub names: Option<BTreeMap<String, String>>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub changes_hash: String,
 }
@@ -321,6 +329,9 @@ struct GraphChangesV1<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     next: Option<u64>,
     remaining: u64,
+    /// `ekr.graph-changes/2`'s only (`ekr.views.GraphChangesV2`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    names: Option<BTreeMap<String, String>>,
 }
 
 fn inconsistent(detail: String) -> ProjectError {
@@ -506,6 +517,23 @@ impl Index {
         runtime: &Runtime,
         request: &ChangesRequest,
     ) -> Result<Answer<ChangesListed>, ChangesError> {
+        self.changes_as(runtime, request, ChangesFormat::V1)
+    }
+
+    /// `ChangesSince` in the format `format` names: [`Self::changes`]'s `ekr.graph-changes/1`,
+    /// or `ekr.graph-changes/2` — the same page with `names`, the names map of the types its
+    /// changes cite, read from this index's revision's ontology (`views.yaml`,
+    /// `ekr.views.GraphChangesV2`).
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::changes`] refuses.
+    pub fn changes_as(
+        &self,
+        runtime: &Runtime,
+        request: &ChangesRequest,
+        format: ChangesFormat,
+    ) -> Result<Answer<ChangesListed>, ChangesError> {
         let loaded = &self.loaded;
         let at = self.revision();
         let since = request.since();
@@ -607,9 +635,9 @@ impl Index {
             SinceKind::ValidTime => (None, Some(since), None),
             SinceKind::TransactionTime => (None, None, Some(since)),
         };
-        let document = GraphChangesV1 {
+        let mut document = GraphChangesV1 {
             meta: ChangesMeta {
-                format: CHANGES_FORMAT,
+                format: format.name(),
                 revision: at.get(),
                 since_revision,
                 since_valid,
@@ -621,7 +649,11 @@ impl Index {
             changes: page,
             next: (remaining > 0).then(|| request.after().saturating_add(page.len() as u64)),
             remaining,
+            names: None,
         };
+        if format.is_named() {
+            document.names = Some(names_of(&loaded.graph.ontology, &document)?);
+        }
         let bytes = encode(&document)?;
         let count =
             |kind: ChangeKind| page.iter().filter(|change| change.change == kind).count() as u64;
@@ -639,6 +671,8 @@ impl Index {
             evidence_added: count(ChangeKind::EvidenceAdded),
             first_revision: page.first().map(|change| change.revision),
             last_revision: page.last().map(|change| change.revision),
+            format: document.meta.format,
+            names: document.names.clone(),
             changes_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })

@@ -1,0 +1,78 @@
+# ekr-mcp-fixes-20261015 #3: every node and edge of an ekr.graph-slice/2 page carries the name of
+# its type (ekr.views.GraphSliceV2).
+#
+# The store `names` is the one an-overview-v3-names-its-types-and-says-when-its-revision-was-committed
+# describes. router …f30201 at depth 1 is router, ada (Person) and outage (Incident), and the
+# edges ada works_on router and outage affects router: 3 nodes and 2 edges. The /2 page names five
+# distinct types, listed by their UTF-8 bytes: Incident, Person, Service, affects, works_on. The
+# same request in /1, and with no format named, answers ekr.graph-slice/1, which names none.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-slice-v2-names-each-node-and-edge-type
+summary: An ekr.graph-slice/2 page around router names the types of its three nodes and two edges; the /1 page of the same request names none.
+
+timeline:
+  - at: 2027-01-15T13:10:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      seeds: [00000000-0000-4000-8000-000000f30201]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+      format: ekr.graph-slice/2
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          revision: 0
+          nodes: 3
+          edges: 2
+          node_total: 3
+          edge_total: 2
+          remaining: 0
+          format: ekr.graph-slice/2
+          type_names: [Incident, Person, Service, affects, works_on]
+
+  - at: 2027-01-15T13:11:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      seeds: [00000000-0000-4000-8000-000000f30201]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+      format: ekr.graph-slice/1
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          nodes: 3
+          edges: 2
+          format: ekr.graph-slice/1
+
+  - at: 2027-01-15T13:12:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      seeds: [00000000-0000-4000-8000-000000f30201]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+      format: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          nodes: 3
+          edges: 2
+          format: ekr.graph-slice/1

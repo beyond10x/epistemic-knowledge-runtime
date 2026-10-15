@@ -226,6 +226,11 @@ pub enum Command {
         /// absent.
         #[arg(long, requires = "documents", value_parser = clap::value_parser!(u64).range(1..))]
         limit: Option<u64>,
+        /// The format printed: `ekr.explanation/2` when absent, or `ekr.explanation/3`, the same
+        /// document with `names`, the name of every node type, edge type and property id it
+        /// holds.
+        #[arg(long, value_enum)]
+        format: Option<explain::Format>,
     },
     /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
     /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
@@ -240,6 +245,10 @@ pub enum Command {
         /// The committed revision to resolve against; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+        /// The format printed: `outcome`, the bare outcome, when absent, or `ekr.resolution/1`,
+        /// the outcome under `outcome` with `names`, the name of every type id it holds.
+        #[arg(long, value_enum)]
+        format: Option<resolve::Format>,
     },
     /// Apply an extraction document (`ekr.integrate.ApplyExtraction`): its missing ontology as one
     /// schema change, each named thing resolved and created where the store holds none, each fact
@@ -986,16 +995,23 @@ fn dispatch(
             documents,
             offset,
             limit,
+            format,
         } => {
             let runtime = source.resolve("explain")?.open()?;
             let documents = documents.then_some(explain::Bounds { offset, limit });
-            render(&explain::run(&runtime, assertion_id, documents)?)
+            let format = format.unwrap_or(explain::Format::V2);
+            render(&explain::run(&runtime, assertion_id, documents, format)?)
         }
-        Command::Resolve { reference, at } => {
+        Command::Resolve {
+            reference,
+            at,
+            format,
+        } => {
             let store = source.resolve("resolve")?;
             let reference = resolve::read(&reference, stdin)?;
             let runtime = store.open()?;
-            render(&resolve::run(&runtime, &reference, at)?)
+            let format = format.unwrap_or(resolve::Format::Outcome);
+            render(&resolve::answer(&runtime, &reference, at, format)?)
         }
         Command::ApplyExtraction { document, strict } => {
             let store = source.configured("apply-extraction")?;

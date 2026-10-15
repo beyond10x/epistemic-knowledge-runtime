@@ -14,7 +14,10 @@
 //! * a commit made by another process is what the next tool call reads;
 //! * evidence an `AddEvidence` added is one `EvidenceAdded` change to `changes_since`,
 //!   `GET /changes` and the session's `changes` verb alike;
-//! * 100 `search` and 100 `describe_node` calls over one server are timed and printed.
+//! * 100 `search` and 100 `describe_node` calls over one server are timed and printed;
+//! * `overview`, `expand`, `timeline`, `changes_since`, `explain` and `resolve` answer their named
+//!   formats (ekr-mcp-fixes-20261015 #3, #13) unless `format` names the predecessor, each byte for
+//!   byte the verb's answer with the format named.
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Write as _};
@@ -30,6 +33,7 @@ use ekr_views::{
     BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, OverviewSection,
     ProjectError, SearchRequest, SinceKind, TimelineRequest,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat};
 use serde_json::{json, Value};
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
@@ -523,11 +527,15 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
         let alice = node(ALICE);
         let person: TypeId = PERSON.parse().unwrap();
 
+        // ekr-mcp-fixes-20261015 #3, #13: overview, expand and timeline answer their named formats
+        // when no format is named, and the predecessor when it is; `GET /overview`,
+        // `GET /timeline` and the session's `expand` with the format named are held below.
+        let v3 = OverviewFormat::V3;
         let cases: Vec<(&str, Value, Vec<u8>)> = vec![
             (
                 "overview",
                 json!({}),
-                head.overview_sections(&OverviewRequest::new(None).unwrap())
+                head.overview_as(v3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -536,14 +544,15 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                 json!({"limit": 2, "revision": 0}),
                 world
                     .index(Some(0))
-                    .overview_sections(&OverviewRequest::new(Some(2)).unwrap())
+                    .overview_as(v3, &OverviewRequest::new(Some(2)).unwrap())
                     .unwrap()
                     .bytes,
             ),
             (
                 "overview",
                 json!({"sections": ["timeline", "ontology", "timeline"]}),
-                head.overview_sections(
+                head.overview_as(
+                    v3,
                     &OverviewRequest::new(None)
                         .unwrap()
                         .with_sections([OverviewSection::Ontology, OverviewSection::Timeline]),
@@ -554,6 +563,13 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "overview",
                 json!({"sections": []}),
+                head.overview_as(v3, &OverviewRequest::new(None).unwrap())
+                    .unwrap()
+                    .bytes,
+            ),
+            (
+                "overview",
+                json!({"format": "ekr.graph-overview/2"}),
                 head.overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes,
@@ -585,14 +601,18 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "expand",
                 json!({"seeds": [ALICE], "depth": 1, "limit": 10}),
-                head.expand(&ExpandRequest::new(vec![alice], 1, 10, None, None).unwrap())
-                    .unwrap()
-                    .bytes,
+                head.expand_as(
+                    SliceFormat::V2,
+                    &ExpandRequest::new(vec![alice], 1, 10, None, None).unwrap(),
+                )
+                .unwrap()
+                .bytes,
             ),
             (
                 "expand",
                 json!({"seeds": [ALICE, ACME], "depth": 2, "limit": 1, "edges": 1, "after": 1}),
-                head.expand(
+                head.expand_as(
+                    SliceFormat::V2,
                     &ExpandRequest::new(vec![alice, node(ACME)], 2, 1, Some(1), Some(1)).unwrap(),
                 )
                 .unwrap()
@@ -601,21 +621,35 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "expand",
                 json!({"seeds": [], "depth": 0, "limit": 1}),
-                head.expand(&ExpandRequest::new(Vec::new(), 0, 1, None, None).unwrap())
+                head.expand_as(
+                    SliceFormat::V2,
+                    &ExpandRequest::new(Vec::new(), 0, 1, None, None).unwrap(),
+                )
+                .unwrap()
+                .bytes,
+            ),
+            (
+                "expand",
+                json!({"seeds": [ALICE], "depth": 1, "limit": 10, "format": "ekr.graph-slice/1"}),
+                head.expand(&ExpandRequest::new(vec![alice], 1, 10, None, None).unwrap())
                     .unwrap()
                     .bytes,
             ),
             (
                 "timeline",
                 json!({"hops": 2, "limit": 10}),
-                head.timeline(&TimelineRequest::new(None, 2, 10, None, None).unwrap())
-                    .unwrap()
-                    .bytes,
+                head.timeline_as(
+                    TimelineFormat::V2,
+                    &TimelineRequest::new(None, 2, 10, None, None).unwrap(),
+                )
+                .unwrap()
+                .bytes,
             ),
             (
                 "timeline",
                 json!({"type": PERSON, "hops": 1, "limit": 3, "bucket": "day", "subject": ALICE}),
-                head.timeline(
+                head.timeline_as(
+                    TimelineFormat::V2,
                     &TimelineRequest::new(Some(person), 1, 3, Some(BucketWidth::Day), Some(alice))
                         .unwrap(),
                 )
@@ -625,11 +659,19 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "timeline",
                 json!({"hops": 3, "limit": 500, "bucket": "week", "revision": 0}),
-                head.timeline(
+                head.timeline_as(
+                    TimelineFormat::V2,
                     &TimelineRequest::new(None, 3, 500, Some(BucketWidth::Week), None).unwrap(),
                 )
                 .unwrap()
                 .bytes,
+            ),
+            (
+                "timeline",
+                json!({"hops": 2, "limit": 10, "format": "ekr.graph-timeline/1"}),
+                head.timeline(&TimelineRequest::new(None, 2, 10, None, None).unwrap())
+                    .unwrap()
+                    .bytes,
             ),
         ];
         for (tool, arguments, expected) in cases {
@@ -641,12 +683,99 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             );
         }
 
-        // explain and resolve: what the one-shot verb prints, byte for byte.
+        // overview and timeline: what `GET /overview` and `GET /timeline` serve with the format
+        // named; expand: what the session's `expand` answers with the format named, the page as
+        // one document (`ekr view` streams its records).
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        for (tool, arguments, path) in [
+            (
+                "overview",
+                json!({}),
+                "/overview?format=ekr.graph-overview%2F3",
+            ),
+            (
+                "overview",
+                json!({"limit": 2, "revision": 0, "sections": ["roles"]}),
+                "/overview?limit=2&revision=0&sections=roles&format=ekr.graph-overview%2F3",
+            ),
+            (
+                "overview",
+                json!({"format": "ekr.graph-overview/2"}),
+                "/overview?format=ekr.graph-overview%2F2",
+            ),
+            (
+                "timeline",
+                json!({"hops": 2, "limit": 10}),
+                "/timeline?hops=2&limit=10&format=ekr.graph-timeline%2F2",
+            ),
+            (
+                "timeline",
+                json!({"type": PERSON, "hops": 1, "limit": 3, "subject": ALICE}),
+                &*format!(
+                    "/timeline?type={PERSON}&hops=1&limit=3&subject={ALICE}&format=ekr.graph-timeline%2F2"
+                ),
+            ),
+        ] {
+            let answered = server.document(tool, arguments.clone());
+            let (status, served) = view.get(path);
+            assert_eq!(status, 200, "{backend} GET {path}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: {tool} {arguments} is not GET {path}"
+            );
+        }
+        drop(view);
+        let paged = server.document("expand", json!({"seeds": [ALICE], "depth": 1, "limit": 10}));
+        let paged: Value = serde_json::from_str(&paged).unwrap();
+        assert_eq!(
+            session_answer(
+                &world,
+                &[
+                    "expand",
+                    ALICE,
+                    "--depth",
+                    "1",
+                    "--limit",
+                    "10",
+                    "--format",
+                    "ekr.graph-slice/2"
+                ]
+            ),
+            paged,
+            "{backend}: expand is the session's expand with the format named"
+        );
+        assert_eq!(paged["meta"]["format"], "ekr.graph-slice/2", "{paged}");
+        assert!(
+            paged["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|node| node["type_name"].is_string()),
+            "{paged}"
+        );
+
+        // explain and resolve: what the one-shot verb prints with the format named, byte for
+        // byte; ekr.explanation/3 and ekr.resolution/1 when the call names none.
         let explained = server.document("explain", json!({"assertion": SEEDED_ASSERTION}));
         assert_eq!(
             explained,
-            world.ok(&["explain", SEEDED_ASSERTION]),
+            world.ok(&["explain", SEEDED_ASSERTION, "--format", "ekr.explanation/3"]),
             "{backend}: explain"
+        );
+        let named: Value = serde_json::from_str(&explained).unwrap();
+        assert_eq!(named["format"], "ekr.explanation/3", "{named}");
+        assert_eq!(
+            named["names"]["00000000-0000-4000-8000-000000000203"], "CEO_OF",
+            "{backend}: the relation the assertion states is named: {named}"
+        );
+        assert_eq!(
+            server.document(
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "format": "ekr.explanation/2"})
+            ),
+            world.ok(&["explain", SEEDED_ASSERTION]),
+            "{backend}: explain /2"
         );
         for (reference, at) in [
             (json!({"type_id": ORGANIZATION, "aliases": ["Acme"]}), None),
@@ -657,16 +786,42 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
         ] {
             world.file("reference.json", &reference.to_string());
             let mut arguments = reference.clone();
-            let mut verb = vec!["resolve", "reference.json"];
+            let mut verb = vec!["resolve", "reference.json", "--format", "ekr.resolution/1"];
             if let Some(at) = at {
                 arguments["at"] = json!(at);
                 verb.extend(["--at", "0"]);
             }
-            let resolved = server.document("resolve", arguments);
+            let resolved = server.document("resolve", arguments.clone());
             assert_eq!(resolved, world.ok(&verb), "{backend}: resolve {reference}");
+            arguments["format"] = json!("outcome");
+            verb.truncate(2);
+            if at.is_some() {
+                verb.extend(["--at", "0"]);
+            }
+            assert_eq!(
+                server.document("resolve", arguments),
+                world.ok(&verb),
+                "{backend}: resolve {reference} as the bare outcome"
+            );
         }
         server.close();
     }
+}
+
+/// What the session answers `argv` with, run as one request: its `stdout`, after exit 0.
+fn session_answer(world: &World, argv: &[&str]) -> Value {
+    let mut session = world
+        .command(&["session"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    writeln!(session.stdin.take().unwrap(), "{}", json!({ "argv": argv })).unwrap();
+    let output = session.wait_with_output().unwrap();
+    let answer: Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(answer["exit"], 0, "{argv:?}: {answer}");
+    answer["stdout"].clone()
 }
 
 // 3 --------------------------------------------------------------------------------------------
@@ -970,10 +1125,17 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
         assert_eq!(before["refusal"], "ekr.views.NodeNotFound");
         let unresolved: Value =
             serde_json::from_str(&server.document("resolve", globex.clone())).unwrap();
-        assert_eq!(unresolved["kind"], "ProposeNew", "{unresolved}");
+        assert_eq!(unresolved["outcome"]["kind"], "ProposeNew", "{unresolved}");
+        assert_eq!(
+            unresolved["names"],
+            json!({ORGANIZATION: "Organization"}),
+            "{backend}: ekr-mcp-fixes-20261015 #3, the type the outcome holds: {unresolved}"
+        );
         let overview: Value =
             serde_json::from_str(&server.document("overview", json!({}))).unwrap();
         assert_eq!(overview["meta"]["revision"], 0, "{overview}");
+        let seeded_at = overview["meta"]["committed_at"].clone();
+        assert!(seeded_at.is_i64(), "{backend}: #13: {overview}");
 
         world.commit("create.yaml");
 
@@ -986,30 +1148,46 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
             "{backend}: the node another process committed"
         );
         let resolved = server.document("resolve", globex);
-        assert_eq!(resolved, world.ok(&["resolve", "globex.json"]));
+        assert_eq!(
+            resolved,
+            world.ok(&["resolve", "globex.json", "--format", "ekr.resolution/1"])
+        );
         let resolved: Value = serde_json::from_str(&resolved).unwrap();
-        assert_eq!(resolved["kind"], "Resolved", "{resolved}");
-        assert_eq!(resolved["node_id"], GLOBEX);
+        assert_eq!(resolved["outcome"]["kind"], "Resolved", "{resolved}");
+        assert_eq!(resolved["outcome"]["node_id"], GLOBEX);
+        assert_eq!(resolved["names"], json!({}), "{resolved}");
         let overview = server.document("overview", json!({}));
         assert_eq!(
             overview,
             utf8(
-                head.overview_sections(&OverviewRequest::new(None).unwrap())
+                head.overview_as(OverviewFormat::V3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             )
         );
-        // The revision before is still readable, loaded under the new head.
+        // #13: the head's own commit time, after the seed's.
+        let committed_at = serde_json::from_str::<Value>(&overview).unwrap()["meta"]
+            ["committed_at"]
+            .as_i64()
+            .unwrap();
+        assert!(committed_at >= seeded_at.as_i64().unwrap(), "{backend}");
+        // The revision before is still readable, loaded under the new head, and still says when
+        // it was committed.
         let at_seed = server.document("overview", json!({"revision": 0}));
         assert_eq!(
             at_seed,
             utf8(
                 world
                     .index(Some(0))
-                    .overview_sections(&OverviewRequest::new(None).unwrap())
+                    .overview_as(OverviewFormat::V3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             )
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&at_seed).unwrap()["meta"]["committed_at"],
+            seeded_at,
+            "{backend}"
         );
         server.close();
     }
@@ -1154,7 +1332,7 @@ fn a_running_server_answers_from_a_store_replaced_by_rename() {
             utf8(
                 world
                     .index(Some(1))
-                    .overview_sections(&OverviewRequest::new(None).unwrap())
+                    .overview_as(OverviewFormat::V3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             ),
@@ -1309,10 +1487,11 @@ impl Drop for View {
     }
 }
 
-/// `changes_since` answers byte for byte what `GET /changes` serves for the same arguments — the
-/// document `ekr_views::Index::changes` returns — and refuses by the name, and with the body,
-/// that the endpoint refuses with; where the endpoint answers `invalid-query`, the tool answers
-/// the arguments' error.
+/// `changes_since` answers byte for byte what `GET /changes` serves for the same arguments with
+/// the format named — the document `ekr_views::Index::changes_as` returns, `ekr.graph-changes/2`
+/// unless the call names /1 (ekr-mcp-fixes-20261015 #3) — and refuses by the name, and with the
+/// body, that the endpoint refuses with; where the endpoint answers `invalid-query`, the tool
+/// answers the arguments' error.
 #[test]
 fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
     for backend in BACKENDS {
@@ -1336,8 +1515,17 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
                 "since_valid=0&limit=2000",
             ),
             (json!({"since_revision": 1}), "since_revision=1"),
+            (
+                json!({"since_revision": 0, "format": "ekr.graph-changes/1"}),
+                "since_revision=0&format=ekr.graph-changes%2F1",
+            ),
         ] {
             let answered = server.document("changes_since", arguments.clone());
+            let query = if query.contains("format=") {
+                query.to_owned()
+            } else {
+                format!("{query}&format=ekr.graph-changes%2F2")
+            };
             let (status, served) = view.get(&format!("/changes?{query}"));
             assert_eq!(status, 200, "{backend} GET /changes?{query}");
             assert_eq!(
@@ -1350,9 +1538,10 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         let runtime = world.runtime();
         let head = Index::load(&runtime, None).unwrap();
         let expected = head
-            .changes(
+            .changes_as(
                 &runtime,
                 &ChangesRequest::new(SinceKind::Revision, 0, None, None).unwrap(),
+                ChangesFormat::V2,
             )
             .unwrap()
             .bytes;
@@ -1367,6 +1556,12 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         assert_eq!(listed["changes"][0]["change"], "NodeCreated", "{listed}");
         assert_eq!(listed["changes"][0]["id"], GLOBEX, "{listed}");
         assert_eq!(listed["changes"][0]["revision"], 1, "{listed}");
+        assert_eq!(listed["meta"]["format"], "ekr.graph-changes/2", "{listed}");
+        assert_eq!(
+            listed["names"],
+            json!({ORGANIZATION: "Organization"}),
+            "{backend}: the type Globex was created with: {listed}"
+        );
 
         for (arguments, query, name, status) in [
             (
@@ -1472,7 +1667,7 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         let answered = server.document("changes_since", json!({"since_revision": 0}));
         server.close();
         let view = View::start(world.command(&["view", "--port", "0"]));
-        let (status, served) = view.get("/changes?since_revision=0");
+        let (status, served) = view.get("/changes?since_revision=0&format=ekr.graph-changes%2F2");
         drop(view);
         assert_eq!(status, 200, "{backend}");
         assert_eq!(
@@ -1490,7 +1685,7 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         writeln!(
             session.stdin.take().unwrap(),
             "{}",
-            json!({"argv": ["changes", "--since-revision", "0"]})
+            json!({"argv": ["changes", "--since-revision", "0", "--format", "ekr.graph-changes/2"]})
         )
         .unwrap();
         let output = session.wait_with_output().unwrap();
@@ -1509,6 +1704,11 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         assert_eq!(change["locator"], "Runtime operator", "{backend}: {change}");
         assert_eq!(change["content_hash"], PAYLOAD_HASH, "{backend}: {change}");
         assert_eq!(change["evidence"], json!([]), "{backend}: {change}");
+        assert_eq!(
+            listed["names"],
+            json!({}),
+            "{backend}: no type id: {listed}"
+        );
     }
 }
 

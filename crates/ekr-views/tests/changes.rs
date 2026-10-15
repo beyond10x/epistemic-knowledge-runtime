@@ -201,6 +201,8 @@ fn a_revision_since_lists_exactly_the_changes_of_the_revisions_after_it() {
                 evidence_added: 0,
                 first_revision: Some(1),
                 last_revision: Some(3),
+                format: ekr_views::CHANGES_FORMAT,
+                names: None,
                 changes_hash: hex::encode(Sha256::digest(&text)),
             }
         );

@@ -6,6 +6,9 @@
 //! event type of the overview's roles, each node's time and end, and each edge's source and type.
 //! The row types are ranked once per revision, on first use. A request then costs the walks from
 //! the subjects of its row type — each subject's neighbourhood within its hops — and the answer.
+//!
+//! `ekr.graph-timeline/2` ([`Index::timeline_as`]) is the same document with `names`, the names
+//! map of its ids (`names.rs`; ekr-mcp-fixes-20261015 #3).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -13,6 +16,7 @@ use ekr_core::{EdgeId, NodeId, TypeId};
 use serde::Serialize;
 
 use crate::index::{bucket_start, bucket_width, Index, RowTypeRank, WEEKLY_SPAN_MS};
+use crate::names::{names_of, TimelineFormat};
 use crate::query::{bounded, encode, hash, Answer, LimitExceeded};
 use crate::ProjectError;
 
@@ -138,6 +142,10 @@ pub struct SubjectsTimelined {
     pub first_row: Option<NodeId>,
     /// Entries of `events`.
     pub listed_events: u64,
+    /// `meta.format`: [`TIMELINE_FORMAT`] or [`crate::TIMELINE_V2_FORMAT`].
+    pub format: &'static str,
+    /// `ekr.graph-timeline/2`'s `names`; `None` under /1.
+    pub names: Option<BTreeMap<String, String>>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub timeline_hash: String,
 }
@@ -223,6 +231,9 @@ struct GraphTimelineV1<'a> {
     rows: Vec<TimelineRow<'a>>,
     strip: Vec<TimelineCell>,
     events: Vec<TimelineEvent<'a>>,
+    /// `ekr.graph-timeline/2`'s only (`ekr.views.GraphTimelineV2`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    names: Option<BTreeMap<String, String>>,
 }
 
 // ---- the walk -----------------------------------------------------------------------------------
@@ -404,6 +415,21 @@ impl Index {
         &self,
         request: &TimelineRequest,
     ) -> Result<Answer<SubjectsTimelined>, ProjectError> {
+        self.timeline_as(TimelineFormat::V1, request)
+    }
+
+    /// `ProjectTimeline` in the format `format` names: [`Self::timeline`]'s
+    /// `ekr.graph-timeline/1`, or `ekr.graph-timeline/2` — the same document with `names`, the
+    /// names map of the types it cites (`views.yaml`, `ekr.views.GraphTimelineV2`).
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::timeline`] refuses.
+    pub fn timeline_as(
+        &self,
+        format: TimelineFormat,
+        request: &TimelineRequest,
+    ) -> Result<Answer<SubjectsTimelined>, ProjectError> {
         let graph = &self.loaded.graph;
         let ranks = self.row_type_ranks();
         let held = request
@@ -508,9 +534,9 @@ impl Index {
             cells(&mut distinct.into_iter())
         };
 
-        let document = GraphTimelineV1 {
+        let mut document = GraphTimelineV1 {
             meta: TimelineMeta {
-                format: TIMELINE_FORMAT,
+                format: format.name(),
                 revision: graph.revision.get(),
                 row_type,
                 subject: request.subject(),
@@ -535,7 +561,11 @@ impl Index {
             rows,
             strip,
             events: listed_events,
+            names: None,
         };
+        if format.is_named() {
+            document.names = Some(names_of(&graph.ontology, &document)?);
+        }
         let bytes = encode(&document)?;
         let summary = SubjectsTimelined {
             revision: document.meta.revision,
@@ -552,6 +582,8 @@ impl Index {
             strip: document.strip.len() as u64,
             first_row: document.rows.first().map(|row| row.id),
             listed_events: document.events.len() as u64,
+            format: document.meta.format,
+            names: document.names.clone(),
             timeline_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })
