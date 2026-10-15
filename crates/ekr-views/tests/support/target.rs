@@ -18,6 +18,8 @@
 //! * **External outcomes.** A control establishes the state its branch declares and never selects
 //!   the reported outcome: `not-found` builds the named store as the seed alone, so the requested
 //!   revision does not exist; `not-seeded` opens the named store's provider without seeding it;
+//!   `node-is-a-type` builds it as `Fixture::DescribedType`, whose ontology declares a node type
+//!   with the id the generated scenario names (ekr-mcp-fixes-20261015 #10);
 //!   `node-not-found` and `event-type-not-found` build it as `schema-evolution` — revision 1
 //!   exists, and [`fixtures::DESCRIBED`], the node the generated scenarios name, does not, nor
 //!   does a node type named [`fixtures::UNDECLARED_TYPE_NAME`]. An expansion that names no seed is
@@ -42,12 +44,13 @@ use std::path::PathBuf;
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
-    FactJudgements, FactQualityError, FactQualityReported, FactSampleDrawn, GraphOverviewed,
-    GraphProjected, Index, Judgement, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OcelError, OcelExported, OverviewRequest, OverviewSection, ProcessMapped,
-    ProjectError, QueryError, SampleRequest, SearchRequest, SinceKind, SourceText,
-    StoreQualityReported, SubjectsTimelined, TimelineRequest, Verdict,
+    BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, DetailFormat,
+    DetailRequest, ExpandRequest, FactJudgements, FactQualityError, FactQualityReported,
+    FactSampleDrawn, GraphOverviewed, GraphProjected, Index, Judgement, LimitExceeded,
+    NeighbourhoodExpanded, NodeDescribed, NodeDetailed, NodesSearched, OcelError, OcelExported,
+    OverviewRequest, OverviewSection, ProcessMapped, ProjectError, QueryError, SampleRequest,
+    SearchRequest, SinceKind, SourceText, StoreQualityReported, SubjectsTimelined, TimelineRequest,
+    Verdict,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -94,6 +97,8 @@ enum Control {
     RevisionAbsent,
     Unseeded,
     NodeAbsent,
+    /// `DescribeNode`'s node-is-a-type: the requested id is a node type's.
+    NodeIsAType,
     EventTypeAbsent,
     EventTimeInvalid,
     JudgedTwice,
@@ -126,7 +131,9 @@ enum Read {
     Graph,
     Overview(Result<OverviewRequest, LimitExceeded>),
     Expand(Result<ExpandRequest, LimitExceeded>),
-    Describe(NodeId),
+    /// The node, and for `ekr.node-detail/2` its bounded request (`None` for /1): the bounds are
+    /// checked whatever the format.
+    Describe(NodeId, Result<Option<DetailRequest>, LimitExceeded>),
     Search(Result<SearchRequest, LimitExceeded>),
     Timeline(Result<TimelineRequest, LimitExceeded>),
     Changes(Result<ChangesRequest, ChangesError>),
@@ -275,6 +282,60 @@ fn node_described(summary: &NodeDescribed) -> Result<ObservedEvent, TargetError>
     fields.push(("node", Node::Text(summary.node.to_string())));
     fields.push(("detail_hash", Node::Text(summary.detail_hash.clone())));
     observed("ekr.views.NodeDescribed", fields)
+}
+
+/// One `ekr.views.SameNameNode` or `ekr.views.DetailGroupCount` of a `NodeDetailed`, as a map.
+fn map(fields: Vec<(&str, Node)>) -> Node {
+    Node::Map(
+        fields
+            .into_iter()
+            .map(|(field, value)| (field.to_owned(), value))
+            .collect(),
+    )
+}
+
+fn node_detailed(summary: &NodeDetailed) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("limit", summary.limit),
+        ("after", summary.after),
+        ("properties", summary.properties),
+        ("values", summary.values),
+        ("cut_values", summary.cut_values),
+        ("longest_value", summary.longest_value),
+    ])?;
+    fields.push(("node", Node::Text(summary.node.to_string())));
+    let mut same_name = Vec::new();
+    for other in &summary.same_name {
+        let mut entry = vec![
+            ("id", Node::Text(other.id.to_string())),
+            ("type", Node::Text(other.type_id.to_string())),
+            ("name", Node::Text(other.name.clone())),
+            ("degree", integer(other.degree)?),
+        ];
+        if let Some(type_name) = &other.type_name {
+            entry.push(("type_name", Node::Text(type_name.clone())));
+        }
+        same_name.push(map(entry));
+    }
+    fields.push(("same_name", Node::Seq(same_name)));
+    let mut relations = Vec::new();
+    for group in &summary.relations {
+        let mut entry = vec![
+            ("type", Node::Text(group.type_id.to_string())),
+            ("direction", Node::Text(group.direction.name().to_owned())),
+            ("total", integer(group.total)?),
+            ("nodes", integer(group.nodes)?),
+        ];
+        if let Some(next) = group.next {
+            entry.push(("next", integer(next)?));
+        }
+        relations.push(map(entry));
+    }
+    fields.push(("relations", Node::Seq(relations)));
+    fields.push(("truncated", Node::Bool(summary.truncated)));
+    fields.push(("detail_hash", Node::Text(summary.detail_hash.clone())));
+    observed("ekr.views.NodeDetailed", fields)
 }
 
 fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError> {
@@ -791,7 +852,30 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
                 optional_integer(request, "after")?,
             ))
         }
-        DESCRIBE_NODE => Read::Describe(node_id(&text(request, "node")?, "node")?),
+        DESCRIBE_NODE => {
+            let node = node_id(&text(request, "node")?, "node")?;
+            let format = match request.input.get("format") {
+                None | Some(Node::Null) => DetailFormat::V1,
+                Some(Node::Text(format)) => format
+                    .parse()
+                    .map_err(|error| unavailable("reading `format`", error))?,
+                _ => return Err(unavailable("reading `format`", "not a text")),
+            };
+            let edge_type = match request.input.get("edge_type") {
+                None | Some(Node::Null) => None,
+                Some(Node::Text(edge_type)) => Some(edge_type.clone()),
+                _ => return Err(unavailable("reading `edge_type`", "not a text")),
+            };
+            let bounded = DetailRequest::new(
+                optional_integer(request, "limit")?,
+                edge_type,
+                optional_integer(request, "after")?,
+            );
+            Read::Describe(
+                node,
+                bounded.map(|detail| (format == DetailFormat::V2).then_some(detail)),
+            )
+        }
         SEARCH_NODES => Read::Search(SearchRequest::new(
             text(request, "text")?,
             required_integer(request, "limit")?,
@@ -843,6 +927,20 @@ fn refused(command: &str, refusal: QueryError) -> Result<SemanticCommandResult, 
                 .with("node", Node::Text(node.to_string()))
                 .with("revision", integer(revision.get())?),
         )),
+        QueryError::NodeIsAType {
+            node,
+            kind,
+            type_name,
+            revision,
+        } => Ok(
+            SemanticCommandResult::took(outcome_ref(command, "node-is-a-type")?).with_error(
+                error("ekr.views.NodeIsAType")?
+                    .with("node", Node::Text(node.to_string()))
+                    .with("kind", Node::Text(kind.name().to_owned()))
+                    .with("type_name", Node::Text(type_name))
+                    .with("revision", integer(revision.get())?),
+            ),
+        ),
         QueryError::Project(ProjectError::RevisionNotFound { requested, head }) => Ok(
             SemanticCommandResult::took(outcome_ref(command, "not-found")?).with_error(
                 error("ekr.views.RevisionNotFound")?
@@ -980,10 +1078,19 @@ fn answer(
                 let answer = index.expand(&request)?;
                 Ok(neighbourhood_expanded(&answer.summary).and_then(|e| took("expanded", e)))
             }
-            Read::Describe(node) => {
+            Read::Describe(node, request) => {
+                let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.describe(node)?;
-                Ok(node_described(&answer.summary).and_then(|e| took("described", e)))
+                Ok(match request {
+                    None => {
+                        let answer = index.describe(node)?;
+                        node_described(&answer.summary).and_then(|e| took("described", e))
+                    }
+                    Some(request) => {
+                        let answer = index.detail_v2(node, &request)?;
+                        node_detailed(&answer.summary).and_then(|e| took("detailed", e))
+                    }
+                })
             }
             Read::Search(request) => {
                 let request = request?;
@@ -1149,6 +1256,9 @@ impl ConformanceTarget for ViewsTarget {
                 ) => {
                     Fixture::SchemaEvolution.build(&runtime);
                 }
+                // The generated scenario names [`fixtures::DESCRIBED`] at revision 1: a store whose
+                // ontology declares a node type of that id, and no node of it.
+                Some(Control::NodeIsAType) => Fixture::DescribedType.build(&runtime),
                 // Judged-twice is ReportFactQuality's, which names no store: no store's state.
                 None | Some(Control::JudgedTwice) => fixture.build(&runtime),
             }
@@ -1213,6 +1323,7 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-found") if COMMANDS.contains(&command) => Control::RevisionAbsent,
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
+            (DESCRIBE_NODE, "node-is-a-type") => Control::NodeIsAType,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-type-not-found") => Control::EventTypeAbsent,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-time-invalid") => Control::EventTimeInvalid,
             (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,

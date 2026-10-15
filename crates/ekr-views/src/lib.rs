@@ -62,6 +62,7 @@
 
 mod changes;
 mod code_names;
+mod detail;
 mod document;
 mod index;
 mod ocel;
@@ -79,6 +80,10 @@ pub use code_names::{
     code_names, code_names_with_mode, find_code_names, find_code_names_with_mode, literals,
     runtime_vocabulary, CodeNameMode, CodeNamesFound, Literal, SourceText, CODE_NAMES_FORMAT,
     EMBEDDED_DOMAINS,
+};
+pub use detail::{
+    DetailFormat, DetailGroupCount, DetailRequest, EdgeDirection, NodeDetailed, SameNameNode,
+    TypeKind, UnknownDetailFormat, DETAIL_V2_FORMAT, VALUE_BYTES,
 };
 pub use index::{Index, IndexCache};
 pub use ocel::{

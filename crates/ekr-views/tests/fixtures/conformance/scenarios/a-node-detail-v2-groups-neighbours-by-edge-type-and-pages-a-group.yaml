@@ -1,0 +1,207 @@
+# ekr-mcp-fixes-20261015 #1: ekr.node-detail/2 groups a node's neighbours by edge type and
+# direction, counts each group whole, lists at most `limit` of each, and pages one group.
+#
+# The store `bounded-detail` is a seed only (revision 0). Its ontology: node types Service
+# 00000000-0000-4000-8000-000000b00001 (with the String property description
+# 00000000-0000-4000-8000-000000b00020), Component 00000000-0000-4000-8000-000000b00002 and Alert
+# 00000000-0000-4000-8000-000000b00003; edge types affects 00000000-0000-4000-8000-000000b00010
+# (Alert to Service) and works_on 00000000-0000-4000-8000-000000b00011 (Component to Service).
+# Its nodes: the Service Widget-Router 00000000-0000-4000-8000-000000b00100; the Component
+# `router component` 00000000-0000-4000-8000-000000b00101, alias `widget-router`; and the alerts
+# alert-001 to alert-120, 00000000-0000-4000-8000-000000b00201 to …b00278, each with one affects
+# edge to the router. One works_on edge joins the component to the router, with the Relation
+# assertion 00000000-0000-4000-8000-000000b03001 that matches it, and the router holds one
+# description assertion, 5,000 bytes long.
+#
+# What is held:
+#   - the router's /2 detail at the default limit 10 has two relation groups, both `in`: affects
+#     with total 120, its first 10 neighbours (every alert has degree 1, so id decides) and next
+#     10; then works_on with total 1, its one neighbour, and no next. Groups order by total
+#     descending. The answer is truncated, since the affects group has a next and the value is
+#     cut;
+#   - asking again with edge_type `AFFECTS` — the name, matched lowercased — and after 10
+#     answers that group alone, its next 10, next 20, with no property group and no same-name
+#     list; with the edge type's id and after 110, the last 10 and no next;
+#   - an edge_type that names no edge type answers no relation group, not a refusal;
+#   - limit 501 and after -1 are refused before the store is read; with format /1, the same
+#     node is the unbounded ekr.node-detail/1, whose edges are all 121.
+# The byte bound (the /2 answer under 75 KB here) and the neighbour's name are held in
+# tests/query.rs, which reads the document.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group
+summary: A node with 120 incoming edges of one type and one of another is answered as two counted groups of at most 10 neighbours, and the larger group pages by edge type and after.
+
+timeline:
+  - at: 2027-01-16T09:00:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          revision: 0
+          node: 00000000-0000-4000-8000-000000b00100
+          limit: 10
+          after: 0
+          properties: 1
+          values: 1
+          relations:
+            - type: 00000000-0000-4000-8000-000000b00010
+              direction: in
+              total: 120
+              nodes: 10
+              next: 10
+            - type: 00000000-0000-4000-8000-000000b00011
+              direction: in
+              total: 1
+              nodes: 1
+          truncated: true
+    no_events:
+      - ekr.views.NodeDescribed
+
+  - at: 2027-01-16T09:01:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: 0
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: AFFECTS
+      after: 10
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          revision: 0
+          limit: 10
+          after: 10
+          same_name: []
+          properties: 0
+          values: 0
+          relations:
+            - type: 00000000-0000-4000-8000-000000b00010
+              direction: in
+              total: 120
+              nodes: 10
+              next: 20
+          truncated: true
+
+  - at: 2027-01-16T09:02:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: 0
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: 00000000-0000-4000-8000-000000b00010
+      after: 110
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          after: 110
+          relations:
+            - type: 00000000-0000-4000-8000-000000b00010
+              direction: in
+              total: 120
+              nodes: 10
+          truncated: false
+
+  - at: 2027-01-16T09:03:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: 0
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: depends_on
+      after: null
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          properties: 0
+          relations: []
+          truncated: false
+
+  - at: 2027-01-16T09:04:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: 0
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: 501
+      edge_type: null
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 501
+        minimum: 1
+        maximum: 500
+    no_events:
+      - ekr.views.NodeDetailed
+
+  - at: 2027-01-16T09:05:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: 0
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: -1
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: after
+        requested: -1
+        minimum: 0
+    no_events:
+      - ekr.views.NodeDetailed
+
+  - at: 2027-01-16T09:06:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: 0
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/1
+      limit: null
+      edge_type: null
+      after: null
+    outcome: described
+    events:
+      - event: ekr.views.NodeDescribed
+        payload:
+          revision: 0
+          node: 00000000-0000-4000-8000-000000b00100
+          assertions: 1
+          referencing: 1
+          edges: 121
+          neighbours: 121
+    no_events:
+      - ekr.views.NodeDetailed

@@ -44,6 +44,8 @@ const GLOBEX: &str = "00000000-0000-4000-8000-000000000901";
 const TRANSACTION: &str = "00000000-0000-4000-8000-000000000902";
 const MANY: &str = "00000000-0000-4000-8000-000000000903";
 const UNKNOWN: &str = "00000000-0000-4000-8000-000000000999";
+/// The example seed's edge type `CEO_OF`.
+const CEO_OF: &str = "00000000-0000-4000-8000-000000000203";
 
 /// The nine tools, and nothing else.
 const TOOLS: [&str; 9] = [
@@ -196,6 +198,16 @@ impl World {
     /// The `ekr.views` index of revision `at` (the head when `None`), loaded in this process.
     fn index(&self, at: Option<u64>) -> Index {
         Index::load(&self.runtime(), at.map(RevisionNumber::new)).unwrap()
+    }
+
+    /// `ekr view --port 0` over the store now at this world's path.
+    fn view(&self) -> View {
+        View::start(self.command(&["view", "--port", "0"]))
+    }
+
+    /// The 200 body `ekr view` serves at `GET path`, from a view started for that one request.
+    fn served(&self, path: &str) -> String {
+        self.view().served(path)
     }
 
     /// `ekr mcp` started and initialized.
@@ -519,6 +531,7 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let mut server = world.server();
+        let view = world.view();
         let head = world.index(None);
         let alice = node(ALICE);
         let person: TypeId = PERSON.parse().unwrap();
@@ -572,14 +585,41 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                     .unwrap()
                     .bytes,
             ),
+            // ekr-mcp-fixes-20261015 #1: describe_node answers ekr.node-detail/2 by default, byte for
+            // byte what `ekr view` serves at /node/<id> asked for /2 explicitly, and `full` the /1
+            // that `ekr view` serves asked for /1 explicitly.
             (
                 "describe_node",
                 json!({"node": ALICE}),
-                head.describe(alice).unwrap().bytes,
+                view.served(&detail_v2(ALICE, "")).into_bytes(),
             ),
             (
                 "describe_node",
-                json!({"node": ACME, "revision": 0}),
+                json!({"node": ACME, "revision": 0, "limit": 1}),
+                view.served(&detail_v2(ACME, "revision=0&limit=1"))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ACME, "edge_type": "ceo_of", "after": 0}),
+                view.served(&detail_v2(ACME, "edge_type=ceo_of&after=0"))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ACME, "edge_type": CEO_OF, "after": 1}),
+                view.served(&detail_v2(ACME, &format!("edge_type={CEO_OF}&after=1")))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true}),
+                view.served(&format!("/node/{ALICE}?format=ekr.node-detail/1"))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ACME, "revision": 0, "full": true}),
                 head.describe(node(ACME)).unwrap().bytes,
             ),
             (
@@ -794,6 +834,81 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             }
         }
 
+        // ekr-mcp-fixes-20261015 #1: describe_node's bounds are refused before the store is read,
+        // as `ekr view` refuses them on /node/<id> asked for ekr.node-detail/2, body for body.
+        // #10: a type id under /2 is refused by name, naming the type; under /1 (`full`) it is
+        // NodeNotFound, as it was before /2.
+        let view = world.view();
+        for (arguments, path, name) in [
+            (
+                json!({"node": ALICE, "limit": 501}),
+                detail_v2(ALICE, "limit=501"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                json!({"node": ALICE, "limit": 0, "revision": 7}),
+                detail_v2(ALICE, "limit=0&revision=7"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                json!({"node": ALICE, "after": -1}),
+                detail_v2(ALICE, "after=-1"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                json!({"node": PERSON}),
+                detail_v2(PERSON, ""),
+                "ekr.views.NodeIsAType",
+            ),
+            (
+                json!({"node": CEO_OF}),
+                detail_v2(CEO_OF, ""),
+                "ekr.views.NodeIsAType",
+            ),
+            (
+                json!({"node": PERSON, "full": true}),
+                format!("/node/{PERSON}?format=ekr.node-detail/1"),
+                "ekr.views.NodeNotFound",
+            ),
+            (
+                json!({"node": UNKNOWN}),
+                detail_v2(UNKNOWN, ""),
+                "ekr.views.NodeNotFound",
+            ),
+        ] {
+            let refusal = server.refusal("describe_node", arguments.clone());
+            let (status, body) = view.get(&path);
+            assert_eq!(
+                refusal,
+                serde_json::from_slice::<Value>(&body).unwrap(),
+                "{backend}: describe_node {arguments} is GET {path} ({status})"
+            );
+            assert_eq!(refusal["refusal"], name, "{backend}: {arguments}");
+        }
+        // Where the tool answers -32602 for `full` with a bound, the endpoint answers invalid-query.
+        for query in ["limit=1", "edge_type=CEO_OF", "after=0"] {
+            let (status, body) =
+                view.get(&format!("/node/{ALICE}?format=ekr.node-detail/1&{query}"));
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(
+                (status, &body["refusal"]),
+                (400, &json!("invalid-query")),
+                "{body}"
+            );
+        }
+        drop(view);
+        for (id, named) in [(PERSON, "Person"), (CEO_OF, "CEO_OF")] {
+            let refusal = server.refusal("describe_node", json!({"node": id}));
+            assert_eq!(
+                refusal["message"],
+                format!(
+                    "{id} is the type {named}, not a node: overview lists the types; search \
+                     (with type) lists its nodes"
+                ),
+                "{backend}"
+            );
+        }
+
         // The kernel's refusals: the name and message the one-shot verb writes to stderr.
         world.file(
             "undeclared.json",
@@ -868,6 +983,21 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             ("overview", json!({"sections": ["top"]})),
             ("overview", json!({"sections": "schema"})),
             ("describe_node", json!({})),
+            // ekr-mcp-fixes-20261015 #1: `full` is the whole /1, which takes no bound.
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true, "limit": 1}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true, "edge_type": "CEO_OF"}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true, "after": 0}),
+            ),
+            ("describe_node", json!({"node": ALICE, "full": "yes"})),
+            ("describe_node", json!({"node": ALICE, "limit": "3"})),
             (
                 "expand",
                 json!({"seeds": ["not-a-node-id"], "depth": 1, "limit": 1}),
@@ -946,9 +1076,9 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             assert!(line.contains(&format!(r#""id":{id},"#)), "{id}: {line}");
         }
 
-        // And the server still reads.
+        // And the server still reads: ekr.node-detail/2 by default (ekr-mcp-fixes-20261015 #1).
         let alice = server.document("describe_node", json!({"node": ALICE}));
-        assert_eq!(alice, utf8(head.describe(node(ALICE)).unwrap().bytes));
+        assert_eq!(alice, world.served(&detail_v2(ALICE, "")));
         server.close();
     }
 }
@@ -982,8 +1112,9 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
         let described = server.document("describe_node", json!({"node": GLOBEX}));
         assert_eq!(
             described,
-            utf8(head.describe(node(GLOBEX)).unwrap().bytes),
-            "{backend}: the node another process committed"
+            world.served(&detail_v2(GLOBEX, "")),
+            "{backend}: the node another process committed, as ekr.node-detail/2 \
+             (ekr-mcp-fixes-20261015 #1)"
         );
         let resolved = server.document("resolve", globex);
         assert_eq!(resolved, world.ok(&["resolve", "globex.json"]));
@@ -1160,9 +1291,10 @@ fn a_running_server_answers_from_a_store_replaced_by_rename() {
             ),
             "{backend}: revision 1 of the replacement, not the index of the replaced store"
         );
+        // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
         assert_eq!(
             server.document("describe_node", json!({"node": INITECH})),
-            utf8(world.index(None).describe(node(INITECH)).unwrap().bytes),
+            world.served(&detail_v2(INITECH, "")),
             "{backend}"
         );
 
@@ -1232,9 +1364,10 @@ fn a_running_server_answers_from_a_sqlite_database_copied_over_its_file() {
         "precondition: the same device and inode"
     );
 
+    // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
     assert_eq!(
         server.document("describe_node", json!({"node": INITECH})),
-        utf8(world.index(None).describe(node(INITECH)).unwrap().bytes),
+        world.served(&detail_v2(INITECH, "")),
         "a node of the database now at the path"
     );
     let gone = server.refusal("describe_node", json!({"node": GLOBEX}));
@@ -1300,6 +1433,25 @@ impl View {
         let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
         (status, raw[split + 4..].to_vec())
     }
+
+    /// `GET path`'s body, which must be a 200.
+    fn served(&self, path: &str) -> String {
+        let (status, body) = self.get(path);
+        let body = utf8(body);
+        assert_eq!(status, 200, "GET {path}: {body}");
+        body
+    }
+}
+
+/// `GET /node/<id>` asking for `ekr.node-detail/2` explicitly, with `query` (`&`-joined pairs,
+/// or empty) after it: what the MCP `describe_node` answers by default (ekr-mcp-fixes-20261015 #1).
+fn detail_v2(id: &str, query: &str) -> String {
+    let query = if query.is_empty() {
+        String::new()
+    } else {
+        format!("&{query}")
+    };
+    format!("/node/{id}?format=ekr.node-detail/2{query}")
 }
 
 impl Drop for View {
@@ -1554,14 +1706,21 @@ fn a_hundred_searches_and_node_descriptions_over_one_server_are_timed() {
         }
         let searches = searches.elapsed();
 
+        // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
+        let view = world.view();
+        let mut expected = Vec::new();
         let describes = Instant::now();
         for (at, (id, _)) in nodes.iter().take(100).enumerate() {
             let answered = server.document("describe_node", json!({"node": id}));
             if at % 25 == 0 {
-                assert_eq!(answered, utf8(head.describe(node(id)).unwrap().bytes));
+                expected.push((answered, id));
             }
         }
         let describes = describes.elapsed();
+        for (answered, id) in expected {
+            assert_eq!(answered, view.served(&detail_v2(id, "")));
+        }
+        drop(view);
         server.close();
 
         eprintln!(
@@ -1649,9 +1808,10 @@ fn the_library_seam_serves_mcp_in_process() {
         .collect();
     assert_eq!(answers.len(), 2, "{served}");
     assert_eq!(answers[1]["id"], "two");
+    // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
     assert_eq!(
         document_text(&answers[1]["result"]),
-        utf8(world.index(None).describe(node(ALICE)).unwrap().bytes)
+        world.served(&detail_v2(ALICE, ""))
     );
 }
 

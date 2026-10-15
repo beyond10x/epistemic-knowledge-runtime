@@ -1207,7 +1207,7 @@ option retains the admitted store for serving and is used by SDK viewer startup.
 | `GET /evidence/<evidence id>[?revision=N]` | that evidence's retained bytes at revision `N` (the head when absent): `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an absent revision, an id that revision does not hold or bytes the store did not retain |
 | `GET /overview[?revision=N&limit=L&sections=S]` | the `ekr.graph-overview/2` document of revision `N` (the head when absent): its counts, its node and edge type counts and the `L` highest-degree nodes (1 to 500, 300 when absent), and of the sections `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; a section not named is absent, never empty, and all four answer `ekr.graph-overview/1`'s content under the new format name), `application/json` |
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
-| `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
+| `GET /node/<node id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]` | the `ekr.node-detail/1` document of that node, every assertion about it or naming it and every edge at it; with `F` `ekr.node-detail/2`, the [bounded detail](#node-detail-2): at most `L` (1 to 500, 10 when absent) values per property, neighbours per relation group and same-name nodes, each relation group from neighbour `A` (0 when absent), and with `E` (an edge type's id or name) only that edge type's groups; `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
 | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) — nodes of an event type, by the one rule in § `ekr ocel` — counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
@@ -1323,11 +1323,39 @@ percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by comm
 than `day` or `week`, a `sections` naming anything but `ontology`, `schema`, `roles` and
 `timeline`, or an `at` that is not a revision number, is 400 with
 `{"refusal": "invalid-query", …}`.
+An `ekr.node-detail/1` request (`format` absent or `ekr.node-detail/1`) that names `limit`,
+`edge_type` or `after`, or a `format` naming neither format, is 400 `invalid-query` too.
 A `since_revision` below 0 is 400 `ekr.views.SinceMalformed`, and a bound outside its range 400
 `ekr.views.LimitExceeded`, both before the store is read; a node or seed the revision does not
-hold is 404 `ekr.views.NodeNotFound`, and a revision the store does not hold — an `at`, or a
+hold is 404 `ekr.views.NodeNotFound` (for an `ekr.node-detail/2` request whose id is a node
+type or edge type of the revision's ontology, 404 `ekr.views.NodeIsAType`, whose message names the
+type), and a revision the store does not hold — an `at`, or a
 `since_revision` beyond the head — 404 `ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a
 store never seeded), each a whole JSON refusal decided before any byte of an answer is sent.
+
+<a id="node-detail-2"></a>`/node/<id>?format=ekr.node-detail/2` answers one node bounded for a
+reader with a budget, an agent's context above all. `ekr.node-detail/1` lists every assertion
+about the node or naming it and every edge at it, so a node with thousands of edges answers
+megabytes; `/2` answers the same node in counted groups, each listing at most `limit` members:
+
+- `node`: the record, with `type_name`, the name the ontology gives its type;
+- `same_name`: up to `limit` other nodes whose canonical name or an alias equals this node's name
+  or one of its aliases, compared lowercased, with `type_name` and `degree`, highest degree first:
+  one thing recorded as several nodes, whose facts may sit on any of them;
+- `properties`: one group per property, named, with its `total` and its values: the record's,
+  then the Active value assertions newest first, each with its `assertion`, `valid_from` and
+  `evidence`. A String longer than 2,000 bytes is cut on a character boundary and carries
+  `"truncated": true`;
+- `relations`: one group per edge type and direction (`out` when the node is the source), named,
+  with `total` distinct neighbours, largest first; each lists its highest-degree neighbours from
+  `after`, each with the newest Active Relation assertion between the two (the id `ekr explain`
+  takes) and how many there are, and `next`, the `after` of the group's next page, while more
+  remain.
+
+Ask again with `edge_type` (an edge type's id, or its name, matched exactly and else
+lowercased) and `after` set to a group's `next` to page that edge type's groups; such an answer
+carries no property group and no same-name list, and an `edge_type` that names no edge type
+answers no group. `meta.truncated` says whether the answer left anything out.
 
 <a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
 every node and edge created, every assertion added, superseded or retracted, and every evidence
@@ -1561,7 +1589,7 @@ the 3 revisions used most recently:
 |---|---|---|---|
 | `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent), `--sections S` (`ontology`, `schema`, `roles`, `timeline`, joined by `,`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **the text** (empty matches every node; put `--` before a text that starts with `-`), `--limit L` (1 to 100, 20 when absent), `--revision N` | the `ekr.node-matches/1` document | `GET /search` |
-| `describe` | **the node id**, `--revision N` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
+| `describe` | **the node id**, `--format F` (`ekr.node-detail/1`, the default, or `ekr.node-detail/2`), and for `ekr.node-detail/2` `--limit L` (1 to 500, 10 when absent), `--edge-type E` (an edge type's id or name), `--after A` (0 or more); `--revision N` | the `ekr.node-detail/1` document, or the [bounded `ekr.node-detail/2`](#node-detail-2) | `GET /node/<node id>` with `format`, `limit`, `edge_type` and `after` |
 | `expand` | the seed node ids (none answers an empty page), **`--depth D`** (0 to 2), **`--limit L`** (1 to 2,000 nodes), `--edges E` (1 to 5,000, 5,000 when absent), `--after A` (a cursor), `--revision N` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `--after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `--type T` (a node type id), **`--hops H`** (1 to 3), **`--limit L`** (1 to 500), `--bucket day\|week`, `--subject S` (a node id), `--revision N` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `changes` | exactly one of **`--since-revision N`**, **`--since-valid T`** and **`--since-recorded T`** (milliseconds since the epoch), `--at R` (the last revision read, the head when absent), `--limit L` (1 to 2,000, 500 when absent), `--after A` (a cursor) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)); pass the first page's `meta.revision` as `--at` for the rest | `GET /changes` |
@@ -1580,7 +1608,8 @@ the newest. What `ekr view` refuses with a JSON `{"refusal", "message"}` body a 
 `ekr.views.LimitExceeded`, both before the store is read; a store never seeded
 `ekr.views.NotSeeded`; a revision the store does not hold `ekr.views.RevisionNotFound`; and a node
 or seed the revision does not hold, or a `describe` id that is no node id,
-`ekr.views.NodeNotFound`. A query `ekr view` answers `invalid-query` — a bound that is not an
+`ekr.views.NodeNotFound` (`ekr.views.NodeIsAType` for an `ekr.node-detail/2`
+`describe` of a type id). A query `ekr view` answers `invalid-query` — a bound that is not an
 optional `-` and ASCII digits, a revision that is not ASCII digits (so `+5` is neither), a seed,
 `--type` or `--subject` that is not an id, a `--bucket` other than `day` or `week`, no since or
 more than one — is an argv these verbs do not take: clap's usage message, `"exit": 2`. On a path
@@ -1697,7 +1726,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 |---|---|---|---|
 | `overview` | `revision`, `limit` (1 to 500, 300 when absent), `sections` (a list of `ontology`, `schema`, `roles`, `timeline`; none when absent or empty) | the `ekr.graph-overview/2` document | `GET /overview` |
 | `search` | **`text`**, `limit` (1 to 100, 20 when absent), `revision` | the `ekr.node-matches/1` document | `GET /search` |
-| `describe_node` | **`node`** (a node id), `revision` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
+| `describe_node` | **`node`** (a node id), `limit` (1 to 500, 10 when absent), `edge_type` (an edge type's id or name), `after` (0 or more), `full` (`true` or `false`, `false` when absent; `true` takes none of `limit`, `edge_type` and `after`), `revision` | the [bounded `ekr.node-detail/2`](#node-detail-2) document; with `full: true` the whole `ekr.node-detail/1` | `GET /node/<node id>?format=ekr.node-detail/2` with `limit`, `edge_type` and `after`; with `full: true`, `?format=ekr.node-detail/1` |
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
@@ -1710,7 +1739,7 @@ parsed as `structuredContent`, and `"isError": false`:
 
 ```console
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"describe_node","arguments":{"node":"00000000-0000-4000-8000-000000000301"}}}
-{"id":3,"jsonrpc":"2.0","result":{"content":[{"text":"{\"format\":\"ekr.node-detail/1\",…}","type":"text"}],"isError":false,"structuredContent":{"format":"ekr.node-detail/1",…}}}
+{"id":3,"jsonrpc":"2.0","result":{"content":[{"text":"{\"meta\":{\"format\":\"ekr.node-detail/2\",…},…}","type":"text"}],"isError":false,"structuredContent":{"meta":{"format":"ekr.node-detail/2",…},…}}}
 ```
 
 A refusal is a result too, with `"isError": true` and the document `{"message": <reason>,
@@ -1722,7 +1751,8 @@ replaced at the path by one that does not open `store-replaced` ([as for `ekr vi
 a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold — for
 `changes_since` an `at`, then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
 (`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
-revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`; an assertion
+revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`, and for
+`describe_node` without `full` a `node` that is a node type or edge type id `ekr.views.NodeIsAType`; an assertion
 the head does not hold `ekr.kernel.AssertionNotFound`; and for `resolve`,
 `reference-without-identity`, `reference-type-undeclared` and `reference-type-has-subtypes`
 ([`ekr resolve`](#ekr-resolve)).
