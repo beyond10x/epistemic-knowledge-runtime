@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: architecture-decision-record:0014-stores-share-a-schema-and-read-together
 kind: architecture-decision-record
-status: proposed
+status: accepted
 title: ADR 0014 — A store imports another store's ontology by schema revision, and a read may span stores
 summary: 'Proposed: the runtime takes on schema import pinned to a source revision and a read over an ordered list of stores, with no content copied between them'
 relations:
 - decides: story:stores-share-a-schema-and-read-together
-revision: 1
+revision: 2
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-10-15T20:22:47Z", actor: "agent:ekr-controller", revision: 2}
 ---
 ## Status
 
