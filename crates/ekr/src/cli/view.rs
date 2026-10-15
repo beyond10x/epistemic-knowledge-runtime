@@ -72,7 +72,7 @@
 //! | `GET /overview[?revision=N&limit=L&sections=S]` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes: meta, the type counts and the `L` highest-degree nodes, and of `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; an unknown name is 400 `invalid-query`), `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
-//! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
+//! | `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]` | [`ekr_views::Index::search_as`]'s bytes in the format `F` names, `ekr.node-matches/1` when absent and `ekr.node-matches/2` when named (`L` is [`SEARCH_LIMIT`] when absent); `T` (a node type's id or name), `A` and `B` (milliseconds or `YYYY-MM-DD`) are /2's, read by [`search_filter`]: with /1, or malformed, they are 400 `invalid-query`, and a `T` naming no node type is 404 `ekr.views.NodeTypeNotFound`. `application/json` |
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A]` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes: the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
@@ -107,8 +107,9 @@ use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::{PersistenceError, Runtime};
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded, Lineage,
-    OverviewRequest, OverviewSection, ProjectError, QueryError, RevisionIdentity, SearchRequest,
-    SinceKind, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
+    MatchesFormat, OverviewRequest, OverviewSection, ProjectError, QueryError, RevisionIdentity,
+    SearchError, SearchFilter, SearchRequest, SinceKind, SliceEdge, SliceMeta, SliceNode,
+    SlicePage, SliceRecord, TimelineRequest, WindowBound, MATCHES_V2_FORMAT,
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -1286,11 +1287,29 @@ fn find(
     ))
 }
 
-/// `/search?q=<text>[&limit=L][&revision=N]`.
+/// `/search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]`: the format
+/// `F` names, `ekr.node-matches/1` when absent (`views.yaml`, `ekr.views.SearchNodes`).
 fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
-    let query = Query::parse(query, &["q", "limit", "revision"]).map_err(invalid_query)?;
+    let query = Query::parse(
+        query,
+        &["q", "limit", "format", "type", "from", "to", "revision"],
+    )
+    .map_err(invalid_query)?;
     let text = query.required("q").map_err(invalid_query)?.to_owned();
     let limit = query.integer("limit").map_err(invalid_query)?;
+    let format = query
+        .get("format")
+        .map(str::parse::<MatchesFormat>)
+        .transpose()
+        .map_err(invalid_query)?
+        .unwrap_or(MatchesFormat::V1);
+    let filter = search_filter(
+        format,
+        query.get("type").map(str::to_owned),
+        query.get("from"),
+        query.get("to"),
+    )
+    .map_err(invalid_query)?;
     let at = query.revision().map_err(invalid_query)?;
     let request = SearchRequest::new(text, limit.unwrap_or(SEARCH_LIMIT))
         .map_err(|error| limit_exceeded(&error))?;
@@ -1298,9 +1317,53 @@ fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Re
         .index(runtime, at)
         .map_err(|error| refused("search", error))?;
     let answer = index
-        .search(&request)
-        .map_err(|error| refused("search", error))?;
+        .search_as(format, &request, &filter)
+        .map_err(search_refused)?;
     Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// `ekr.views.NodeTypeNotFound`: a search's `type` that is neither the id nor the name of a node
+/// type of the revision read. `ekr view`, the session verb and `ekr mcp` all name it from here.
+pub(super) const NODE_TYPE_NOT_FOUND: &str = "ekr.views.NodeTypeNotFound";
+
+/// A search's `type`, `from` and `to` under `format` (`views.yaml`, `ekr.views.SearchNodes`):
+/// each bound read by [`WindowBound::read`], and none of the three named with
+/// `ekr.node-matches/1`, which reads none of them. `ekr view`, the session verb and `ekr mcp`
+/// read them here, so each refuses the same requests with the same message.
+pub(super) fn search_filter(
+    format: MatchesFormat,
+    node_type: Option<String>,
+    from: Option<&str>,
+    to: Option<&str>,
+) -> Result<SearchFilter, String> {
+    let bound = |which: WindowBound, text: Option<&str>| {
+        text.map(|text| which.read(text))
+            .transpose()
+            .map_err(|error| error.to_string())
+    };
+    let filter = SearchFilter::new(
+        node_type,
+        bound(WindowBound::From, from)?,
+        bound(WindowBound::To, to)?,
+    );
+    if format == MatchesFormat::V1 && !filter.is_empty() {
+        return Err(format!(
+            "type, from and to are inputs of {MATCHES_V2_FORMAT}; name the format \
+             {MATCHES_V2_FORMAT} to use them"
+        ));
+    }
+    Ok(filter)
+}
+
+/// A search that answered nothing once its bounds held: 404 `ekr.views.NodeTypeNotFound`, or
+/// what [`refused`] answers for the revision.
+fn search_refused(error: SearchError) -> Reply {
+    match error {
+        error @ SearchError::NodeTypeNotFound { .. } => {
+            Reply::refusal(404, NODE_TYPE_NOT_FOUND, error)
+        }
+        SearchError::Project(error) => refused("search", error),
+    }
 }
 
 /// `/timeline?[type=<id>&]hops=H&limit=L[&bucket=day|week][&subject=<id>][&revision=N]`: the

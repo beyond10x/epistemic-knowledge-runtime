@@ -1,7 +1,7 @@
 //! The four bounded reads of `ekr.views` over one [`Index`]: ekr.graph-overview/1,
-//! ekr.graph-slice/1, ekr.node-detail/1 and ekr.node-matches/1, held against
+//! ekr.graph-slice/1, ekr.node-detail/1 and ekr.node-matches/1 and /2, held against
 //! `systems/ekr/domains/views.yaml`'s determinism rules, bounds and refusal order on the `hub`,
-//! `growth` and `timeline` fixtures; and the revision cache `ekr view` keeps them in.
+//! `growth`, `timeline` and `search` fixtures; and the revision cache `ekr view` keeps them in.
 
 mod support;
 
@@ -9,15 +9,17 @@ use std::sync::Arc;
 
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_views::{
-    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, OverviewSection,
-    ProjectError, QueryError, RevisionIdentity, SearchRequest, SliceRecord,
+    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, MatchesFormat, OverviewRequest,
+    OverviewSection, ProjectError, QueryError, RevisionIdentity, SearchError, SearchFilter,
+    SearchRequest, SliceRecord, WindowBound,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use support::fixtures::{
     self, id, Fixture, Provider, GROWTH_EDGE, GROWTH_FIRST, GROWTH_SECOND, HUB, HUB_LEAVES,
-    JANUARY_FIRST_0900_MS, KIND_A, KIND_B, KIND_C,
+    JANUARY_FIRST_0900_MS, KIND_A, KIND_B, KIND_C, SEARCH_EU_LATENCY_MS, SEARCH_INCIDENT,
+    SEARCH_INCIDENTS, SEARCH_ROUTER_OUTAGE_MS, SEARCH_SERVICES,
 };
 
 fn uuid(n: u64) -> String {
@@ -718,12 +720,16 @@ fn a_node_created_later_is_not_found_at_an_earlier_revision() {
 
 // ---- ekr.node-matches/1 -------------------------------------------------------------------------
 
+/// ekr.node-matches/1's bytes, unchanged since /2 was declared: the /1 copy of
+/// [`exact_matches_come_before_folded_ones_whatever_their_degree`], which moved to /2.
 #[test]
-fn exact_matches_come_before_folded_ones_whatever_their_degree() {
+fn exact_matches_come_before_folded_ones_whatever_their_degree_under_v1() {
     let hub = index(Fixture::Hub, None);
     let answer = hub
         .search(&SearchRequest::new("Hub".into(), 10).unwrap())
         .unwrap();
+    assert_eq!(answer.summary.format, "ekr.node-matches/1");
+    assert_eq!(answer.summary.first_tier, Some("Exact"));
     let (text, _) = json(&answer.bytes);
     assert_eq!(
         text,
@@ -751,6 +757,245 @@ fn exact_matches_come_before_folded_ones_whatever_their_degree() {
         .search(&SearchRequest::new("absent".into(), 1).unwrap())
         .unwrap();
     assert_eq!((none.summary.matches, none.summary.first_match), (0, None));
+    // `search_as` with /1 is `search`, and reads no filter.
+    let named = hub
+        .search_as(
+            MatchesFormat::V1,
+            &SearchRequest::new("Hub".into(), 10).unwrap(),
+            &SearchFilter::new(Some("vertex".into()), Some(0), None),
+        )
+        .unwrap();
+    assert_eq!(named.bytes, answer.bytes);
+}
+
+/// Moved to ekr.node-matches/2 (ekr-mcp-fixes-20261015 #2): each match gains `type_name`, and
+/// meta `types`.
+#[test]
+fn exact_matches_come_before_folded_ones_whatever_their_degree() {
+    let hub = index(Fixture::Hub, None);
+    let answer = hub
+        .search_v2(
+            &SearchRequest::new("Hub".into(), 10).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!(answer.summary.format, "ekr.node-matches/2");
+    let (text, _) = json(&answer.bytes);
+    assert_eq!(
+        text,
+        format!(
+            "{{\"meta\":{{\"format\":\"ekr.node-matches/2\",\"revision\":0,\
+             \"text\":\"Hub\",\"types\":[],\"total\":2,\"exact_total\":1}},\"matches\":[\
+             {{\"id\":\"{leaf}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\
+             \"name\":\"leaf-600\",\"degree\":1,\
+             \"tier\":\"Exact\",\"field\":\"Alias\",\"alias\":\"Hub-Leaf\"}},\
+             {{\"id\":\"{hub}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\
+             \"name\":\"hub\",\"degree\":600,\
+             \"tier\":\"Folded\",\"field\":\"Name\"}}]}}",
+            leaf = uuid(HUB + HUB_LEAVES),
+            hub = uuid(HUB),
+            vertex = uuid(0x11_0000),
+        )
+    );
+    assert_eq!(answer.summary.first_match, Some(id(HUB + HUB_LEAVES)));
+    assert_eq!(answer.summary.first_tier, Some("Exact"));
+    let every = hub
+        .search_v2(
+            &SearchRequest::new(String::new(), 100).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!((every.summary.total, every.summary.exact_total), (601, 601));
+    let (_, value) = json(&every.bytes);
+    assert_eq!(value["matches"][0]["id"], uuid(HUB), "highest degree first");
+    assert_eq!(value["matches"][0]["field"], "Name");
+    let none = hub
+        .search_v2(
+            &SearchRequest::new("absent".into(), 1).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        (
+            none.summary.matches,
+            none.summary.first_match,
+            none.summary.first_tier
+        ),
+        (0, None, None)
+    );
+}
+
+fn search_v2(text: &str, filter: SearchFilter) -> (String, Value) {
+    let search = index(Fixture::Search, None);
+    let answer = search
+        .search_v2(&SearchRequest::new(text.into(), 10).unwrap(), &filter)
+        .unwrap();
+    json(&answer.bytes)
+}
+
+fn match_ids(value: &Value) -> Vec<String> {
+    ids(&value["matches"])
+}
+
+/// ekr-mcp-fixes-20261015 #2: a text of two or more words matches a name holding every word, in
+/// any order, as Words, after Exact and Folded; a whole match first within its tier; under /1
+/// the same text finds nothing.
+#[test]
+fn every_word_of_a_text_matches_in_any_order_and_a_whole_match_comes_first() {
+    let router = uuid(SEARCH_SERVICES + 1);
+    let router_2 = uuid(SEARCH_SERVICES + 4);
+    for text in ["widget router", "router  widget", "ROUTER\tWidget"] {
+        let (bytes, value) = search_v2(text, SearchFilter::default());
+        assert_eq!(
+            match_ids(&value),
+            [router.clone(), router_2.clone()],
+            "{text:?}: {bytes}"
+        );
+        assert_eq!(value["matches"][0]["tier"], "Words", "{bytes}");
+        assert_eq!(value["matches"][0]["field"], "Name", "{bytes}");
+        assert_eq!(value["matches"][0]["type_name"], "Service", "{bytes}");
+        assert_eq!(value["meta"]["exact_total"], 0, "{bytes}");
+    }
+    let search = index(Fixture::Search, None);
+    let v1 = search
+        .search(&SearchRequest::new("widget router".into(), 10).unwrap())
+        .unwrap();
+    assert_eq!(v1.summary.total, 0, "/1 has no Words tier");
+
+    // `eu`: the whole name `eu` (degree 0) before prod-eu-central-9 (degree 2) and eu latency.
+    let (bytes, value) = search_v2("eu", SearchFilter::default());
+    assert_eq!(
+        match_ids(&value),
+        [
+            uuid(SEARCH_SERVICES + 2),
+            uuid(SEARCH_SERVICES + 3),
+            uuid(SEARCH_INCIDENTS + 2)
+        ],
+        "{bytes}"
+    );
+    let v1 = search
+        .search(&SearchRequest::new("eu".into(), 10).unwrap())
+        .unwrap();
+    assert_eq!(
+        v1.summary.first_match,
+        Some(id(SEARCH_SERVICES + 3)),
+        "/1: degree first"
+    );
+
+    // A one-word text keeps /1's tiers: `WIDGET-ROUTER` is Folded, the whole name first.
+    let (bytes, value) = search_v2("WIDGET-ROUTER", SearchFilter::default());
+    assert_eq!(match_ids(&value), [router.clone(), router_2], "{bytes}");
+    assert_eq!(value["matches"][0]["tier"], "Folded", "{bytes}");
+    // Words are split on whitespace only: `widget-router outage` holds no word of a name.
+    let (bytes, value) = search_v2("widget-router outage", SearchFilter::default());
+    assert_eq!(value["meta"]["total"], 0, "{bytes}");
+}
+
+/// ekr-mcp-fixes-20261015 #9: an empty text with a node type lists that type's nodes, by
+/// degree, then id, by name or by id alike; a name the ontology does not hold is refused.
+#[test]
+fn an_empty_text_with_a_type_lists_that_type_by_degree() {
+    let incidents = [
+        uuid(SEARCH_INCIDENTS + 1),
+        uuid(SEARCH_INCIDENTS + 3),
+        uuid(SEARCH_INCIDENTS + 2),
+    ];
+    let (by_name, value) = search_v2("", SearchFilter::new(Some("Incident".into()), None, None));
+    assert_eq!(match_ids(&value), incidents, "{by_name}");
+    assert_eq!(value["meta"]["types"], json!([uuid(SEARCH_INCIDENT)]));
+    for hit in value["matches"].as_array().unwrap() {
+        assert_eq!(hit["type_name"], "Incident", "{hit}");
+    }
+    let (by_id, _) = search_v2(
+        "",
+        SearchFilter::new(Some(uuid(SEARCH_INCIDENT)), None, None),
+    );
+    assert_eq!(by_id, by_name);
+    let (bytes, value) = search_v2("eu", SearchFilter::new(Some("Service".into()), None, None));
+    assert_eq!(
+        match_ids(&value),
+        [uuid(SEARCH_SERVICES + 2), uuid(SEARCH_SERVICES + 3)],
+        "{bytes}"
+    );
+
+    let search = index(Fixture::Search, None);
+    // The edge type `affects`, by its id: a type, but no node type.
+    let affects = uuid(0xc5_0004);
+    for named in ["incident", "affects", "no such node type", affects.as_str()] {
+        match search.search_v2(
+            &SearchRequest::new(String::new(), 10).unwrap(),
+            &SearchFilter::new(Some(named.to_owned()), None, None),
+        ) {
+            Err(SearchError::NodeTypeNotFound {
+                node_type,
+                revision,
+            }) => assert_eq!((node_type.as_str(), revision.get()), (named, 0)),
+            other => panic!("{named}: {other:?}"),
+        }
+    }
+}
+
+/// ekr-mcp-fixes-20261015 #9: `from` and `to` admit the nodes whose timeline time falls in the
+/// window, both bounds included, newest first before degree; a node with no time is in no window.
+#[test]
+fn a_window_admits_the_nodes_whose_time_falls_in_it_newest_first() {
+    let outage = uuid(SEARCH_INCIDENTS + 1);
+    let latency = uuid(SEARCH_INCIDENTS + 2);
+    let january = (
+        WindowBound::From.read("2027-01-01").unwrap(),
+        WindowBound::To.read("2027-01-31").unwrap(),
+    );
+    assert_eq!(january, (1_798_761_600_000, 1_801_439_999_999));
+    let window =
+        |from: Option<i64>, to: Option<i64>| search_v2("", SearchFilter::new(None, from, to));
+    let (bytes, value) = window(Some(january.0), Some(january.1));
+    assert_eq!(match_ids(&value), [outage.clone()], "{bytes}");
+    assert_eq!(
+        value["matches"][0]["time"], SEARCH_ROUTER_OUTAGE_MS,
+        "{bytes}"
+    );
+    assert_eq!(value["meta"]["from"], january.0, "{bytes}");
+    assert_eq!(value["meta"]["to"], january.1, "{bytes}");
+    let (bytes, value) = window(Some(january.0), None);
+    assert_eq!(
+        match_ids(&value),
+        [latency.clone(), outage.clone()],
+        "{bytes}"
+    );
+    assert!(value["meta"].get("to").is_none(), "{bytes}");
+    let (bytes, value) = window(Some(SEARCH_ROUTER_OUTAGE_MS), Some(SEARCH_ROUTER_OUTAGE_MS));
+    assert_eq!(match_ids(&value), [outage.clone()], "{bytes}");
+    let (bytes, value) = window(None, Some(SEARCH_EU_LATENCY_MS - 1));
+    assert_eq!(match_ids(&value), [outage], "{bytes}");
+    let (bytes, value) = window(Some(SEARCH_EU_LATENCY_MS), Some(SEARCH_ROUTER_OUTAGE_MS));
+    assert_eq!(value["meta"]["total"], 0, "from after to: {bytes}");
+    // A type and a window together; with no window every node has its time in the answer.
+    let (bytes, value) = search_v2(
+        "",
+        SearchFilter::new(Some("Incident".into()), Some(SEARCH_EU_LATENCY_MS), None),
+    );
+    assert_eq!(match_ids(&value), [latency], "{bytes}");
+    let (bytes, value) = search_v2("disk", SearchFilter::default());
+    assert!(value["matches"][0].get("time").is_none(), "{bytes}");
+}
+
+#[test]
+fn search_v2_answers_the_same_bytes_on_both_providers() {
+    let answers: Vec<Vec<u8>> = [Provider::File, Provider::Sqlite]
+        .into_iter()
+        .map(|provider| {
+            let (_work, runtime) = built(Fixture::Search, provider);
+            Index::load(&runtime, None)
+                .unwrap()
+                .search_v2(
+                    &SearchRequest::new("router widget".into(), 10).unwrap(),
+                    &SearchFilter::new(Some("Service".into()), None, None),
+                )
+                .unwrap()
+                .bytes
+        })
+        .collect();
+    assert_eq!(answers[0], answers[1]);
 }
 
 // ---- bounds and refusals ------------------------------------------------------------------------

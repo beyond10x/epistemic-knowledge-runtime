@@ -12,7 +12,7 @@ summary: >-
   Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/2
   (ProjectOverview, which answers only the sections a request names; its predecessor
   ekr.graph-overview/1 is every section, and stays specified below), ekr.graph-slice/1
-  (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode), ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
+  (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode), ekr.node-matches/1 and /2 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
   any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
   revisions up to one revision changed after a revision or a time. ekr.store-quality/1
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
@@ -75,6 +75,9 @@ summary: >-
   node.aliases and each props value list in the store's order; props keys ascending by their text.
   ekr.node-matches/1 — matches by tier (Exact before Folded), then degree descending, then id;
   never by a name.
+  ekr.node-matches/2 — matches by tier (Exact, then Folded, then Words); then a whole match
+  before one that is not (ekr.views.NodeMatchV2); then, when the request names `from` or `to`,
+  time descending; then degree descending; then id. Never by a name. meta.types by id.
   ekr.graph-timeline/1 — row_types by weight / nodes descending, compared exactly as rationals,
   then type id; rows by total descending, then id; each row's cells and strip by start
   ascending, then type id; events by start ascending, then id; each event's path from the
@@ -96,7 +99,8 @@ summary: >-
   answers invalid-query, the MCP tool -32602);
   then an unseeded store answers NotSeeded; then a revision beyond the head answers
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
-  does not hold answers NodeNotFound.
+  does not hold answers NodeNotFound, and a SearchNodes `type` under ekr.node-matches/2 that names
+  no node type of the revision answers NodeTypeNotFound.
 
   Evidence without retained bytes is unreachable. Evidence enters canonical state in two ways, and
   both carry its bytes: with the seed, whose envelope retains each payload, and through an
@@ -507,6 +511,15 @@ types:
   - name: ekr.views.NodeMatchesFormatV1
     kind: enum
     variants: [ekr.node-matches/1]
+
+  - name: ekr.views.NodeMatchesFormatV2
+    kind: enum
+    variants: [ekr.node-matches/2]
+
+  # Which format a SearchNodes request is answered in (ekr.views.SearchNodes `format`).
+  - name: ekr.views.NodeMatchesFormat
+    kind: enum
+    variants: [ekr.node-matches/1, ekr.node-matches/2]
 
   # The position in a neighbourhood's record sequence (ExpandNeighbourhood): the number of records
   # the earlier pages delivered. A page's `next` is its own `after` plus the records it delivered.
@@ -1044,9 +1057,16 @@ types:
   # both sides are lowercased by Unicode's Lowercase_Mapping, the full mapping with no locale
   # (Rust's str::to_lowercase) and no normalization. Folding by lowercase mapping rather than
   # Unicode case folding is this format's decision.
+  # Words, in ekr.node-matches/2 only: not Exact and not Folded, the text holds two or more words,
+  # and every word is a substring of the lowercased canonical_name, or every word a substring of
+  # one lowercased alias, in any order and whatever stands between them there. The words are the
+  # lowercased text split on Unicode White_Space (Rust's str::split_whitespace), never on
+  # punctuation, so `widget router` finds `Widget-Router` and `disk 507` finds `prod-disk-507`,
+  # while a one-word text such as `LEAF-00` or `İ` has only Exact and Folded, as in
+  # ekr.node-matches/1. ekr.node-matches/1 never answers Words.
   - name: ekr.views.MatchTier
     kind: enum
-    variants: [Exact, Folded]
+    variants: [Exact, Folded, Words]
 
   - name: ekr.views.MatchField
     kind: enum
@@ -1095,6 +1115,74 @@ types:
         type: ekr.views.MatchesMeta
       - name: matches
         type: List<ekr.views.NodeMatch>
+
+  # One ekr.node-matches/2 match: ekr.views.NodeMatch with `type_name`, the name the revision's
+  # ontology gives the node's type, and `time`, the node's time as ekr.graph-timeline/1 defines it
+  # (ekr.views.GraphTimelineV1), omitted for a node with no time.
+  # A match is whole when the text equals the whole canonical_name or one whole alias under its
+  # tier's comparison: byte for byte for Exact; after lowercasing both sides for Folded; for Words,
+  # when the field's lowercased text and the lowercased text, each split into maximal runs of
+  # alphanumeric characters (Unicode Alphabetic or Numeric, Rust's char::is_alphanumeric), hold
+  # the same runs the same number of times, so `widget router` is whole for `Widget-Router` and
+  # not for `Widget-Router-2`. Whole matches order before the rest of their tier.
+  - name: ekr.views.NodeMatchV2
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: String
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: time
+        type: Optional<ekr.views.EpochMillis>
+      - name: tier
+        type: ekr.views.MatchTier
+      - name: field
+        type: ekr.views.MatchField
+      - name: alias
+        type: Optional<String>
+
+  # ekr.node-matches/2's meta. `types` is the node types the request's `type` named, by id: the
+  # one whose id it is, else every node type the revision's ontology gives that name; empty when
+  # the request names none. `from` and `to` are the window's bounds in milliseconds, inclusive, a
+  # date read as ekr.views.SearchNodes reads it; each is omitted when the request names none.
+  # `total` and `exact_total` count every matching node of those types in that window, and the
+  # Exact ones among them, before `limit`.
+  - name: ekr.views.MatchesMetaV2
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeMatchesFormatV2
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: text
+        type: String
+      - name: types
+        type: List<ekr.ontology.TypeId>
+      - name: from
+        type: Optional<ekr.views.EpochMillis>
+      - name: to
+        type: Optional<ekr.views.EpochMillis>
+      - name: total
+        type: Integer
+      - name: exact_total
+        type: Integer
+
+  # ekr.node-matches/2: the first `limit` matching nodes of the named types in the named window.
+  # Empty text matches every such node, Exactly, so an empty text with `type` lists that type's
+  # nodes by degree, and with `from` or `to` too, newest first.
+  - name: ekr.views.NodeMatchesV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.MatchesMetaV2
+      - name: matches
+        type: List<ekr.views.NodeMatchV2>
 
   # ---------------------------------------------------------------------------------------------
   # ekr.graph-timeline/1: the subjects' timeline. One row per subject — a node of the row type —
@@ -2203,6 +2291,16 @@ errors:
       - name: revision
         type: ekr.kernel.RevisionNumber
 
+  # `type` is a SearchNodes request's `type` as the request gave it: neither the id of a node type
+  # of the revision's ontology nor the name of one; `revision` is the revision that was read.
+  - name: ekr.views.NodeTypeNotFound
+    summary: The revision's ontology holds no node type with the requested id or name; nothing was answered.
+    fields:
+      - name: type
+        type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
   # `parameter` is the input's name as the command declares it; `maximum` is omitted for an input
   # with no upper bound (`after`).
   - name: ekr.views.LimitExceeded
@@ -2499,6 +2597,33 @@ commands:
 
   # `text` is matched against canonical names and aliases (ekr.views.MatchTier); it has no length
   # bound. `limit` is 1 to 100 matches. No match is an answer with no matches, not a refusal.
+  #
+  # `format` selects the answer: ekr.node-matches/1 (`matches`) or ekr.node-matches/2
+  # (`matches_v2`); exactly one of the two response fields is present. Absent, the command answers
+  # /1. Each surface has its own default, which it names to the command when the request names
+  # none: `ekr view`'s `/search` and the session verb `search` name /1, the MCP tool `search`
+  # names /2. So for one request with the format named, the MCP tool's answer is byte for byte
+  # `ekr view`'s. ekr.node-matches/1 is served unchanged: a /1 request answers what the command
+  # answered before /2 was declared.
+  #
+  # `type`, `from` and `to` are read under /2 only; under /1 the command reads none of them. A
+  # surface refuses a request that names one of them with the format /1 as malformed input that
+  # never reaches the command (`ekr view` answers invalid-query, the MCP tool -32602).
+  # `type` is a node type's id, or a name the revision's ontology gives one or more node types,
+  # compared byte for byte; only nodes of exactly those types match (a subtype is another type).
+  # A `type` that is neither answers NodeTypeNotFound, after the revision is read.
+  # `from` and `to` (ekr.views.EpochMillis) bound a window on the node's time as
+  # ekr.graph-timeline/1 defines it (ekr.views.GraphTimelineV1): a node matches only when it has a
+  # time t with from <= t and t <= to for each bound named; a node with no time matches no window.
+  # A window whose from is after its to matches nothing, and is no refusal. Each surface reads a
+  # bound from text: milliseconds since the Unix epoch (an optional `-` and ASCII digits that fit
+  # a signed 64-bit integer), or a date `YYYY-MM-DD` of the proleptic Gregorian calendar naming
+  # its whole UTC day, as `from` its first millisecond and as `to` its last. Any other text is
+  # malformed input that never reaches the command. The MCP tool also takes a bound as a JSON
+  # integer, read as milliseconds.
+  #
+  # The MCP tool `search` also takes `text` under the argument names `query` and `q`: an alias of
+  # the argument, which changes no answer. A call naming two of the three is malformed (-32602).
   - name: ekr.views.SearchNodes
     naming:
       wire: search-nodes
@@ -2512,9 +2637,19 @@ commands:
         type: String
       - name: limit
         type: Integer
+      - name: format
+        type: Optional<ekr.views.NodeMatchesFormat>
+      - name: type
+        type: Optional<String>
+      - name: from
+        type: Optional<ekr.views.EpochMillis>
+      - name: to
+        type: Optional<ekr.views.EpochMillis>
     response:
       - name: matches
-        type: ekr.views.NodeMatchesV1
+        type: Optional<ekr.views.NodeMatchesV1>
+      - name: matches_v2
+        type: Optional<ekr.views.NodeMatchesV2>
     outcomes:
       - name: searched
         emits:
@@ -2526,9 +2661,11 @@ commands:
             matches: {generated: true}
             total: {generated: true}
             exact_total: {generated: true}
+            format: {generated: true}
             first_match: {generated: true}
+            first_tier: {generated: true}
             matches_hash: {generated: true}
-        summary: One ekr.node-matches/1 document, byte-identical to every other answer to the same request.
+        summary: One ekr.node-matches/1 or ekr.node-matches/2 document, as `format` selects, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -2544,6 +2681,10 @@ commands:
         external: the store has never been seeded
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
+      - name: node-type-not-found
+        external: the request names a `type` that is neither the id of a node type of the requested revision's ontology nor the name of one
+        error: ekr.views.NodeTypeNotFound
+        summary: Nothing was answered; the refusal names the `type` as the request gave it.
 
   # The subjects' timeline (ekr.views.GraphTimelineV1). `row_type` names the type of the rows,
   # the first listed row type when absent; a type the revision holds no node of answers no rows,
@@ -3149,8 +3290,9 @@ events:
         type: ekr.kernel.ContentHash
 
   # What one search returned. `matches` is the length of the matches list, `total` and
-  # `exact_total` meta's, `first_match` the id of the first match, omitted when there is none;
-  # `matches_hash` the hex SHA-256 of the document's exact bytes.
+  # `exact_total` meta's, `format` meta's, `first_match` the id of the first match and
+  # `first_tier` its tier, each omitted when there is none; `matches_hash` the hex SHA-256 of the
+  # document's exact bytes.
   - name: ekr.views.NodesSearched
     fields:
       - name: revision
@@ -3163,8 +3305,12 @@ events:
         type: Integer
       - name: exact_total
         type: Integer
+      - name: format
+        type: ekr.views.NodeMatchesFormat
       - name: first_match
         type: Optional<ekr.graph.NodeId>
+      - name: first_tier
+        type: Optional<ekr.views.MatchTier>
       - name: matches_hash
         type: ekr.kernel.ContentHash
 

@@ -28,7 +28,7 @@ use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, OverviewSection,
-    ProjectError, SearchRequest, SinceKind, TimelineRequest,
+    ProjectError, SearchFilter, SearchRequest, SinceKind, TimelineRequest,
 };
 use serde_json::{json, Value};
 
@@ -558,17 +558,34 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                     .unwrap()
                     .bytes,
             ),
+            // ekr-mcp-fixes-20261015 #2: the tool answers ekr.node-matches/2 when no format is
+            // named, and /1 when it is; `GET /search` with the format named is held below.
             (
                 "search",
                 json!({"text": "Ac"}),
-                head.search(&SearchRequest::new("Ac".to_owned(), 20).unwrap())
+                head.search_v2(
+                    &SearchRequest::new("Ac".to_owned(), 20).unwrap(),
+                    &SearchFilter::default(),
+                )
+                .unwrap()
+                .bytes,
+            ),
+            (
+                "search",
+                json!({"text": "", "limit": 2, "revision": 0}),
+                world
+                    .index(Some(0))
+                    .search_v2(
+                        &SearchRequest::new(String::new(), 2).unwrap(),
+                        &SearchFilter::default(),
+                    )
                     .unwrap()
                     .bytes,
             ),
             (
                 "search",
-                json!({"text": "", "limit": 2, "revision": 0}),
-                head.search(&SearchRequest::new(String::new(), 2).unwrap())
+                json!({"text": "Ac", "format": "ekr.node-matches/1"}),
+                head.search(&SearchRequest::new("Ac".to_owned(), 20).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -640,6 +657,30 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                 "{backend}: {tool} {arguments} is not the ekr.views document"
             );
         }
+
+        // search: byte for byte what `GET /search` serves with the format named.
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        for (arguments, query) in [
+            (json!({"text": "Ac"}), "q=Ac&format=ekr.node-matches%2F2"),
+            (
+                json!({"text": "", "limit": 2, "revision": 0}),
+                "q=&limit=2&revision=0&format=ekr.node-matches%2F2",
+            ),
+            (
+                json!({"text": "Ac", "format": "ekr.node-matches/1"}),
+                "q=Ac&format=ekr.node-matches%2F1",
+            ),
+        ] {
+            let answered = server.document("search", arguments.clone());
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 200, "{backend} GET /search?{query}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: search {arguments} is not GET /search?{query}"
+            );
+        }
+        drop(view);
 
         // explain and resolve: what the one-shot verb prints, byte for byte.
         let explained = server.document("explain", json!({"assertion": SEEDED_ASSERTION}));
@@ -1441,6 +1482,214 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
     }
 }
 
+/// `story:search-words-type-and-time`: `search` answers byte for byte what `GET /search` serves
+/// with the format named, and refuses by the name, and with the body, the endpoint refuses with;
+/// where the endpoint answers `invalid-query`, the tool answers the arguments' error. `text` is
+/// also taken as `query` and `q` (ekr-mcp-fixes-20261015 #6: on 0.0.34 `{"query": …}` is
+/// -32602), every word of a two-word text matches (#2), and `type`, `from` and `to` narrow the
+/// matches (#9). In the example seed Alice, Bob and Acme each have the time 1577836800000
+/// (2020-01-01, their earliest dated fact) and Globex none.
+#[test]
+fn search_answers_and_refuses_exactly_as_get_search_does_with_the_format_named() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.commit("create.yaml");
+        let mut server = world.server();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        let v2 = "format=ekr.node-matches%2F2";
+
+        // #6: `query` and `q` are `text`, and change no answer.
+        let by_text = server.document("search", json!({"text": "Alice"}));
+        assert_eq!(
+            server.document("search", json!({"query": "Alice"})),
+            by_text,
+            "{backend}: query"
+        );
+        assert_eq!(
+            server.document("search", json!({"q": "Alice"})),
+            by_text,
+            "{backend}: q"
+        );
+
+        let mut answers: Vec<Value> = Vec::new();
+        for (arguments, query) in [
+            (json!({"query": "Alice"}), format!("q=Alice&{v2}")),
+            // #2: `me ac` is in no name, and both of its words are in `acme`.
+            (json!({"text": "me ac"}), format!("q=me+ac&{v2}")),
+            // #9: one type, by name and by id; a window as dates and as milliseconds.
+            (
+                json!({"text": "", "type": "Person"}),
+                format!("q=&type=Person&{v2}"),
+            ),
+            (
+                json!({"text": "", "type": PERSON}),
+                format!("q=&type={PERSON}&{v2}"),
+            ),
+            (
+                json!({"text": "", "from": "2020-01-01", "to": "2020-01-01"}),
+                format!("q=&from=2020-01-01&to=2020-01-01&{v2}"),
+            ),
+            (
+                json!({"text": "", "from": 1_577_836_800_000_i64, "to": 1_577_836_800_000_i64}),
+                format!("q=&from=1577836800000&to=1577836800000&{v2}"),
+            ),
+            (
+                json!({"text": "", "from": "2020-01-02"}),
+                format!("q=&from=2020-01-02&{v2}"),
+            ),
+        ] {
+            let answered = server.document("search", arguments.clone());
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 200, "{backend} GET /search?{query}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: search {arguments} is not GET /search?{query}"
+            );
+            answers.push(serde_json::from_str(&answered).unwrap());
+        }
+        let ids = |answer: &Value| -> Vec<String> {
+            answer["matches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|hit| hit["id"].as_str().unwrap().to_owned())
+                .collect()
+        };
+        assert_eq!(answers[0]["meta"]["format"], "ekr.node-matches/2");
+        assert_eq!(answers[0]["matches"][0]["type_name"], "Person");
+        assert_eq!(ids(&answers[1]), [ACME], "{backend}: {}", answers[1]);
+        assert_eq!(answers[1]["matches"][0]["tier"], "Words");
+        assert_eq!(
+            answers[2], answers[3],
+            "{backend}: a type by name and by id"
+        );
+        assert_eq!(answers[2]["meta"]["types"], json!([PERSON]));
+        assert_eq!(ids(&answers[2]).len(), 2, "{backend}: {}", answers[2]);
+        assert!(
+            answers[2]["matches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|hit| hit["type_name"] == "Person" && hit["type"] == PERSON),
+            "{backend}: {}",
+            answers[2]
+        );
+        for windowed in [&answers[4], &answers[5]] {
+            assert_eq!(windowed["meta"]["total"], 3, "{backend}: {windowed}");
+            assert!(
+                !ids(windowed).contains(&GLOBEX.to_owned()),
+                "{backend}: {windowed}"
+            );
+            assert!(
+                windowed["matches"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|hit| hit["time"] == 1_577_836_800_000_i64),
+                "{backend}: {windowed}"
+            );
+        }
+        assert_eq!(answers[4]["meta"]["to"], 1_577_923_199_999_i64);
+        assert_eq!(answers[6]["meta"]["total"], 0, "{backend}: {}", answers[6]);
+
+        for (arguments, query, name, status) in [
+            (
+                json!({"text": "", "type": "person"}),
+                format!("q=&type=person&{v2}"),
+                "ekr.views.NodeTypeNotFound",
+                404,
+            ),
+            (
+                json!({"text": "", "type": UNKNOWN, "revision": 0}),
+                format!("q=&type={UNKNOWN}&revision=0&{v2}"),
+                "ekr.views.NodeTypeNotFound",
+                404,
+            ),
+            (
+                json!({"text": "", "type": "Person", "revision": 7}),
+                format!("q=&type=Person&revision=7&{v2}"),
+                "ekr.views.RevisionNotFound",
+                404,
+            ),
+            (
+                json!({"text": "", "type": "person", "limit": 0}),
+                format!("q=&type=person&limit=0&{v2}"),
+                "ekr.views.LimitExceeded",
+                400,
+            ),
+        ] {
+            let refusal = server.refusal("search", arguments.clone());
+            assert_eq!(refusal["refusal"], name, "{backend} {arguments}: {refusal}");
+            let (served_status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(served_status, status, "{backend} GET /search?{query}");
+            let served: Value = serde_json::from_slice(&served).unwrap();
+            assert_eq!(
+                refusal, served,
+                "{backend}: {arguments} and GET /search?{query}"
+            );
+        }
+        for (arguments, query) in [
+            (
+                json!({"text": "A", "format": "ekr.node-matches/1", "type": "Person"}),
+                "q=A&format=ekr.node-matches%2F1&type=Person",
+            ),
+            (
+                json!({"text": "A", "format": "ekr.node-matches/1", "from": 0}),
+                "q=A&format=ekr.node-matches%2F1&from=0",
+            ),
+            (
+                json!({"text": "A", "from": "2020-13-01"}),
+                "q=A&from=2020-13-01&format=ekr.node-matches%2F2",
+            ),
+            (
+                json!({"text": "A", "to": "yesterday"}),
+                "q=A&to=yesterday&format=ekr.node-matches%2F2",
+            ),
+            (
+                json!({"text": "A", "format": "ekr.node-matches/3"}),
+                "q=A&format=ekr.node-matches%2F3",
+            ),
+        ] {
+            let refused = server.call("search", arguments.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {arguments}"
+            );
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 400, "{backend} GET /search?{query}");
+            let served: Value = serde_json::from_slice(&served).unwrap();
+            assert_eq!(served["refusal"], "invalid-query", "{served}");
+        }
+        // Naming `text` twice, under two of its names, is a duplicate argument.
+        for arguments in [
+            json!({"text": "A", "query": "A"}),
+            json!({"query": "A", "q": "A"}),
+        ] {
+            let refused = server.call("search", arguments.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {arguments}"
+            );
+        }
+        // `GET /search` without a format answers /1, as before /2 was declared.
+        let (status, served) = view.get("/search?q=Alice");
+        assert_eq!(status, 200);
+        assert_eq!(
+            utf8(served),
+            server.document(
+                "search",
+                json!({"text": "Alice", "format": "ekr.node-matches/1"})
+            ),
+            "{backend}"
+        );
+        server.close();
+        drop(view);
+    }
+}
+
 /// `task:changes-since-lists-added-evidence`: a transaction whose one operation is the
 /// `ekr operations AddEvidence` example commits revision 1. `changes_since`, `GET /changes` and
 /// the session's `changes` verb each answer it once, as an `EvidenceAdded` of revision 1 carrying
@@ -1540,16 +1789,23 @@ fn a_hundred_searches_and_node_descriptions_over_one_server_are_timed() {
         let first = first.elapsed();
         let opened = started.elapsed();
 
+        // ekr-mcp-fixes-20261015 #2: the tool answers ekr.node-matches/2; every 25th answer is
+        // held to the index's /2 bytes here and to `GET /search` with /2 named after the timing.
+        let mut sampled: Vec<(String, String)> = Vec::new();
         let searches = Instant::now();
         for at in 0..100 {
             let text = format!("Member{:03}", at * 2);
             let answered = server.document("search", json!({"text": text}));
             if at % 25 == 0 {
                 let expected = head
-                    .search(&SearchRequest::new(text, 20).unwrap())
+                    .search_v2(
+                        &SearchRequest::new(text.clone(), 20).unwrap(),
+                        &SearchFilter::default(),
+                    )
                     .unwrap()
                     .bytes;
                 assert_eq!(answered, utf8(expected));
+                sampled.push((text, answered));
             }
         }
         let searches = searches.elapsed();
@@ -1563,6 +1819,15 @@ fn a_hundred_searches_and_node_descriptions_over_one_server_are_timed() {
         }
         let describes = describes.elapsed();
         server.close();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        assert_eq!(sampled.len(), 4, "{backend}");
+        for (text, answered) in &sampled {
+            let query = format!("q={text}&format=ekr.node-matches%2F2");
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 200, "{backend} GET /search?{query}");
+            assert_eq!(answered, &utf8(served), "{backend}: search {text}");
+        }
+        drop(view);
 
         eprintln!(
             "ekr mcp timing, {backend}, {} nodes: start and first search {:.1} ms (first search \

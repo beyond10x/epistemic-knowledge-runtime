@@ -1,0 +1,103 @@
+# ekr-mcp-fixes-20261015 #2: under ekr.node-matches/2 a text of two or more words matches a name
+# holding every word, in any order and whatever separates them (ekr.views.MatchTier, Words).
+#
+# The store `search` is a seed only: the node types Service and Incident, Incident with the Integer
+# property `opened`, and the edge type `affects` from Incident to Service.
+#   - Services, no time: Widget-Router 00000000-0000-4000-8000-000000c50101 (degree 1),
+#     eu …c50102 (degree 0), prod-eu-central-9 …c50103 (degree 2) and Widget-Router-2 …c50104
+#     (degree 2);
+#   - Incidents: `router outage` …c50201, opened 2027-01-10T08:00Z (1799568000000), affecting
+#     Widget-Router and Widget-Router-2 (degree 2); `eu latency` …c50202, opened
+#     2027-02-20T12:00Z (1803124800000), affecting prod-eu-central-9 (degree 1); `disk full`
+#     …c50203, no time, affecting prod-eu-central-9 and Widget-Router-2 (degree 2).
+#
+# `widget router` is in no name byte-exactly, nor after lowercasing (the names hold `-` where the
+# text holds a space), so ekr.node-matches/1 finds nothing. Under /2 both of its words are in
+# `widget-router` and in `widget-router-2`: 2 matches, both Words. Widget-Router is first although
+# its degree is lower: its alphanumeric runs are exactly the text's (`widget`, `router`), a whole
+# match, and Widget-Router-2's are not. `router outage` holds `router` but not `widget`. A one-word
+# text keeps /1's tiers: `widget-router` is Exact for neither and Folded for both.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v2-matches-every-word-in-any-order
+summary: Under /2, "widget router" finds Widget-Router first with tier Words and Widget-Router-2 after it; under /1 it finds nothing; a one-word text has no Words tier.
+
+timeline:
+  - at: 2027-03-01T09:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: widget router
+      limit: 3
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: widget router
+          format: ekr.node-matches/2
+          matches: 2
+          total: 2
+          exact_total: 0
+          first_match: 00000000-0000-4000-8000-000000c50101
+          first_tier: Words
+
+  - at: 2027-03-01T09:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: router widget
+      limit: 3
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/2
+          matches: 2
+          total: 2
+          first_match: 00000000-0000-4000-8000-000000c50101
+          first_tier: Words
+
+  - at: 2027-03-01T09:02:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: widget router
+      limit: 3
+      format: ekr.node-matches/1
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/1
+          matches: 0
+          total: 0
+          exact_total: 0
+
+  - at: 2027-03-01T09:03:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: WIDGET-ROUTER
+      limit: 3
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/2
+          matches: 2
+          total: 2
+          exact_total: 0
+          first_match: 00000000-0000-4000-8000-000000c50101
+          first_tier: Folded

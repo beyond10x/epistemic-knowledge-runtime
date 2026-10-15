@@ -25,10 +25,13 @@
 //!   that name as its one, which is what makes a seed or a name unknown; the generated
 //!   `ExpandNeighbourhood`, `ExportOcel` and `ProjectProcessMap` scenarios send `seeds: []` and
 //!   `events: []`. `event-time-invalid` builds it as `schema-evolution` too and selects the event
-//!   time `undeclared.at`, a type no fixture declares. `judged-twice` judges the first
-//!   judgement's assertion a second time, or, where the request judges none (the generated
-//!   scenario sends `judgements: []`), judges one fixture assertion twice. The reads then answer
-//!   whatever they answer.
+//!   time `undeclared.at`, a type no fixture declares. `node-type-not-found` builds it as
+//!   `schema-evolution` too and asks `SearchNodes` under `ekr.node-matches/2` (the only format that
+//!   reads a type) for the request's `type`, or [`fixtures::UNDECLARED_TYPE_NAME`] when it names
+//!   none: the generated scenario sends `type: type`, which that store does not declare.
+//!   `judged-twice` judges the first judgement's assertion a second time, or, where the request
+//!   judges none (the generated scenario sends `judgements: []`), judges one fixture assertion
+//!   twice. The reads then answer whatever they answer.
 //! * **Observations.** A command reports the event built from the summary the read returned, and
 //!   every event the provider log gained while it ran, by its logged name — so a read that wrote
 //!   anything is caught by the suite's `expect_no_event` steps.
@@ -44,10 +47,11 @@ use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
     FactJudgements, FactQualityError, FactQualityReported, FactSampleDrawn, GraphOverviewed,
-    GraphProjected, Index, Judgement, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OcelError, OcelExported, OverviewRequest, OverviewSection, ProcessMapped,
-    ProjectError, QueryError, SampleRequest, SearchRequest, SinceKind, SourceText,
-    StoreQualityReported, SubjectsTimelined, TimelineRequest, Verdict,
+    GraphProjected, Index, Judgement, LimitExceeded, MatchesFormat, NeighbourhoodExpanded,
+    NodeDescribed, NodesSearched, OcelError, OcelExported, OverviewRequest, OverviewSection,
+    ProcessMapped, ProjectError, QueryError, SampleRequest, SearchError, SearchFilter,
+    SearchRequest, SinceKind, SourceText, StoreQualityReported, SubjectsTimelined, TimelineRequest,
+    Verdict,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -97,6 +101,7 @@ enum Control {
     EventTypeAbsent,
     EventTimeInvalid,
     JudgedTwice,
+    NodeTypeAbsent,
 }
 
 struct Scenario {
@@ -127,7 +132,13 @@ enum Read {
     Overview(Result<OverviewRequest, LimitExceeded>),
     Expand(Result<ExpandRequest, LimitExceeded>),
     Describe(NodeId),
-    Search(Result<SearchRequest, LimitExceeded>),
+    /// `SearchNodes`: the bounded request, the format, and the filter /2 reads (empty under /1,
+    /// which reads none).
+    Search(
+        Result<SearchRequest, LimitExceeded>,
+        MatchesFormat,
+        SearchFilter,
+    ),
     Timeline(Result<TimelineRequest, LimitExceeded>),
     Changes(Result<ChangesRequest, ChangesError>),
     CodeNames(Vec<SourceText>, ekr_views::CodeNameMode),
@@ -285,8 +296,12 @@ fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError>
         ("exact_total", summary.exact_total),
     ])?;
     fields.push(("text", Node::Text(summary.text.clone())));
+    fields.push(("format", Node::Text(summary.format.to_owned())));
     if let Some(first) = summary.first_match {
         fields.push(("first_match", Node::Text(first.to_string())));
+    }
+    if let Some(tier) = summary.first_tier {
+        fields.push(("first_tier", Node::Text(tier.to_owned())));
     }
     fields.push(("matches_hash", Node::Text(summary.matches_hash.clone())));
     observed("ekr.views.NodesSearched", fields)
@@ -668,6 +683,30 @@ fn optional_text(
     }
 }
 
+/// `SearchNodes`' `format`, `/1` when absent as the command's own default, and the filter /2 reads:
+/// `type` as given, `from` and `to` in milliseconds. Under /1 the command reads none of the
+/// three, so the filter is empty whatever the request names (`views.yaml`, `ekr.views.SearchNodes`).
+fn search_input(
+    request: &SemanticCommandRequest,
+) -> Result<(MatchesFormat, SearchFilter), TargetError> {
+    let format = optional_text(request, "format")?
+        .map(|name| {
+            name.parse::<MatchesFormat>()
+                .map_err(|e| unavailable("reading `format`", e))
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let filter = match format {
+        MatchesFormat::V1 => SearchFilter::default(),
+        MatchesFormat::V2 => SearchFilter::new(
+            optional_text(request, "type")?,
+            optional_integer(request, "from")?,
+            optional_integer(request, "to")?,
+        ),
+    };
+    Ok((format, filter))
+}
+
 /// `ProjectTimeline`'s input, bounded.
 fn timeline_request(
     request: &SemanticCommandRequest,
@@ -792,10 +831,14 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
             ))
         }
         DESCRIBE_NODE => Read::Describe(node_id(&text(request, "node")?, "node")?),
-        SEARCH_NODES => Read::Search(SearchRequest::new(
-            text(request, "text")?,
-            required_integer(request, "limit")?,
-        )),
+        SEARCH_NODES => {
+            let (format, filter) = search_input(request)?;
+            Read::Search(
+                SearchRequest::new(text(request, "text")?, required_integer(request, "limit")?),
+                format,
+                filter,
+            )
+        }
         PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
         CHANGES_SINCE => Read::Changes(changes_request(request)?),
         FIND_CODE_NAMES => Read::CodeNames(
@@ -953,6 +996,34 @@ fn answer(
             Err(refusal) => Ok((changes_refused(command, refusal)?, None)),
         };
     }
+    if let Read::Search(request, format, filter) = read {
+        // The bound first: a broken one is refused before the store is read.
+        let request = match request {
+            Ok(request) => request,
+            Err(refusal) => return Ok((limit_exceeded(command, &refusal)?, None)),
+        };
+        let searched = Index::load(runtime, at)
+            .map_err(SearchError::Project)
+            .and_then(|index| index.search_as(format, &request, &filter));
+        return match searched {
+            Ok(answer) => Ok((took("searched", nodes_searched(&answer.summary)?)?, None)),
+            Err(SearchError::NodeTypeNotFound {
+                node_type,
+                revision,
+            }) => Ok((
+                SemanticCommandResult::took(outcome_ref(command, "node-type-not-found")?)
+                    .with_error(
+                        error("ekr.views.NodeTypeNotFound")?
+                            .with("type", Node::Text(node_type))
+                            .with("revision", integer(revision.get())?),
+                    ),
+                None,
+            )),
+            Err(SearchError::Project(error)) => {
+                Ok((refused(command, QueryError::Project(error))?, None))
+            }
+        };
+    }
     if let Read::CodeNames(sources, mode) = read {
         return match ekr_views::find_code_names_with_mode(runtime, at, &sources, mode) {
             Ok(answer) => Ok((took("found", code_names_found(&answer.summary)?)?, None)),
@@ -964,6 +1035,7 @@ fn answer(
         match read {
             Read::Graph
             | Read::Changes(_)
+            | Read::Search(..)
             | Read::CodeNames(_, _)
             | Read::Quality
             | Read::Ocel { .. }
@@ -984,12 +1056,6 @@ fn answer(
                 let index = Index::load(runtime, at)?;
                 let answer = index.describe(node)?;
                 Ok(node_described(&answer.summary).and_then(|e| took("described", e)))
-            }
-            Read::Search(request) => {
-                let request = request?;
-                let index = Index::load(runtime, at)?;
-                let answer = index.search(&request)?;
-                Ok(nodes_searched(&answer.summary).and_then(|e| took("searched", e)))
             }
             Read::Timeline(request) => {
                 let request = request?;
@@ -1132,6 +1198,20 @@ impl ConformanceTarget for ViewsTarget {
                 }
             }
         }
+        if control == Some(Control::NodeTypeAbsent) {
+            // The branch's state is a `type` naming no node type, which only /2 reads: the
+            // request's `type` (the undeclared type name when it names none) under /2, against
+            // the schema-evolution store, which declares neither.
+            if let Read::Search(search, _, _) = read {
+                let named = optional_text(&request, "type")?
+                    .unwrap_or_else(|| fixtures::UNDECLARED_TYPE_NAME.to_owned());
+                read = Read::Search(
+                    search,
+                    MatchesFormat::V2,
+                    SearchFilter::new(Some(named), None, None),
+                );
+            }
+        }
         if !scenario.stores.contains_key(&store) {
             let fixture = Fixture::named(&store).ok_or_else(|| {
                 TargetError::unsupported(
@@ -1145,7 +1225,10 @@ impl ConformanceTarget for ViewsTarget {
                 Some(Control::Unseeded) => {}
                 Some(Control::RevisionAbsent) => Fixture::SeedOnly.build(&runtime),
                 Some(
-                    Control::NodeAbsent | Control::EventTypeAbsent | Control::EventTimeInvalid,
+                    Control::NodeAbsent
+                    | Control::EventTypeAbsent
+                    | Control::EventTimeInvalid
+                    | Control::NodeTypeAbsent,
                 ) => {
                     Fixture::SchemaEvolution.build(&runtime);
                 }
@@ -1216,6 +1299,7 @@ impl ConformanceTarget for ViewsTarget {
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-type-not-found") => Control::EventTypeAbsent,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-time-invalid") => Control::EventTimeInvalid,
             (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,
+            (SEARCH_NODES, "node-type-not-found") => Control::NodeTypeAbsent,
             _ => {
                 return Err(TargetError::unsupported(
                     format!("establishing `{}`", request.force),

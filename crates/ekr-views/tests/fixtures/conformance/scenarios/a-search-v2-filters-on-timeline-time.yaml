@@ -1,0 +1,117 @@
+# ekr-mcp-fixes-20261015 #9: under ekr.node-matches/2 `from` and `to` admit only the nodes whose
+# time, as ekr.graph-timeline/1 defines it, falls in the window, both bounds included; within a
+# tier those come newest first, before degree.
+#
+# The store `search` is the one a-search-v2-matches-every-word-in-any-order describes. Two nodes
+# have a time, each its Integer `opened` value: `router outage` …c50201 at 1799568000000
+# (2027-01-10T08:00Z, degree 2) and `eu latency` …c50202 at 1803124800000 (2027-02-20T12:00Z,
+# degree 1). No Service and not `disk full` has one, so none of them is in any window.
+#   - January 2027, 1798761600000 (its first millisecond) to 1801439999999 (its last), the window
+#     a surface reads from `2027-01-01` and `2027-01-31`: router outage alone;
+#   - from 1801440000000 (2027-02-01), no `to`: eu latency alone;
+#   - from 1798761600000, no `to`: both, eu latency first, the newer, although its degree is lower;
+#   - both bounds at router outage's own time: router outage alone, so a bound is included;
+#   - from after to: nothing, and no refusal.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v2-filters-on-timeline-time
+summary: Under /2, from and to admit the node whose timeline time falls in the window and no other, newest first; a node with no time is in no window.
+
+timeline:
+  - at: 2027-03-01T12:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      from: 1798761600000
+      to: 1801439999999
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: ""
+          format: ekr.node-matches/2
+          matches: 1
+          total: 1
+          exact_total: 1
+          first_match: 00000000-0000-4000-8000-000000c50201
+          first_tier: Exact
+
+  - at: 2027-03-01T12:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      from: 1801440000000
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 1
+          total: 1
+          first_match: 00000000-0000-4000-8000-000000c50202
+
+  - at: 2027-03-01T12:02:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      from: 1798761600000
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 2
+          total: 2
+          first_match: 00000000-0000-4000-8000-000000c50202
+
+  - at: 2027-03-01T12:03:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      from: 1799568000000
+      to: 1799568000000
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 1
+          total: 1
+          first_match: 00000000-0000-4000-8000-000000c50201
+
+  - at: 2027-03-01T12:04:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      from: 1801440000000
+      to: 1798761600000
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 0
+          total: 0
+          exact_total: 0

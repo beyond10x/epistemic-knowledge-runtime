@@ -15,6 +15,10 @@
       "ekr.views/authored/a-revision-since-lists-the-changes-after-it",
       "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision",
       "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches",
+      "ekr.views/authored/a-search-v2-filters-on-timeline-time",
+      "ekr.views/authored/a-search-v2-lists-one-type-by-degree",
+      "ekr.views/authored/a-search-v2-matches-every-word-in-any-order",
+      "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier",
       "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
       "ekr.views/authored/a-seed-only-store-projects-revision-zero",
       "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound",
@@ -106,8 +110,28 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches"
       },
+      "a-search-v2-filters-on-timeline-time.yaml": {
+        "digest": "sha256:47ced8dbca3761f011761183ca86b6ecd67c6fef582d801ed101f42ccfcf45aa",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v2-filters-on-timeline-time"
+      },
+      "a-search-v2-lists-one-type-by-degree.yaml": {
+        "digest": "sha256:f0ff97def27dcb809e500d46ef36f729e054c68ac427af552bf33861529d77ea",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v2-lists-one-type-by-degree"
+      },
+      "a-search-v2-matches-every-word-in-any-order.yaml": {
+        "digest": "sha256:3f59932eeb48122bfd31572a050186605d685d1a9fa3e8d979ff0719920e05a8",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v2-matches-every-word-in-any-order"
+      },
+      "a-search-v2-ranks-a-whole-name-first-within-its-tier.yaml": {
+        "digest": "sha256:d3a630489a2a0dc985048c38dd7b68002069198a5ce782b8c1dea9ae3ce508ae",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier"
+      },
       "a-search-with-no-match-answers-an-empty-list.yaml": {
-        "digest": "sha256:df48ee2a1bf7db8a8ca2a6f15065d50a476e8d19700e2ec01fcf7840b8232ec6",
+        "digest": "sha256:4a7bba8355442daa55dc71b849fe4c8d3d0e643ed2b501384b2b1f6baeb131b7",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-search-with-no-match-answers-an-empty-list"
       },
@@ -203,8 +227,8 @@
       }
     },
     "counts": {
-      "authored": 33,
-      "generated": 52,
+      "authored": 37,
+      "generated": 53,
       "outside": 77,
       "refused": 0
     },
@@ -258,6 +282,7 @@
       "ekr.views.ReportStoreQuality/outcome/not-seeded",
       "ekr.views.ReportStoreQuality/outcome/reported",
       "ekr.views.SearchNodes/outcome/limit-exceeded",
+      "ekr.views.SearchNodes/outcome/node-type-not-found",
       "ekr.views.SearchNodes/outcome/not-found",
       "ekr.views.SearchNodes/outcome/not-seeded",
       "ekr.views.SearchNodes/outcome/searched"
@@ -2010,8 +2035,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "db1c9f30b7f9e5d8b6e2907542f61561e68ac735679e1c4957cc77d556369827",
-    "spec_digest": "dcf8c5bf7b44384be1b217c1fcab5f3d822b7e547a1b8dd5711693c0b2e166d3",
+    "contract_digest": "7e463aba2dbee02825192828317e8d6386eaf51a7adc0beed6358edb886c3b57",
+    "spec_digest": "908b48d0468b863a90d0214daa4a1d36154812dce3cd6d79d036a648b7ce591f",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -18403,6 +18428,14 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -18558,6 +18591,14 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "limit": {
               "kind": "literal",
               "value": 0.0
@@ -18569,6 +18610,14 @@
             "text": {
               "kind": "literal",
               "value": "text"
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "type": {
+              "kind": "literal",
+              "value": "type"
             }
           },
           "step": "execute_command"
@@ -18710,12 +18759,367 @@
         }
       ]
     },
+    "ekr.views.SearchNodes/outcome/node-type-not-found": {
+      "purpose": "`ekr.views.SearchNodes` answers `node-type-not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "node-type-not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageAbandoned"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StagePublished"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageSealed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeTypeNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "node-type-not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "text"
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "type": {
+              "kind": "literal",
+              "value": "type"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "node-type-not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeTypeNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageAbandoned",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StagePublished",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageSealed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
     "ekr.views.SearchNodes/outcome/not-found": {
       "purpose": "`ekr.views.SearchNodes` answers `not-found` for the cause it declares as external, injected",
       "source": [
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
         },
         {
           "kind": "type",
@@ -18881,6 +19285,14 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -18892,6 +19304,14 @@
             "text": {
               "kind": "literal",
               "value": "text"
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "type": {
+              "kind": "literal",
+              "value": "type"
             }
           },
           "step": "execute_command"
@@ -19039,6 +19459,14 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
         },
         {
           "kind": "type",
@@ -19204,6 +19632,14 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -19215,6 +19651,14 @@
             "text": {
               "kind": "literal",
               "value": "text"
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "type": {
+              "kind": "literal",
+              "value": "type"
             }
           },
           "step": "execute_command"
@@ -19373,6 +19817,18 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -19524,6 +19980,14 @@
               "kind": "literal",
               "value": 1.0
             },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "limit": {
               "kind": "literal",
               "value": 1.0
@@ -19535,6 +19999,14 @@
             "text": {
               "kind": "literal",
               "value": "text"
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "type": {
+              "kind": "literal",
+              "value": "type"
             }
           },
           "step": "execute_command"
@@ -19560,6 +20032,22 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
             },
             "matches": {
               "holds": "primitive",
@@ -25902,6 +26390,18 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.StoreLocation"
         },
         {
@@ -25986,6 +26486,22 @@
               "kind": "uuid",
               "optional": true
             },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -26054,6 +26570,22 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
             },
             "matches": {
               "holds": "primitive",
@@ -26168,6 +26700,1633 @@
         }
       ]
     },
+    "ekr.views/authored/a-search-v2-filters-on-timeline-time": {
+      "purpose": "Under /2, from and to admit the node whose timeline time falls in the window and no other, newest first; a node with no time is in no window.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1798761600000.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1801439999999.0
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 1.0,
+            "first_match": "00000000-0000-4000-8000-000000c50201",
+            "first_tier": "Exact",
+            "format": "ekr.node-matches/2",
+            "matches": 1.0,
+            "revision": 0.0,
+            "text": "",
+            "total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1801440000000.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_match": "00000000-0000-4000-8000-000000c50202",
+            "matches": 1.0,
+            "total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1798761600000.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_match": "00000000-0000-4000-8000-000000c50202",
+            "matches": 2.0,
+            "total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1799568000000.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1799568000000.0
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_match": "00000000-0000-4000-8000-000000c50201",
+            "matches": 1.0,
+            "total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "from": {
+              "kind": "literal",
+              "value": 1801440000000.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "to": {
+              "kind": "literal",
+              "value": 1798761600000.0
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "matches": 0.0,
+            "total": 0.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v2-lists-one-type-by-degree": {
+      "purpose": "Under /2, an empty text with type Incident, by name and again by id, lists exactly the three Incident nodes, highest degree first; a type name the ontology does not hold is refused.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "node-type-not-found"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeTypeNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "type": {
+              "kind": "literal",
+              "value": "Incident"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 3.0,
+            "first_match": "00000000-0000-4000-8000-000000c50201",
+            "first_tier": "Exact",
+            "format": "ekr.node-matches/2",
+            "matches": 3.0,
+            "revision": 0.0,
+            "text": "",
+            "total": 3.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000c50002"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_match": "00000000-0000-4000-8000-000000c50201",
+            "format": "ekr.node-matches/2",
+            "matches": 3.0,
+            "total": 3.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "type": {
+              "kind": "literal",
+              "value": "Service"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "format": "ekr.node-matches/2",
+            "matches": 4.0,
+            "total": 4.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": ""
+            },
+            "type": {
+              "kind": "literal",
+              "value": "incident"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "node-type-not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeTypeNotFound",
+          "fields": {
+            "revision": 0.0,
+            "type": "incident"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v2-matches-every-word-in-any-order": {
+      "purpose": "Under /2, \"widget router\" finds Widget-Router first with tier Words and Widget-Router-2 after it; under /1 it finds nothing; a one-word text has no Words tier.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "widget router"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_match": "00000000-0000-4000-8000-000000c50101",
+            "first_tier": "Words",
+            "format": "ekr.node-matches/2",
+            "matches": 2.0,
+            "revision": 0.0,
+            "text": "widget router",
+            "total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "router widget"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_match": "00000000-0000-4000-8000-000000c50101",
+            "first_tier": "Words",
+            "format": "ekr.node-matches/2",
+            "matches": 2.0,
+            "total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "widget router"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "format": "ekr.node-matches/1",
+            "matches": 0.0,
+            "total": 0.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "WIDGET-ROUTER"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_match": "00000000-0000-4000-8000-000000c50101",
+            "first_tier": "Folded",
+            "format": "ekr.node-matches/2",
+            "matches": 2.0,
+            "total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier": {
+      "purpose": "Under /2, \"eu\" answers the node named \"eu\" (degree 0) before \"prod-eu-central-9\" (degree 2); under /1 the higher degree comes first.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "eu"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 3.0,
+            "first_match": "00000000-0000-4000-8000-000000c50102",
+            "first_tier": "Exact",
+            "format": "ekr.node-matches/2",
+            "matches": 3.0,
+            "revision": 0.0,
+            "text": "eu",
+            "total": 3.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "search"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "eu"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 3.0,
+            "first_match": "00000000-0000-4000-8000-000000c50103",
+            "first_tier": "Exact",
+            "format": "ekr.node-matches/1",
+            "matches": 3.0,
+            "total": 3.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
     "ekr.views/authored/a-search-with-no-match-answers-an-empty-list": {
       "purpose": "A text in no name or alias answers no match; a text found only after lowercasing answers Folded matches; an Exact alias match of degree 1 comes before a Folded name match of degree 600.",
       "source": [
@@ -26186,6 +28345,18 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
         },
         {
           "kind": "type",
@@ -26261,6 +28432,22 @@
               "kind": "uuid",
               "optional": true
             },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -26333,6 +28520,22 @@
               "kind": "uuid",
               "optional": true
             },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -26404,6 +28607,303 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "absent-from-every-name"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "format": "ekr.node-matches/2",
+            "matches": 0.0,
+            "revision": 0.0,
+            "text": "absent-from-every-name",
+            "total": 0.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "LEAF-00"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_match": "00000000-0000-4000-8000-000000100001",
+            "first_tier": "Folded",
+            "format": "ekr.node-matches/2",
+            "matches": 9.0,
+            "text": "LEAF-00",
+            "total": 9.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "Hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 1.0,
+            "first_match": "00000000-0000-4000-8000-000000100258",
+            "first_tier": "Exact",
+            "format": "ekr.node-matches/2",
+            "matches": 2.0,
+            "text": "Hub",
+            "total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2"
+              ]
             },
             "matches": {
               "holds": "primitive",

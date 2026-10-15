@@ -17,7 +17,7 @@
 //! | tool | document |
 //! |---|---|
 //! | `overview` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes |
-//! | `search` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes |
+//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/2` unless `format` names `ekr.node-matches/1`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
 //! | `describe_node` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes |
 //! | `expand` | [`ekr_views::Index::expand`]'s whole `ekr.graph-slice/1` page |
 //! | `timeline` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes |
@@ -57,8 +57,8 @@ use ekr_core::{AssertionId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, ExpandRequest, Index, IndexCache, LimitExceeded,
-    OverviewRequest, OverviewSection, ProjectError, QueryError, SearchRequest, SinceKind,
-    TimelineRequest,
+    MatchesFormat, OverviewRequest, OverviewSection, ProjectError, QueryError, SearchError,
+    SearchRequest, SinceKind, TimelineRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -67,8 +67,8 @@ use serde_json::{json, Map, Value};
 
 use super::session::{Checked, Held, STORE_REPLACED};
 use super::view::{
-    head_document, not_a_node_id, project_refusal, since_not_one, LIMIT_EXCEEDED, NODE_NOT_FOUND,
-    SEARCH_LIMIT, SINCE_MALFORMED,
+    head_document, not_a_node_id, project_refusal, search_filter, since_not_one, LIMIT_EXCEEDED,
+    NODE_NOT_FOUND, NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::{Cli, Configured};
 use crate::exit::Failure;
@@ -470,14 +470,42 @@ impl Server {
         text(self.index(revision)?.overview_sections(&request)?.bytes)
     }
 
+    /// `ekr.node-matches/2` unless `format` names /1: `ekr view`'s `/search` with the format named
+    /// (`views.yaml`, `ekr.views.SearchNodes`), its inputs read and refused in the same order.
     fn search(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let SearchArguments {
             text: searched,
             limit,
+            format,
+            node_type,
+            from,
+            to,
             revision,
         } = decode(arguments)?;
+        let format = format
+            .map(|name| name.parse::<MatchesFormat>())
+            .transpose()
+            .map_err(|error| Unanswered::params(format!("arguments: {error}")))?
+            .unwrap_or(MatchesFormat::V2);
+        let filter = search_filter(
+            format,
+            node_type,
+            from.as_ref().map(WindowArgument::text).as_deref(),
+            to.as_ref().map(WindowArgument::text).as_deref(),
+        )
+        .map_err(|error| Unanswered::params(format!("arguments: {error}")))?;
         let request = SearchRequest::new(searched, limit.unwrap_or(SEARCH_LIMIT))?;
-        text(self.index(revision)?.search(&request)?.bytes)
+        let answer = self
+            .index(revision)?
+            .search_as(format, &request, &filter)
+            .map_err(|error| match error {
+                error @ SearchError::NodeTypeNotFound { .. } => Unanswered::Refused {
+                    name: NODE_TYPE_NOT_FOUND,
+                    message: error.to_string(),
+                },
+                SearchError::Project(error) => error.into(),
+            })?;
+        text(answer.bytes)
     }
 
     /// An id that is no node id names no node: refused as `ekr view` refuses it, after the
@@ -688,14 +716,44 @@ struct OverviewArguments {
     sections: Option<Vec<String>>,
 }
 
+/// `search`'s arguments. `text` is also taken as `query` and `q` (ekr-mcp-fixes-20261015 #6): an
+/// alias of the argument, which changes no answer; a call naming two of them is refused as a
+/// duplicate field.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SearchArguments {
+    #[serde(alias = "query", alias = "q")]
     text: String,
     #[serde(default)]
     limit: Option<i64>,
     #[serde(default)]
+    format: Option<String>,
+    #[serde(default, rename = "type")]
+    node_type: Option<String>,
+    #[serde(default)]
+    from: Option<WindowArgument>,
+    #[serde(default)]
+    to: Option<WindowArgument>,
+    #[serde(default)]
     revision: Option<u64>,
+}
+
+/// A search's `from` or `to`: a JSON integer of milliseconds, or the text `ekr view` takes.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum WindowArgument {
+    Millis(i64),
+    Text(String),
+}
+
+impl WindowArgument {
+    /// The bound as `ekr view`'s query gives it: an integer as its decimal text.
+    fn text(&self) -> String {
+        match self {
+            Self::Millis(millis) => millis.to_string(),
+            Self::Text(text) => text.clone(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -880,13 +938,32 @@ fn tools() -> Vec<Value> {
         tool(
             "search",
             "Search nodes",
-            "The ekr.node-matches/1 document: the nodes whose name or an alias contains the \
-             text, exact matches first.",
+            "The ekr.node-matches/2 document: the nodes whose name or an alias contains the \
+             text, or, for two or more words, every word in any order; exact matches first, a \
+             whole name first within each tier, each match with its type_name. With type, only \
+             that node type's nodes (an empty text lists them); with from and to, only nodes \
+             whose time falls in the window, newest first.",
             object(
                 json!({
-                    "text": {"type": "string", "description": "The text searched for; empty matches every node."},
+                    "text": {"type": "string", "description": "The text searched for; empty matches every node. Also taken as query or q."},
+                    "query": {"type": "string", "description": "The same argument as text."},
+                    "q": {"type": "string", "description": "The same argument as text."},
                     "limit": bounded(1, Some(SearchRequest::MAX_LIMIT),
                         "The most matches answered; 20 when absent."),
+                    "format": {
+                        "type": "string",
+                        "enum": [MatchesFormat::V1.name(), MatchesFormat::V2.name()],
+                        "description": "The format answered; ekr.node-matches/2 when absent. ekr.node-matches/1 takes no type, from or to.",
+                    },
+                    "type": {"type": "string", "description": "Only nodes of this node type, by id or by name."},
+                    "from": {
+                        "type": ["integer", "string"],
+                        "description": "The window's first instant: milliseconds since the epoch, or YYYY-MM-DD for that day's first millisecond (UTC).",
+                    },
+                    "to": {
+                        "type": ["integer", "string"],
+                        "description": "The window's last instant: milliseconds since the epoch, or YYYY-MM-DD for that day's last millisecond (UTC).",
+                    },
                     "revision": revision(),
                 }),
                 &["text"],

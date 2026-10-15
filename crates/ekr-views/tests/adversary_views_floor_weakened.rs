@@ -7,11 +7,11 @@
 //! The weakened scenario below is exactly what `ess 0.36.0 conform synthesize` (the command
 //! `views-provenance.json` records) writes when
 //! `a-search-with-no-match-answers-an-empty-list.yaml` is cut down to its first timeline entry
-//! with no `events:`: the suite still selects 41 scenarios, 17 authored, 0 refusals, and this
+//! with no `events:`: the suite still selects 90 scenarios, 37 authored, 0 refusals, and this
 //! scenario's steps are the committed scenario's first two (`execute_command`,
-//! `expect_outcome searched`), with the three `expect_event NodesSearched` payload checks and the
-//! two later searches gone. Its `source` drops `ekr.graph.NodeId`, `ekr.kernel.ContentHash` and
-//! `ekr.views.NodesSearched`, as the synthesis does.
+//! `expect_outcome searched`), with its `expect_event NodesSearched` payload checks and every later
+//! search gone. Its `source` drops `ekr.graph.NodeId`, `ekr.kernel.ContentHash`,
+//! `ekr.views.MatchTier` and `ekr.views.NodesSearched`, as the synthesis does.
 
 mod support;
 
@@ -41,6 +41,7 @@ fn weakened_suite() -> (String, usize, usize) {
     let dropped = [
         "ekr.graph.NodeId",
         "ekr.kernel.ContentHash",
+        "ekr.views.MatchTier",
         "ekr.views.NodesSearched",
     ];
     scenario["source"]
