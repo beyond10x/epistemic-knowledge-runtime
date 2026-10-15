@@ -756,15 +756,48 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
         );
 
         // explain and resolve: what the one-shot verb prints with the format named, byte for
-        // byte; ekr.explanation/3 and ekr.resolution/1 when the call names none.
+        // byte; ekr.explanation/3, scope cited, and ekr.resolution/1 when the call names none
+        // (ekr-mcp-fixes-20261015 #3, #7).
         let explained = server.document("explain", json!({"assertion": SEEDED_ASSERTION}));
         assert_eq!(
             explained,
-            world.ok(&["explain", SEEDED_ASSERTION, "--format", "ekr.explanation/3"]),
+            world.ok(&[
+                "explain",
+                SEEDED_ASSERTION,
+                "--format",
+                "ekr.explanation/3",
+                "--scope",
+                "cited"
+            ]),
             "{backend}: explain"
         );
+        for (arguments, verb) in [
+            (
+                json!({"assertion": SEEDED_ASSERTION, "scope": "all"}),
+                vec!["--format", "ekr.explanation/3", "--scope", "all"],
+            ),
+            (
+                json!({"assertion": SEEDED_ASSERTION, "documents": true, "scope": "cited"}),
+                vec![
+                    "--documents",
+                    "--format",
+                    "ekr.explanation/3",
+                    "--scope",
+                    "cited",
+                ],
+            ),
+        ] {
+            let mut argv = vec!["explain", SEEDED_ASSERTION];
+            argv.extend(verb);
+            assert_eq!(
+                server.document("explain", arguments.clone()),
+                world.ok(&argv),
+                "{backend}: explain {arguments}"
+            );
+        }
         let named: Value = serde_json::from_str(&explained).unwrap();
         assert_eq!(named["format"], "ekr.explanation/3", "{named}");
+        assert_eq!(named["scope"], "cited", "{named}");
         assert_eq!(
             named["names"]["00000000-0000-4000-8000-000000000203"], "CEO_OF",
             "{backend}: the relation the assertion states is named: {named}"
@@ -966,6 +999,19 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             (
                 "explain",
                 json!({"assertion": UNKNOWN}),
+                vec![
+                    "explain",
+                    UNKNOWN,
+                    "--format",
+                    "ekr.explanation/3",
+                    "--scope",
+                    "cited",
+                ],
+                "ekr.kernel.AssertionNotFound",
+            ),
+            (
+                "explain",
+                json!({"assertion": UNKNOWN, "format": "ekr.explanation/2"}),
                 vec!["explain", UNKNOWN],
                 "ekr.kernel.AssertionNotFound",
             ),
@@ -1039,6 +1085,16 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
                 json!({"hops": 1, "limit": 1, "subject": "alice"}),
             ),
             ("explain", json!({"assertion": "not-an-assertion-id"})),
+            // ekr-mcp-fixes-20261015 #7: a scope that is none, and a scope with /2, as the verb
+            // refuses `--scope` with them.
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "scope": "some"}),
+            ),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "format": "ekr.explanation/2", "scope": "all"}),
+            ),
             ("resolve", json!({"aliases": ["Acme"]})),
             (
                 "resolve",

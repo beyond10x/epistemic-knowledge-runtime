@@ -180,17 +180,46 @@ fn explain_with_format_v3_names_the_ids_it_holds_and_without_it_prints_v2_unchan
                 &before,
                 &format!("{backend} documents={documents}"),
             );
-            // Everything else is /2's.
+            // The seeded assertion cites the one evidence entry its chain lists, so the scope
+            // `cited` omits none (ekr-mcp-fixes-20261015 #7).
+            assert_eq!(named["scope"], "cited", "{backend}: {named}");
+            assert_eq!(named["omitted_evidence"], 0, "{backend}: {named}");
+            // Everything else is /2's, but that /3 answers no base64 `payload` beside its `text`.
             let mut rest = named.clone();
             let fields = rest.as_object_mut().unwrap();
-            fields.remove("names");
+            for added in ["names", "scope", "omitted_evidence"] {
+                fields.remove(added);
+            }
             fields.insert("format".to_owned(), json!("ekr.explanation/2"));
-            assert_eq!(rest, before, "{backend} documents={documents}");
+            let mut expected = before.clone();
+            for link in expected["links"].as_array_mut().unwrap() {
+                if link["kind"] == "Evidence" && link.get("text").is_some() {
+                    link.as_object_mut().unwrap().remove("payload");
+                }
+            }
+            assert_eq!(rest, expected, "{backend} documents={documents}");
         }
 
-        let refused = world.run(&["explain", SEEDED_ASSERTION, "--format", "ekr.explanation/4"]);
-        assert_eq!(refused.status.code(), Some(2), "{backend}: a usage error");
-        assert!(refused.stdout.is_empty(), "{backend}");
+        for verb in [
+            &["explain", SEEDED_ASSERTION, "--format", "ekr.explanation/4"][..],
+            &["explain", SEEDED_ASSERTION, "--scope", "all"][..],
+            &[
+                "explain",
+                SEEDED_ASSERTION,
+                "--format",
+                "ekr.explanation/2",
+                "--scope",
+                "cited",
+            ][..],
+        ] {
+            let refused = world.run(verb);
+            assert_eq!(
+                refused.status.code(),
+                Some(2),
+                "{backend} {verb:?}: a usage error"
+            );
+            assert!(refused.stdout.is_empty(), "{backend} {verb:?}");
+        }
     }
 }
 

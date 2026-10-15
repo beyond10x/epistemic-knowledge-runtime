@@ -1073,15 +1073,40 @@ types:
       - name: links
         type: List<ekr.kernel.ExplanationLink>
 
-  # ekr.explanation/3: ekr.explanation/2 — the same chain, link for link, rendered as /2 renders
-  # it, `--documents` included — with `names`, the names map ekr.views defines (its "Named
-  # formats" paragraph), read from the ontology of the revision the explanation captured, `at`:
-  # the node types, edge types and properties the links cite, by id. Like `--documents` it is
-  # the CLI's rendering of ekr.kernel.Explain's result, not another result of the command.
-  # Every object's keys ascend by their text, as in every document `ekr` prints. `ekr explain`
-  # prints /2 unless `--format ekr.explanation/3` asks for /3; the MCP tool `explain` answers /3
-  # unless its `format` names /2, and its answer is byte for byte what `ekr explain` prints for
-  # the same assertion and options with the format named.
+  # ekr.explanation/3: ekr.explanation/2's chain, scoped to the evidence it cites and bounded as a
+  # whole, with `names`, the names map ekr.views defines (its "Named formats" paragraph), read from
+  # the ontology of the revision the explanation captured, `at`: the node types, edge types and
+  # properties the links cite, by id. Like `--documents` it is the CLI's rendering of
+  # ekr.kernel.Explain's result, not another result of the command. Every object's keys ascend by
+  # their text, as in every document `ekr` prints. It is /2's rendering with these changes, in
+  # this order (ekr-mcp-fixes-20261015 #3, #7):
+  #   1. Scope (`scope`, ekr.kernel.EvidenceScope; `cited` when the request names none). `cited`
+  #      keeps every link but the Evidence links no Assertion link's `evidence` and no Attachment
+  #      link's `evidence_id` names, and `omitted_evidence` counts the Evidence links left out;
+  #      `all` keeps every link and `omitted_evidence` is 0. The other links, and the order of the
+  #      kept ones, are /2's. A transaction may list the evidence of a whole batch, which says
+  #      nothing about this assertion: /2 lists every Evidence link of it, so an assertion citing
+  #      one entry of a 247-entry batch answered 247.
+  #   2. With `--documents`, the kept links carry /2's records with no proposal record: a Proposal
+  #      link carries no `record`, and a `receipt` (a Commit link's, a Lifecycle or Attachment
+  #      link's commit's) carries no `proposal`, which the Proposal link names by `record_hash`;
+  #      and an Evidence link whose `text` is answered carries no `payload`, its base64 copy.
+  #      Every evidence window (`offset`, `limit`) is /2's.
+  #   3. `names` is read off the document so far, then `scope` and `omitted_evidence` are added.
+  #   4. The cap: while the document as `ekr` prints it — pretty JSON with keys ascending, two-space
+  #      indent and a final newline — is longer than 49152 bytes (48 KiB), the longest `text` of an
+  #      Evidence link, by its UTF-8 bytes, the first in link order among equals, is cut to its first
+  #      floor(n / 2) bytes, moved back to a character boundary, and its link marked
+  #      `truncated: true`, with `offset` (its first byte in the record, 0 when it had none) and
+  #      `record_length` (the whole record's bytes, its text's bytes when it had none). It stops when
+  #      the document fits, or when no Evidence link's text is longer than 0 bytes; the cap cuts no
+  #      other field, so a document without texts may stay longer than it.
+  # So two answers to one request are byte-identical, and each Evidence link left in it is one the
+  # chain cites (under `cited`). `ekr explain` prints /2 unless `--format ekr.explanation/3` asks
+  # for /3, and takes `--scope` only with /3 (a usage error otherwise); the MCP tool `explain`
+  # answers /3 with scope `cited` unless its `format` names /2 or its `scope` names `all`, and its
+  # answer is byte for byte what `ekr explain` prints for the same assertion and options with the
+  # format and the scope named.
   - name: ekr.kernel.ExplanationFormatV3
     kind: enum
     variants: [ekr.explanation/3]
@@ -1090,6 +1115,12 @@ types:
   - name: ekr.kernel.ExplanationFormat
     kind: enum
     variants: [ekr.explanation/2, ekr.explanation/3]
+
+  # Which Evidence links an ekr.explanation/3 keeps: `cited`, those the chain's Assertion and
+  # Attachment links name; `all`, every one /2 lists.
+  - name: ekr.kernel.EvidenceScope
+    kind: enum
+    variants: [cited, all]
 
   - name: ekr.kernel.ExplanationV3
     kind: struct
@@ -1104,6 +1135,10 @@ types:
         type: List<ekr.kernel.ExplanationLink>
       - name: names
         type: ekr.views.OntologyNames
+      - name: scope
+        type: ekr.kernel.EvidenceScope
+      - name: omitted_evidence
+        type: Integer
 
   # `ekr rejections` (story:validation-findings-read): each rejected transaction whose retained
   # rejection was validated against a revision in a range, with the issues that rejection record
