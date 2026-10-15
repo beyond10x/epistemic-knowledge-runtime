@@ -6,6 +6,10 @@
       "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample",
       "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
       "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
+      "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it",
+      "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group",
+      "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes",
+      "ekr.views/authored/a-node-detail-v2-on-a-type-id-names-the-type",
       "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
       "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log",
       "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type",
@@ -60,6 +64,26 @@
         "digest": "sha256:df4cd290bd3dbd5439915b05c7dc9b26c13545bf3eac2110f93cb3f1621fd8bd",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties"
+      },
+      "a-node-detail-v2-cuts-a-long-string-and-marks-it.yaml": {
+        "digest": "sha256:8fec4a7754e7bed6e0b3e88688fa9ad6c0e0586a03712299187357914b735ff2",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it"
+      },
+      "a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group.yaml": {
+        "digest": "sha256:ccf14e1c6c59f48321c2d7a015ebcc0490bea3eef0572c9e0d2442e3e4654c15",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group"
+      },
+      "a-node-detail-v2-lists-same-name-nodes.yaml": {
+        "digest": "sha256:852d78e30147315dc9f45ac9e877352fe4927984d778067db5ee60b8df1b47ac",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes"
+      },
+      "a-node-detail-v2-on-a-type-id-names-the-type.yaml": {
+        "digest": "sha256:d1717506fe28e7f28f2fa8c823369b333682c5c6f38c8905568b1850e918a77c",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-node-detail-v2-on-a-type-id-names-the-type"
       },
       "a-node-is-not-found-at-a-revision-before-it-existed.yaml": {
         "digest": "sha256:28468353011466283af648c786428dfab3e00a651c0b26a85402f76e99e18425",
@@ -203,8 +227,8 @@
       }
     },
     "counts": {
-      "authored": 33,
-      "generated": 52,
+      "authored": 37,
+      "generated": 55,
       "outside": 77,
       "refused": 0
     },
@@ -215,6 +239,9 @@
       "ekr.views.ChangesSince/outcome/not-seeded",
       "ekr.views.ChangesSince/outcome/since-malformed",
       "ekr.views.DescribeNode/outcome/described",
+      "ekr.views.DescribeNode/outcome/detailed",
+      "ekr.views.DescribeNode/outcome/limit-exceeded",
+      "ekr.views.DescribeNode/outcome/node-is-a-type",
       "ekr.views.DescribeNode/outcome/node-not-found",
       "ekr.views.DescribeNode/outcome/not-found",
       "ekr.views.DescribeNode/outcome/not-seeded",
@@ -2010,8 +2037,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "db1c9f30b7f9e5d8b6e2907542f61561e68ac735679e1c4957cc77d556369827",
-    "spec_digest": "dcf8c5bf7b44384be1b217c1fcab5f3d822b7e547a1b8dd5711693c0b2e166d3",
+    "contract_digest": "f3bb176969c100acda5886a35d14044a110e3030140e5d6f33472d4de36782f4",
+    "spec_digest": "ae36ed8b52a1a076a3ab2f256dd6803bbc45508606c03e0d741ca21cd74f3777",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -2150,6 +2177,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -2328,6 +2359,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -2486,6 +2521,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -2716,6 +2755,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -2911,6 +2954,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -3093,6 +3140,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -3247,6 +3298,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -3432,6 +3487,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -3586,6 +3645,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -3764,6 +3827,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -3799,6 +3866,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
         },
         {
           "kind": "type",
@@ -3921,6 +3992,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -3949,7 +4024,23 @@
           "actor": "ekr.views.Reader",
           "command": "ekr.views.DescribeNode",
           "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
               "kind": "literal",
               "value": 1.0
             },
@@ -4109,6 +4200,1116 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.DescribeNode/outcome/detailed": {
+      "purpose": "`ekr.views.DescribeNode` answers `detailed` for an input that satisfies that branch's guard",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.DetailGroupCount"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EdgeDirection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SameNameNode"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageAbandoned"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StagePublished"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageSealed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-1bbad18642ad"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "node": "00000000-0000-4000-8000-1bbad18642ad"
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageAbandoned",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StagePublished",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageSealed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.DescribeNode/outcome/limit-exceeded": {
+      "purpose": "`ekr.views.DescribeNode` answers `limit-exceeded` for an input that satisfies that branch's guard",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "limit-exceeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageAbandoned"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StagePublished"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageSealed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.LimitExceeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-1bbad18642ad"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageAbandoned",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StagePublished",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageSealed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.DescribeNode/outcome/node-is-a-type": {
+      "purpose": "`ekr.views.DescribeNode` answers `node-is-a-type` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TypeKind"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-is-a-type"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageAbandoned"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StagePublished"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageSealed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeIsAType"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-is-a-type"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-1bbad18642ad"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-is-a-type"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeIsAType",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageAbandoned",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StagePublished",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageSealed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -4140,6 +5341,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
         },
         {
           "kind": "type",
@@ -4262,6 +5467,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -4301,7 +5510,23 @@
           "actor": "ekr.views.Reader",
           "command": "ekr.views.DescribeNode",
           "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
               "kind": "literal",
               "value": 1.0
             },
@@ -4432,6 +5657,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -4463,6 +5692,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
         },
         {
           "kind": "type",
@@ -4585,6 +5818,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -4624,7 +5861,23 @@
           "actor": "ekr.views.Reader",
           "command": "ekr.views.DescribeNode",
           "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
               "kind": "literal",
               "value": 1.0
             },
@@ -4755,6 +6008,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -4786,6 +6043,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
         },
         {
           "kind": "type",
@@ -4908,6 +6169,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -4947,7 +6212,23 @@
           "actor": "ekr.views.Reader",
           "command": "ekr.views.DescribeNode",
           "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
             "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "edge_type"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
               "kind": "literal",
               "value": 1.0
             },
@@ -5075,6 +6356,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -5236,6 +6521,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -5441,6 +6730,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -5591,6 +6884,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -5765,6 +7062,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -5915,6 +7216,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -6096,6 +7401,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -6246,6 +7555,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -6427,6 +7740,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -6585,6 +7902,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -6804,6 +8125,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -6958,6 +8283,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -7140,6 +8469,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -7294,6 +8627,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -7483,6 +8820,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -7637,6 +8978,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -7826,6 +9171,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -7980,6 +9329,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -8169,6 +9522,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -8315,6 +9672,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -8492,6 +9853,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -8638,6 +10003,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -8815,6 +10184,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -8965,6 +10338,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -9185,6 +10562,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -9327,6 +10708,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -9504,6 +10889,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -9650,6 +11039,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -9827,6 +11220,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -9985,6 +11382,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -10207,6 +11608,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -10361,6 +11766,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -10535,6 +11944,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -10695,6 +12108,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -10869,6 +12286,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -11015,6 +12436,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -11184,6 +12609,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -11330,6 +12759,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -11499,6 +12932,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -11649,6 +13086,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -11865,6 +13306,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12015,6 +13460,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -12185,6 +13634,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12335,6 +13788,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -12512,6 +13969,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12662,6 +14123,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -12839,6 +14304,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12997,6 +14466,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -13285,6 +14758,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -13431,6 +14908,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -13608,6 +15089,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -13754,6 +15239,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -13931,6 +15420,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -14081,6 +15574,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -14277,6 +15774,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -14419,6 +15920,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -14596,6 +16101,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -14742,6 +16251,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -14919,6 +16432,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -15077,6 +16594,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -15259,6 +16780,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -15417,6 +16942,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -15606,6 +17135,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -15764,6 +17297,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -15953,6 +17490,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -16115,6 +17656,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -16360,6 +17905,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -16518,6 +18067,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -16696,6 +18249,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -16858,6 +18415,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -17029,6 +18590,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -17195,6 +18760,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -17393,6 +18962,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -17539,6 +19112,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -17708,6 +19285,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -17854,6 +19435,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -18023,6 +19608,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -18173,6 +19762,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -18377,6 +19970,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -18519,6 +20116,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -18689,6 +20290,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -18835,6 +20440,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -19012,6 +20621,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -19158,6 +20771,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -19335,6 +20952,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -19489,6 +21110,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -19686,6 +21311,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -22643,6 +24272,1532 @@
         }
       ]
     },
+    "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it": {
+      "purpose": "A 5,000-byte String property value is answered cut to 1,999 bytes, the longest prefix of at most 2,000 that ends on a character boundary, and marked truncated.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.DetailGroupCount"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EdgeDirection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SameNameNode"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "cut_values": 1.0,
+            "longest_value": 1999.0,
+            "properties": 1.0,
+            "truncated": true,
+            "values": 1.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "works_on"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "cut_values": 0.0,
+            "limit": 1.0,
+            "longest_value": 0.0,
+            "properties": 0.0,
+            "relations": [
+              {
+                "direction": "in",
+                "nodes": 1.0,
+                "total": 1.0,
+                "type": "00000000-0000-4000-8000-000000b00011"
+              }
+            ],
+            "truncated": false,
+            "values": 0.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group": {
+      "purpose": "A node with 120 incoming edges of one type and one of another is answered as two counted groups of at most 10 neighbours, and the larger group pages by edge type and after.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.DetailGroupCount"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EdgeDirection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SameNameNode"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "described"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "limit-exceeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.LimitExceeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "after": 0.0,
+            "limit": 10.0,
+            "node": "00000000-0000-4000-8000-000000b00100",
+            "properties": 1.0,
+            "relations": [
+              {
+                "direction": "in",
+                "next": 10.0,
+                "nodes": 10.0,
+                "total": 120.0,
+                "type": "00000000-0000-4000-8000-000000b00010"
+              },
+              {
+                "direction": "in",
+                "nodes": 1.0,
+                "total": 1.0,
+                "type": "00000000-0000-4000-8000-000000b00011"
+              }
+            ],
+            "revision": 0.0,
+            "truncated": true,
+            "values": 1.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "AFFECTS"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "after": 10.0,
+            "limit": 10.0,
+            "properties": 0.0,
+            "relations": [
+              {
+                "direction": "in",
+                "next": 20.0,
+                "nodes": 10.0,
+                "total": 120.0,
+                "type": "00000000-0000-4000-8000-000000b00010"
+              }
+            ],
+            "revision": 0.0,
+            "same_name": [],
+            "truncated": true,
+            "values": 0.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 110.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00010"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "after": 110.0,
+            "relations": [
+              {
+                "direction": "in",
+                "nodes": 10.0,
+                "total": 120.0,
+                "type": "00000000-0000-4000-8000-000000b00010"
+              }
+            ],
+            "truncated": false
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": "depends_on"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "properties": 0.0,
+            "relations": [],
+            "truncated": false
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 501.0
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "parameter": "limit",
+            "requested": 501.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "minimum": 0.0,
+            "parameter": "after",
+            "requested": -1.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "described"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "payload": {
+            "assertions": 1.0,
+            "edges": 121.0,
+            "neighbours": 121.0,
+            "node": "00000000-0000-4000-8000-000000b00100",
+            "referencing": 1.0,
+            "revision": 0.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "neighbours": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "referencing": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes": {
+      "purpose": "A Service and a Component sharing the name Widget-Router, one by an alias in another case, each list the other under same_name with its type name and degree.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.DetailGroupCount"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EdgeDirection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SameNameNode"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00100"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "node": "00000000-0000-4000-8000-000000b00100",
+            "same_name": [
+              {
+                "degree": 1.0,
+                "id": "00000000-0000-4000-8000-000000b00101",
+                "name": "router component",
+                "type": "00000000-0000-4000-8000-000000b00002",
+                "type_name": "Component"
+              }
+            ]
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00101"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "detailed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "payload": {
+            "node": "00000000-0000-4000-8000-000000b00101",
+            "properties": 0.0,
+            "relations": [
+              {
+                "direction": "out",
+                "nodes": 1.0,
+                "total": 1.0,
+                "type": "00000000-0000-4000-8000-000000b00011"
+              }
+            ],
+            "same_name": [
+              {
+                "degree": 121.0,
+                "id": "00000000-0000-4000-8000-000000b00100",
+                "name": "Widget-Router",
+                "type": "00000000-0000-4000-8000-000000b00001",
+                "type_name": "Service"
+              }
+            ],
+            "truncated": false
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cut_values": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "limit": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "longest_value": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "relations": {
+              "holds": "list"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "same_name": {
+              "holds": "list"
+            },
+            "truncated": {
+              "holds": "primitive",
+              "kind": "boolean"
+            },
+            "values": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-node-detail-v2-on-a-type-id-names-the-type": {
+      "purpose": "A /2 detail asked for a node type id or an edge type id is refused as NodeIsAType naming the type; the same id under /1 is NodeNotFound.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TypeKind"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-is-a-type"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeIsAType"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-is-a-type"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeIsAType",
+          "fields": {
+            "kind": "NodeType",
+            "node": "00000000-0000-4000-8000-000000b00001",
+            "revision": 0.0,
+            "type_name": "Service"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00010"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-is-a-type"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeIsAType",
+          "fields": {
+            "kind": "EdgeType",
+            "node": "00000000-0000-4000-8000-000000b00010",
+            "revision": 0.0,
+            "type_name": "affects"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-detail/1"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000b00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "bounded-detail"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeNotFound",
+          "fields": {
+            "node": "00000000-0000-4000-8000-000000b00001",
+            "revision": 0.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        }
+      ]
+    },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "purpose": "A node created at revision 1 is not found at revision 0 by describe or expand, is described at revision 1, and the overview counts it from the revision that recorded it.",
       "source": [
@@ -22665,6 +25820,10 @@
         {
           "kind": "type",
           "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
         },
         {
           "kind": "type",
@@ -32816,6 +35975,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
         },
         {
           "kind": "type",

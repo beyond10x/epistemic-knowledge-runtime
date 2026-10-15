@@ -71,7 +71,7 @@
 //! | `GET /evidence/<evidence id>[?revision=N]` | that revision's evidence's retained bytes (head when absent), `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown revision, id or bytes not retained |
 //! | `GET /overview[?revision=N&limit=L&sections=S]` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes: meta, the type counts and the `L` highest-degree nodes, and of `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; an unknown name is 400 `invalid-query`), `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
-//! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
+//! | `GET /node/<node id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, or with `F` `ekr.node-detail/2` [`ekr_views::Index::detail_v2`]'s: at most `L` (1 to 500, 10 when absent) values per property and neighbours per relation group, each group from neighbour `A` (0 when absent), only the edge type `E` names (its id or name) when given; `L`, `E` or `A` on a /1 request is 400 `invalid-query`, and a /2 request for a type id 404 `ekr.views.NodeIsAType`, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A]` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes: the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
@@ -106,9 +106,10 @@ use std::time::{Duration, Instant};
 use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::{PersistenceError, Runtime};
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded, Lineage,
-    OverviewRequest, OverviewSection, ProjectError, QueryError, RevisionIdentity, SearchRequest,
-    SinceKind, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
+    BucketWidth, ChangesError, ChangesRequest, DetailFormat, DetailRequest, ExpandRequest, Index,
+    IndexCache, LimitExceeded, Lineage, OverviewRequest, OverviewSection, ProjectError, QueryError,
+    RevisionIdentity, SearchRequest, SinceKind, SliceEdge, SliceMeta, SliceNode, SlicePage,
+    SliceRecord, TimelineRequest,
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -1070,6 +1071,68 @@ pub(super) const LIMIT_EXCEEDED: &str = "ekr.views.LimitExceeded";
 /// `ekr.views.NodeNotFound`: a node or seed the revision does not hold, or an id that is no node
 /// id.
 pub(super) const NODE_NOT_FOUND: &str = "ekr.views.NodeNotFound";
+/// `ekr.views.NodeIsAType`: an `ekr.node-detail/2` request whose id is a type of the revision's
+/// ontology, not a node (ekr-mcp-fixes-20261015 #10).
+pub(super) const NODE_IS_A_TYPE: &str = "ekr.views.NodeIsAType";
+
+/// A `DescribeNode` request as a surface reads it: the format, and for `ekr.node-detail/2` its
+/// bounds and narrowing, built before the store is read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum NodeDetail {
+    /// `ekr.node-detail/1`.
+    V1,
+    /// `ekr.node-detail/2`.
+    V2(DetailRequest),
+}
+
+/// The node-detail request `format` (`default` when absent), `limit`, `edge_type` and `after`
+/// name, as `/node/<id>`, the session's `describe` and the MCP `describe_node` all read it. The
+/// outer error is malformed input, which never reaches the command (`views.yaml`,
+/// ekr.views.DescribeNode): an `ekr.node-detail/1` request that names limit, edge_type or after.
+/// The inner one is `ekr.views.LimitExceeded`, before the store is read.
+pub(super) fn node_detail(
+    format: Option<DetailFormat>,
+    default: DetailFormat,
+    limit: Option<i64>,
+    edge_type: Option<String>,
+    after: Option<i64>,
+) -> Result<Result<NodeDetail, LimitExceeded>, String> {
+    match format.unwrap_or(default) {
+        DetailFormat::V1 if limit.is_some() || edge_type.is_some() || after.is_some() => Err(
+            "ekr.node-detail/1 answers the whole node; limit, edge_type and after are \
+             ekr.node-detail/2's"
+                .to_owned(),
+        ),
+        DetailFormat::V1 => Ok(Ok(NodeDetail::V1)),
+        DetailFormat::V2 => Ok(DetailRequest::new(limit, edge_type, after).map(NodeDetail::V2)),
+    }
+}
+
+/// Why `/node/<id>`, the session's `describe` or the MCP `describe_node` answered no detail.
+#[derive(Debug)]
+pub(super) enum DetailRefused {
+    /// The id is no node id: [`NODE_NOT_FOUND`], with [`not_a_node_id`]'s message.
+    NotANodeId(String),
+    /// What the read refused.
+    Query(QueryError),
+}
+
+/// The detail `detail` asks for of the node `id` names, from `index`: the bytes every surface
+/// answers for the same request.
+pub(super) fn describe(
+    index: &Index,
+    id: &str,
+    detail: &NodeDetail,
+) -> Result<Vec<u8>, DetailRefused> {
+    let Ok(node) = id.parse::<NodeId>() else {
+        return Err(DetailRefused::NotANodeId(not_a_node_id(id)));
+    };
+    match detail {
+        NodeDetail::V1 => index.describe(node).map(|answer| answer.bytes),
+        NodeDetail::V2(request) => index.detail_v2(node, request).map(|answer| answer.bytes),
+    }
+    .map_err(DetailRefused::Query)
+}
 
 /// The `ekr.views` refusal a revision that could not be loaded names — `NotSeeded` or
 /// `RevisionNotFound` — or `None` for a store that could not be read, which is a fault.
@@ -1093,6 +1156,7 @@ fn query_refused(what: &str, error: QueryError) -> Reply {
     match error {
         QueryError::LimitExceeded(error) => limit_exceeded(&error),
         error @ QueryError::NodeNotFound { .. } => Reply::refusal(404, NODE_NOT_FOUND, error),
+        error @ QueryError::NodeIsAType { .. } => Reply::refusal(404, NODE_IS_A_TYPE, error),
         QueryError::Project(error) => refused(what, error),
     }
 }
@@ -1116,7 +1180,9 @@ fn overview(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
     Ok(Reply::ok(JSON, answer.bytes))
 }
 
-/// `/node/<id>[?revision=N]`: an id that is not a node id names no node, so it is 404
+/// `/node/<id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]`: `ekr.node-detail/1`
+/// unless `F` names `ekr.node-detail/2`, which `L`, `E` and `A` bound and narrow (a /1 request
+/// naming one is `invalid-query`). An id that is not a node id names no node, so it is 404
 /// `ekr.views.NodeNotFound` too — refused where views.yaml orders that refusal, after the store
 /// is read and found seeded and holding the revision.
 fn node(
@@ -1125,18 +1191,34 @@ fn node(
     id: &str,
     query: &str,
 ) -> Result<Reply, Reply> {
-    let query = Query::parse(query, &["revision"]).map_err(invalid_query)?;
+    let query = Query::parse(
+        query,
+        &["revision", "format", "limit", "edge_type", "after"],
+    )
+    .map_err(invalid_query)?;
     let at = query.revision().map_err(invalid_query)?;
+    let format = query
+        .get("format")
+        .map(str::parse::<DetailFormat>)
+        .transpose()
+        .map_err(invalid_query)?;
+    let detail = node_detail(
+        format,
+        DetailFormat::V1,
+        query.integer("limit").map_err(invalid_query)?,
+        query.get("edge_type").map(str::to_owned),
+        query.integer("after").map_err(invalid_query)?,
+    )
+    .map_err(invalid_query)?
+    .map_err(|error| limit_exceeded(&error))?;
     let index = indexes
         .index(runtime, at)
         .map_err(|error| refused("node", error))?;
-    let Ok(node) = id.parse::<NodeId>() else {
-        return Err(Reply::refusal(404, NODE_NOT_FOUND, not_a_node_id(id)));
-    };
-    let answer = index
-        .describe(node)
-        .map_err(|error| query_refused("node", error))?;
-    Ok(Reply::ok(JSON, answer.bytes))
+    let bytes = describe(&index, id, &detail).map_err(|refusal| match refusal {
+        DetailRefused::NotANodeId(message) => Reply::refusal(404, NODE_NOT_FOUND, message),
+        DetailRefused::Query(error) => query_refused("node", error),
+    })?;
+    Ok(Reply::ok(JSON, bytes))
 }
 
 /// Why an id that is no node id names no node: [`NODE_NOT_FOUND`]'s message for it.

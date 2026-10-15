@@ -1,0 +1,72 @@
+# ekr-mcp-fixes-20261015 #11: ekr.node-detail/2 lists the other nodes that share a name with the
+# described one, so a reader learns that one thing is recorded as several nodes.
+#
+# The store `bounded-detail` is the one a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-
+# a-group describes. The Service `Widget-Router` 00000000-0000-4000-8000-000000b00100 (degree 121)
+# and the Component `router component` 00000000-0000-4000-8000-000000b00101 (degree 1) share a
+# name: the component's alias `widget-router` equals the router's canonical name once both are
+# lowercased.
+#
+# What is held:
+#   - the router's /2 detail lists the component under same_name, with its type, the type's name
+#     Component, its canonical name and its degree 1;
+#   - the component's /2 detail lists the router, with Service and degree 121;
+#   - no alert shares a name with either, so neither list holds one.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-node-detail-v2-lists-same-name-nodes
+summary: A Service and a Component sharing the name Widget-Router, one by an alias in another case, each list the other under same_name with its type name and degree.
+
+timeline:
+  - at: 2027-01-16T10:00:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          node: 00000000-0000-4000-8000-000000b00100
+          same_name:
+            - id: 00000000-0000-4000-8000-000000b00101
+              type: 00000000-0000-4000-8000-000000b00002
+              type_name: Component
+              name: router component
+              degree: 1
+
+  - at: 2027-01-16T10:01:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00101
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          node: 00000000-0000-4000-8000-000000b00101
+          same_name:
+            - id: 00000000-0000-4000-8000-000000b00100
+              type: 00000000-0000-4000-8000-000000b00001
+              type_name: Service
+              name: Widget-Router
+              degree: 121
+          properties: 0
+          relations:
+            - type: 00000000-0000-4000-8000-000000b00011
+              direction: out
+              total: 1
+              nodes: 1
+          truncated: false

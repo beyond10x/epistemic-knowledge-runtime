@@ -6,9 +6,9 @@
 //! mcp`'s `expand` answers, not NDJSON), `/timeline` and `/changes` — through the same
 //! `ekr_views` calls, with the same bounds checked in the same order, and refuses what that route
 //! refuses by the same name and message: `ekr.views.LimitExceeded` and `ekr.views.SinceMalformed`
-//! before the store is read, then `ekr.views.NotSeeded`, `ekr.views.RevisionNotFound` and
-//! `ekr.views.NodeNotFound`, each a named refusal (exit 2). A query `ekr view` answers
-//! `invalid-query` is an argv clap does not take here: a usage error.
+//! before the store is read, then `ekr.views.NotSeeded`, `ekr.views.RevisionNotFound`,
+//! `ekr.views.NodeNotFound` and `ekr.views.NodeIsAType`, each a named refusal (exit 2). A query
+//! `ekr view` answers `invalid-query` is an argv clap does not take here: a usage error.
 //!
 //! These are session verbs only: `ekr` has no one-shot verb of these names. A request is parsed
 //! by [`ViewsCli`] when the one-shot verbs' definitions name no such verb.
@@ -20,14 +20,16 @@ use clap::{Parser, Subcommand, ValueEnum};
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded,
-    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, TimelineRequest,
+    BucketWidth, ChangesError, ChangesRequest, DetailFormat, ExpandRequest, IndexCache,
+    LimitExceeded, OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind,
+    TimelineRequest,
 };
 use serde_json::Value;
 
 use super::super::view::{
-    not_a_node_id, overview_sections, project_refusal, since_not_one, OverviewSections,
-    LIMIT_EXCEEDED, NODE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
+    describe, node_detail, overview_sections, project_refusal, since_not_one, DetailRefused,
+    OverviewSections, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, SEARCH_LIMIT,
+    SINCE_MALFORMED,
 };
 use super::super::Backend;
 use crate::exit::Failure;
@@ -101,10 +103,25 @@ pub(super) enum Verb {
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
-    /// `GET /node/<id>`: the `ekr.node-detail/1` document of one node.
+    /// `GET /node/<id>`: the `ekr.node-detail/1` document of one node, or with `--format
+    /// ekr.node-detail/2` its bounded `ekr.node-detail/2`.
     Describe {
         /// The node's id; one that is no node id names no node (`ekr.views.NodeNotFound`).
         node: String,
+        /// The format answered: `ekr.node-detail/1` (the default) or `ekr.node-detail/2`.
+        #[arg(long, value_parser = detail_format)]
+        format: Option<DetailFormat>,
+        /// For `ekr.node-detail/2`, the most values per property and neighbours per relation
+        /// group, 1 to 500; 10 when absent.
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
+        limit: Option<i64>,
+        /// For `ekr.node-detail/2`, only this edge type's relation groups, by its id or name.
+        #[arg(long = "edge-type")]
+        edge_type: Option<String>,
+        /// For `ekr.node-detail/2`, the first neighbour of each relation group to answer: a
+        /// group's `next`; 0 when absent.
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
+        after: Option<i64>,
         /// The committed revision to read; the head when absent.
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
@@ -197,6 +214,11 @@ fn revision_number(value: &str) -> Result<u64, String> {
         .map_err(|_| format!("{value:?} is not a revision number"))
 }
 
+/// A node-detail format as `ekr view` reads `/node/<id>`'s `format`: its literal.
+fn detail_format(value: &str) -> Result<DetailFormat, String> {
+    value.parse().map_err(|error| format!("{error}"))
+}
+
 /// `argv` as a views request: `None` when it names no views verb, so the one-shot verbs'
 /// refusal stands; a refusal for help and version, as for every verb; clap's usage message for
 /// anything else it does not take.
@@ -254,12 +276,24 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
             index.search(&request).map_err(project)?.bytes
         }
-        Verb::Describe { node, revision: at } => {
+        Verb::Describe {
+            node,
+            format,
+            limit,
+            edge_type,
+            after,
+            revision: at,
+        } => {
+            let detail = node_detail(*format, DetailFormat::V1, *limit, edge_type.clone(), *after)
+                .map_err(|message| Failure::Usage {
+                    message: format!("error: {message}\n"),
+                })?
+                .map_err(limit_exceeded)?;
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            let Ok(id) = node.parse::<NodeId>() else {
-                return Err(Failure::refused(NODE_NOT_FOUND, not_a_node_id(node)));
-            };
-            index.describe(id).map_err(query)?.bytes
+            describe(&index, node, &detail).map_err(|refusal| match refusal {
+                DetailRefused::NotANodeId(message) => Failure::refused(NODE_NOT_FOUND, message),
+                DetailRefused::Query(error) => query(error),
+            })?
         }
         Verb::Expand {
             seeds,
@@ -329,6 +363,7 @@ fn query(error: QueryError) -> Failure {
     match error {
         QueryError::LimitExceeded(error) => limit_exceeded(error),
         error @ QueryError::NodeNotFound { .. } => Failure::refused(NODE_NOT_FOUND, error),
+        error @ QueryError::NodeIsAType { .. } => Failure::refused(NODE_IS_A_TYPE, error),
         QueryError::Project(error) => project(error),
     }
 }

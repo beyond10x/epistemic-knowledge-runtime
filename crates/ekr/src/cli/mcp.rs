@@ -18,7 +18,7 @@
 //! |---|---|
 //! | `overview` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes |
 //! | `search` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes |
-//! | `describe_node` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes |
+//! | `describe_node` | [`ekr_views::Index::detail_v2`]'s `ekr.node-detail/2` bytes, bounded by `limit` and narrowed by `edge_type` and `after`; with `full: true`, [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes. Each is what `ekr view` serves at `/node/<id>` with that `format` named |
 //! | `expand` | [`ekr_views::Index::expand`]'s whole `ekr.graph-slice/1` page |
 //! | `timeline` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes |
 //! | `changes_since` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes |
@@ -56,9 +56,9 @@ use std::sync::Arc;
 use ekr_core::{AssertionId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, Index, IndexCache, LimitExceeded,
-    OverviewRequest, OverviewSection, ProjectError, QueryError, SearchRequest, SinceKind,
-    TimelineRequest,
+    BucketWidth, ChangesError, ChangesRequest, DetailFormat, DetailRequest, ExpandRequest, Index,
+    IndexCache, LimitExceeded, OverviewRequest, OverviewSection, ProjectError, QueryError,
+    SearchRequest, SinceKind, TimelineRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -67,8 +67,8 @@ use serde_json::{json, Map, Value};
 
 use super::session::{Checked, Held, STORE_REPLACED};
 use super::view::{
-    head_document, not_a_node_id, project_refusal, since_not_one, LIMIT_EXCEEDED, NODE_NOT_FOUND,
-    SEARCH_LIMIT, SINCE_MALFORMED,
+    describe, head_document, node_detail, project_refusal, since_not_one, DetailRefused,
+    LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::{Cli, Configured};
 use crate::exit::Failure;
@@ -281,6 +281,10 @@ impl From<QueryError> for Unanswered {
                 name: NODE_NOT_FOUND,
                 message: error.to_string(),
             },
+            error @ QueryError::NodeIsAType { .. } => Self::Refused {
+                name: NODE_IS_A_TYPE,
+                message: error.to_string(),
+            },
             QueryError::Project(error) => error.into(),
         }
     }
@@ -480,18 +484,41 @@ impl Server {
         text(self.index(revision)?.search(&request)?.bytes)
     }
 
-    /// An id that is no node id names no node: refused as `ekr view` refuses it, after the
-    /// revision is read.
+    /// `ekr.node-detail/2` unless `full` asks for `ekr.node-detail/1`: byte for byte what `ekr
+    /// view`'s `/node/<id>` answers with that format named (ekr-mcp-fixes-20261015 #1). An id
+    /// that is no node id names no node: refused as `ekr view` refuses it, after the revision is
+    /// read.
     fn describe_node(&mut self, arguments: Value) -> Result<String, Unanswered> {
-        let DescribeArguments { node, revision } = decode(arguments)?;
-        let index = self.index(revision)?;
-        let Ok(id) = node.parse::<NodeId>() else {
-            return Err(Unanswered::Refused {
-                name: NODE_NOT_FOUND,
-                message: not_a_node_id(&node),
-            });
+        let DescribeArguments {
+            node,
+            revision,
+            limit,
+            edge_type,
+            after,
+            full,
+        } = decode(arguments)?;
+        let format = if full {
+            DetailFormat::V1
+        } else {
+            DetailFormat::V2
         };
-        text(index.describe(id)?.bytes)
+        let detail =
+            node_detail(Some(format), format, limit, edge_type, after).map_err(|_| {
+                Unanswered::params(
+                    "`full` answers the whole ekr.node-detail/1, which takes no `limit`, \
+                     `edge_type` or `after`",
+                )
+            })??;
+        let index = self.index(revision)?;
+        text(
+            describe(&index, &node, &detail).map_err(|refusal| match refusal {
+                DetailRefused::NotANodeId(message) => Unanswered::Refused {
+                    name: NODE_NOT_FOUND,
+                    message,
+                },
+                DetailRefused::Query(error) => error.into(),
+            })?,
+        )
     }
 
     fn expand(&mut self, arguments: Value) -> Result<String, Unanswered> {
@@ -704,6 +731,14 @@ struct DescribeArguments {
     node: String,
     #[serde(default)]
     revision: Option<u64>,
+    #[serde(default)]
+    limit: Option<i64>,
+    #[serde(default)]
+    edge_type: Option<String>,
+    #[serde(default)]
+    after: Option<i64>,
+    #[serde(default)]
+    full: bool,
 }
 
 #[derive(Deserialize)]
@@ -895,11 +930,27 @@ fn tools() -> Vec<Value> {
         tool(
             "describe_node",
             "Describe node",
-            "The ekr.node-detail/1 document of one node: its record, every assertion about it or \
-             naming it, every edge at it, and the nodes those name.",
+            "The ekr.node-detail/2 document of one node, bounded for your context: its record \
+             with its type's name; same_name, other nodes sharing its name or an alias (the same \
+             thing recorded twice, whose facts may sit there); its property values by property, \
+             newest first, long text cut and marked truncated; and its neighbours grouped by edge \
+             type and direction (out: this node is the source), each group named, with its total \
+             and its highest-degree neighbours, each neighbour with the relation assertion id \
+             `explain` takes. To read more of one group, ask again with edge_type (its id or \
+             name) and after set to the group's next. A type id is refused by name: `overview` \
+             lists the types. `full: true` answers the unbounded ekr.node-detail/1 instead, which \
+             can be megabytes for a node with many edges.",
             object(
                 json!({
                     "node": node_id("The node's id, as search, overview or expand answer it."),
+                    "limit": bounded(1, Some(DetailRequest::MAX_LIMIT),
+                        "The most values per property, neighbours per group and same-name nodes; 10 when absent."),
+                    "edge_type": {"type": "string",
+                        "description": "Only this edge type's groups, by its id or name, paged with after."},
+                    "after": bounded(0, None,
+                        "The first neighbour of each group to answer: a group's next; 0 when absent."),
+                    "full": {"type": "boolean",
+                        "description": "Answer the whole ekr.node-detail/1 (every assertion and edge, unbounded), which takes no limit, edge_type or after; false when absent."},
                     "revision": revision(),
                 }),
                 &["node"],

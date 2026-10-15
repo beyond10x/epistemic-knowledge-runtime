@@ -4,6 +4,28 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr.node-detail/2`, one node bounded for an agent's context (ekr-mcp-fixes-20261015 #1, #10,
+  #11). `ekr.node-detail/1` lists every assertion and edge of the node, so a node with thousands
+  of edges answered megabytes. `/2` answers the record with its type's name; `same_name`, the
+  other nodes sharing its name or an alias, compared lowercased; its property values grouped by
+  property and named, newest first, a String over 2,000 bytes cut on a character boundary and
+  marked `truncated`; and its neighbours grouped by edge type and direction, each group named
+  and counted, listing at most `limit` (10 by default, up to 500) by degree, each with the newest
+  Relation assertion between the two. `edge_type` (an id or a name) and `after` page one edge
+  type's groups. An `ekr.node-detail/2` request for a node type or edge type id is refused as
+  `ekr.views.NodeIsAType`, naming the type; `/1` still answers `ekr.views.NodeNotFound` for it.
+  `ekr view` serves it at `/node/<id>?format=ekr.node-detail/2[&limit=L][&edge_type=E][&after=A]`
+  and the session's `describe` with `--format ekr.node-detail/2`; both keep answering `/1` by
+  default, byte for byte as before.
+
+### Changed
+
+- The MCP tool `describe_node` answers `ekr.node-detail/2` by default, byte for byte what
+  `ekr view` serves for the same request with the format named, and takes `limit`, `edge_type`
+  and `after`; `full: true` answers the whole `ekr.node-detail/1` as before.
+
 ## [0.0.34] — 2026-10-14
 
 ### Added

@@ -70,6 +70,10 @@ pub struct Index {
     pub(crate) edge_type: Vec<TypeId>,
     /// The timeline's row types, ranked on first use.
     pub(crate) row_types: OnceLock<Vec<RowTypeRank>>,
+    /// The ontology's type names, read on first use (`detail.rs`).
+    pub(crate) labels: OnceLock<crate::detail::Labels>,
+    /// Nodes by lowercased name and alias, built on first use (`detail.rs`).
+    pub(crate) folded_names: OnceLock<HashMap<String, Vec<u32>>>,
 }
 
 /// One candidate row type of the timeline, with what ranks it (`ekr.views.TimelineRowType`).
@@ -258,6 +262,8 @@ impl Index {
             edge_source,
             edge_type,
             row_types: OnceLock::new(),
+            labels: OnceLock::new(),
+            folded_names: OnceLock::new(),
             overview: OverviewParts {
                 ontology: Err(String::new()),
                 schema: Err(String::new()),

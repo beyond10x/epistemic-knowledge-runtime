@@ -181,7 +181,7 @@
     "counts": {
       "authored": 29,
       "generated": 36,
-      "outside": 93,
+      "outside": 96,
       "refused": 0
     },
     "generated": [
@@ -1098,6 +1098,43 @@
           {
             "kind": "command",
             "name": "ekr.views.DescribeNode"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.NodeDetailed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/detailed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/node-is-a-type"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
           }
         ],
         "origin": "generated",
@@ -1658,8 +1695,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "db1c9f30b7f9e5d8b6e2907542f61561e68ac735679e1c4957cc77d556369827",
-    "spec_digest": "dcf8c5bf7b44384be1b217c1fcab5f3d822b7e547a1b8dd5711693c0b2e166d3",
+    "contract_digest": "f3bb176969c100acda5886a35d14044a110e3030140e5d6f33472d4de36782f4",
+    "spec_digest": "ae36ed8b52a1a076a3ab2f256dd6803bbc45508606c03e0d741ca21cd74f3777",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -1832,6 +1869,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -2158,6 +2199,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -2375,6 +2420,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -3728,6 +3777,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -3912,6 +3965,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -4206,6 +4263,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -4393,6 +4454,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -4545,6 +4610,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -4705,6 +4774,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -5178,6 +5251,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -5320,6 +5397,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -5483,6 +5564,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -5625,6 +5710,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -5787,6 +5876,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -6946,6 +7039,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -7372,6 +7469,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -8275,6 +8376,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -8690,6 +8795,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -9267,6 +9376,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -9703,6 +9816,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -9881,6 +9998,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -10295,6 +10416,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -10494,6 +10619,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -10820,6 +10949,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -11035,6 +11168,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -11286,6 +11423,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -11508,6 +11649,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -11802,6 +11947,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12017,6 +12166,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -12268,6 +12421,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12455,6 +12612,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -12617,6 +12778,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -12763,6 +12928,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -12925,6 +13094,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -13094,6 +13267,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -13314,6 +13491,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -13503,6 +13684,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -13665,6 +13850,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -13807,6 +13996,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -13972,6 +14165,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -14125,6 +14322,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -14778,6 +14979,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -14940,6 +15145,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -15169,6 +15378,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -15354,6 +15567,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -15520,6 +15737,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -15666,6 +15887,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -15827,6 +16052,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -16003,6 +16232,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -16254,6 +16487,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -16441,6 +16678,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.NodesSearched"
         },
         {
@@ -16607,6 +16848,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
         },
@@ -16749,6 +16994,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -16908,6 +17157,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {
@@ -17084,6 +17337,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
         },
         {
           "kind": "event",
@@ -17332,6 +17589,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
           "step": "expect_no_event"
         },
         {

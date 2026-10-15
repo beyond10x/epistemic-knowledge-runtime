@@ -12,7 +12,8 @@ summary: >-
   Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/2
   (ProjectOverview, which answers only the sections a request names; its predecessor
   ekr.graph-overview/1 is every section, and stays specified below), ekr.graph-slice/1
-  (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode), ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
+  (ExpandNeighbourhood), ekr.node-detail/1 and its bounded successor ekr.node-detail/2 (DescribeNode, by
+  its `format`), ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
   any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
   revisions up to one revision changed after a revision or a time. ekr.store-quality/1
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
@@ -73,6 +74,11 @@ summary: >-
   which is not id order; meta.seeds and each edge's assertions by id.
   ekr.node-detail/1 — assertions, edges and neighbours by id; referencing by its assertion's id;
   node.aliases and each props value list in the store's order; props keys ascending by their text.
+  ekr.node-detail/2 — same_name by degree descending, then id; properties by property id; each
+  group's values the record's in the store's order, then its assertions newest first
+  (ekr.views.DetailPropertyGroup); each value's evidence by id; relations by total descending,
+  then type id, then direction in the order ekr.views.EdgeDirection declares its variants; each
+  group's nodes by degree descending, then id; node.aliases in the store's order.
   ekr.node-matches/1 — matches by tier (Exact before Folded), then degree descending, then id;
   never by a name.
   ekr.graph-timeline/1 — row_types by weight / nodes descending, compared exactly as rationals,
@@ -96,7 +102,9 @@ summary: >-
   answers invalid-query, the MCP tool -32602);
   then an unseeded store answers NotSeeded; then a revision beyond the head answers
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
-  does not hold answers NodeNotFound.
+  does not hold answers NodeNotFound — for an ekr.node-detail/2 request whose id no node holds
+  and a node type or edge type of the revision's ontology does, NodeIsAType instead. A DescribeNode
+  edge_type that names no edge type of the revision is no refusal: it answers no relation group.
 
   Evidence without retained bytes is unreachable. Evidence enters canonical state in two ways, and
   both carry its bytes: with the seed, whose envelope retains each payload, and through an
@@ -503,6 +511,19 @@ types:
   - name: ekr.views.NodeDetailFormatV1
     kind: enum
     variants: [ekr.node-detail/1]
+
+  - name: ekr.views.NodeDetailFormatV2
+    kind: enum
+    variants: [ekr.node-detail/2]
+
+  # Which node-detail format a DescribeNode request asks for (ekr-mcp-fixes-20261015 #1). Absent
+  # at the command, /1. Each surface fills it in before the command sees the request: `ekr view`'s
+  # `/node/<id>` and the session's `describe` send /1 unless their `format` names /2; the MCP tool
+  # `describe_node` sends /2 unless its `full` is true. The MCP answer for a request is byte for
+  # byte `ekr view`'s for the same request with the format named explicitly.
+  - name: ekr.views.NodeDetailFormat
+    kind: enum
+    variants: [ekr.node-detail/1, ekr.node-detail/2]
 
   - name: ekr.views.NodeMatchesFormatV1
     kind: enum
@@ -1038,6 +1059,212 @@ types:
         type: List<ekr.views.ProjectedEdge>
       - name: neighbours
         type: List<ekr.views.NodeSummary>
+
+  # ---------------------------------------------------------------------------------------------
+  # ekr.node-detail/2: one node bounded for a reader with a budget, an agent's context above all
+  # (ekr-mcp-fixes-20261015 #1, #11). ekr.node-detail/1 answers every assertion about the node or
+  # naming it and every edge at it, so its size grows with the node's degree; /2 answers the same
+  # node in groups, each counted whole and listed to at most `limit` members, so its size grows
+  # with `limit` and the number of groups, not with the degree.
+  #
+  # A node's type name, a group's name and a neighbour's or sibling's type name are the names the
+  # revision's ontology gives that type or property; one the ontology does not declare (a type or
+  # property a later schema version removed) is omitted, never guessed.
+  # ---------------------------------------------------------------------------------------------
+
+  # `limit` is the request's, 10 when it named none; `edge_type` the request's edge_type as it gave
+  # it, omitted when it named none; `after` the request's, 0 when it named none.
+  # `property_values` counts the node's record values and its active value assertions (every
+  # group's `total` summed); `edges` the edges at the node, as ekr.views.NodeSummary counts degree
+  # but with a self-loop counted once. `truncated` is true exactly when the answer leaves out
+  # something its request reaches: a property group lists fewer values than its `total`, a
+  # relation group has a `next`, more than `limit` other nodes share a name with the node, or a
+  # value is cut.
+  - name: ekr.views.DetailV2Meta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeDetailFormatV2
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: limit
+        type: Integer
+      - name: edge_type
+        type: Optional<String>
+      - name: after
+        type: Integer
+      - name: property_values
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: truncated
+        type: Boolean
+
+  # The node's record: ekr.views.DetailNode's fields without `props`, which the detail answers as
+  # property groups, and with its type's name.
+  - name: ekr.views.DetailV2Node
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: name
+        type: String
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: Optional<String>
+      - name: aliases
+        type: List<String>
+      - name: state
+        type: Optional<String>
+      - name: degree
+        type: Integer
+
+  # One value of a property group. A value of the node's record carries no `assertion`, no
+  # `valid_from` and no evidence; a value assertion carries its id, its valid time's start when it
+  # has one, and the ids of the evidence it cites, ascending. A String value longer than 2,000
+  # bytes is answered as its longest prefix of at most 2,000 bytes that ends on a character
+  # boundary, and `truncated` is true; every other value is answered whole and `truncated` is
+  # false. Only a top-level String is cut: a List or Record value is answered whole.
+  - name: ekr.views.DetailValue
+    kind: struct
+    fields:
+      - name: assertion
+        type: Optional<ekr.graph.AssertionId>
+      - name: value
+        type: ekr.views.ProjectedValue
+      - name: truncated
+        type: Boolean
+      - name: valid_from
+        type: Optional<ekr.views.EpochMillis>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  # One property of the node: its record's values of that property, in the store's order, then
+  # its Active assertions whose predicate is that property and whose object is a value, newest
+  # first (valid time's start descending, one with none last; then recorded time's start
+  # descending; then id descending). `total` counts both; `values` lists the first `limit`.
+  - name: ekr.views.DetailPropertyGroup
+    kind: struct
+    fields:
+      - name: property
+        type: ekr.ontology.PropertyId
+      - name: name
+        type: Optional<String>
+      - name: total
+        type: Integer
+      - name: values
+        type: List<ekr.views.DetailValue>
+
+  # The end of an edge the described node is at: `out` when the node is the edge's source, `in`
+  # when it is the target. A self-loop is `out`.
+  - name: ekr.views.EdgeDirection
+    kind: enum
+    variants: [in, out]
+
+  # One neighbour of a relation group: another node at the far end of an edge of the group's type
+  # and direction, however many such edges join the two. `assertion` is the newest (as property
+  # values order) of the Active Relation assertions of the group's type between the two in the
+  # group's direction (subject the source, object the target), omitted when there is none: the
+  # id `explain` takes; `assertions` counts them. A self-loop's neighbour is the node itself.
+  - name: ekr.views.DetailNeighbour
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: Optional<String>
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: assertion
+        type: Optional<ekr.graph.AssertionId>
+      - name: assertions
+        type: Integer
+
+  # The node's edges of one type in one direction. `total` counts the distinct neighbours;
+  # `nodes` lists them from the request's `after`, at most `limit`, by degree descending, then
+  # id; `next` is the `after` of the group's next page, omitted when this page reaches its end.
+  - name: ekr.views.DetailRelationGroup
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: Optional<String>
+      - name: direction
+        type: ekr.views.EdgeDirection
+      - name: total
+        type: Integer
+      - name: nodes
+        type: List<ekr.views.DetailNeighbour>
+      - name: next
+        type: Optional<Integer>
+
+  # Another node that shares a name with the described one (ekr-mcp-fixes-20261015 #11): one
+  # thing recorded as several nodes, often of several types, whose facts may sit on any of them.
+  - name: ekr.views.SameNameNode
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: Optional<String>
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+
+  # ekr.node-detail/2. Without `edge_type`: `same_name` is up to `limit` other nodes of which the
+  # canonical name or an alias equals the described node's canonical name or one of its aliases
+  # after both are lowercased as ekr.views.MatchTier's Folded lowercases them (a name or alias
+  # that is empty or whitespace only matches nothing); `properties` is one group per property the
+  # node's record or its Active value assertions hold; `relations` is one group per edge type and
+  # direction of the node's edges, each from `after`. With `edge_type`, the request pages that
+  # type's groups: `same_name` and `properties` are empty, and `relations` holds that edge type's
+  # groups alone, each from `after` (an edge type the node has no edge of, or an edge_type that names no edge type of the
+  # revision, answers none: no refusal). Bound:
+  # `limit` members in each list and group, and each String value cut at 2,000 bytes; the number
+  # of groups is the node's properties and edge types, which the ontology bounds.
+  - name: ekr.views.NodeDetailV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.DetailV2Meta
+      - name: node
+        type: ekr.views.DetailV2Node
+      - name: same_name
+        type: List<ekr.views.SameNameNode>
+      - name: properties
+        type: List<ekr.views.DetailPropertyGroup>
+      - name: relations
+        type: List<ekr.views.DetailRelationGroup>
+
+  # What NodeDetailed counts of one relation group: its type, direction and total, how many
+  # neighbours the page lists, and its next.
+  - name: ekr.views.DetailGroupCount
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: direction
+        type: ekr.views.EdgeDirection
+      - name: total
+        type: Integer
+      - name: nodes
+        type: Integer
+      - name: next
+        type: Optional<Integer>
+
+  # The kind of ontology type a DescribeNode request's id named instead of a node.
+  - name: ekr.views.TypeKind
+    kind: enum
+    variants: [NodeType, EdgeType]
 
   # Which comparison a match passed. Exact: the text is a byte-exact substring of the node's
   # canonical_name or of one of its aliases. Folded: not Exact, and the text is a substring after
@@ -2203,6 +2430,24 @@ errors:
       - name: revision
         type: ekr.kernel.RevisionNumber
 
+  # ekr-mcp-fixes-20261015 #10. `node` is the requested id, which no node of the revision holds and
+  # a node type or edge type of its ontology does; `kind` says which, `type_name` is the name the
+  # ontology gives it, and `revision` is the revision that was read. A surface's message for it
+  # reads "<id> is the type <type_name>, not a node: overview lists the types; search (with type)
+  # lists its nodes". Only an ekr.node-detail/2 request is refused so; an ekr.node-detail/1
+  # request for the same id answers NodeNotFound, as it did before /2 existed.
+  - name: ekr.views.NodeIsAType
+    summary: The requested id names a type of the revision's ontology, not a node; nothing was answered.
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: kind
+        type: ekr.views.TypeKind
+      - name: type_name
+        type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
   # `parameter` is the input's name as the command declares it; `maximum` is omitted for an input
   # with no upper bound (`after`).
   - name: ekr.views.LimitExceeded
@@ -2455,7 +2700,18 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
-  # One node. No input bound: the answer is one node, with all of its assertions and edges.
+  # One node, as the format `format` names: ekr.node-detail/1 when absent, which has no bound,
+  # every assertion and edge of the node; or ekr.node-detail/2, bounded by `limit` (1 to 500, 10
+  # when absent) members per list and group, paged by `after` (0 or more, 0 when absent) within
+  # each relation group, and narrowed to one edge type's relation groups by `edge_type`: that edge
+  # type's id, or its name in the revision's ontology — byte for byte, else the one edge type
+  # whose name equals it after both are lowercased as MatchTier's Folded lowercases them; one that
+  # names no edge type of the revision answers no relation group, not a refusal. The
+  # bounds are checked before the store is read whatever the format; an ekr.node-detail/1 answer
+  # uses none of limit, edge_type and after, and a surface refuses a /1 request that names one as
+  # malformed input that never reaches the command (the endpoint answers invalid-query, the
+  # session verb a usage error, the MCP tool -32602). The response is the detail of the format
+  # asked for: `detail` for /1, `detail_v2` for /2, the other absent.
   - name: ekr.views.DescribeNode
     naming:
       wire: describe-node
@@ -2467,10 +2723,52 @@ commands:
         type: Optional<ekr.kernel.RevisionNumber>
       - name: node
         type: ekr.graph.NodeId
+      - name: format
+        type: Optional<ekr.views.NodeDetailFormat>
+      - name: limit
+        type: Optional<Integer>
+      - name: edge_type
+        type: Optional<String>
+      - name: after
+        type: Optional<Integer>
     response:
       - name: detail
-        type: ekr.views.NodeDetailV1
+        type: Optional<ekr.views.NodeDetailV1>
+      - name: detail_v2
+        type: Optional<ekr.views.NodeDetailV2>
     outcomes:
+      - name: limit-exceeded
+        when:
+          any:
+            - limit < 1
+            - limit > 500
+            - after < 0
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names the first broken input of limit and after, its value and its bounds.
+      - name: node-is-a-type
+        when: format == ekr.node-detail/2
+        external: the requested revision holds no node with the requested id, and its ontology holds a node type or edge type with it
+        error: ekr.views.NodeIsAType
+        summary: Nothing was answered; the refusal names the type, so a reader holding a type id learns what it holds.
+      - name: detailed
+        when: format == ekr.node-detail/2
+        emits:
+          - ekr.views.NodeDetailed
+        payload:
+          ekr.views.NodeDetailed:
+            revision: {generated: true}
+            node: input.node
+            limit: {generated: true}
+            after: {generated: true}
+            same_name: {generated: true}
+            properties: {generated: true}
+            values: {generated: true}
+            cut_values: {generated: true}
+            longest_value: {generated: true}
+            relations: {generated: true}
+            truncated: {generated: true}
+            detail_hash: {generated: true}
+        summary: One ekr.node-detail/2 document, byte-identical to every other answer to the same request.
       - name: described
         emits:
           - ekr.views.NodeDescribed
@@ -3145,6 +3443,39 @@ events:
         type: Integer
       - name: neighbours
         type: Integer
+      - name: detail_hash
+        type: ekr.kernel.ContentHash
+
+  # What one ekr.node-detail/2 returned, every field a function of the document: `limit` and
+  # `after` are meta's; `same_name` is the document's same_name list itself; `properties` the
+  # length of properties, `values` the values its groups list, `cut_values` those whose
+  # `truncated` is true, and `longest_value` the bytes of the longest String value listed (0 when
+  # none is); `relations` one count per relation group, in the document's order; `truncated`
+  # meta's; `detail_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.NodeDetailed
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: node
+        type: ekr.graph.NodeId
+      - name: limit
+        type: Integer
+      - name: after
+        type: Integer
+      - name: same_name
+        type: List<ekr.views.SameNameNode>
+      - name: properties
+        type: Integer
+      - name: values
+        type: Integer
+      - name: cut_values
+        type: Integer
+      - name: longest_value
+        type: Integer
+      - name: relations
+        type: List<ekr.views.DetailGroupCount>
+      - name: truncated
+        type: Boolean
       - name: detail_hash
         type: ekr.kernel.ContentHash
 

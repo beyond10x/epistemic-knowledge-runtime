@@ -69,6 +69,22 @@ pub enum QueryError {
         /// The revision that was read.
         revision: RevisionNumber,
     },
+    /// `ekr.views.NodeIsAType` (ekr-mcp-fixes-20261015 #10): an `ekr.node-detail/2` request whose
+    /// id no node of the revision holds and a node type or edge type of its ontology does.
+    #[error(
+        "{node} is the type {type_name}, not a node: overview lists the types; search (with type) \
+         lists its nodes"
+    )]
+    NodeIsAType {
+        /// The id asked for.
+        node: NodeId,
+        /// Which kind of type it names.
+        kind: crate::detail::TypeKind,
+        /// The name the revision's ontology gives that type.
+        type_name: String,
+        /// The revision that was read.
+        revision: RevisionNumber,
+    },
     /// `ekr.views.NotSeeded`, `ekr.views.RevisionNotFound`, or a store or revision that could
     /// not be read.
     #[error(transparent)]
