@@ -11,6 +11,10 @@
 //! refusal (exit 2). A query `ekr view` answers `invalid-query` is an argv clap does not take
 //! here, or a search filter `search_filter` refuses: a usage error.
 //!
+//! `overview`, `expand`, `timeline` and `changes` take `--format`, as their routes take `format`:
+//! each answers its route's predecessor format unless the request names the named one
+//! (`views.yaml`, "Named formats"); a name the read does not answer is a usage error.
+//!
 //! These are session verbs only: `ekr` has no one-shot verb of these names. A request is parsed
 //! by [`ViewsCli`] when the one-shot verbs' definitions name no such verb.
 
@@ -25,6 +29,7 @@ use ekr_views::{
     LimitExceeded, MatchesFormat, OverviewRequest, ProjectError, QueryError, SearchError,
     SearchRequest, SinceKind, TimelineRequest, UnknownMatchesFormat,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use serde_json::Value;
 
 use super::super::view::{
@@ -79,8 +84,13 @@ pub(super) enum Bucket {
 /// The six views verbs, each with the arguments of its `ekr view` route's query.
 #[derive(Clone, Debug, Subcommand)]
 pub(super) enum Verb {
-    /// `GET /overview`: the `ekr.graph-overview/2` document.
+    /// `GET /overview`: the `ekr.graph-overview/2` document, or `ekr.graph-overview/3` when
+    /// `--format` names it.
     Overview {
+        /// The format answered: `ekr.graph-overview/2` when absent, or `ekr.graph-overview/3`,
+        /// which names each type and says when the revision was committed.
+        #[arg(long, value_parser = named_format::<OverviewFormat>)]
+        format: Option<OverviewFormat>,
         /// The committed revision to read; the head when absent.
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
@@ -142,8 +152,13 @@ pub(super) enum Verb {
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
-    /// `GET /expand`: one `ekr.graph-slice/1` page, as one document.
+    /// `GET /expand`: one `ekr.graph-slice/1` page, or `ekr.graph-slice/2` when `--format` names
+    /// it, as one document.
     Expand {
+        /// The format answered: `ekr.graph-slice/1` when absent, or `ekr.graph-slice/2`, whose
+        /// nodes and edges carry their `type_name`.
+        #[arg(long, value_parser = named_format::<SliceFormat>)]
+        format: Option<SliceFormat>,
         /// The node ids to start from; none answers an empty page.
         seeds: Vec<NodeId>,
         /// The hops from the seeds, 0 to 2.
@@ -162,8 +177,13 @@ pub(super) enum Verb {
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
-    /// `GET /timeline`: the `ekr.graph-timeline/1` document.
+    /// `GET /timeline`: the `ekr.graph-timeline/1` document, or `ekr.graph-timeline/2` when
+    /// `--format` names it.
     Timeline {
+        /// The format answered: `ekr.graph-timeline/1` when absent, or `ekr.graph-timeline/2`,
+        /// which carries `names`.
+        #[arg(long, value_parser = named_format::<TimelineFormat>)]
+        format: Option<TimelineFormat>,
         /// The row type's id; the first type the document ranks when absent.
         #[arg(long = "type")]
         row_type: Option<TypeId>,
@@ -183,9 +203,14 @@ pub(super) enum Verb {
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
-    /// `GET /changes`: the `ekr.graph-changes/1` page of what changed after exactly one since.
+    /// `GET /changes`: the `ekr.graph-changes/1` page of what changed after exactly one since, or
+    /// `ekr.graph-changes/2` when `--format` names it.
     #[command(group(clap::ArgGroup::new("since").required(true).multiple(false)))]
     Changes {
+        /// The format answered: `ekr.graph-changes/1` when absent, or `ekr.graph-changes/2`,
+        /// which carries `names`.
+        #[arg(long, value_parser = named_format::<ChangesFormat>)]
+        format: Option<ChangesFormat>,
         /// The changes of the revisions after this one.
         #[arg(long, group = "since", allow_negative_numbers = true, value_parser = bound)]
         since_revision: Option<i64>,
@@ -218,6 +243,16 @@ fn bound(value: &str) -> Result<i64, String> {
     value
         .parse()
         .map_err(|_| format!("{value:?} is out of range"))
+}
+
+/// `--format`: a format the read answers, by its literal, as `ekr view` reads `format`.
+fn named_format<F>(value: &str) -> Result<F, String>
+where
+    F: std::str::FromStr<Err = UnknownFormat>,
+{
+    value
+        .parse()
+        .map_err(|error: UnknownFormat| error.to_string())
 }
 
 /// A revision as `ekr view` reads one: one or more ASCII digits that fit a `u64`, no sign.
@@ -268,6 +303,7 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
     let revision = |at: &Option<u64>| at.map(RevisionNumber::new);
     Ok(match verb {
         Verb::Overview {
+            format,
             revision: at,
             limit,
             sections,
@@ -280,7 +316,10 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
                         .flat_map(|sections| sections.0.iter().copied()),
                 );
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            index.overview_sections(&request).map_err(project)?.bytes
+            index
+                .overview_as(format.unwrap_or(OverviewFormat::V2), &request)
+                .map_err(project)?
+                .bytes
         }
         Verb::Search {
             text,
@@ -324,6 +363,7 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             })?
         }
         Verb::Expand {
+            format,
             seeds,
             depth,
             limit,
@@ -334,9 +374,13 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             let request = ExpandRequest::new(seeds.clone(), *depth, *limit, *edges, *after)
                 .map_err(limit_exceeded)?;
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            index.expand(&request).map_err(query)?.bytes
+            index
+                .expand_as(format.unwrap_or(SliceFormat::V1), &request)
+                .map_err(query)?
+                .bytes
         }
         Verb::Timeline {
+            format,
             row_type,
             hops,
             limit,
@@ -351,9 +395,13 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             let request = TimelineRequest::new(*row_type, *hops, *limit, bucket, *subject)
                 .map_err(limit_exceeded)?;
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            index.timeline(&request).map_err(project)?.bytes
+            index
+                .timeline_as(format.unwrap_or(TimelineFormat::V1), &request)
+                .map_err(project)?
+                .bytes
         }
         Verb::Changes {
+            format,
             since_revision,
             since_valid,
             since_recorded,
@@ -367,7 +415,10 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             })?;
             let request = ChangesRequest::new(kind, since, *limit, *after).map_err(changes)?;
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            index.changes(runtime, &request).map_err(changes)?.bytes
+            index
+                .changes_as(runtime, &request, format.unwrap_or(ChangesFormat::V1))
+                .map_err(changes)?
+                .bytes
         }
     })
 }

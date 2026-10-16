@@ -39,6 +39,9 @@
 //!   anything is caught by the suite's `expect_no_event` steps.
 //! * **Responses.** None: no admitted views scenario observes a command response. A document
 //!   reaches the suite through its event's hash and counts.
+//! * **Formats.** `ProjectOverview`, `ExpandNeighbourhood`, `ProjectTimeline` and `ChangesSince`
+//!   read their `format` by its literal ([`read_format`]); absent or null is the command's
+//!   predecessor format, as the command answers it.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -55,6 +58,7 @@ use ekr_views::{
     SampleRequest, SearchError, SearchFilter, SearchRequest, SinceKind, SourceText,
     StoreQualityReported, SubjectsTimelined, TimelineRequest, Verdict,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
     ImplementationIdentity, ObservedEvent, RedeliveryRequest, ScenarioContext,
@@ -133,8 +137,8 @@ pub struct ViewsTarget {
 /// One command's input, read and — for the bounded reads — bounded.
 enum Read {
     Graph,
-    Overview(Result<OverviewRequest, LimitExceeded>),
-    Expand(Result<ExpandRequest, LimitExceeded>),
+    Overview(Result<OverviewRequest, LimitExceeded>, OverviewFormat),
+    Expand(Result<ExpandRequest, LimitExceeded>, SliceFormat),
     /// The node, and for `ekr.node-detail/2` its bounded request (`None` for /1): the bounds are
     /// checked whatever the format.
     Describe(NodeId, Result<Option<DetailRequest>, LimitExceeded>),
@@ -145,8 +149,8 @@ enum Read {
         MatchesFormat,
         SearchFilter,
     ),
-    Timeline(Result<TimelineRequest, LimitExceeded>),
-    Changes(Result<ChangesRequest, ChangesError>),
+    Timeline(Result<TimelineRequest, LimitExceeded>, TimelineFormat),
+    Changes(Result<ChangesRequest, ChangesError>, ChangesFormat),
     CodeNames(Vec<SourceText>, ekr_views::CodeNameMode),
     Quality,
     /// `ExportOcel`, or `ProjectProcessMap` when `map` is set: the same input, the same log.
@@ -261,6 +265,16 @@ fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetEr
     if let Some(observation) = summary.observation_type {
         fields.push(("observation_type", Node::Text(observation.to_string())));
     }
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(committed_at) = summary.committed_at {
+        fields.push(("committed_at", signed(committed_at)));
+    }
+    if let Some(names) = &summary.node_type_names {
+        fields.push(("node_type_names", texts(names)));
+    }
+    if let Some(names) = &summary.edge_type_names {
+        fields.push(("edge_type_names", texts(names)));
+    }
     fields.push(("overview_hash", Node::Text(summary.overview_hash.clone())));
     observed("ekr.views.GraphOverviewed", fields)
 }
@@ -277,6 +291,10 @@ fn neighbourhood_expanded(summary: &NeighbourhoodExpanded) -> Result<ObservedEve
         ("edge_total", summary.edge_total),
         ("remaining", summary.remaining),
     ])?;
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(names) = &summary.type_names {
+        fields.push(("type_names", texts(names)));
+    }
     fields.push(("slice_hash", Node::Text(summary.slice_hash.clone())));
     observed("ekr.views.NeighbourhoodExpanded", fields)
 }
@@ -388,6 +406,10 @@ fn subjects_timelined(summary: &SubjectsTimelined) -> Result<ObservedEvent, Targ
     if let Some(first) = summary.first_row {
         fields.push(("first_row", Node::Text(first.to_string())));
     }
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(names) = &summary.names {
+        fields.push(("names", names_map(names)));
+    }
     fields.push(("timeline_hash", Node::Text(summary.timeline_hash.clone())));
     observed("ekr.views.SubjectsTimelined", fields)
 }
@@ -412,8 +434,41 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
     if let Some(last) = summary.last_revision {
         fields.push(("last_revision", integer(last)?));
     }
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(names) = &summary.names {
+        fields.push(("names", names_map(names)));
+    }
     fields.push(("changes_hash", Node::Text(summary.changes_hash.clone())));
     observed("ekr.views.ChangesListed", fields)
+}
+
+/// A list of texts, in order.
+fn texts(items: &[String]) -> Node {
+    Node::Seq(items.iter().cloned().map(Node::Text).collect())
+}
+
+/// An `ekr.views.OntologyNames`, as the map it is.
+fn names_map(names: &BTreeMap<String, String>) -> Node {
+    Node::Map(
+        names
+            .iter()
+            .map(|(id, name)| (id.clone(), Node::Text(name.clone())))
+            .collect(),
+    )
+}
+
+/// A read's `format`, by its literal: absent or null is the command's predecessor format.
+fn read_format<F>(request: &SemanticCommandRequest, predecessor: F) -> Result<F, TargetError>
+where
+    F: std::str::FromStr<Err = UnknownFormat>,
+{
+    optional_text(request, "format")?
+        .map(|text| {
+            text.parse()
+                .map_err(|error| unavailable("reading `format`", error))
+        })
+        .transpose()
+        .map(|format| format.unwrap_or(predecessor))
 }
 
 fn code_names_found(summary: &CodeNamesFound) -> Result<ObservedEvent, TargetError> {
@@ -869,6 +924,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
             Read::Overview(
                 OverviewRequest::new(optional_integer(request, "limit")?)
                     .map(|overview| overview.with_sections(sections)),
+                read_format(request, OverviewFormat::V2)?,
             )
         }
         EXPAND_NEIGHBOURHOOD => {
@@ -882,13 +938,16 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
                     .collect::<Result<Vec<_>, _>>()?,
                 _ => return Err(unavailable("reading `seeds`", "not a list")),
             };
-            Read::Expand(ExpandRequest::new(
-                seeds,
-                required_integer(request, "depth")?,
-                required_integer(request, "limit")?,
-                optional_integer(request, "edge_limit")?,
-                optional_integer(request, "after")?,
-            ))
+            Read::Expand(
+                ExpandRequest::new(
+                    seeds,
+                    required_integer(request, "depth")?,
+                    required_integer(request, "limit")?,
+                    optional_integer(request, "edge_limit")?,
+                    optional_integer(request, "after")?,
+                ),
+                read_format(request, SliceFormat::V1)?,
+            )
         }
         DESCRIBE_NODE => {
             let node = node_id(&text(request, "node")?, "node")?;
@@ -922,8 +981,14 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
                 filter,
             )
         }
-        PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
-        CHANGES_SINCE => Read::Changes(changes_request(request)?),
+        PROJECT_TIMELINE => Read::Timeline(
+            timeline_request(request)?,
+            read_format(request, TimelineFormat::V1)?,
+        ),
+        CHANGES_SINCE => Read::Changes(
+            changes_request(request)?,
+            read_format(request, ChangesFormat::V1)?,
+        ),
         FIND_CODE_NAMES => Read::CodeNames(
             sources(request)?,
             match request.input.get("mode") {
@@ -1082,11 +1147,11 @@ fn answer(
             )),
         };
     }
-    if let Read::Changes(request) = read {
+    if let Read::Changes(request, format) = read {
         // The since and the bounds first: a broken one is refused before the store is read.
         let listed = request.and_then(|request| {
             let index = Index::load(runtime, at)?;
-            index.changes(runtime, &request)
+            index.changes_as(runtime, &request, format)
         });
         return match listed {
             Ok(answer) => Ok((took("listed", changes_listed(&answer.summary)?)?, None)),
@@ -1131,22 +1196,22 @@ fn answer(
         // The bound first: a broken one is refused before the store is read.
         match read {
             Read::Graph
-            | Read::Changes(_)
+            | Read::Changes(..)
             | Read::Search(..)
             | Read::CodeNames(_, _)
             | Read::Quality
             | Read::Ocel { .. }
             | Read::Sample(_) => unreachable!("answered above"),
-            Read::Overview(request) => {
+            Read::Overview(request, format) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.overview_sections(&request)?;
+                let answer = index.overview_as(format, &request)?;
                 Ok(graph_overviewed(&answer.summary).and_then(|e| took("overviewed", e)))
             }
-            Read::Expand(request) => {
+            Read::Expand(request, format) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.expand(&request)?;
+                let answer = index.expand_as(format, &request)?;
                 Ok(neighbourhood_expanded(&answer.summary).and_then(|e| took("expanded", e)))
             }
             Read::Describe(node, request) => {
@@ -1163,10 +1228,10 @@ fn answer(
                     }
                 })
             }
-            Read::Timeline(request) => {
+            Read::Timeline(request, format) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.timeline(&request)?;
+                let answer = index.timeline_as(format, &request)?;
                 Ok(subjects_timelined(&answer.summary).and_then(|e| took("timelined", e)))
             }
         }
@@ -1292,15 +1357,18 @@ impl ConformanceTarget for ViewsTarget {
             };
         }
         if control == Some(Control::NodeAbsent) {
-            if let Read::Expand(Ok(expansion)) = &read {
+            if let Read::Expand(Ok(expansion), format) = &read {
                 if expansion.seeds().is_empty() {
-                    read = Read::Expand(ExpandRequest::new(
-                        vec![fixtures::id(fixtures::DESCRIBED)],
-                        i64::try_from(expansion.depth()).unwrap_or(i64::MAX),
-                        i64::try_from(expansion.limit()).unwrap_or(i64::MAX),
-                        Some(i64::try_from(expansion.edge_limit()).unwrap_or(i64::MAX)),
-                        Some(i64::try_from(expansion.after()).unwrap_or(i64::MAX)),
-                    ));
+                    read = Read::Expand(
+                        ExpandRequest::new(
+                            vec![fixtures::id(fixtures::DESCRIBED)],
+                            i64::try_from(expansion.depth()).unwrap_or(i64::MAX),
+                            i64::try_from(expansion.limit()).unwrap_or(i64::MAX),
+                            Some(i64::try_from(expansion.edge_limit()).unwrap_or(i64::MAX)),
+                            Some(i64::try_from(expansion.after()).unwrap_or(i64::MAX)),
+                        ),
+                        *format,
+                    );
                 }
             }
         }

@@ -16,15 +16,20 @@
 //!
 //! | tool | document |
 //! |---|---|
-//! | `overview` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes |
+//! | `overview` | [`ekr_views::Index::overview_as`]'s bytes: `ekr.graph-overview/3` unless `format` names `ekr.graph-overview/2` |
 //! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/2` unless `format` names `ekr.node-matches/1`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
 //! | `describe_node` | [`ekr_views::Index::detail_v2`]'s `ekr.node-detail/2` bytes, bounded by `limit` and narrowed by `edge_type` and `after`; with `full: true`, [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes. Each is what `ekr view` serves at `/node/<id>` with that `format` named |
-//! | `expand` | [`ekr_views::Index::expand`]'s whole `ekr.graph-slice/1` page |
-//! | `timeline` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes |
-//! | `changes_since` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes |
-//! | `explain` | what `ekr explain` prints for the assertion, through the same `explain::run` |
-//! | `resolve` | what `ekr resolve` prints for the reference, built by the verb's own `resolve::type_id` and `resolve::reference` from the JSON arguments and answered through the same `resolve::run` |
+//! | `expand` | [`ekr_views::Index::expand_as`]'s whole page: `ekr.graph-slice/2` unless `format` names `ekr.graph-slice/1` |
+//! | `timeline` | [`ekr_views::Index::timeline_as`]'s bytes: `ekr.graph-timeline/2` unless `format` names `ekr.graph-timeline/1` |
+//! | `changes_since` | [`ekr_views::Index::changes_as`]'s bytes: `ekr.graph-changes/2` unless `format` names `ekr.graph-changes/1` |
+//! | `explain` | what `ekr explain --format F` prints for the assertion, through the same `explain::run`: `F` is `ekr.explanation/3` unless `format` names `ekr.explanation/2` |
+//! | `resolve` | what `ekr resolve --format F` prints for the reference, built by the verb's own `resolve::type_id` and `resolve::reference` from the JSON arguments and answered through the same `resolve::answer`: `F` is `ekr.resolution/1` unless `format` names `outcome` |
 //! | `head` | `{"format":"ekr.view-head/1","head":N}`, byte for byte what `ekr view` serves at `GET /head` ([`head_document`]) |
+//!
+//! Where a read has a named format (`views.yaml`, "Named formats"; ekr-mcp-fixes-20261015 #3,
+//! #13), the tool answers it unless `format` names the predecessor, which `ekr view`, the session
+//! verbs, `ekr explain` and `ekr resolve` answer by default: each answer is byte for byte that
+//! surface's answer to the same request with the format named.
 //!
 //! A refusal — each of the refusals `ekr view` answers for a bounded read, and the named refusals
 //! of `ekr explain` and `ekr resolve` — is a tool result with `isError: true` whose document is
@@ -42,7 +47,7 @@
 //! retained transactions to drop an index of a revision a restore to an older snapshot
 //! discarded), [`ekr_views::Index::changes`] (which reads the head, the
 //! retained transactions and the seed's replay), [`Runtime::head`], `explain::run` and
-//! `resolve::run`. Nothing here proposes,
+//! `resolve::answer`. Nothing here proposes,
 //! validates, commits or seeds. Record text is untrusted evidence (A14): it is returned as JSON string data, and the
 //! server's instructions and every tool's description say so.
 //!
@@ -60,6 +65,7 @@ use ekr_views::{
     IndexCache, LimitExceeded, MatchesFormat, OverviewRequest, OverviewSection, ProjectError,
     QueryError, SearchError, SearchRequest, SinceKind, TimelineRequest,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -464,7 +470,9 @@ impl Server {
             revision,
             limit,
             sections,
+            format,
         } = decode(arguments)?;
+        let format = named_format(format.as_deref(), OverviewFormat::V3)?;
         let sections = sections
             .unwrap_or_default()
             .iter()
@@ -472,7 +480,7 @@ impl Server {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| Unanswered::params(format!("arguments: {error}")))?;
         let request = OverviewRequest::new(limit)?.with_sections(sections);
-        text(self.index(revision)?.overview_sections(&request)?.bytes)
+        text(self.index(revision)?.overview_as(format, &request)?.bytes)
     }
 
     /// `ekr.node-matches/2` unless `format` names /1: `ekr view`'s `/search` with the format named
@@ -558,7 +566,9 @@ impl Server {
             edges,
             after,
             revision,
+            format,
         } = decode(arguments)?;
+        let format = named_format(format.as_deref(), SliceFormat::V2)?;
         let seeds = seeds
             .iter()
             .map(|seed| {
@@ -567,7 +577,7 @@ impl Server {
             })
             .collect::<Result<Vec<NodeId>, Unanswered>>()?;
         let request = ExpandRequest::new(seeds, depth, limit, edges, after)?;
-        text(self.index(revision)?.expand(&request)?.bytes)
+        text(self.index(revision)?.expand_as(format, &request)?.bytes)
     }
 
     fn timeline(&mut self, arguments: Value) -> Result<String, Unanswered> {
@@ -578,7 +588,9 @@ impl Server {
             bucket,
             subject,
             revision,
+            format,
         } = decode(arguments)?;
+        let format = named_format(format.as_deref(), TimelineFormat::V2)?;
         let row_type = row_type
             .map(|text| {
                 text.parse::<TypeId>()
@@ -597,7 +609,7 @@ impl Server {
             Bucket::Week => BucketWidth::Week,
         });
         let request = TimelineRequest::new(row_type, hops, limit, bucket, subject)?;
-        text(self.index(revision)?.timeline(&request)?.bytes)
+        text(self.index(revision)?.timeline_as(format, &request)?.bytes)
     }
 
     /// `GET /changes`'s document: exactly one of the three since arguments, else the arguments'
@@ -610,25 +622,38 @@ impl Server {
             at,
             limit,
             after,
+            format,
         } = decode(arguments)?;
+        let format = named_format(format.as_deref(), ChangesFormat::V2)?;
         let (kind, since) = SinceKind::one_of(since_revision, since_valid, since_recorded)
             .map_err(|given| Unanswered::params(since_not_one(&given)))?;
         let request = ChangesRequest::new(kind, since, limit, after)?;
         let (runtime, indexes) = self.read()?;
         let index = indexes.index(runtime, at.map(RevisionNumber::new))?;
-        text(index.changes(runtime, &request)?.bytes)
+        text(index.changes_as(runtime, &request, format)?.bytes)
     }
 
-    /// What `ekr explain <assertion>` prints, byte for byte, or with `documents`, what
-    /// `ekr explain <assertion> --documents [--offset N] [--limit N]` prints. `offset` and
-    /// `limit` without `documents`, and a `limit` of 0, are refused as the verb refuses them.
+    /// What `ekr explain <assertion> --format F` prints, byte for byte, or with `documents`, what
+    /// `ekr explain <assertion> --documents [--offset N] [--limit N] --format F` prints; `F` is
+    /// `ekr.explanation/3` unless `format` names `ekr.explanation/2`. `offset` and `limit`
+    /// without `documents`, and a `limit` of 0, are refused as the verb refuses them.
     fn explain(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let ExplainArguments {
             assertion,
             documents,
             offset,
             limit,
+            format,
         } = decode(arguments)?;
+        let format = match format.as_deref() {
+            None => super::explain::Format::V3,
+            Some(name) => super::explain::Format::named(name).ok_or_else(|| {
+                Unanswered::params(format!(
+                    "arguments: {name:?} is no explanation format; it is ekr.explanation/2 or \
+                     ekr.explanation/3"
+                ))
+            })?,
+        };
         if !documents && (offset.is_some() || limit.is_some()) {
             return Err(Unanswered::params(
                 "`offset` and `limit` bound `documents`: they need `documents: true`",
@@ -643,10 +668,11 @@ impl Server {
             ))
         })?;
         let documents = documents.then_some(super::explain::Bounds { offset, limit });
-        Ok(super::render(&super::explain::run(self.read()?.0, id, documents)?)?.text()?)
+        Ok(super::render(&super::explain::run(self.read()?.0, id, documents, format)?)?.text()?)
     }
 
-    /// What `ekr resolve <reference> [--at N]` prints, byte for byte. The arguments are the
+    /// What `ekr resolve <reference> [--at N] --format F` prints, byte for byte; `F` is
+    /// `ekr.resolution/1` unless `format` names `outcome`, the bare outcome. The arguments are the
     /// typed-reference document's two fields as JSON values, and `at`: the strings are taken as
     /// the JSON holds them, never re-read as text, and the verb's own
     /// [`super::resolve::type_id`] and [`super::resolve::reference`] build the reference.
@@ -655,14 +681,30 @@ impl Server {
             type_id,
             aliases,
             at,
+            format,
         } = decode(arguments)?;
+        let format = match format.as_deref() {
+            None => super::resolve::Format::V1,
+            Some(name) => super::resolve::Format::named(name).ok_or_else(|| {
+                Unanswered::params(format!(
+                    "arguments: {name:?} is no resolution format; it is outcome or \
+                     ekr.resolution/1"
+                ))
+            })?,
+        };
         let type_id = type_id
             .as_deref()
             .map(super::resolve::type_id)
             .transpose()
             .map_err(Unanswered::params)?;
         let reference = super::resolve::reference(type_id, aliases).map_err(Unanswered::params)?;
-        Ok(super::render(&super::resolve::run(self.read()?.0, &reference, at)?)?.text()?)
+        Ok(super::render(&super::resolve::answer(
+            self.read()?.0,
+            &reference,
+            at,
+            format,
+        )?)?
+        .text()?)
     }
 
     /// What `GET /head` serves, byte for byte: `{"format":"ekr.view-head/1","head":N}`, the
@@ -676,6 +718,20 @@ impl Server {
             Err(error) => Err(Unanswered::internal(format!("reading the head: {error}"))),
         }
     }
+}
+
+/// A read's `format` argument: `named` when absent — the MCP's default, the read's named format
+/// (`views.yaml`, "Named formats") — else the format the argument names; any other name is the
+/// arguments' error, as `ekr view` answers it `invalid-query`.
+fn named_format<F>(given: Option<&str>, named: F) -> Result<F, Unanswered>
+where
+    F: std::str::FromStr<Err = UnknownFormat>,
+{
+    given
+        .map(str::parse::<F>)
+        .transpose()
+        .map(|format| format.unwrap_or(named))
+        .map_err(|error| Unanswered::params(format!("arguments: {error}")))
 }
 
 /// `params`, which is an object when present.
@@ -742,6 +798,8 @@ struct OverviewArguments {
     limit: Option<i64>,
     #[serde(default)]
     sections: Option<Vec<String>>,
+    #[serde(default)]
+    format: Option<String>,
 }
 
 /// `search`'s arguments. `text` is also taken as `query` and `q` (ekr-mcp-fixes-20261015 #6): an
@@ -812,6 +870,8 @@ struct ExpandArguments {
     after: Option<i64>,
     #[serde(default)]
     revision: Option<u64>,
+    #[serde(default)]
+    format: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -827,6 +887,8 @@ struct TimelineArguments {
     subject: Option<String>,
     #[serde(default)]
     revision: Option<u64>,
+    #[serde(default)]
+    format: Option<String>,
 }
 
 /// `changes_since`'s arguments: `GET /changes`'s query names. `since_revision` is signed, so a
@@ -846,6 +908,8 @@ struct ChangesArguments {
     limit: Option<i64>,
     #[serde(default)]
     after: Option<i64>,
+    #[serde(default)]
+    format: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -870,6 +934,8 @@ struct ExplainArguments {
     offset: Option<u64>,
     #[serde(default)]
     limit: Option<u64>,
+    #[serde(default)]
+    format: Option<String>,
 }
 
 /// A typed reference's fields and `at`. A missing field is named by the verb's own reference
@@ -883,6 +949,21 @@ struct ResolveArguments {
     aliases: Option<Vec<String>>,
     #[serde(default)]
     at: Option<u64>,
+    #[serde(default)]
+    format: Option<String>,
+}
+
+/// A `format` argument of a read with a named format: the predecessor first, the named format,
+/// which the tool answers when the argument is absent, second.
+fn format_argument(names: [&str; 2]) -> Value {
+    json!({
+        "type": "string",
+        "enum": names,
+        "description": format!(
+            "The format answered; {} when absent. {} is the predecessor, without the names.",
+            names[1], names[0]
+        ),
+    })
 }
 
 /// A `revision` argument: the committed revision read, the head when absent.
@@ -949,14 +1030,23 @@ fn tools() -> Vec<Value> {
                 "description": "The committed revision to resolve against; the newest when absent.",
             }),
         );
+        properties.insert(
+            "format".to_owned(),
+            json!({
+                "type": "string",
+                "enum": ["outcome", super::resolve::RESOLUTION_FORMAT],
+                "description": "The answer: ekr.resolution/1, the outcome with `names` (the name of every type id it holds), when absent; outcome, the bare outcome `ekr resolve` prints by default.",
+            }),
+        );
     }
     vec![
         tool(
             "overview",
             "Project overview",
-            "The ekr.graph-overview/2 document of a revision: its counts, its node and edge \
-             types, the highest-degree nodes, and of its ontology, schema history, type roles \
-             and timeline only the sections named.",
+            "The ekr.graph-overview/3 document of a revision: its counts, its node and edge \
+             types each with its name, when the revision was committed (meta.committed_at), the \
+             highest-degree nodes, and of its ontology, schema history, type roles and timeline \
+             only the sections named.",
             object(
                 json!({
                     "revision": revision(),
@@ -967,6 +1057,7 @@ fn tools() -> Vec<Value> {
                         "items": {"type": "string", "enum": OverviewSection::ALL.map(OverviewSection::name)},
                         "description": "The optional sections to answer as well; none when absent or empty.",
                     },
+                    "format": format_argument(OverviewFormat::ALL.map(OverviewFormat::name)),
                 }),
                 &[],
             ),
@@ -1037,8 +1128,9 @@ fn tools() -> Vec<Value> {
         tool(
             "expand",
             "Expand neighbourhood",
-            "One ekr.graph-slice/1 page: the nodes within depth hops of the seeds and the edges \
-             among them. Ask again with after set to the page's next for the next page.",
+            "One ekr.graph-slice/2 page: the nodes within depth hops of the seeds and the edges \
+             among them, each with its type_name. Ask again with after set to the page's next \
+             for the next page.",
             object(
                 json!({
                     "seeds": {
@@ -1052,6 +1144,7 @@ fn tools() -> Vec<Value> {
                         "The most edges a page holds; 5000 when absent."),
                     "after": bounded(0, None, "The cursor a page starts at; 0 when absent."),
                     "revision": revision(),
+                    "format": format_argument(SliceFormat::ALL.map(SliceFormat::name)),
                 }),
                 &["seeds", "depth", "limit"],
             ),
@@ -1059,9 +1152,10 @@ fn tools() -> Vec<Value> {
         tool(
             "timeline",
             "Project timeline",
-            "The ekr.graph-timeline/1 document: one row per node of the row type with the events \
+            "The ekr.graph-timeline/2 document: one row per node of the row type with the events \
              related to it within hops, counted per time bucket, the most active first; with \
-             subject, that node's row alone and its events.",
+             subject, that node's row alone and its events; `names` names every type id it \
+             holds.",
             object(
                 json!({
                     "type": {"type": "string", "description": "The row type's id; the first type the document ranks when absent."},
@@ -1070,6 +1164,7 @@ fn tools() -> Vec<Value> {
                     "bucket": {"type": "string", "enum": ["day", "week"], "description": "The finest bucket; the span's when absent."},
                     "subject": node_id("One node whose row and events to answer."),
                     "revision": revision(),
+                    "format": format_argument(TimelineFormat::ALL.map(TimelineFormat::name)),
                 }),
                 &["hops", "limit"],
             ),
@@ -1077,10 +1172,10 @@ fn tools() -> Vec<Value> {
         tool(
             "changes_since",
             "Changes since",
-            "The ekr.graph-changes/1 document: every node and edge created, every assertion \
+            "The ekr.graph-changes/2 document: every node and edge created, every assertion \
              added, superseded or retracted and every evidence entry added after the since and \
              up to the revision at, each with its revision, its kind of change and its evidence \
-             ids, by revision. Give exactly one \
+             ids, by revision; `names` names every type id it holds. Give exactly one \
              of since_revision, since_valid and since_recorded. Ask again with after set to the \
              page's next, and at set to the first page's meta.revision, for the next page.",
             object(
@@ -1096,6 +1191,7 @@ fn tools() -> Vec<Value> {
                     "limit": bounded(1, Some(ChangesRequest::MAX_LIMIT),
                         "The most changes a page holds; 500 when absent."),
                     "after": bounded(0, None, "The cursor a page starts at; 0 when absent."),
+                    "format": format_argument(ChangesFormat::ALL.map(ChangesFormat::name)),
                 }),
                 &[],
             ),
@@ -1103,8 +1199,9 @@ fn tools() -> Vec<Value> {
         tool(
             "explain",
             "Explain assertion",
-            "What `ekr explain` prints: the assertion at the newest revision, where it came \
-             from, what later changed it, and its evidence, each record by hash; with \
+            "What `ekr explain --format ekr.explanation/3` prints: the assertion at the newest \
+             revision, where it came from, what later changed it, and its evidence, each record \
+             by hash, with `names` naming every type and property id it holds; with \
              `documents`, also the whole records and the evidence text, at most 64 KiB of each \
              evidence record unless `limit` says otherwise.",
             object(
@@ -1116,6 +1213,10 @@ fn tools() -> Vec<Value> {
                         "With `documents`, the first byte of each evidence payload to answer, a raw byte offset (`text` is absent when it falls inside a character); when absent, the window is centred on the cited text, or starts at 0."),
                     "limit": bounded(1, None,
                         "With `documents`, the most bytes of each evidence payload to answer; 65536 when absent. Read a whole record in steps: offset 0, then each answer's offset plus its bytes, until `record_length`."),
+                    "format": format_argument([
+                        super::explain::Format::V2.name(),
+                        super::explain::Format::V3.name(),
+                    ]),
                 }),
                 &["assertion"],
             ),
@@ -1123,8 +1224,9 @@ fn tools() -> Vec<Value> {
         tool(
             "resolve",
             "Resolve reference",
-            "What `ekr resolve` prints for a typed reference: Resolved with the one node it \
-             names, ProposeNew when none does, or Ambiguous with every candidate. Creates \
+            "What `ekr resolve --format ekr.resolution/1` prints for a typed reference: under \
+             outcome, Resolved with the one node it names, ProposeNew when none does, or \
+             Ambiguous with every candidate, and `names` naming every type id it holds. Creates \
              nothing.",
             reference,
         ),

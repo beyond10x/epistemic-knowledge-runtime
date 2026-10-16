@@ -1,0 +1,84 @@
+# ekr-mcp-fixes-20261015 #3 and #13: ekr.graph-overview/3 names every node and edge type it counts
+# and says when the revision it read was committed (ekr.views.GraphOverviewV3).
+#
+# The store `names` is a seed only, revision 0, committed at 1800000000001. Its ontology: node
+# types Person 00000000-0000-4000-8000-000000f30001 (String property role …f30011), Service
+# …f30002 and Incident …f30003 (Integer property opened …f30010); edge types works_on …f30020,
+# Person to Service, and affects …f30021, Incident to Service. Nodes: Person ada …f30101; Services
+# router …f30201 and ledger …f30202; Incidents outage …f30301 and latency …f30302, opened on
+# January 2 and 3, 2027 at 09:00. Edges: ada works_on router, outage affects router, latency
+# affects ledger.
+#
+# With limit 20 and no section, the /3 answer names Person, Service and Incident under
+# node_types and works_on and affects under edge_types, each list by type id, without the
+# ontology section, and meta.committed_at is the seed's commit time. The same request in /2, and
+# with no format named, answers ekr.graph-overview/2, which carries neither. A renderer that names
+# the types only in the ontology section answers no node_type_names; one that reports the head's
+# time rather than the revision's would still pass here, which the lineage test holds instead.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-overview-v3-names-its-types-and-says-when-its-revision-was-committed
+summary: An ekr.graph-overview/3 answer with no section names each node and edge type and carries the revision's commit time; the /2 answer of the same request carries neither.
+
+timeline:
+  - at: 2027-01-15T13:00:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      limit: 20
+      sections: null
+      format: ekr.graph-overview/3
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 0
+          nodes: 5
+          edges: 3
+          node_types: 3
+          edge_types: 2
+          top: 5
+          sections: []
+          format: ekr.graph-overview/3
+          committed_at: 1800000000001
+          node_type_names: [Person, Service, Incident]
+          edge_type_names: [works_on, affects]
+
+  - at: 2027-01-15T13:01:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      limit: 20
+      sections: null
+      format: ekr.graph-overview/2
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 0
+          node_types: 3
+          edge_types: 2
+          top: 5
+          sections: []
+          format: ekr.graph-overview/2
+
+  - at: 2027-01-15T13:02:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: names
+      at: null
+      limit: 20
+      sections: null
+      format: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          top: 5
+          sections: []
+          format: ekr.graph-overview/2

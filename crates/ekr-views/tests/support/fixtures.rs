@@ -396,6 +396,10 @@ pub enum Fixture {
     Evolved,
     /// A seed only: one hub joined by one edge to each of 600 leaves.
     Hub,
+    /// A seed only: the node types Person, Service and Incident and the edge types `works_on` and
+    /// `affects`, whose names the named formats carry (ekr-mcp-fixes-20261015 #3, #13;
+    /// [`names_seed`]).
+    Names,
     /// Three node types whose facts gather in valid time or do not, over three revisions.
     Timeline,
     /// One node at the seed and a second, its edge and two assertions at revision 1.
@@ -458,6 +462,7 @@ impl Fixture {
             "schema-evolution" => Self::SchemaEvolution,
             "store" => Self::Evolved,
             "hub" => Self::Hub,
+            "names" => Self::Names,
             "timeline" => Self::Timeline,
             "growth" => Self::Growth,
             "subjects" => Self::Subjects,
@@ -637,6 +642,7 @@ impl Fixture {
                     Some(id(REDECLARED_VERSION)),
                 );
             }
+            Self::Names => writer.seed(names_seed()),
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(
@@ -2315,4 +2321,98 @@ fn observed() -> Vec<GraphOperation> {
             &[1],
         ))),
     ]
+}
+
+// `names`: the named-format scenarios (ekr-mcp-fixes-20261015 #3, #13): an-overview-v3-*,
+// a-slice-v2-*, a-timeline-v2-*.
+/// The node type `Person`, with the String property `role`.
+pub const NAMES_PERSON: u64 = 0xf3_0001;
+/// The node type `Service`.
+pub const NAMES_SERVICE: u64 = 0xf3_0002;
+/// The node type `Incident`, with the Integer property `opened`, the node's time.
+pub const NAMES_INCIDENT: u64 = 0xf3_0003;
+const NAMES_OPENED: u64 = 0xf3_0010;
+const NAMES_ROLE: u64 = 0xf3_0011;
+/// The edge type `works_on`, from Person to Service.
+pub const NAMES_WORKS_ON: u64 = 0xf3_0020;
+/// The edge type `affects`, from Incident to Service.
+pub const NAMES_AFFECTS: u64 = 0xf3_0021;
+/// The Person `ada`.
+pub const NAMES_ADA: u64 = 0xf3_0101;
+/// The Services `router` and `ledger`.
+pub const NAMES_ROUTER: u64 = 0xf3_0201;
+pub const NAMES_LEDGER: u64 = 0xf3_0202;
+/// The Incidents `outage` and `latency`.
+pub const NAMES_OUTAGE: u64 = 0xf3_0301;
+pub const NAMES_LATENCY: u64 = 0xf3_0302;
+/// The edges `ada` works_on `router`, `outage` affects `router` and `latency` affects `ledger`.
+const NAMES_EDGES: u64 = 0xf3_0400;
+
+/// The `names` seed, as an-overview-v3-names-its-types-and-says-when-its-revision-was-committed's
+/// header states it: Person (`ada`, whose `role` is `maintainer`), Service (`router`, `ledger`)
+/// and Incident (`outage` opened at T0 + 1 day, `latency` at T0 + 2 days, T0 being
+/// [`JANUARY_FIRST_0900_MS`]), joined by `ada` works_on `router`, `outage` affects `router` and
+/// `latency` affects `ledger`. No assertion and no evidence; the seed is committed at
+/// 1800000000001.
+fn names_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let mut person = NodeType::new(id(NAMES_PERSON), "Person");
+    person.properties.insert(
+        id(NAMES_ROLE),
+        PropertyDefinition::new(id(NAMES_ROLE), "role", ValueType::String),
+    );
+    document.ontology.node_types.push(person);
+    document
+        .ontology
+        .node_types
+        .push(NodeType::new(id(NAMES_SERVICE), "Service"));
+    let mut incident = NodeType::new(id(NAMES_INCIDENT), "Incident");
+    incident.properties.insert(
+        id(NAMES_OPENED),
+        PropertyDefinition::new(id(NAMES_OPENED), "opened", ValueType::Integer),
+    );
+    document.ontology.node_types.push(incident);
+    for (edge_type, name, source) in [
+        (NAMES_WORKS_ON, "works_on", NAMES_PERSON),
+        (NAMES_AFFECTS, "affects", NAMES_INCIDENT),
+    ] {
+        let mut declared = EdgeType::new(id(edge_type), name);
+        declared.source_types = [id(source)].into_iter().collect();
+        declared.target_types = [id(NAMES_SERVICE)].into_iter().collect();
+        declared.cardinality = Cardinality::Many;
+        document.ontology.edge_types.push(declared);
+    }
+    let mut ada = Node::<Value>::new(id(NAMES_ADA), root, id(NAMES_PERSON), "ada");
+    ada.properties
+        .insert(id(NAMES_ROLE), vec![Value::String("maintainer".into())]);
+    document.graph.nodes.insert(ada.id, ada);
+    for (node, name) in [(NAMES_ROUTER, "router"), (NAMES_LEDGER, "ledger")] {
+        let service = Node::<Value>::new(id(node), root, id(NAMES_SERVICE), name);
+        document.graph.nodes.insert(service.id, service);
+    }
+    for (node, name, days) in [(NAMES_OUTAGE, "outage", 1), (NAMES_LATENCY, "latency", 2)] {
+        let mut incident = Node::<Value>::new(id(node), root, id(NAMES_INCIDENT), name);
+        incident.properties.insert(
+            id(NAMES_OPENED),
+            vec![Value::Integer(JANUARY_FIRST_0900_MS + days * DAY_MS)],
+        );
+        document.graph.nodes.insert(incident.id, incident);
+    }
+    for (n, (edge_type, source, target)) in (1..).zip([
+        (NAMES_WORKS_ON, NAMES_ADA, NAMES_ROUTER),
+        (NAMES_AFFECTS, NAMES_OUTAGE, NAMES_ROUTER),
+        (NAMES_AFFECTS, NAMES_LATENCY, NAMES_LEDGER),
+    ]) {
+        let edge = Edge::<Value> {
+            id: id(NAMES_EDGES + n),
+            root_id: root,
+            type_id: id(edge_type),
+            source: id(source),
+            target: id(target),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
 }

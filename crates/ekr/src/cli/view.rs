@@ -69,12 +69,12 @@
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`ekr_views::Index::view_roles_document`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>[?revision=N]` | that revision's evidence's retained bytes (head when absent), `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown revision, id or bytes not retained |
-//! | `GET /overview[?revision=N&limit=L&sections=S]` | [`ekr_views::Index::overview_sections`]'s `ekr.graph-overview/2` bytes: meta, the type counts and the `L` highest-degree nodes, and of `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; an unknown name is 400 `invalid-query`), `application/json` |
-//! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
+//! | `GET /overview[?revision=N&limit=L&sections=S&format=F]` | [`ekr_views::Index::overview_as`]'s bytes, `ekr.graph-overview/2` unless `F` names `ekr.graph-overview/3` (which names each type and carries `meta.committed_at`): meta, the type counts and the `L` highest-degree nodes, and of `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; an unknown name, or format, is 400 `invalid-query`), `application/json` |
+//! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N][&format=F]` | [`ekr_views::Index::page_as`]'s records, `ekr.graph-slice/1` unless `F` names `ekr.graph-slice/2` (each record with its `type_name`), streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, or with `F` `ekr.node-detail/2` [`ekr_views::Index::detail_v2`]'s: at most `L` (1 to 500, 10 when absent) values per property and neighbours per relation group, each group from neighbour `A` (0 when absent), only the edge type `E` names (its id or name) when given; `L`, `E` or `A` on a /1 request is 400 `invalid-query`, and a /2 request for a type id 404 `ekr.views.NodeIsAType`, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]` | [`ekr_views::Index::search_as`]'s bytes in the format `F` names, `ekr.node-matches/1` when absent and `ekr.node-matches/2` when named (`L` is [`SEARCH_LIMIT`] when absent); `T` (a node type's id or name), `A` and `B` (milliseconds or `YYYY-MM-DD`) are /2's, read by [`search_filter`]: with /1, or malformed, they are 400 `invalid-query`, and a `T` naming no node type is 404 `ekr.views.NodeTypeNotFound`. `application/json` |
-//! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
-//! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A]` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes: the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
+//! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N][&format=F]` | [`ekr_views::Index::timeline_as`]'s bytes, `ekr.graph-timeline/1` unless `F` names `ekr.graph-timeline/2` (with `names`): one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
+//! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A][&format=F]` | [`ekr_views::Index::changes_as`]'s bytes, `ekr.graph-changes/1` unless `F` names `ekr.graph-changes/2` (with `names`): the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
 //! The bounded read endpoints read their query with [`Query`]: `name=value` pairs, each name one the path takes
 //! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. Then, in
@@ -112,6 +112,7 @@ use ekr_views::{
     SinceKind, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord, TimelineRequest,
     WindowBound, MATCHES_V2_FORMAT,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -1162,9 +1163,12 @@ fn query_refused(what: &str, error: QueryError) -> Reply {
     }
 }
 
-/// `/overview[?revision=N&limit=L&sections=S]`.
+/// `/overview[?revision=N&limit=L&sections=S&format=F]`: `ekr.graph-overview/2` unless `F` names
+/// `ekr.graph-overview/3` (`views.yaml`, "Named formats").
 fn overview(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
-    let query = Query::parse(query, &["revision", "limit", "sections"]).map_err(invalid_query)?;
+    let query =
+        Query::parse(query, &["revision", "limit", "sections", "format"]).map_err(invalid_query)?;
+    let format = named_format(&query, OverviewFormat::V2)?;
     let at = query.revision().map_err(invalid_query)?;
     let limit = query.integer("limit").map_err(invalid_query)?;
     let sections =
@@ -1176,9 +1180,24 @@ fn overview(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
         .index(runtime, at)
         .map_err(|error| refused("overview", error))?;
     let answer = index
-        .overview_sections(&request)
+        .overview_as(format, &request)
         .map_err(|error| refused("overview", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// A bounded read's `format`: its predecessor when the query names none, the format the query
+/// names otherwise; a name the read does not answer is 400 `invalid-query`, before the store is
+/// read (`views.yaml`, "Named formats").
+fn named_format<F>(query: &Query, predecessor: F) -> Result<F, Reply>
+where
+    F: std::str::FromStr<Err = UnknownFormat>,
+{
+    query
+        .get("format")
+        .map(str::parse::<F>)
+        .transpose()
+        .map(|format| format.unwrap_or(predecessor))
+        .map_err(invalid_query)
 }
 
 /// `/node/<id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]`: `ekr.node-detail/1`
@@ -1448,15 +1467,19 @@ fn search_refused(error: SearchError) -> Reply {
     }
 }
 
-/// `/timeline?[type=<id>&]hops=H&limit=L[&bucket=day|week][&subject=<id>][&revision=N]`: the
-/// `ekr.graph-timeline/1` document. `hops` and `limit` are required; a `type` or `subject` that is
-/// not an id, or a `bucket` other than `day` or `week`, is `invalid-query`.
+/// `/timeline?[type=<id>&]hops=H&limit=L[&bucket=day|week][&subject=<id>][&revision=N][&format=F]`:
+/// the `ekr.graph-timeline/1` document, or `ekr.graph-timeline/2` when `F` names it. `hops` and
+/// `limit` are required; a `type` or `subject` that is not an id, a `bucket` other than `day` or
+/// `week`, or a format the read does not answer, is `invalid-query`.
 fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
     let query = Query::parse(
         query,
-        &["type", "hops", "limit", "bucket", "subject", "revision"],
+        &[
+            "type", "hops", "limit", "bucket", "subject", "revision", "format",
+        ],
     )
     .map_err(invalid_query)?;
+    let format = named_format(&query, TimelineFormat::V1)?;
     let row_type = query
         .get("type")
         .map(|text| {
@@ -1496,7 +1519,7 @@ fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
         .index(runtime, at)
         .map_err(|error| refused("timeline", error))?;
     let answer = index
-        .timeline(&request)
+        .timeline_as(format, &request)
         .map_err(|error| refused("timeline", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
@@ -1530,9 +1553,10 @@ fn changes_refused(error: ChangesError) -> Reply {
     }
 }
 
-/// `/changes?since_revision=N|since_valid=T|since_recorded=T[&at=N][&limit=L][&after=A]`: the
-/// `ekr.graph-changes/1` page. Exactly one of the three since names is required (`invalid-query`
-/// otherwise); `at` is a revision as `revision` is elsewhere, the head when absent.
+/// `/changes?since_revision=N|since_valid=T|since_recorded=T[&at=N][&limit=L][&after=A][&format=F]`:
+/// the `ekr.graph-changes/1` page, or `ekr.graph-changes/2` when `F` names it. Exactly one of the
+/// three since names is required (`invalid-query` otherwise); `at` is a revision as `revision` is
+/// elsewhere, the head when absent.
 fn changes(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
     let query = Query::parse(
         query,
@@ -1543,9 +1567,11 @@ fn changes(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<R
             "at",
             "limit",
             "after",
+            "format",
         ],
     )
     .map_err(invalid_query)?;
+    let format = named_format(&query, ChangesFormat::V1)?;
     let integer = |name: &str| query.integer(name).map_err(invalid_query);
     let (kind, since) = SinceKind::one_of(
         integer("since_revision")?,
@@ -1564,19 +1590,25 @@ fn changes(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<R
     let index = indexes
         .index(runtime, at)
         .map_err(|error| refused("changes", error))?;
-    let answer = index.changes(runtime, &request).map_err(changes_refused)?;
+    let answer = index
+        .changes_as(runtime, &request, format)
+        .map_err(changes_refused)?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
 
-/// `/expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]`: the page the
-/// connection streams, or the refusal it answers instead. `seeds=` is the empty set, which
-/// views.yaml answers with an empty page (node_total 0); an empty id among others is refused.
+/// `/expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N][&format=F]`: the
+/// page the connection streams, in `ekr.graph-slice/1` or, when `F` names it, `ekr.graph-slice/2`,
+/// or the refusal it answers instead. `seeds=` is the empty set, which views.yaml answers with an
+/// empty page (node_total 0); an empty id among others is refused.
 fn expand(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<SlicePage, Reply> {
     let query = Query::parse(
         query,
-        &["seeds", "depth", "limit", "edges", "after", "revision"],
+        &[
+            "seeds", "depth", "limit", "edges", "after", "revision", "format",
+        ],
     )
     .map_err(invalid_query)?;
+    let format = named_format(&query, SliceFormat::V1)?;
     let listed = query.required("seeds").map_err(invalid_query)?;
     let seeds = if listed.is_empty() {
         Vec::new()
@@ -1606,7 +1638,7 @@ fn expand(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Sl
         .index(runtime, at)
         .map_err(|error| refused("expand", error))?;
     index
-        .page(&request)
+        .page_as(format, &request)
         .map_err(|error| query_refused("expand", error))
 }
 
@@ -2581,6 +2613,7 @@ mod tests {
                 SliceRecord::Node(SliceNode {
                     id: id(n + 1),
                     type_id: id(9),
+                    type_name: None,
                     name: format!("n{n}"),
                     degree: u64::MAX,
                     distance: 0,

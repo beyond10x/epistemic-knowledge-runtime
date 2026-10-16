@@ -1,6 +1,10 @@
 //! `ekr resolve`: one typed reference resolved by `ekr_integrate::resolve` against the canonical
 //! snapshot of one verified read, and the `typed-reference` document's JSON Schema. Reads only:
 //! a resolution proposes nothing and writes nothing (`systems/ekr/domains/integrate.yaml`).
+//!
+//! Its answer is the bare `ResolutionOutcome`, or, asked for it, `ekr.resolution/1`: the outcome
+//! under `outcome` with `names`, the names map of the ids it holds (`integrate.yaml`,
+//! `ekr.integrate.ResolutionV1`; ekr-mcp-fixes-20261015 #3).
 
 use std::io::Read;
 use std::path::Path;
@@ -11,6 +15,39 @@ use ekr_integrate::{ResolutionOutcome, ResolutionRefusal, ResolutionRefusalCode,
 use ekr_kernel::Runtime;
 
 use crate::exit::Failure;
+
+/// The format literal of `ekr.resolution/1`.
+pub(super) const RESOLUTION_FORMAT: &str = "ekr.resolution/1";
+
+/// `ekr.integrate.ResolutionFormat`: which answer `ekr resolve --format` and the MCP tool
+/// `resolve` give. `ekr resolve` answers the bare outcome when none is named; the MCP tool
+/// `ekr.resolution/1`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum Format {
+    /// The bare `ekr.integrate.ResolutionOutcome`.
+    #[value(name = "outcome")]
+    Outcome,
+    /// `ekr.resolution/1`: the outcome with `names`.
+    #[value(name = "ekr.resolution/1")]
+    V1,
+}
+
+impl Format {
+    /// The name a request gives the format.
+    pub(super) const fn name(self) -> &'static str {
+        match self {
+            Self::Outcome => "outcome",
+            Self::V1 => RESOLUTION_FORMAT,
+        }
+    }
+
+    /// The format a name names, if it names one.
+    pub(super) fn named(text: &str) -> Option<Self> {
+        [Self::Outcome, Self::V1]
+            .into_iter()
+            .find(|format| format.name() == text)
+    }
+}
 
 /// The most bytes of a typed-reference document read.
 const LIMIT: u64 = 1 << 20;
@@ -200,17 +237,42 @@ pub(super) fn type_id(text: &str) -> Result<TypeId, String> {
 
 /// Captures the requested (or newest) revision once and resolves `reference` against it, looking
 /// its aliases up in the capture's alias index, which the kernel builds once per revision. A
-/// refused reference is the named refusal of its code (exit 2); every other outcome is printed.
-pub(super) fn run(
+/// refused reference is the named refusal of its code (exit 2), whatever the format; every other
+/// outcome is answered in the format `format` names: the bare outcome, or `ekr.resolution/1`,
+/// the outcome under `outcome` with `names`, the names map of the ids it holds, read from the
+/// ontology of the same capture.
+pub(super) fn answer(
     runtime: &Runtime,
     reference: &TypedReference,
     at: Option<u64>,
-) -> Result<ResolutionOutcome, Failure> {
+    format: Format,
+) -> Result<serde_json::Value, Failure> {
+    let (outcome, graph) = resolved(runtime, reference, at)?;
+    let outcome = serde_json::to_value(&outcome).map_err(Failure::fault)?;
+    Ok(match format {
+        Format::Outcome => outcome,
+        Format::V1 => {
+            let names = ekr_views::ontology_names(&graph.ontology, &outcome);
+            serde_json::json!({
+                "format": RESOLUTION_FORMAT,
+                "names": names,
+                "outcome": outcome,
+            })
+        }
+    })
+}
+
+/// The outcome of `reference` in one capture, and that capture's graph.
+fn resolved(
+    runtime: &Runtime,
+    reference: &TypedReference,
+    at: Option<u64>,
+) -> Result<(ResolutionOutcome, std::sync::Arc<ekr_graph::CanonicalGraph>), Failure> {
     let read = runtime.read(at.map(RevisionNumber::new))?;
     match ekr_integrate::resolve_indexed(GraphSnapshot::of(&read.graph), &read.aliases(), reference)
     {
         ResolutionOutcome::Refused(refusal) => Err(refused(&refusal, read.graph.revision)),
-        outcome => Ok(outcome),
+        outcome => Ok((outcome, std::sync::Arc::clone(&read.graph))),
     }
 }
 
