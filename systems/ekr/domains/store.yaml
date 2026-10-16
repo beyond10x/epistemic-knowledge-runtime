@@ -645,6 +645,21 @@ events:
       - name: base_revision
         type: ekr.kernel.RevisionId
 
+  # The store's stage index (story:stage-list-reads-committed, issue #94): one entry per stage,
+  # appended to the store tenant's one index stream in the same atomic group as the stage's
+  # ekr.store.StageBegun, so a stage whose begin committed has its entry committed, and neither
+  # without the other. ekr.cli.Stages finds stage ids by reading this stream as a stream, which
+  # sees every committed write, and not through the provider's published feed: on PostgreSQL that
+  # feed is watermarked below the oldest open transaction on the server, so it hides a committed
+  # begin while any older transaction is open. The entry carries only the id; the stage's state is
+  # always read from its own record stream. A store written before the index has stages without
+  # an entry: the listing unions the index with the feed scan it used before, so those stages,
+  # committed before the index existed, are still found.
+  - name: ekr.store.StageIndexed
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+
   # The stage accepts no further write; the suffix a publication captures after this is final.
   - name: ekr.store.StageSealed
     fields:

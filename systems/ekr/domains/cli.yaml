@@ -172,12 +172,15 @@ commands:
         instance: stage_id
         emits:
           - ekr.store.StageBegun
+          - ekr.store.StageIndexed
         payload:
           ekr.store.StageBegun:
             stage_id: {generated: true}
             tenant: {generated: true}
             base: {generated: true}
             base_revision: {generated: true}
+          ekr.store.StageIndexed:
+            stage_id: {generated: true}
         summary: >-
           The stage exists, Begun, at the store's head, under an id begin minted and returned; its
           tenant holds the store's history as a verified preserving copy, and the store's head and
@@ -464,6 +467,13 @@ views:
   # ekr-store, every lifecycle scenario a suite for `ekr` synthesizes would need a view another
   # component owns and fall outside that suite (spec review F14; ess 0.56.0 selects 4 scenarios for
   # `ekr` with the view in store.yaml and 36 with it here).
+  #
+  # read_your_writes holds on every provider and whatever other transaction is open (issue #94):
+  # the stage ids come from the store's stage index (ekr.store.StageIndexed), read by stream, unioned
+  # with the published feed's stage streams for stages a store recorded before the index existed;
+  # each stage's state is then its own record's, as `ekr stage show` answers it. Held by
+  # `a_begun_stage_is_listed_while_another_transaction_is_open`
+  # (`crates/ekr-kernel/tests/stage_hosted_limits.rs`) where the PostgreSQL tests run.
   - name: ekr.cli.Stages
     source: ekr.store.Stage
     consistency: read_your_writes
