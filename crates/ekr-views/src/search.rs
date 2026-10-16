@@ -406,9 +406,7 @@ impl Index {
                 MatchTier::Exact => {
                     node.canonical_name == text || node.aliases.iter().any(|alias| alias == text)
                 }
-                MatchTier::Folded => {
-                    *name == folded || aliases.iter().any(|alias| *alias == folded)
-                }
+                MatchTier::Folded => *name == folded || aliases.contains(&folded),
                 MatchTier::Words => {
                     runs(name) == text_runs || aliases.iter().any(|alias| runs(alias) == text_runs)
                 }
