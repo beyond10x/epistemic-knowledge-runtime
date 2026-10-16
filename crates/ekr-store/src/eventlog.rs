@@ -22,6 +22,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
     sync::Arc,
+    time::{Duration, Instant},
 };
 use time::OffsetDateTime;
 use tokio::runtime::{Builder, Handle, Runtime};
@@ -188,6 +189,12 @@ pub struct EventlogStore<S: EventStore> {
     empty: Option<EmptyCheck<S>>,
     /// The provider this store is on.
     provider: ProviderKind,
+    /// How long after its first attempt a write whose outcome the provider could not tell is
+    /// still tried again ([`retry_unknown`]). Unbounded but for the attempt count on File and
+    /// SQLite; on PostgreSQL the pool's transaction deadline, since eventlog-postgres answers an
+    /// attempt stopped at that deadline before its `COMMIT` as an unknown outcome too, and
+    /// repeating it would only meet the deadline again.
+    unknown_retry_budget: Duration,
     /// For a handle joined to a stage (design § 107.3): the stage and its record's stream in the
     /// store's tenant, read before every read and write and again after every write lands.
     joined: Option<Joined>,
@@ -638,6 +645,7 @@ impl EventlogStore<PostgresEventStore> {
             config.reserved_connections,
         ))?;
         let mut opened = Self::assemble(runtime, store, tenant, None, ProviderKind::Postgres);
+        opened.unknown_retry_budget = Duration::from_millis(config.pool.transaction_timeout_ms);
         opened.hosted_read_only = reading;
         opened.capture = Some(|store, runtime, tenant, reading| {
             // The inventory holds every event and object of the tenant by contract — it is what a
@@ -731,6 +739,7 @@ impl<S: EventStore> EventlogStore<S> {
     ) -> Self {
         Self {
             provider,
+            unknown_retry_budget: Duration::MAX,
             joined: None,
             runtime: Some(runtime),
             store,
@@ -1880,33 +1889,56 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
-        for _ in 0..16 {
-            // A group that binds no blob (a stage record's move, or a publication of a suffix
-            // with no object) is the provider's plain atomic group: a blob group must bind one.
-            let appended = if request.blobs.is_empty() {
-                self.runtime()
-                    .block_on(eventlog_core::AtomicEventStore::append_group(
-                        &self.store,
-                        &request.group,
-                    ))
-            } else {
-                self.runtime()
-                    .block_on(AtomicBlobEventStore::append_group_with_blobs(
-                        &self.store,
-                        request,
-                    ))
-            };
-            match appended {
-                Err(EventLogError::UnknownCommit) => continue,
-                Ok(result) => {
-                    self.landed(&request.group)?;
-                    return Ok(result);
+        let started = Instant::now();
+        let result = retry_unknown(
+            self.unknown_retry_budget,
+            || started.elapsed(),
+            || {
+                // A group that binds no blob (a stage record's move, or a publication of a suffix
+                // with no object) is the provider's plain atomic group: a blob group must bind one.
+                if request.blobs.is_empty() {
+                    self.runtime()
+                        .block_on(eventlog_core::AtomicEventStore::append_group(
+                            &self.store,
+                            &request.group,
+                        ))
+                } else {
+                    self.runtime()
+                        .block_on(AtomicBlobEventStore::append_group_with_blobs(
+                            &self.store,
+                            request,
+                        ))
                 }
-                Err(error) => return Err(error.into()),
-            }
-        }
-        Err(StoreError::UnknownCommit)
+            },
+        )?;
+        self.landed(&request.group)?;
+        Ok(result)
     }
+}
+
+/// How many times [`EventlogStore`] tries one write whose outcome the provider could not tell.
+const UNKNOWN_ATTEMPTS: u32 = 16;
+
+/// Runs `attempt` until it answers anything but [`EventLogError::UnknownCommit`]: at most
+/// [`UNKNOWN_ATTEMPTS`] times, and no new attempt once `elapsed` — the time since the first
+/// began — has reached `budget`. Each retry repeats the same group, so a retry after a commit
+/// that did land is answered from the provider's receipt. eventlog-postgres cannot tell an
+/// attempt stopped at its transaction deadline before `COMMIT` from one whose `COMMIT` went
+/// unanswered: it answers both as an unknown outcome. Bounding the total time rather than the
+/// count alone keeps such a write from meeting the deadline sixteen times over; one that answers
+/// fast (a connection lost after `COMMIT`) is still retried.
+fn retry_unknown<T>(
+    budget: Duration,
+    mut elapsed: impl FnMut() -> Duration,
+    mut attempt: impl FnMut() -> Result<T, EventLogError>,
+) -> Result<T, EventLogError> {
+    for _ in 0..UNKNOWN_ATTEMPTS {
+        match attempt() {
+            Err(EventLogError::UnknownCommit) if elapsed() < budget => continue,
+            answered => return answered,
+        }
+    }
+    Err(EventLogError::UnknownCommit)
 }
 impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
     fn preparation(
@@ -2645,5 +2677,87 @@ mod lock_wait {
         });
         assert!(other.is_err());
         assert_eq!(calls, 1, "only the lock is retried");
+    }
+}
+
+#[cfg(test)]
+mod unknown_retry {
+    use super::{retry_unknown, EventLogError, UNKNOWN_ATTEMPTS};
+    use std::time::Duration;
+
+    /// An attempt that answers an unknown outcome every time, each taking `each` on a clock that
+    /// only the attempts move. Returns the attempts made.
+    fn unknown_each(budget: Duration, each: Duration) -> u32 {
+        let clock = std::cell::Cell::new(Duration::ZERO);
+        let mut attempts = 0;
+        let answer: Result<(), _> = retry_unknown(
+            budget,
+            || clock.get(),
+            || {
+                attempts += 1;
+                clock.set(clock.get() + each);
+                Err(EventLogError::UnknownCommit)
+            },
+        );
+        assert!(matches!(answer, Err(EventLogError::UnknownCommit)));
+        attempts
+    }
+
+    #[test]
+    fn an_attempt_that_meets_the_deadline_is_not_repeated() {
+        // Each attempt ends at the deadline, which is the budget: one attempt, not sixteen.
+        let deadline = Duration::from_secs(2);
+        assert_eq!(unknown_each(deadline, deadline), 1);
+    }
+
+    #[test]
+    fn a_fast_unknown_outcome_is_retried_up_to_the_count() {
+        assert_eq!(
+            unknown_each(Duration::from_secs(2), Duration::from_millis(1)),
+            UNKNOWN_ATTEMPTS
+        );
+        assert_eq!(
+            unknown_each(Duration::MAX, Duration::from_secs(3600)),
+            UNKNOWN_ATTEMPTS,
+            "an unbounded budget keeps the count alone"
+        );
+    }
+
+    #[test]
+    fn attempts_stop_once_the_budget_is_spent() {
+        // Half a deadline each: the second attempt starts inside the budget, the third would not.
+        assert_eq!(
+            unknown_each(Duration::from_secs(2), Duration::from_secs(1)),
+            2
+        );
+    }
+
+    #[test]
+    fn any_other_answer_ends_the_retries_at_once() {
+        let mut attempts = 0;
+        let answer = retry_unknown(
+            Duration::MAX,
+            || Duration::ZERO,
+            || {
+                attempts += 1;
+                if attempts < 3 {
+                    Err(EventLogError::UnknownCommit)
+                } else {
+                    Ok(attempts)
+                }
+            },
+        );
+        assert_eq!(answer.unwrap(), 3);
+        let mut refused = 0;
+        let answer: Result<(), _> = retry_unknown(
+            Duration::MAX,
+            || Duration::ZERO,
+            || {
+                refused += 1;
+                Err(EventLogError::Closed)
+            },
+        );
+        assert!(matches!(answer, Err(EventLogError::Closed)));
+        assert_eq!(refused, 1);
     }
 }

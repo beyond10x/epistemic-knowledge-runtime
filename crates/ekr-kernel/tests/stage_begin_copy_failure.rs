@@ -4,7 +4,9 @@
 //! it. When the copy's writes cannot land, the begin abandons the stage as far as that lands and
 //! refuses with `stage-copy-failed`, naming the stage, so the caller finishes it with
 //! `ekr stage abandon <stage id>`. It must not answer `publication outcome is unknown`, which
-//! names no stage and tells the caller to resolve an occurrence that does not exist.
+//! names no stage and tells the caller to resolve an occurrence that does not exist. Here the
+//! abandonment cannot land while the timed-out copy transaction lives on the server, so the stage
+//! is left `Begun` and the refusal says so.
 //!
 //! The copy is held back by a lock the schema owner takes on the provider's blob table before the
 //! begin: the record's group writes no blob, every copy group does. The lock wait is configured
@@ -38,7 +40,10 @@ fn postgres() -> Option<(PostgresConfiguration, PostgresConfiguration)> {
     let owner = std::env::var_os("EKR_TEST_POSTGRES_OWNER").expect("owner configuration reference");
     let owner = PostgresConfiguration::read(Path::new(&owner)).unwrap();
     Runtime::postgres_schema(&owner).unwrap();
-    Some((PostgresConfiguration::read(Path::new(&path)).unwrap(), owner))
+    Some((
+        PostgresConfiguration::read(Path::new(&path)).unwrap(),
+        owner,
+    ))
 }
 
 /// A connection as the schema owner, over the owner configuration's verified TLS.
@@ -76,7 +81,7 @@ fn owner_connection(
 }
 
 #[test]
-fn a_begin_whose_copy_cannot_land_names_and_abandons_the_stage_it_began() {
+fn a_begin_whose_copy_cannot_land_names_the_stage_and_abandon_finishes_it() {
     let Some((mut config, owner)) = postgres() else {
         return;
     };
@@ -96,14 +101,11 @@ fn a_begin_whose_copy_cannot_land_names_and_abandons_the_stage_it_began() {
         .unwrap();
     let blocker = owner_connection(&io, &owner);
     let blobs = format!("\"{}\".ekr_blobs", owner.schema);
-    io.block_on(blocker.batch_execute(&format!(
-        "BEGIN; LOCK TABLE {blobs} IN EXCLUSIVE MODE"
-    )))
-    .unwrap();
+    io.block_on(blocker.batch_execute(&format!("BEGIN; LOCK TABLE {blobs} IN EXCLUSIVE MODE")))
+        .unwrap();
     let begun = store.begin_stage();
     io.block_on(blocker.batch_execute("COMMIT")).unwrap();
-    // The begin recorded its stage and, under the lock, its abandonment: neither record's group
-    // writes a blob. The head did not move.
+    // The begin recorded its stage; the head did not move.
     let stages = store.stages().unwrap();
 
     // The begin's answer is not an unknown publication outcome: it names the stage it began.
@@ -120,7 +122,11 @@ fn a_begin_whose_copy_cannot_land_names_and_abandons_the_stage_it_began() {
     assert_eq!(stages.len(), 1, "the begin's record committed: {stages:?}");
     let left = &stages[0];
     assert_eq!(left.stage.base, head);
-    assert_eq!(store.head().unwrap().unwrap().revision, head, "the head did not move");
+    assert_eq!(
+        store.head().unwrap().unwrap().revision,
+        head,
+        "the head did not move"
+    );
     assert!(
         text.starts_with("stage-copy-failed: ")
             && text.contains(&format!("stage {} was begun", left.stage.stage_id))
@@ -128,11 +134,16 @@ fn a_begin_whose_copy_cannot_land_names_and_abandons_the_stage_it_began() {
         "the begin's refusal is stage-copy-failed and names stage {}: {text}",
         left.stage.stage_id
     );
-    // The begin abandoned the stage; its tenant's forgetting writes the blob table, which the
-    // lock held, so the refusal says the tenant may hold part of the copy.
-    assert_eq!(left.state, StageState::Abandoned, "the begin abandoned its stage");
+    // The begin could not record the abandonment either: the copy attempt that met the deadline
+    // is still running on the server, blocked on the lock and holding the provider's publication
+    // gate (a shared advisory lock); a reader's exclusive request for the gate queues behind it,
+    // and every later append behind that. So the refusal says the stage is still Begun
+    // and its tenant may hold part of the copy (`systems/ekr/domains/store.yaml`,
+    // `ekr.store.StageCopyFailed`), and `ekr stage abandon` finishes it.
+    assert_eq!(left.state, StageState::Begun, "{text}");
     assert!(
-        text.contains("it is Abandoned and its tenant may hold part of the copy"),
+        text.contains("its abandonment was not recorded")
+            && text.contains("it is Begun and its tenant may hold part of the copy"),
         "{text}"
     );
 

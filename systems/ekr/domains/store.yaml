@@ -851,6 +851,31 @@ errors:
       - name: stage_id
         type: ekr.store.StageId
 
+  # A begin recorded StageBegun and its preserving copy into the stage's tenant then failed: the
+  # provider refused a write of it, or could not say whether one committed (a copy group that
+  # outlasts the provider's operation deadline, `pool.transaction_timeout_ms` on PostgreSQL). The
+  # begin does not answer that write's own refusal, which names no stage: it abandons the stage it
+  # recorded (StageAbandoned, then the stage's tenant is forgotten) and answers this, naming the
+  # stage, the state its record was left in, whether its tenant was emptied, and the cause. Unlike
+  # the stage refusals above it writes: the stage's record, its abandonment where that landed, and
+  # whatever of the copy landed until the tenant is forgotten. `state` is Abandoned when the
+  # abandonment was recorded and Begun when it could not be; `forgotten` is false when the tenant
+  # still holds part of the copy. Either way `ekr stage abandon <stage_id>` finishes the cleanup,
+  # and the store's head and revision stream are unchanged.
+  - name: ekr.store.StageCopyFailed
+    summary: >-
+      The begin recorded the stage and could not copy the store into its tenant; the stage is
+      abandoned where that could be recorded, and is named so that `ekr stage abandon` can finish.
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
+      - name: state
+        type: ekr.store.Stage.State
+      - name: forgotten
+        type: Boolean
+      - name: reason
+        type: String
+
   # A decision elected (design § 94) and never published: in the store, a begin's copy refuses it
   # as the migration does (`migrate-unresolved-preparation`); in the stage, a seal or a
   # publication refuses it, since the suffix would leave out an occurrence the run elected.

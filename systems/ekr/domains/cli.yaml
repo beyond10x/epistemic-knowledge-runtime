@@ -194,6 +194,12 @@ commands:
         external: the store holds a decision elected and never published that is not resolved, a /4 slot resolved as design § 107.5 says
         error: ekr.store.UnresolvedPreparation
         summary: Nothing was recorded or copied; the copy would leave out an elected occurrence.
+      - name: copy-failed
+        external: the stage was recorded and a write of its preserving copy was refused, or its outcome could not be told
+        error: ekr.store.StageCopyFailed
+        summary: >-
+          The store's head and revision stream are unchanged; the stage the begin recorded is
+          named, abandoned where that could be recorded, and its tenant emptied where it could be.
 
   # Seal, the first step of `ekr stage publish` on a Begun stage: checked before anything is
   # written, then the stage record's move to Sealing. From then on the stage accepts no write, and
