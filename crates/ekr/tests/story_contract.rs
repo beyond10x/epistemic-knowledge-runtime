@@ -130,6 +130,8 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// SDK's mirror share (`ekr_core::decode::observe_yaml`, wave correct-07).
 /// For `task:validate-cost-flat-with-store-size`, core's SHA-256 implementation uses `ring`;
 /// `sha2` remains a dev dependency as the independent oracle for unchanged digest bytes.
+/// `ekr-kernel`'s dev `rustls`, `tokio-postgres` and `tokio-postgres-rustls` let a PostgreSQL test
+/// hold a lock as the schema owner while a stage begin copies (`stage_begin_copy_failure.rs`).
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -159,10 +161,13 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "eventlog-file",
             "eventlog-sqlite",
             "proptest",
+            "rustls",
             "tempfile",
             "time",
             "tokio",
             "trybuild",
+            "tokio-postgres",
+            "tokio-postgres-rustls",
         ],
     ),
     (
