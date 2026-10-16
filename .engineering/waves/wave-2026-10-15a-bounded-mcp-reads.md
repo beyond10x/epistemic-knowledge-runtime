@@ -91,6 +91,12 @@ Near this wave, not in it:
 
 ## Gate
 
-Not run. Each unit runs `cargo check -p` and `cargo test -p` on its crates; one full `task check`
-on the combined head, then the cross-crate checks of `COORDINATOR.md` check 9, before the pull
-request.
+One full `task check` on the combined head 413ff326, in this tree's own `target/`, 2026-10-16:
+`fmt-check`, `search-web-check`, `clippy`, `test` (2648 passed, 0 failed, 13 ignored, across the
+workspace and the vendored crates), `doc-check` and `vendor-check` passed. `spec-check` stopped at
+its precondition because the `ess` on the host's path was a newer release than the pinned 0.36.0;
+`spec-check`, `conform-fresh`, `plan-check` and `site-check` were then run on the same head with the
+pinned `ess` 0.36.0 and `aep` 0.64.0 release binaries, checksums verified against the workflow's
+digests, and exited zero. `cargo test --workspace -- --list` in this tree lists 2475 workspace
+tests, the binaries the gate ran. The cross-crate checks of `COORDINATOR.md` check 9 (format,
+workspace clippy, the `ekr` contract targets) are part of that run.
