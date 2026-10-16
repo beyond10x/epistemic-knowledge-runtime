@@ -79,6 +79,36 @@ types:
       Ambiguous: ekr.integrate.AmbiguousReference
       Refused: ekr.integrate.ResolutionRefusal
 
+  # ekr.resolution/1: the answer to one resolution as a named, versioned document. `outcome` is
+  # the ekr.integrate.ResolutionOutcome `ekr resolve` prints without a format, and `names` the
+  # names map ekr.views defines (its "Named formats" paragraph) of that outcome, read from the
+  # ontology of the revision resolved against: a ProposeNew's type, by id; empty for a Resolved
+  # or an Ambiguous outcome, which name nodes only. A refused reference is refused by its code
+  # whatever the format, as without one. Every object's keys ascend by their text, as in every
+  # document `ekr` prints. `ekr resolve` prints the bare outcome unless `--format ekr.resolution/1`
+  # asks for this; the MCP tool `resolve` answers this unless its `format` names `outcome`, the
+  # bare outcome, and its answer is byte for byte what `ekr resolve` prints for the same
+  # reference and `at` with the format named.
+  - name: ekr.integrate.ResolutionFormatV1
+    kind: enum
+    variants: [ekr.resolution/1]
+
+  # Which answer `ekr resolve --format` and the MCP tool `resolve` give: the bare outcome
+  # (`outcome`) or ekr.resolution/1.
+  - name: ekr.integrate.ResolutionFormat
+    kind: enum
+    variants: [outcome, ekr.resolution/1]
+
+  - name: ekr.integrate.ResolutionV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.integrate.ResolutionFormatV1
+      - name: outcome
+        type: ekr.integrate.ResolutionOutcome
+      - name: names
+        type: ekr.views.OntologyNames
+
   # The extraction document, `ekr.extraction-document/1` (design § 24, § 63): what an extracting
   # agent hands the engine — the ontology it needs by name, the named things it found, the facts
   # it read about them and the evidence each fact cites. It is written by a consumer's extractor,

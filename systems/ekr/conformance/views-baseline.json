@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 85,
-  "answered_floor": 85,
+  "total": 101,
+  "answered_floor": 101,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -18,6 +18,9 @@
     "ekr.views.ChangesSince/outcome/not-seeded",
     "ekr.views.ChangesSince/outcome/since-malformed",
     "ekr.views.DescribeNode/outcome/described",
+    "ekr.views.DescribeNode/outcome/detailed",
+    "ekr.views.DescribeNode/outcome/limit-exceeded",
+    "ekr.views.DescribeNode/outcome/node-is-a-type",
     "ekr.views.DescribeNode/outcome/node-not-found",
     "ekr.views.DescribeNode/outcome/not-found",
     "ekr.views.DescribeNode/outcome/not-seeded",
@@ -61,6 +64,7 @@
     "ekr.views.ReportStoreQuality/outcome/not-seeded",
     "ekr.views.ReportStoreQuality/outcome/reported",
     "ekr.views.SearchNodes/outcome/limit-exceeded",
+    "ekr.views.SearchNodes/outcome/node-type-not-found",
     "ekr.views.SearchNodes/outcome/not-found",
     "ekr.views.SearchNodes/outcome/not-seeded",
     "ekr.views.SearchNodes/outcome/searched",
@@ -69,6 +73,10 @@
     "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample",
     "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
+    "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it",
+    "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group",
+    "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes",
+    "ekr.views/authored/a-node-detail-v2-on-a-type-id-names-the-type",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
     "ekr.views/authored/a-process-map-counts-the-variants-and-directly-follows-edges-of-the-log",
     "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type",
@@ -78,10 +86,16 @@
     "ekr.views/authored/a-revision-since-lists-the-changes-after-it",
     "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision",
     "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches",
+    "ekr.views/authored/a-search-v2-filters-on-timeline-time",
+    "ekr.views/authored/a-search-v2-lists-one-type-by-degree",
+    "ekr.views/authored/a-search-v2-matches-every-word-in-any-order",
+    "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier",
     "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
     "ekr.views/authored/a-seed-only-store-projects-revision-zero",
+    "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type",
     "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound",
     "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
+    "ekr.views/authored/a-timeline-v2-names-the-types-it-cites",
     "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
     "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
     "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added",
@@ -90,8 +104,10 @@
     "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest",
     "ekr.views/authored/an-overview-answers-only-the-sections-it-names",
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
+    "ekr.views/authored/an-overview-v3-names-its-types-and-says-when-its-revision-was-committed",
     "ekr.views/authored/an-unknown-seed-is-refused-by-name",
     "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
+    "ekr.views/authored/changes-v2-name-the-types-and-properties-they-cite",
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary",
     "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision",
     "ekr.views/authored/seeded-evidence-is-projected-as-retained",
@@ -118,6 +134,22 @@
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
       "file": "a-lineage-lists-widened-ends-and-modified-properties.yaml",
       "digest": "sha256:df4cd290bd3dbd5439915b05c7dc9b26c13545bf3eac2110f93cb3f1621fd8bd"
+    },
+    "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it": {
+      "file": "a-node-detail-v2-cuts-a-long-string-and-marks-it.yaml",
+      "digest": "sha256:8fec4a7754e7bed6e0b3e88688fa9ad6c0e0586a03712299187357914b735ff2"
+    },
+    "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group": {
+      "file": "a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group.yaml",
+      "digest": "sha256:ccf14e1c6c59f48321c2d7a015ebcc0490bea3eef0572c9e0d2442e3e4654c15"
+    },
+    "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes": {
+      "file": "a-node-detail-v2-lists-same-name-nodes.yaml",
+      "digest": "sha256:852d78e30147315dc9f45ac9e877352fe4927984d778067db5ee60b8df1b47ac"
+    },
+    "ekr.views/authored/a-node-detail-v2-on-a-type-id-names-the-type": {
+      "file": "a-node-detail-v2-on-a-type-id-names-the-type.yaml",
+      "digest": "sha256:d1717506fe28e7f28f2fa8c823369b333682c5c6f38c8905568b1850e918a77c"
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
@@ -155,13 +187,33 @@
       "file": "a-search-lists-at-most-its-limit-of-matches.yaml",
       "digest": "sha256:591afed458be640c1a61f80b555fa2bc7346cb396d7f7c40806c4972ca6aec32"
     },
+    "ekr.views/authored/a-search-v2-filters-on-timeline-time": {
+      "file": "a-search-v2-filters-on-timeline-time.yaml",
+      "digest": "sha256:47ced8dbca3761f011761183ca86b6ecd67c6fef582d801ed101f42ccfcf45aa"
+    },
+    "ekr.views/authored/a-search-v2-lists-one-type-by-degree": {
+      "file": "a-search-v2-lists-one-type-by-degree.yaml",
+      "digest": "sha256:f0ff97def27dcb809e500d46ef36f729e054c68ac427af552bf33861529d77ea"
+    },
+    "ekr.views/authored/a-search-v2-matches-every-word-in-any-order": {
+      "file": "a-search-v2-matches-every-word-in-any-order.yaml",
+      "digest": "sha256:3f59932eeb48122bfd31572a050186605d685d1a9fa3e8d979ff0719920e05a8"
+    },
+    "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier": {
+      "file": "a-search-v2-ranks-a-whole-name-first-within-its-tier.yaml",
+      "digest": "sha256:d3a630489a2a0dc985048c38dd7b68002069198a5ce782b8c1dea9ae3ce508ae"
+    },
     "ekr.views/authored/a-search-with-no-match-answers-an-empty-list": {
       "file": "a-search-with-no-match-answers-an-empty-list.yaml",
-      "digest": "sha256:df48ee2a1bf7db8a8ca2a6f15065d50a476e8d19700e2ec01fcf7840b8232ec6"
+      "digest": "sha256:4a7bba8355442daa55dc71b849fe4c8d3d0e643ed2b501384b2b1f6baeb131b7"
     },
     "ekr.views/authored/a-seed-only-store-projects-revision-zero": {
       "file": "a-seed-only-store-projects-revision-zero.yaml",
       "digest": "sha256:99f21721bb0d66622a9db4b94999edd19ab3ebf40936d9052d24d8e1c174d760"
+    },
+    "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type": {
+      "file": "a-slice-v2-names-each-node-and-edge-type.yaml",
+      "digest": "sha256:e166fd3a569c82fdb2ab770b62c64d62ce1e1ec4d1d40822f85d3ad9afb34ba1"
     },
     "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound": {
       "file": "a-timeline-refuses-each-input-outside-its-bound.yaml",
@@ -170,6 +222,10 @@
     "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops": {
       "file": "a-timeline-row-is-a-subject-with-its-events-within-hops.yaml",
       "digest": "sha256:20243123f149eb97f505dd4e6b1ea5af3be55463be405d05d6d9a6e826a3a631"
+    },
+    "ekr.views/authored/a-timeline-v2-names-the-types-it-cites": {
+      "file": "a-timeline-v2-names-the-types-it-cites.yaml",
+      "digest": "sha256:fa9e877f0bec865275bcabbe9a332af5efa641ddc4c9f464d338411558ac55e1"
     },
     "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it": {
       "file": "a-transaction-time-since-lists-the-revisions-committed-after-it.yaml",
@@ -203,6 +259,10 @@
       "file": "an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
       "digest": "sha256:bea45bf0b49583145f1bc1348bd60fe5ebdb044aea4199ce6166518dda677702"
     },
+    "ekr.views/authored/an-overview-v3-names-its-types-and-says-when-its-revision-was-committed": {
+      "file": "an-overview-v3-names-its-types-and-says-when-its-revision-was-committed.yaml",
+      "digest": "sha256:a71e91b142341855fd6cee9f09eb30f282dcc05b9cf6efaaf4ed958356b8818f"
+    },
     "ekr.views/authored/an-unknown-seed-is-refused-by-name": {
       "file": "an-unknown-seed-is-refused-by-name.yaml",
       "digest": "sha256:deab4b014e2606a3f8828cbb009f58c57d6aecee56c75daf7cad6d870545618b"
@@ -210,6 +270,10 @@
     "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound": {
       "file": "changes-refuse-a-malformed-since-and-each-bound.yaml",
       "digest": "sha256:a6ec46cfd4b13bc11f34c733afbc2e3b7552ea7a1f64b549c92ca1c66bc66d2a"
+    },
+    "ekr.views/authored/changes-v2-name-the-types-and-properties-they-cite": {
+      "file": "changes-v2-name-the-types-and-properties-they-cite.yaml",
+      "digest": "sha256:82e3cfaa2399bdf3740181956f4d823bea292e3eb3ba757f7dc6f66daed08ace"
     },
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary": {
       "file": "code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml",
@@ -236,344 +300,370 @@
     "ekr.views.ChangesSince/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/listed": {
       "execute_command": 2,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 2
     },
     "ekr.views.ChangesSince/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/since-malformed": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/described": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
+      "expect_outcome": 1
+    },
+    "ekr.views.DescribeNode/outcome/detailed": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 31,
+      "expect_outcome": 1
+    },
+    "ekr.views.DescribeNode/outcome/limit-exceeded": {
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 1
+    },
+    "ekr.views.DescribeNode/outcome/node-is-a-type": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/node-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/drawn": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/expanded": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/node-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/event-time-invalid": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/event-type-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/exported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/found": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/projected": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/overviewed": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ProjectProcessMap/outcome/event-time-invalid": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 26,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectProcessMap/outcome/event-type-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 26,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectProcessMap/outcome/mapped": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ProjectProcessMap/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 26,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectProcessMap/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 26,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/timelined": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ReportFactQuality/outcome/judged-twice": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ReportFactQuality/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ReportFactQuality/outcome/reported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/reported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
+      "expect_outcome": 1
+    },
+    "ekr.views.SearchNodes/outcome/node-type-not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 25,
+      "expect_no_event": 32,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/searched": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 31,
       "expect_outcome": 1
     },
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end": {
@@ -600,6 +690,29 @@
       "execute_command": 4,
       "expect_event": 4,
       "expect_outcome": 4
+    },
+    "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
+    "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group": {
+      "execute_command": 7,
+      "expect_error": 2,
+      "expect_event": 5,
+      "expect_no_event": 4,
+      "expect_outcome": 7
+    },
+    "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
+    "ekr.views/authored/a-node-detail-v2-on-a-type-id-names-the-type": {
+      "execute_command": 3,
+      "expect_error": 3,
+      "expect_no_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "execute_command": 8,
@@ -654,15 +767,42 @@
       "expect_no_event": 2,
       "expect_outcome": 4
     },
-    "ekr.views/authored/a-search-with-no-match-answers-an-empty-list": {
-      "execute_command": 3,
+    "ekr.views/authored/a-search-v2-filters-on-timeline-time": {
+      "execute_command": 5,
+      "expect_event": 5,
+      "expect_outcome": 5
+    },
+    "ekr.views/authored/a-search-v2-lists-one-type-by-degree": {
+      "execute_command": 4,
+      "expect_error": 1,
       "expect_event": 3,
-      "expect_outcome": 3
+      "expect_no_event": 1,
+      "expect_outcome": 4
+    },
+    "ekr.views/authored/a-search-v2-matches-every-word-in-any-order": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
+    },
+    "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
+    "ekr.views/authored/a-search-with-no-match-answers-an-empty-list": {
+      "execute_command": 6,
+      "expect_event": 6,
+      "expect_outcome": 6
     },
     "ekr.views/authored/a-seed-only-store-projects-revision-zero": {
       "execute_command": 1,
       "expect_event": 1,
       "expect_outcome": 1
+    },
+    "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound": {
       "execute_command": 8,
@@ -675,6 +815,11 @@
       "execute_command": 9,
       "expect_event": 9,
       "expect_outcome": 9
+    },
+    "ekr.views/authored/a-timeline-v2-names-the-types-it-cites": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it": {
       "execute_command": 2,
@@ -722,6 +867,11 @@
       "expect_no_event": 2,
       "expect_outcome": 5
     },
+    "ekr.views/authored/an-overview-v3-names-its-types-and-says-when-its-revision-was-committed": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
+    },
     "ekr.views/authored/an-unknown-seed-is-refused-by-name": {
       "execute_command": 3,
       "expect_error": 3,
@@ -734,6 +884,11 @@
       "expect_event": 2,
       "expect_no_event": 5,
       "expect_outcome": 7
+    },
+    "ekr.views/authored/changes-v2-name-the-types-and-properties-they-cite": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary": {
       "execute_command": 5,

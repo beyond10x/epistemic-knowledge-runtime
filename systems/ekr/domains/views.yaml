@@ -12,7 +12,8 @@ summary: >-
   Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/2
   (ProjectOverview, which answers only the sections a request names; its predecessor
   ekr.graph-overview/1 is every section, and stays specified below), ekr.graph-slice/1
-  (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode), ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
+  (ExpandNeighbourhood), ekr.node-detail/1 and its bounded successor ekr.node-detail/2 (DescribeNode, by
+  its `format`), ekr.node-matches/1 and /2 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
   any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
   revisions up to one revision changed after a revision or a time. ekr.store-quality/1
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
@@ -73,8 +74,16 @@ summary: >-
   which is not id order; meta.seeds and each edge's assertions by id.
   ekr.node-detail/1 — assertions, edges and neighbours by id; referencing by its assertion's id;
   node.aliases and each props value list in the store's order; props keys ascending by their text.
+  ekr.node-detail/2 — same_name by degree descending, then id; properties by property id; each
+  group's values the record's in the store's order, then its assertions newest first
+  (ekr.views.DetailPropertyGroup); each value's evidence by id; relations by total descending,
+  then type id, then direction in the order ekr.views.EdgeDirection declares its variants; each
+  group's nodes by degree descending, then id; node.aliases in the store's order.
   ekr.node-matches/1 — matches by tier (Exact before Folded), then degree descending, then id;
   never by a name.
+  ekr.node-matches/2 — matches by tier (Exact, then Folded, then Words); then a whole match
+  before one that is not (ekr.views.NodeMatchV2); then, when the request names `from` or `to`,
+  time descending; then degree descending; then id. Never by a name. meta.types by id.
   ekr.graph-timeline/1 — row_types by weight / nodes descending, compared exactly as rationals,
   then type id; rows by total descending, then id; each row's cells and strip by start
   ascending, then type id; events by start ascending, then id; each event's path from the
@@ -88,6 +97,9 @@ summary: >-
   any later commit. A reader that pages keeps `at` fixed to the first page's meta.revision. A
   refusal is outside that rule: a since_revision past the head is refused as RevisionNotFound
   naming the head, and after a later commit the same request may answer an empty page.
+  ekr.graph-overview/3 — as ekr.graph-overview/2. ekr.graph-slice/2 — as ekr.graph-slice/1.
+  ekr.graph-timeline/2 — as ekr.graph-timeline/1. ekr.graph-changes/2 — as ekr.graph-changes/1,
+  its rule for `at` included. In each, `names` by key ascending, as rule (1) orders ids.
   Bounds and the order of refusals, for the six: a bound over the input (depth, hops, limit,
   edge_limit, after) is checked before the store is read, and a broken one answers LimitExceeded
   naming the first broken input in the command's declared input order — for ChangesSince a
@@ -96,7 +108,39 @@ summary: >-
   answers invalid-query, the MCP tool -32602);
   then an unseeded store answers NotSeeded; then a revision beyond the head answers
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
-  does not hold answers NodeNotFound.
+  does not hold answers NodeNotFound — for an ekr.node-detail/2 request whose id no node holds
+  and a node type or edge type of the revision's ontology does, NodeIsAType instead — and a
+  SearchNodes `type` under ekr.node-matches/2 that names no node type of the revision answers
+  NodeTypeNotFound. A DescribeNode edge_type that names no edge type of the revision is no
+  refusal: it answers no relation group.
+
+  Defaults per surface. A bound a request leaves absent takes its surface's default before the
+  command runs, so the command always reads a named value: `ekr view` and the session verb take
+  ExpandNeighbourhood's edge_limit as 5,000 and ChangesSince's limit as 500, and the MCP tools,
+  whose one result an agent reads whole, take edge_limit as 200 and limit as 100. The MCP answer
+  to a request is byte for byte `ekr view`'s answer to the same request with that default named
+  explicitly; meta.limit (ChangesSince) carries the value applied. A page ends at whichever of its
+  limits comes first — for ExpandNeighbourhood limit nodes or edge_limit edges — and its `next`
+  is the cursor of the following page.
+
+  The cost of ChangesSince, counted as work and never as time. A committed revision never
+  changes, so neither does the change list its transaction document yields, and the indexes a
+  host holds share one store of change lists, keyed by each revision's identity (number,
+  revision id and root), so a list is never answered for another revision under the same number.
+  A revision's change list is derived from its transaction document once while those indexes are
+  held: a second request choosing the same revisions parses no transaction document, and a
+  request after a later commit parses only the revisions that commit added. Holding a change list
+  changes no answer: every answer is byte for byte the one a freshly loaded index gives.
+
+  The MCP tools (`ekr mcp`, `ekr mcp-http`) bind these commands' inputs by name, and take a few
+  inputs under a second name as well (ekr-mcp-fixes-20261015 #8): describe_node's `node` also as
+  `id` and `node_id`; describe_node's `edge_type` also as `edge`; expand's `seeds` also as `seed`,
+  `node` and `nodes`, as one node id or a list of them; explain's `assertion` also as `id` and
+  `assertion_id`; timeline's `subject` also as `node`. An alias names the input it
+  aliases and nothing else: a call through it answers the bytes the call naming the input answers,
+  refusals included, and one id given as `seeds` answers what the list of that one id answers. A call naming one input twice, by its name and an alias
+  or by two aliases, is malformed input that never reaches the command (the MCP tool -32602).
+  The aliases are the MCP tools' only; `ekr view`'s query names are unchanged.
 
   Evidence without retained bytes is unreachable. Evidence enters canonical state in two ways, and
   both carry its bytes: with the seed, whose envelope retains each payload, and through an
@@ -140,6 +184,36 @@ summary: >-
   exactly; rate, lower and upper follow from z by the formula ekr.views.FactQualityV1 states.
   Every host therefore answers the same binary64 values. A Decimal in ekr.fact-quality/1 is a
   JSON number: the shortest decimal text that reads back as the same binary64 value.
+
+  Named formats, so that a reader needs no ontology to read an answer. ekr.graph-slice/2 is
+  ekr.graph-slice/1 with `type_name` on every node and edge; ekr.graph-overview/3 is
+  ekr.graph-overview/2 with `name` on every node_types and edge_types entry and
+  meta.committed_at, the ekr.views.EpochMillis at which the revision read was committed — a fact
+  of that revision, so rule (5) holds and two answers for one revision are byte-identical;
+  ekr.graph-timeline/2 and ekr.graph-changes/2 are their /1 with `names`, the names map. A
+  `type_name` or `name` is the name the ontology of the revision read declares for that type.
+  The names map of a document is an object {id: name} holding one entry for every string of the
+  document, as a value or as an object key, the names map itself aside, that is the lowercase
+  hyphenated text of the id of a node type, an edge type or a property of the ontology of the
+  revision the document reads, and no other entry. A node type or an edge type is named by its
+  declared name. A property is named by the definition the type of least id that has it, declared
+  or inherited, node and edge types alike, gives it (ekr.views.ProjectedProperty's first owner);
+  an id that is a type's and a property's is named as the type. Keys ascend in their text, as
+  rule (1) orders ids; the map is present and empty when the document holds no such id (rule
+  (4)). A node, edge, assertion or evidence id is never a key, since none is the id of a type or
+  a property; a string of record text whose text is such an id is named like any other string.
+  ekr.explanation/3 (ekr.kernel) and ekr.resolution/1 (ekr.integrate) carry the same map, read
+  from the ontology of the revision they read. Every predecessor stays served byte for byte.
+  ProjectOverview, ExpandNeighbourhood, ProjectTimeline and ChangesSince each take `format`,
+  which selects the predecessor or the named format, and answer the predecessor when it is
+  absent. Each surface names its own default to the command: the MCP tools (`overview`,
+  `expand`, `timeline`, `changes_since`) name the named format, and `ekr view`'s routes and the
+  session verbs name the predecessor, each answering the other when the request names it. So an
+  MCP answer is byte for byte the document the command answers to the same request with the
+  format named explicitly, which `ekr view` serves for it (for `expand`, whose route streams the
+  page record by record, the page the session verb answers as one document). A format name that is
+  neither is malformed input that never reaches the command (`ekr view` answers invalid-query, a
+  session verb a usage error, the MCP tool -32602).
 
 naming:
   wire: views
@@ -491,6 +565,21 @@ types:
     kind: enum
     variants: [ekr.graph-overview/2]
 
+  - name: ekr.views.GraphOverviewFormatV3
+    kind: enum
+    variants: [ekr.graph-overview/3]
+
+  # Which format a ProjectOverview request is answered in (ekr.views.ProjectOverview `format`).
+  - name: ekr.views.OverviewFormat
+    kind: enum
+    variants: [ekr.graph-overview/2, ekr.graph-overview/3]
+
+  # The names map of a named format: {id: name}, as the domain summary's "Named formats"
+  # paragraph defines it.
+  - name: ekr.views.OntologyNames
+    kind: newtype
+    of: Map<String, String>
+
   # An optional section of ekr.graph-overview/2, by the name of the key it is answered under.
   - name: ekr.views.OverviewSection
     kind: enum
@@ -500,13 +589,41 @@ types:
     kind: enum
     variants: [ekr.graph-slice/1]
 
+  # Which format an ExpandNeighbourhood request is answered in (its `format`), and the format
+  # SliceMeta names: ekr.graph-slice/1, or ekr.graph-slice/2 (ekr.views.GraphSliceV2).
+  - name: ekr.views.GraphSliceFormat
+    kind: enum
+    variants: [ekr.graph-slice/1, ekr.graph-slice/2]
+
   - name: ekr.views.NodeDetailFormatV1
     kind: enum
     variants: [ekr.node-detail/1]
 
+  - name: ekr.views.NodeDetailFormatV2
+    kind: enum
+    variants: [ekr.node-detail/2]
+
+  # Which node-detail format a DescribeNode request asks for (ekr-mcp-fixes-20261015 #1). Absent
+  # at the command, /1. Each surface fills it in before the command sees the request: `ekr view`'s
+  # `/node/<id>` and the session's `describe` send /1 unless their `format` names /2; the MCP tool
+  # `describe_node` sends /2 unless its `full` is true. The MCP answer for a request is byte for
+  # byte `ekr view`'s for the same request with the format named explicitly.
+  - name: ekr.views.NodeDetailFormat
+    kind: enum
+    variants: [ekr.node-detail/1, ekr.node-detail/2]
+
   - name: ekr.views.NodeMatchesFormatV1
     kind: enum
     variants: [ekr.node-matches/1]
+
+  - name: ekr.views.NodeMatchesFormatV2
+    kind: enum
+    variants: [ekr.node-matches/2]
+
+  # Which format a SearchNodes request is answered in (ekr.views.SearchNodes `format`).
+  - name: ekr.views.NodeMatchesFormat
+    kind: enum
+    variants: [ekr.node-matches/1, ekr.node-matches/2]
 
   # The position in a neighbourhood's record sequence (ExpandNeighbourhood): the number of records
   # the earlier pages delivered. A page's `next` is its own `after` plus the records it delivered.
@@ -894,6 +1011,65 @@ types:
       - name: top
         type: List<ekr.views.NodeSummary>
 
+  # ekr.graph-overview/3's meta: ekr.views.OverviewMetaV2 with this format and `committed_at`,
+  # the ekr.views.EpochMillis at which the revision read was committed (its revision record's
+  # committed_at, as schema.revisions carries it).
+  - name: ekr.views.OverviewMetaV3
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphOverviewFormatV3
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: committed_at
+        type: ekr.views.EpochMillis
+      - name: node_count
+        type: Integer
+      - name: edge_count
+        type: Integer
+      - name: assertion_count
+        type: Integer
+      - name: evidence_count
+        type: Integer
+      - name: limit
+        type: Integer
+
+  # A node_types or edge_types entry of ekr.graph-overview/3: ekr.views.TypeCount with `name`,
+  # the type's declared name.
+  - name: ekr.views.NamedTypeCount
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: count
+        type: Integer
+
+  # ekr.graph-overview/3: ekr.graph-overview/2 — the same sections, each present exactly when the
+  # request names it, built as /2 builds it — with each type count named and meta.committed_at
+  # (the domain summary's "Named formats"). Named none, it names every declared type without the
+  # ontology section.
+  - name: ekr.views.GraphOverviewV3
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.OverviewMetaV3
+      - name: ontology
+        type: Optional<ekr.views.ProjectedOntology>
+      - name: schema
+        type: Optional<ekr.views.OverviewSchema>
+      - name: node_types
+        type: List<ekr.views.NamedTypeCount>
+      - name: edge_types
+        type: List<ekr.views.NamedTypeCount>
+      - name: roles
+        type: Optional<ekr.views.OverviewRoles>
+      - name: timeline
+        type: Optional<ekr.views.OverviewTimeline>
+      - name: top
+        type: List<ekr.views.NodeSummary>
+
   # A node of a neighbourhood: its light record and its hop distance from the nearest seed.
   - name: ekr.views.SliceNode
     kind: struct
@@ -926,12 +1102,13 @@ types:
         type: List<ekr.graph.AssertionId>
 
   # `seeds` is the request's seeds as a set; `after` the request's cursor, 0 when it gave none;
-  # `node_total` and `edge_total` count the whole neighbourhood, not this page.
+  # `node_total` and `edge_total` count the whole neighbourhood, not this page. `format` is
+  # ekr.graph-slice/1 in ekr.views.GraphSliceV1 and ekr.graph-slice/2 in ekr.views.GraphSliceV2.
   - name: ekr.views.SliceMeta
     kind: struct
     fields:
       - name: format
-        type: ekr.views.GraphSliceFormatV1
+        type: ekr.views.GraphSliceFormat
       - name: revision
         type: ekr.kernel.RevisionNumber
       - name: seeds
@@ -971,6 +1148,58 @@ types:
         type: List<ekr.views.SliceNode>
       - name: edges
         type: List<ekr.views.SliceEdge>
+      - name: next
+        type: Optional<ekr.views.SliceCursor>
+
+  # A node of an ekr.graph-slice/2 page: ekr.views.SliceNode with `type_name`, the name of its
+  # type.
+  - name: ekr.views.SliceNodeV2
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: String
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: distance
+        type: Integer
+
+  # An edge of an ekr.graph-slice/2 page: ekr.views.SliceEdge with `type_name`, the name of its
+  # type.
+  - name: ekr.views.SliceEdgeV2
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EdgeId
+      - name: source
+        type: ekr.graph.NodeId
+      - name: target
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: String
+      - name: assertions
+        type: List<ekr.graph.AssertionId>
+
+  # ekr.graph-slice/2: ekr.graph-slice/1's page — the same neighbourhood, record sequence, page
+  # and cursor — with each node and edge named by its type (the domain summary's "Named
+  # formats"). `ekr view` streams its records as it streams /1's, each record carrying its
+  # `type_name`.
+  - name: ekr.views.GraphSliceV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.SliceMeta
+      - name: nodes
+        type: List<ekr.views.SliceNodeV2>
+      - name: edges
+        type: List<ekr.views.SliceEdgeV2>
       - name: next
         type: Optional<ekr.views.SliceCursor>
 
@@ -1039,14 +1268,227 @@ types:
       - name: neighbours
         type: List<ekr.views.NodeSummary>
 
+  # ---------------------------------------------------------------------------------------------
+  # ekr.node-detail/2: one node bounded for a reader with a budget, an agent's context above all
+  # (ekr-mcp-fixes-20261015 #1, #11). ekr.node-detail/1 answers every assertion about the node or
+  # naming it and every edge at it, so its size grows with the node's degree; /2 answers the same
+  # node in groups, each counted whole and listed to at most `limit` members, so its size grows
+  # with `limit` and the number of groups, not with the degree.
+  #
+  # A node's type name, a group's name and a neighbour's or sibling's type name are the names the
+  # revision's ontology gives that type or property; one the ontology does not declare (a type or
+  # property a later schema version removed) is omitted, never guessed.
+  # ---------------------------------------------------------------------------------------------
+
+  # `limit` is the request's, 10 when it named none; `edge_type` the request's edge_type as it gave
+  # it, omitted when it named none; `after` the request's, 0 when it named none.
+  # `property_values` counts the node's record values and its active value assertions (every
+  # group's `total` summed); `edges` the edges at the node, as ekr.views.NodeSummary counts degree
+  # but with a self-loop counted once. `truncated` is true exactly when the answer leaves out
+  # something its request reaches: a property group lists fewer values than its `total`, a
+  # relation group has a `next`, more than `limit` other nodes share a name with the node, or a
+  # value is cut.
+  - name: ekr.views.DetailV2Meta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeDetailFormatV2
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: limit
+        type: Integer
+      - name: edge_type
+        type: Optional<String>
+      - name: after
+        type: Integer
+      - name: property_values
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: truncated
+        type: Boolean
+
+  # The node's record: ekr.views.DetailNode's fields without `props`, which the detail answers as
+  # property groups, and with its type's name.
+  - name: ekr.views.DetailV2Node
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: name
+        type: String
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: Optional<String>
+      - name: aliases
+        type: List<String>
+      - name: state
+        type: Optional<String>
+      - name: degree
+        type: Integer
+
+  # One value of a property group. A value of the node's record carries no `assertion`, no
+  # `valid_from` and no evidence; a value assertion carries its id, its valid time's start when it
+  # has one, and the ids of the evidence it cites, ascending. A String value longer than 2,000
+  # bytes is answered as its longest prefix of at most 2,000 bytes that ends on a character
+  # boundary, and `truncated` is true; every other value is answered whole and `truncated` is
+  # false. Only a top-level String is cut: a List or Record value is answered whole.
+  - name: ekr.views.DetailValue
+    kind: struct
+    fields:
+      - name: assertion
+        type: Optional<ekr.graph.AssertionId>
+      - name: value
+        type: ekr.views.ProjectedValue
+      - name: truncated
+        type: Boolean
+      - name: valid_from
+        type: Optional<ekr.views.EpochMillis>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  # One property of the node: its record's values of that property, in the store's order, then
+  # its Active assertions whose predicate is that property and whose object is a value, newest
+  # first (valid time's start descending, one with none last; then recorded time's start
+  # descending; then id descending). `total` counts both; `values` lists the first `limit`.
+  - name: ekr.views.DetailPropertyGroup
+    kind: struct
+    fields:
+      - name: property
+        type: ekr.ontology.PropertyId
+      - name: name
+        type: Optional<String>
+      - name: total
+        type: Integer
+      - name: values
+        type: List<ekr.views.DetailValue>
+
+  # The end of an edge the described node is at: `out` when the node is the edge's source, `in`
+  # when it is the target. A self-loop is `out`.
+  - name: ekr.views.EdgeDirection
+    kind: enum
+    variants: [in, out]
+
+  # One neighbour of a relation group: another node at the far end of an edge of the group's type
+  # and direction, however many such edges join the two. `assertion` is the newest (as property
+  # values order) of the Active Relation assertions of the group's type between the two in the
+  # group's direction (subject the source, object the target), omitted when there is none: the
+  # id `explain` takes; `assertions` counts them. A self-loop's neighbour is the node itself.
+  - name: ekr.views.DetailNeighbour
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: Optional<String>
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: assertion
+        type: Optional<ekr.graph.AssertionId>
+      - name: assertions
+        type: Integer
+
+  # The node's edges of one type in one direction. `total` counts the distinct neighbours;
+  # `nodes` lists them from the request's `after`, at most `limit`, by degree descending, then
+  # id; `next` is the `after` of the group's next page, omitted when this page reaches its end.
+  - name: ekr.views.DetailRelationGroup
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: Optional<String>
+      - name: direction
+        type: ekr.views.EdgeDirection
+      - name: total
+        type: Integer
+      - name: nodes
+        type: List<ekr.views.DetailNeighbour>
+      - name: next
+        type: Optional<Integer>
+
+  # Another node that shares a name with the described one (ekr-mcp-fixes-20261015 #11): one
+  # thing recorded as several nodes, often of several types, whose facts may sit on any of them.
+  - name: ekr.views.SameNameNode
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: Optional<String>
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+
+  # ekr.node-detail/2. Without `edge_type`: `same_name` is up to `limit` other nodes of which the
+  # canonical name or an alias equals the described node's canonical name or one of its aliases
+  # after both are lowercased as ekr.views.MatchTier's Folded lowercases them (a name or alias
+  # that is empty or whitespace only matches nothing); `properties` is one group per property the
+  # node's record or its Active value assertions hold; `relations` is one group per edge type and
+  # direction of the node's edges, each from `after`. With `edge_type`, the request pages that
+  # type's groups: `same_name` and `properties` are empty, and `relations` holds that edge type's
+  # groups alone, each from `after` (an edge type the node has no edge of, or an edge_type that names no edge type of the
+  # revision, answers none: no refusal). Bound:
+  # `limit` members in each list and group, and each String value cut at 2,000 bytes; the number
+  # of groups is the node's properties and edge types, which the ontology bounds.
+  - name: ekr.views.NodeDetailV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.DetailV2Meta
+      - name: node
+        type: ekr.views.DetailV2Node
+      - name: same_name
+        type: List<ekr.views.SameNameNode>
+      - name: properties
+        type: List<ekr.views.DetailPropertyGroup>
+      - name: relations
+        type: List<ekr.views.DetailRelationGroup>
+
+  # What NodeDetailed counts of one relation group: its type, direction and total, how many
+  # neighbours the page lists, and its next.
+  - name: ekr.views.DetailGroupCount
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: direction
+        type: ekr.views.EdgeDirection
+      - name: total
+        type: Integer
+      - name: nodes
+        type: Integer
+      - name: next
+        type: Optional<Integer>
+
+  # The kind of ontology type a DescribeNode request's id named instead of a node.
+  - name: ekr.views.TypeKind
+    kind: enum
+    variants: [NodeType, EdgeType]
+
   # Which comparison a match passed. Exact: the text is a byte-exact substring of the node's
   # canonical_name or of one of its aliases. Folded: not Exact, and the text is a substring after
   # both sides are lowercased by Unicode's Lowercase_Mapping, the full mapping with no locale
   # (Rust's str::to_lowercase) and no normalization. Folding by lowercase mapping rather than
   # Unicode case folding is this format's decision.
+  # Words, in ekr.node-matches/2 only: not Exact and not Folded, the text holds two or more words,
+  # and every word is a substring of the lowercased canonical_name, or every word a substring of
+  # one lowercased alias, in any order and whatever stands between them there. The words are the
+  # lowercased text split on Unicode White_Space (Rust's str::split_whitespace), never on
+  # punctuation, so `widget router` finds `Widget-Router` and `disk 507` finds `prod-disk-507`,
+  # while a one-word text such as `LEAF-00` or `İ` has only Exact and Folded, as in
+  # ekr.node-matches/1. ekr.node-matches/1 never answers Words.
   - name: ekr.views.MatchTier
     kind: enum
-    variants: [Exact, Folded]
+    variants: [Exact, Folded, Words]
 
   - name: ekr.views.MatchField
     kind: enum
@@ -1096,6 +1538,74 @@ types:
       - name: matches
         type: List<ekr.views.NodeMatch>
 
+  # One ekr.node-matches/2 match: ekr.views.NodeMatch with `type_name`, the name the revision's
+  # ontology gives the node's type, and `time`, the node's time as ekr.graph-timeline/1 defines it
+  # (ekr.views.GraphTimelineV1), omitted for a node with no time.
+  # A match is whole when the text equals the whole canonical_name or one whole alias under its
+  # tier's comparison: byte for byte for Exact; after lowercasing both sides for Folded; for Words,
+  # when the field's lowercased text and the lowercased text, each split into maximal runs of
+  # alphanumeric characters (Unicode Alphabetic or Numeric, Rust's char::is_alphanumeric), hold
+  # the same runs the same number of times, so `widget router` is whole for `Widget-Router` and
+  # not for `Widget-Router-2`. Whole matches order before the rest of their tier.
+  - name: ekr.views.NodeMatchV2
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: String
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: time
+        type: Optional<ekr.views.EpochMillis>
+      - name: tier
+        type: ekr.views.MatchTier
+      - name: field
+        type: ekr.views.MatchField
+      - name: alias
+        type: Optional<String>
+
+  # ekr.node-matches/2's meta. `types` is the node types the request's `type` named, by id: the
+  # one whose id it is, else every node type the revision's ontology gives that name; empty when
+  # the request names none. `from` and `to` are the window's bounds in milliseconds, inclusive, a
+  # date read as ekr.views.SearchNodes reads it; each is omitted when the request names none.
+  # `total` and `exact_total` count every matching node of those types in that window, and the
+  # Exact ones among them, before `limit`.
+  - name: ekr.views.MatchesMetaV2
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeMatchesFormatV2
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: text
+        type: String
+      - name: types
+        type: List<ekr.ontology.TypeId>
+      - name: from
+        type: Optional<ekr.views.EpochMillis>
+      - name: to
+        type: Optional<ekr.views.EpochMillis>
+      - name: total
+        type: Integer
+      - name: exact_total
+        type: Integer
+
+  # ekr.node-matches/2: the first `limit` matching nodes of the named types in the named window.
+  # Empty text matches every such node, Exactly, so an empty text with `type` lists that type's
+  # nodes by degree, and with `from` or `to` too, newest first.
+  - name: ekr.views.NodeMatchesV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.MatchesMetaV2
+      - name: matches
+        type: List<ekr.views.NodeMatchV2>
+
   # ---------------------------------------------------------------------------------------------
   # ekr.graph-timeline/1: the subjects' timeline. One row per subject — a node of the row type —
   # with the events related to it counted per time bucket, the reference viewer's heatmap.
@@ -1135,6 +1645,12 @@ types:
   - name: ekr.views.GraphTimelineFormatV1
     kind: enum
     variants: [ekr.graph-timeline/1]
+
+  # Which format a ProjectTimeline request is answered in (its `format`), and the format
+  # TimelineMeta names.
+  - name: ekr.views.GraphTimelineFormat
+    kind: enum
+    variants: [ekr.graph-timeline/1, ekr.graph-timeline/2]
 
   # The finest bucket width a request asks for; a longer span may be answered coarser.
   - name: ekr.views.TimelineBucketWidth
@@ -1235,11 +1751,13 @@ types:
   # used; `first` and `last` the span (omitted when no event has a time). `subjects` counts the
   # revision's nodes of the row type, `active` those with at least one event, and `events` the
   # distinct events of all of the active ones, which the strip buckets.
+  # `format` is ekr.graph-timeline/1 in ekr.views.GraphTimelineV1 and ekr.graph-timeline/2 in
+  # ekr.views.GraphTimelineV2.
   - name: ekr.views.TimelineMeta
     kind: struct
     fields:
       - name: format
-        type: ekr.views.GraphTimelineFormatV1
+        type: ekr.views.GraphTimelineFormat
       - name: revision
         type: ekr.kernel.RevisionNumber
       - name: row_type
@@ -1283,6 +1801,25 @@ types:
       - name: events
         type: List<ekr.views.TimelineEvent>
 
+  # ekr.graph-timeline/2: ekr.graph-timeline/1 — the same rows, strip and events for the same
+  # request — with `names`, the names map of the document (the domain summary's "Named formats"):
+  # the row types, event types and edge types it cites, by id.
+  - name: ekr.views.GraphTimelineV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.TimelineMeta
+      - name: row_types
+        type: List<ekr.views.TimelineRowType>
+      - name: rows
+        type: List<ekr.views.TimelineRow>
+      - name: strip
+        type: List<ekr.views.TimelineCell>
+      - name: events
+        type: List<ekr.views.TimelineEvent>
+      - name: names
+        type: ekr.views.OntologyNames
+
   # ---------------------------------------------------------------------------------------------
   # ekr.graph-changes/1: what the committed revisions up to one revision `at` changed after a
   # revision or a time `since` (ChangesSince), so an agent that reacts to change need not diff two
@@ -1315,6 +1852,12 @@ types:
   - name: ekr.views.GraphChangesFormatV1
     kind: enum
     variants: [ekr.graph-changes/1]
+
+  # Which format a ChangesSince request is answered in (its `format`), and the format ChangesMeta
+  # names.
+  - name: ekr.views.GraphChangesFormat
+    kind: enum
+    variants: [ekr.graph-changes/1, ekr.graph-changes/2]
 
   # Which of the three a `since` is: Revision, a revision number; ValidTime and TransactionTime,
   # an EpochMillis.
@@ -1390,11 +1933,13 @@ types:
   # absent. Exactly one of since_revision, since_valid and since_recorded is present: the
   # request's. `limit` and `after` are the request's after their defaults; `total` counts every
   # change the request chooses, not this page.
+  # `format` is ekr.graph-changes/1 in ekr.views.GraphChangesV1 and ekr.graph-changes/2 in
+  # ekr.views.GraphChangesV2.
   - name: ekr.views.ChangesMeta
     kind: struct
     fields:
       - name: format
-        type: ekr.views.GraphChangesFormatV1
+        type: ekr.views.GraphChangesFormat
       - name: revision
         type: ekr.kernel.RevisionNumber
       - name: since_revision
@@ -1426,6 +1971,24 @@ types:
         type: Optional<ekr.views.ChangeCursor>
       - name: remaining
         type: Integer
+
+  # ekr.graph-changes/2: ekr.graph-changes/1 — the same page of the same chosen changes for the
+  # same request — with `names`, the names map of the page (the domain summary's "Named
+  # formats"): the node and edge types its changes name, and a Type subject's type, by id, read
+  # from the ontology of the revision read, `at`.
+  - name: ekr.views.GraphChangesV2
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.ChangesMeta
+      - name: changes
+        type: List<ekr.views.GraphChange>
+      - name: next
+        type: Optional<ekr.views.ChangeCursor>
+      - name: remaining
+        type: Integer
+      - name: names
+        type: ekr.views.OntologyNames
 
   - name: ekr.views.StoreQualityFormatV1
     kind: enum
@@ -2203,6 +2766,34 @@ errors:
       - name: revision
         type: ekr.kernel.RevisionNumber
 
+  # ekr-mcp-fixes-20261015 #10. `node` is the requested id, which no node of the revision holds and
+  # a node type or edge type of its ontology does; `kind` says which, `type_name` is the name the
+  # ontology gives it, and `revision` is the revision that was read. A surface's message for it
+  # reads "<id> is the type <type_name>, not a node: overview lists the types; search (with type)
+  # lists its nodes". Only an ekr.node-detail/2 request is refused so; an ekr.node-detail/1
+  # request for the same id answers NodeNotFound, as it did before /2 existed.
+  - name: ekr.views.NodeIsAType
+    summary: The requested id names a type of the revision's ontology, not a node; nothing was answered.
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: kind
+        type: ekr.views.TypeKind
+      - name: type_name
+        type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  # `type` is a SearchNodes request's `type` as the request gave it: neither the id of a node type
+  # of the revision's ontology nor the name of one; `revision` is the revision that was read.
+  - name: ekr.views.NodeTypeNotFound
+    summary: The revision's ontology holds no node type with the requested id or name; nothing was answered.
+    fields:
+      - name: type
+        type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
   # `parameter` is the input's name as the command declares it; `maximum` is omitted for an input
   # with no upper bound (`after`).
   - name: ekr.views.LimitExceeded
@@ -2316,6 +2907,11 @@ commands:
   # `sections` names the optional sections of the answer, ekr.graph-overview/2: absent or empty,
   # none, so the answer is meta, node_types, edge_types and top. A section named twice is named
   # once; the order the request names them in does not change the answer.
+  #
+  # `format` selects the answer: ekr.graph-overview/2 (`overview`) or ekr.graph-overview/3
+  # (`overview_v3`); exactly one of the two response fields is present, and absent the command
+  # answers /2. `ekr view`'s `/overview` and the session verb `overview` name /2 when the request
+  # names none, the MCP tool `overview` names /3 (the domain summary's "Named formats").
   - name: ekr.views.ProjectOverview
     naming:
       wire: project-overview
@@ -2329,9 +2925,13 @@ commands:
         type: Optional<Integer>
       - name: sections
         type: Optional<List<ekr.views.OverviewSection>>
+      - name: format
+        type: Optional<ekr.views.OverviewFormat>
     response:
       - name: overview
-        type: ekr.views.GraphOverviewV2
+        type: Optional<ekr.views.GraphOverviewV2>
+      - name: overview_v3
+        type: Optional<ekr.views.GraphOverviewV3>
     outcomes:
       - name: overviewed
         emits:
@@ -2364,8 +2964,12 @@ commands:
             undated_assertions: {generated: true}
             top: {generated: true}
             sections: {generated: true}
+            format: {generated: true}
+            committed_at: {generated: true}
+            node_type_names: {generated: true}
+            edge_type_names: {generated: true}
             overview_hash: {generated: true}
-        summary: One ekr.graph-overview/2 document of the requested revision and sections, byte-identical to every other answer to the same request.
+        summary: One ekr.graph-overview/2 or ekr.graph-overview/3 document of the requested revision and sections, as `format` selects, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -2387,10 +2991,15 @@ commands:
   # empty page with node_total 0. A lower bound of one seed was tried and dropped: with it, ess
   # 0.36.0 finds no candidate for the expanded branch among the 64 it tries (ESS-SYNTH-003).
   # `depth` is 0 to 2 (0 answers the seeds and the edges among them); `limit` 1 to 2,000 nodes
-  # per page; `edge_limit` 1 to 5,000 edges per page, 5,000 when absent; `after` a cursor from an
-  # earlier page's `next`, 0 or more.
+  # per page; `edge_limit` 1 to 5,000 edges per page, when absent 5,000 for `ekr view` and the
+  # session verb and 200 for the MCP tool (the domain summary's defaults per surface); `after` a
+  # cursor from an earlier page's `next`, 0 or more.
   # `edge_limit` is an input this specification adds to the approved plan's signature, so a store
   # smaller than 5,000 edges can hold the edge cap to account; the cap itself is the plan's.
+  # `format` selects the answer: ekr.graph-slice/1 (`slice`) or ekr.graph-slice/2 (`slice_v2`);
+  # exactly one of the two response fields is present, and absent the command answers /1.
+  # `ekr view`'s `/expand` and the session verb `expand` name /1 when the request names none, the
+  # MCP tool `expand` names /2 (the domain summary's "Named formats").
   - name: ekr.views.ExpandNeighbourhood
     naming:
       wire: expand-neighbourhood
@@ -2410,9 +3019,13 @@ commands:
         type: Optional<Integer>
       - name: after
         type: Optional<ekr.views.SliceCursor>
+      - name: format
+        type: Optional<ekr.views.GraphSliceFormat>
     response:
       - name: slice
-        type: ekr.views.GraphSliceV1
+        type: Optional<ekr.views.GraphSliceV1>
+      - name: slice_v2
+        type: Optional<ekr.views.GraphSliceV2>
     outcomes:
       - name: expanded
         emits:
@@ -2428,8 +3041,10 @@ commands:
             node_total: {generated: true}
             edge_total: {generated: true}
             remaining: {generated: true}
+            format: {generated: true}
+            type_names: {generated: true}
             slice_hash: {generated: true}
-        summary: One ekr.graph-slice/1 page, byte-identical to every other answer to the same request.
+        summary: One ekr.graph-slice/1 or ekr.graph-slice/2 page, as `format` selects, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -2455,7 +3070,18 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
-  # One node. No input bound: the answer is one node, with all of its assertions and edges.
+  # One node, as the format `format` names: ekr.node-detail/1 when absent, which has no bound,
+  # every assertion and edge of the node; or ekr.node-detail/2, bounded by `limit` (1 to 500, 10
+  # when absent) members per list and group, paged by `after` (0 or more, 0 when absent) within
+  # each relation group, and narrowed to one edge type's relation groups by `edge_type`: that edge
+  # type's id, or its name in the revision's ontology — byte for byte, else the one edge type
+  # whose name equals it after both are lowercased as MatchTier's Folded lowercases them; one that
+  # names no edge type of the revision answers no relation group, not a refusal. The
+  # bounds are checked before the store is read whatever the format; an ekr.node-detail/1 answer
+  # uses none of limit, edge_type and after, and a surface refuses a /1 request that names one as
+  # malformed input that never reaches the command (the endpoint answers invalid-query, the
+  # session verb a usage error, the MCP tool -32602). The response is the detail of the format
+  # asked for: `detail` for /1, `detail_v2` for /2, the other absent.
   - name: ekr.views.DescribeNode
     naming:
       wire: describe-node
@@ -2467,10 +3093,52 @@ commands:
         type: Optional<ekr.kernel.RevisionNumber>
       - name: node
         type: ekr.graph.NodeId
+      - name: format
+        type: Optional<ekr.views.NodeDetailFormat>
+      - name: limit
+        type: Optional<Integer>
+      - name: edge_type
+        type: Optional<String>
+      - name: after
+        type: Optional<Integer>
     response:
       - name: detail
-        type: ekr.views.NodeDetailV1
+        type: Optional<ekr.views.NodeDetailV1>
+      - name: detail_v2
+        type: Optional<ekr.views.NodeDetailV2>
     outcomes:
+      - name: limit-exceeded
+        when:
+          any:
+            - limit < 1
+            - limit > 500
+            - after < 0
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names the first broken input of limit and after, its value and its bounds.
+      - name: node-is-a-type
+        when: format == ekr.node-detail/2
+        external: the requested revision holds no node with the requested id, and its ontology holds a node type or edge type with it
+        error: ekr.views.NodeIsAType
+        summary: Nothing was answered; the refusal names the type, so a reader holding a type id learns what it holds.
+      - name: detailed
+        when: format == ekr.node-detail/2
+        emits:
+          - ekr.views.NodeDetailed
+        payload:
+          ekr.views.NodeDetailed:
+            revision: {generated: true}
+            node: input.node
+            limit: {generated: true}
+            after: {generated: true}
+            same_name: {generated: true}
+            properties: {generated: true}
+            values: {generated: true}
+            cut_values: {generated: true}
+            longest_value: {generated: true}
+            relations: {generated: true}
+            truncated: {generated: true}
+            detail_hash: {generated: true}
+        summary: One ekr.node-detail/2 document, byte-identical to every other answer to the same request.
       - name: described
         emits:
           - ekr.views.NodeDescribed
@@ -2499,6 +3167,33 @@ commands:
 
   # `text` is matched against canonical names and aliases (ekr.views.MatchTier); it has no length
   # bound. `limit` is 1 to 100 matches. No match is an answer with no matches, not a refusal.
+  #
+  # `format` selects the answer: ekr.node-matches/1 (`matches`) or ekr.node-matches/2
+  # (`matches_v2`); exactly one of the two response fields is present. Absent, the command answers
+  # /1. Each surface has its own default, which it names to the command when the request names
+  # none: `ekr view`'s `/search` and the session verb `search` name /1, the MCP tool `search`
+  # names /2. So for one request with the format named, the MCP tool's answer is byte for byte
+  # `ekr view`'s. ekr.node-matches/1 is served unchanged: a /1 request answers what the command
+  # answered before /2 was declared.
+  #
+  # `type`, `from` and `to` are read under /2 only; under /1 the command reads none of them. A
+  # surface refuses a request that names one of them with the format /1 as malformed input that
+  # never reaches the command (`ekr view` answers invalid-query, the MCP tool -32602).
+  # `type` is a node type's id, or a name the revision's ontology gives one or more node types,
+  # compared byte for byte; only nodes of exactly those types match (a subtype is another type).
+  # A `type` that is neither answers NodeTypeNotFound, after the revision is read.
+  # `from` and `to` (ekr.views.EpochMillis) bound a window on the node's time as
+  # ekr.graph-timeline/1 defines it (ekr.views.GraphTimelineV1): a node matches only when it has a
+  # time t with from <= t and t <= to for each bound named; a node with no time matches no window.
+  # A window whose from is after its to matches nothing, and is no refusal. Each surface reads a
+  # bound from text: milliseconds since the Unix epoch (an optional `-` and ASCII digits that fit
+  # a signed 64-bit integer), or a date `YYYY-MM-DD` of the proleptic Gregorian calendar naming
+  # its whole UTC day, as `from` its first millisecond and as `to` its last. Any other text is
+  # malformed input that never reaches the command. The MCP tool also takes a bound as a JSON
+  # integer, read as milliseconds.
+  #
+  # The MCP tool `search` also takes `text` under the argument names `query` and `q`: an alias of
+  # the argument, which changes no answer. A call naming two of the three is malformed (-32602).
   - name: ekr.views.SearchNodes
     naming:
       wire: search-nodes
@@ -2512,9 +3207,19 @@ commands:
         type: String
       - name: limit
         type: Integer
+      - name: format
+        type: Optional<ekr.views.NodeMatchesFormat>
+      - name: type
+        type: Optional<String>
+      - name: from
+        type: Optional<ekr.views.EpochMillis>
+      - name: to
+        type: Optional<ekr.views.EpochMillis>
     response:
       - name: matches
-        type: ekr.views.NodeMatchesV1
+        type: Optional<ekr.views.NodeMatchesV1>
+      - name: matches_v2
+        type: Optional<ekr.views.NodeMatchesV2>
     outcomes:
       - name: searched
         emits:
@@ -2526,9 +3231,11 @@ commands:
             matches: {generated: true}
             total: {generated: true}
             exact_total: {generated: true}
+            format: {generated: true}
             first_match: {generated: true}
+            first_tier: {generated: true}
             matches_hash: {generated: true}
-        summary: One ekr.node-matches/1 document, byte-identical to every other answer to the same request.
+        summary: One ekr.node-matches/1 or ekr.node-matches/2 document, as `format` selects, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -2544,6 +3251,10 @@ commands:
         external: the store has never been seeded
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
+      - name: node-type-not-found
+        external: the request names a `type` that is neither the id of a node type of the requested revision's ontology nor the name of one
+        error: ekr.views.NodeTypeNotFound
+        summary: Nothing was answered; the refusal names the `type` as the request gave it.
 
   # The subjects' timeline (ekr.views.GraphTimelineV1). `row_type` names the type of the rows,
   # the first listed row type when absent; a type the revision holds no node of answers no rows,
@@ -2552,6 +3263,10 @@ commands:
   # listed, and
   # then the row type is its type whatever `row_type` names; a subject the revision does not hold
   # is no refusal, and answers no row and no event.
+  # `format` selects the answer: ekr.graph-timeline/1 (`timeline`) or ekr.graph-timeline/2
+  # (`timeline_v2`); exactly one of the two response fields is present, and absent the command
+  # answers /1. `ekr view`'s `/timeline` and the session verb `timeline` name /1 when the request
+  # names none, the MCP tool `timeline` names /2 (the domain summary's "Named formats").
   - name: ekr.views.ProjectTimeline
     naming:
       wire: project-timeline
@@ -2571,9 +3286,13 @@ commands:
         type: Optional<ekr.views.TimelineBucketWidth>
       - name: subject
         type: Optional<ekr.graph.NodeId>
+      - name: format
+        type: Optional<ekr.views.GraphTimelineFormat>
     response:
       - name: timeline
-        type: ekr.views.GraphTimelineV1
+        type: Optional<ekr.views.GraphTimelineV1>
+      - name: timeline_v2
+        type: Optional<ekr.views.GraphTimelineV2>
     outcomes:
       - name: timelined
         emits:
@@ -2594,8 +3313,10 @@ commands:
             strip: {generated: true}
             first_row: {generated: true}
             listed_events: {generated: true}
+            format: {generated: true}
+            names: {generated: true}
             timeline_hash: {generated: true}
-        summary: One ekr.graph-timeline/1 document, byte-identical to every other answer to the same request.
+        summary: One ekr.graph-timeline/1 or ekr.graph-timeline/2 document, as `format` selects, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -2619,9 +3340,16 @@ commands:
   # A host that takes it as three inputs, since_revision, since_valid and since_recorded, takes
   # exactly one of them, and one given none or more than one refuses the request as its own
   # malformed input. `at` is the last revision read, the head when absent. `limit` is 1 to 2,000
-  # changes per page, 500 when absent; `after` a cursor from an earlier page's `next`, 0 or more.
+  # changes per page, when absent 500 for `ekr view` and the session verb and 100 for the MCP tool
+  # (the domain summary's defaults per surface); `after` a cursor from an earlier page's `next`,
+  # 0 or more. Each chosen revision's change list is parsed once while the host's indexes are held
+  # (the domain summary's cost of ChangesSince).
   # A revision since at or after `at` that the store holds chooses no change and is no refusal;
   # one beyond the head is not-found, decided after `at` is.
+  # `format` selects the answer: ekr.graph-changes/1 (`changes`) or ekr.graph-changes/2
+  # (`changes_v2`); exactly one of the two response fields is present, and absent the command
+  # answers /1. `ekr view`'s `/changes` and the session verb `changes` name /1 when the request
+  # names none, the MCP tool `changes_since` names /2 (the domain summary's "Named formats").
   - name: ekr.views.ChangesSince
     naming:
       wire: changes-since
@@ -2639,9 +3367,13 @@ commands:
         type: Optional<Integer>
       - name: after
         type: Optional<ekr.views.ChangeCursor>
+      - name: format
+        type: Optional<ekr.views.GraphChangesFormat>
     response:
       - name: changes
-        type: ekr.views.GraphChangesV1
+        type: Optional<ekr.views.GraphChangesV1>
+      - name: changes_v2
+        type: Optional<ekr.views.GraphChangesV2>
     outcomes:
       - name: listed
         emits:
@@ -2661,8 +3393,10 @@ commands:
             evidence_added: {generated: true}
             first_revision: {generated: true}
             last_revision: {generated: true}
+            format: {generated: true}
+            names: {generated: true}
             changes_hash: {generated: true}
-        summary: One ekr.graph-changes/1 page, byte-identical to every other answer to the same request with `at` resolved.
+        summary: One ekr.graph-changes/1 or ekr.graph-changes/2 page, as `format` selects, byte-identical to every other answer to the same request with `at` resolved.
       - name: since-malformed
         when:
           all:
@@ -3045,7 +3779,9 @@ events:
   # declares them; `overview_hash` the hex SHA-256 of the document's exact bytes. A field drawn
   # from a section the document does not carry is absent: the schema counts without `schema`,
   # `event_types` and `observation_type` without `roles`, and the timeline counts without
-  # `timeline`.
+  # `timeline`. `format` is meta's. Under ekr.graph-overview/3, `committed_at` is meta's and
+  # `node_type_names` and `edge_type_names` the `name` of each node_types and edge_types entry, in
+  # the document's order; under /2 the three are absent.
   - name: ekr.views.GraphOverviewed
     fields:
       - name: revision
@@ -3100,13 +3836,23 @@ events:
         type: Integer
       - name: sections
         type: List<ekr.views.OverviewSection>
+      - name: format
+        type: ekr.views.OverviewFormat
+      - name: committed_at
+        type: Optional<ekr.views.EpochMillis>
+      - name: node_type_names
+        type: Optional<List<String>>
+      - name: edge_type_names
+        type: Optional<List<String>>
       - name: overview_hash
         type: ekr.kernel.ContentHash
 
   # What one page returned. `seeds` is the size of meta.seeds; `after` is meta.after; `nodes` and
   # `edges` count this page's records; `node_total` and `edge_total` the whole neighbourhood's;
   # `remaining` the records of the sequence after this page, 0 exactly when the page has no
-  # `next`; `slice_hash` the hex SHA-256 of the document's exact bytes.
+  # `next`; `slice_hash` the hex SHA-256 of the document's exact bytes. `format` is meta's; under
+  # ekr.graph-slice/2 `type_names` is every distinct `type_name` of the page's nodes and edges,
+  # ascending by its UTF-8 bytes, and under /1 it is absent.
   - name: ekr.views.NeighbourhoodExpanded
     fields:
       - name: revision
@@ -3127,6 +3873,10 @@ events:
         type: Integer
       - name: remaining
         type: Integer
+      - name: format
+        type: ekr.views.GraphSliceFormat
+      - name: type_names
+        type: Optional<List<String>>
       - name: slice_hash
         type: ekr.kernel.ContentHash
 
@@ -3148,9 +3898,43 @@ events:
       - name: detail_hash
         type: ekr.kernel.ContentHash
 
+  # What one ekr.node-detail/2 returned, every field a function of the document: `limit` and
+  # `after` are meta's; `same_name` is the document's same_name list itself; `properties` the
+  # length of properties, `values` the values its groups list, `cut_values` those whose
+  # `truncated` is true, and `longest_value` the bytes of the longest String value listed (0 when
+  # none is); `relations` one count per relation group, in the document's order; `truncated`
+  # meta's; `detail_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.NodeDetailed
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: node
+        type: ekr.graph.NodeId
+      - name: limit
+        type: Integer
+      - name: after
+        type: Integer
+      - name: same_name
+        type: List<ekr.views.SameNameNode>
+      - name: properties
+        type: Integer
+      - name: values
+        type: Integer
+      - name: cut_values
+        type: Integer
+      - name: longest_value
+        type: Integer
+      - name: relations
+        type: List<ekr.views.DetailGroupCount>
+      - name: truncated
+        type: Boolean
+      - name: detail_hash
+        type: ekr.kernel.ContentHash
+
   # What one search returned. `matches` is the length of the matches list, `total` and
-  # `exact_total` meta's, `first_match` the id of the first match, omitted when there is none;
-  # `matches_hash` the hex SHA-256 of the document's exact bytes.
+  # `exact_total` meta's, `format` meta's, `first_match` the id of the first match and
+  # `first_tier` its tier, each omitted when there is none; `matches_hash` the hex SHA-256 of the
+  # document's exact bytes.
   - name: ekr.views.NodesSearched
     fields:
       - name: revision
@@ -3163,8 +3947,12 @@ events:
         type: Integer
       - name: exact_total
         type: Integer
+      - name: format
+        type: ekr.views.NodeMatchesFormat
       - name: first_match
         type: Optional<ekr.graph.NodeId>
+      - name: first_tier
+        type: Optional<ekr.views.MatchTier>
       - name: matches_hash
         type: ekr.kernel.ContentHash
 
@@ -3172,7 +3960,8 @@ events:
   # `events` are meta's; `row_types`, `rows`, `strip` and `listed_events` the lengths of
   # row_types, rows, strip and events; `row_events` the sum of the rows' totals and `cells` of
   # their cells' lengths; `first_row` the first row's id, omitted when there is none;
-  # `timeline_hash` the hex SHA-256 of the document's exact bytes.
+  # `timeline_hash` the hex SHA-256 of the document's exact bytes. `format` is meta's; `names`
+  # the document's names map under ekr.graph-timeline/2, absent under /1.
   - name: ekr.views.SubjectsTimelined
     fields:
       - name: revision
@@ -3203,6 +3992,10 @@ events:
         type: Optional<ekr.graph.NodeId>
       - name: listed_events
         type: Integer
+      - name: format
+        type: ekr.views.GraphTimelineFormat
+      - name: names
+        type: Optional<ekr.views.OntologyNames>
       - name: timeline_hash
         type: ekr.kernel.ContentHash
 
@@ -3210,7 +4003,8 @@ events:
   # length of changes and `remaining` the document's; the six kind counts count this page's
   # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
   # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
-  # SHA-256 of the document's exact bytes.
+  # SHA-256 of the document's exact bytes. `format` is meta's; `names` the page's names map under
+  # ekr.graph-changes/2, absent under /1.
   - name: ekr.views.ChangesListed
     fields:
       - name: revision
@@ -3239,6 +4033,10 @@ events:
         type: Optional<ekr.kernel.RevisionNumber>
       - name: last_revision
         type: Optional<ekr.kernel.RevisionNumber>
+      - name: format
+        type: ekr.views.GraphChangesFormat
+      - name: names
+        type: Optional<ekr.views.OntologyNames>
       - name: changes_hash
         type: ekr.kernel.ContentHash
 

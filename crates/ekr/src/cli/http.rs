@@ -1,4 +1,8 @@
 //! Bounded blocking HTTP for hosted readers. Store work stays on the calling thread.
+//!
+//! [`serve`] answers a request on its connection's own thread, before the store's queue, when
+//! its `direct` hook answers it: a request that reads no store never waits behind one that does
+//! (ekr-mcp-fixes-20261015 #12). Only what `direct` leaves is queued for the handler.
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -350,11 +354,15 @@ impl Drop for Count {
     }
 }
 
-/// Run a stateless MCP listener. The handler is invoked only on this thread.
+/// Run a stateless MCP listener. The handler is invoked only on this thread. `direct` runs on
+/// each connection's thread after the Host and Origin checks and `/healthz`, and its answer is
+/// the reply, never queued; a request it answers `None` is queued for the handler. It must read
+/// no store.
 pub(super) fn serve(
     listener: TcpListener,
     authorities: Authorities,
     origins: Vec<String>,
+    direct: fn(&Request) -> Option<Reply>,
     mut handler: impl FnMut(Request) -> Reply,
 ) -> Result<String, Failure> {
     if origins.iter().any(|origin| {
@@ -395,7 +403,7 @@ pub(super) fn serve(
                     .name("ekr-http-connection".into())
                     .spawn(move || {
                         let _counted = counted;
-                        connection(stream, started, &jobs, &authorities, &origins);
+                        connection(stream, started, &jobs, &authorities, &origins, direct);
                     });
             }
         })
@@ -415,6 +423,7 @@ fn connection(
     jobs: &SyncSender<Job<Request, Reply>>,
     authorities: &Authorities,
     origins: &[String],
+    direct: fn(&Request) -> Option<Reply>,
 ) {
     let result = (|| {
         let request = read(&stream, started + READ_TIMEOUT)?;
@@ -434,6 +443,11 @@ fn connection(
             } else {
                 Reply::json(200, b"{\"healthy\":true}".to_vec())
             });
+        }
+        // A request that reads no store is answered here: never queued behind another
+        // request's store work (ekr-mcp-fixes-20261015 #12).
+        if let Some(reply) = direct(&request) {
+            return Ok(reply);
         }
         let deadline = started + READ_TIMEOUT + WAIT_TIMEOUT;
         let (reply, receiver) = sync_channel(1);
@@ -539,6 +553,7 @@ mod tests {
                     &jobs,
                     &Authorities::loopback(address.port()),
                     &[],
+                    |_| None,
                 );
             });
             let mut client = TcpStream::connect(address).unwrap();

@@ -1,0 +1,78 @@
+# ekr-mcp-fixes-20261015 #3: ekr.graph-changes/2 carries `names`, the names map of the page
+# (ekr.views.GraphChangesV2).
+#
+# The store `changes` is the one a-revision-since-lists-the-changes-after-it describes; its
+# ontology at revision 3 is the node type Subject 00000000-0000-4000-8000-000000000100, with the
+# property label …000101, and the edge type links …000102, with the property weight …000103.
+# Since revision 0 at 3 the page lists 7 changes: revision 1's NodeCreated (type Subject) and
+# EdgeCreated (type links), and five assertion changes, whose subjects are nodes and edges. A
+# change of this format names a type but no property (ekr.views.GraphChange), so `names` maps
+# Subject and links, by id, and holds no property; a renderer that also named the assertions'
+# predicates, or every id of the ontology, lists label and weight. The same request in /1, and
+# with no format named, answers ekr.graph-changes/1, which carries no names.
+type: ess-scenario/1
+domain: ekr.views
+scenario: changes-v2-name-the-types-and-properties-they-cite
+summary: The ekr.graph-changes/2 page since revision 0 at 3 names Subject and links, the types its changes cite; the /1 page of the same request carries no names.
+
+timeline:
+  - at: 2027-01-15T13:30:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 0
+      at: 3
+      limit: null
+      after: null
+      format: ekr.graph-changes/2
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 7
+          total: 7
+          nodes_created: 1
+          edges_created: 1
+          format: ekr.graph-changes/2
+          names:
+            00000000-0000-4000-8000-000000000100: Subject
+            00000000-0000-4000-8000-000000000102: links
+
+  - at: 2027-01-15T13:31:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 0
+      at: 3
+      limit: null
+      after: null
+      format: ekr.graph-changes/1
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          changes: 7
+          format: ekr.graph-changes/1
+
+  - at: 2027-01-15T13:32:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 0
+      at: 3
+      limit: null
+      after: null
+      format: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          changes: 7
+          format: ekr.graph-changes/1

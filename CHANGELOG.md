@@ -4,6 +4,93 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.36] — 2026-10-16
+
+### Added
+
+- `ekr.node-detail/2`, one node bounded for an agent's context (ekr-mcp-fixes-20261015 #1, #10,
+  #11). `ekr.node-detail/1` lists every assertion and edge of the node, so a node with thousands
+  of edges answered megabytes. `/2` answers the record with its type's name; `same_name`, the
+  other nodes sharing its name or an alias, compared lowercased; its property values grouped by
+  property and named, newest first, a String over 2,000 bytes cut on a character boundary and
+  marked `truncated`; and its neighbours grouped by edge type and direction, each group named
+  and counted, listing at most `limit` (10 by default, up to 500) by degree, each with the newest
+  Relation assertion between the two. `edge_type` (an id or a name) and `after` page one edge
+  type's groups. An `ekr.node-detail/2` request for a node type or edge type id is refused as
+  `ekr.views.NodeIsAType`, naming the type; `/1` still answers `ekr.views.NodeNotFound` for it.
+  `ekr view` serves it at `/node/<id>?format=ekr.node-detail/2[&limit=L][&edge_type=E][&after=A]`
+  and the session's `describe` with `--format ekr.node-detail/2`; both keep answering `/1` by
+  default, byte for byte as before.
+- A search format, `ekr.node-matches/2`, served by `ekr view`'s `/search` and the session verb
+  `search` when asked for (`format=ekr.node-matches/2`, `--format ekr.node-matches/2`) and by the
+  MCP tool `search` by default. A text of two or more words also matches a name or an alias
+  holding every word in any order, as the new tier `Words` (`widget router` finds
+  `Widget-Router`); within a tier a node whose whole name or alias is the text comes first (`eu`
+  before a busier `prod-eu-central-9`); every match carries `type_name` and, when the node has
+  one, its timeline `time`. `type` (a node type's id or name) lists only that type's nodes, an
+  empty text listing them all, and `from` and `to` (milliseconds or `YYYY-MM-DD`) only nodes
+  whose time falls in the window, newest first. A `type` naming no node type is refused as
+  `ekr.views.NodeTypeNotFound`. `ekr.node-matches/1` is unchanged and stays the default of
+  `ekr view` and the session verb; the SDK's `NodeMatches` keeps reading /1.
+
+- The MCP tool `search` takes `text` as `query` or `q` as well; naming two of them is refused.
+- Named formats, so an answer names the types and properties it cites and needs no ontology to
+  read: `ekr.graph-overview/3` (each `node_types` and `edge_types` entry with its `name`, and
+  `meta.committed_at`, when the revision read was committed), `ekr.graph-slice/2` (each node and
+  edge with its `type_name`), `ekr.graph-timeline/2` and `ekr.graph-changes/2` (with `names`, an
+  object mapping every node type, edge type and property id the document holds to its name),
+  `ekr.explanation/3` (`ekr explain`'s document with `names`) and `ekr.resolution/1` (`ekr
+  resolve`'s outcome under `outcome`, with `names`). `ekr view` serves them when asked for
+  (`format=` on `/overview`, `/expand`, `/timeline` and `/changes`), so do the session verbs
+  (`--format`), `ekr explain --format ekr.explanation/3` and `ekr resolve --format
+  ekr.resolution/1`. Without a format each answers what it answered before; the SDK keeps
+  reading the earlier formats.
+
+- `ekr.explanation/3` answers the evidence the chain cites, within a whole-answer cap. `--scope
+  cited` (its default) keeps only the `Evidence` links the chain's assertions and attachments cite
+  and counts the rest as `omitted_evidence`, where `ekr.explanation/2` lists every evidence entry
+  of the transactions on the chain (247 for an assertion citing one, as measured); `--scope all`
+  keeps them all. With `--documents` it carries no proposal record and no base64 `payload` beside
+  a `text`, and the printed answer is at most 48 KiB: the longest evidence text is halved, and
+  marked `truncated` with `offset` and `record_length`, until it fits. `--scope` needs `--format
+  ekr.explanation/3`; `ekr explain` without a format prints `ekr.explanation/2` unchanged.
+- The MCP tools take a few arguments under a second name: `describe_node`'s `node` as `id` or
+  `node_id` and its `edge_type` as `edge`, `expand`'s `seeds` as `seed`, `node` or `nodes` (and one id where a list was
+  required), `explain`'s `assertion` as `id` or `assertion_id`, and `timeline`'s `subject` as
+  `node`. Each tool's `inputSchema` lists them. An alias answers exactly what the argument's own
+  name answers; naming one argument twice is `-32602`. `ekr view` is unchanged.
+
+### Changed
+
+- The MCP tool `describe_node` answers `ekr.node-detail/2` by default, byte for byte what
+  `ekr view` serves for the same request with the format named, and takes `limit`, `edge_type`
+  and `after`; `full: true` answers the whole `ekr.node-detail/1` as before.
+- The MCP tool `search` answers `ekr.node-matches/2` unless `format` names
+  `ekr.node-matches/1`: an agent reading `tier` sees `Words`, and each match gains `type_name`.
+  For one request with the format named, its answer is byte for byte what `ekr view` serves.
+- The MCP tools `overview`, `expand`, `timeline`, `changes_since`, `explain` and `resolve` answer
+  the named formats unless `format` names the earlier one (`ekr.graph-overview/2`,
+  `ekr.graph-slice/1`, `ekr.graph-timeline/1`, `ekr.graph-changes/1`, `ekr.explanation/2`,
+  `outcome`); `explain` answers scope `cited` unless `scope` names `all`. An agent reading
+  `resolve` reads the outcome under `outcome`. For one request with the format (and for
+  `explain` the scope) named, each answer is byte for byte what `ekr view`, the session verb,
+  `ekr explain` or `ekr resolve` answers.
+- The MCP tools answer smaller default pages, since an agent reads a tool result whole: `expand`
+  takes `edges` as 200 (was 5,000) and `changes_since` takes `limit` as 100 (was 500) when the
+  call names none. The answer is what `ekr view` and the session verb answer with that bound
+  named; their own defaults are unchanged. A page ends at whichever of its limits comes first,
+  and the `describe_node` and `expand` descriptions say how to ask for the next page.
+- `changes_since`, `GET /changes` and the session's `changes` derive each revision's changes
+  from its transaction document once while the server keeps its indexes: a second request over
+  the same revisions parses no transaction document, and one after a commit parses only the
+  revisions it added. Answers are unchanged. `ekr_views::Index::transaction_documents_parsed`
+  counts the documents parsed.
+- `ekr mcp-http` answers `initialize`, `ping`, `tools/list`, notifications and every transport
+  refusal on the request's own connection, never behind the store's queue: a client's handshake
+  no longer waits for another client's tool call or for the store's first open, and is answered
+  (with the same bytes) before the store is admitted. Only `tools/call` and `/readyz` wait for
+  the store.
+
 ## [0.0.35] — 2026-10-16
 
 ### Fixed

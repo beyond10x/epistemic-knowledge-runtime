@@ -878,15 +878,20 @@ fn every_lane_explains_by_reference_and_returns_whole_records_when_asked() {
             .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
             .unwrap();
         for (id, arguments, expected) in [
-            (1, json!({"assertion": ASSERTION}), &explained),
+            // ekr.explanation/2 named: the tool answers /3 unless asked (ekr-mcp-fixes-20261015 #3).
+            (
+                1,
+                json!({"assertion": ASSERTION, "format": "ekr.explanation/2"}),
+                &explained,
+            ),
             (
                 2,
-                json!({"assertion": ASSERTION, "documents": true}),
+                json!({"assertion": ASSERTION, "documents": true, "format": "ekr.explanation/2"}),
                 &whole,
             ),
             (
                 3,
-                json!({"assertion": ASSERTION, "documents": false}),
+                json!({"assertion": ASSERTION, "documents": false, "format": "ekr.explanation/2"}),
                 &explained,
             ),
         ] {

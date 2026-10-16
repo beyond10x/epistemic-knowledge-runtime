@@ -2,12 +2,13 @@
 //! `ekr.views.OverviewSchema` lists the edge-type ends it widened and the property declarations it
 //! modified against its parent (`systems/ekr/domains/views.yaml`, `ekr.views.OverviewSchemaVersion`),
 //! on both providers; and a store with no such version answers the bytes it answered before the
-//! two fields existed.
+//! two fields existed. Beside those bytes, every such store's ekr.graph-overview/3 is those bytes
+//! with each type count named and meta.committed_at (ekr-mcp-fixes-20261015 #3, #13).
 
 mod support;
 
 use ekr_core::RevisionNumber;
-use ekr_views::{Index, OverviewRequest};
+use ekr_views::{Index, OverviewFormat, OverviewRequest, OverviewSection};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -224,4 +225,86 @@ fn a_store_without_widened_ends_or_modified_properties_answers_the_bytes_it_answ
         "differ from before:\n{}",
         differ.join("\n")
     );
+}
+
+/// ekr-mcp-fixes-20261015 #3, #13: the ekr.graph-overview/3 answer of every revision of every store
+/// above, every section named, is that revision's ekr.graph-overview/1 bytes — whose digests the
+/// test above pins — with three changes and no other: meta.format names /3; meta.committed_at,
+/// the revision's own `schema.revisions` committed_at, follows meta.revision; and each
+/// node_types and edge_types entry carries its type's name, as the same document's ontology
+/// declares it, between `type` and `count`. So /3's bytes are held beside /1's, byte for byte.
+#[test]
+fn every_store_answers_the_v1_bytes_named_and_dated_as_ekr_graph_overview_3() {
+    let stores = [
+        "seed-only",
+        "seeded-evidence",
+        "edge-assertion",
+        "retracted-assertion",
+        "schema-evolution",
+        "store",
+        "hub",
+        "timeline",
+        "growth",
+        "subjects",
+        "changes",
+        "quality",
+        "schema-changes",
+    ];
+    for name in stores {
+        let work = tempfile::tempdir().expect("work directory");
+        let runtime = fixtures::open(work.path(), Provider::File);
+        Fixture::named(name).unwrap().build(&runtime);
+        let head = runtime.head().unwrap().unwrap().revision.get();
+        for at in 0..=head {
+            let index = Index::load(&runtime, Some(RevisionNumber::new(at))).unwrap();
+            let request = OverviewRequest::new(Some(OverviewRequest::MAX_LIMIT)).unwrap();
+            let plain = index.overview(&request).unwrap();
+            let named = index
+                .overview_as(
+                    OverviewFormat::V3,
+                    &request.with_sections(OverviewSection::ALL),
+                )
+                .unwrap();
+            let text = std::str::from_utf8(&plain.bytes).unwrap();
+            let value: Value = serde_json::from_slice(&plain.bytes).unwrap();
+            let committed_at = value["schema"]["revisions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|revision| revision["number"] == at)
+                .map(|revision| revision["committed_at"].as_i64().unwrap())
+                .unwrap();
+            let opening =
+                format!("{{\"meta\":{{\"format\":\"ekr.graph-overview/1\",\"revision\":{at},");
+            assert!(text.starts_with(&opening), "{name} at {at}: {text}");
+            let mut expected = format!(
+                "{{\"meta\":{{\"format\":\"ekr.graph-overview/3\",\"revision\":{at},\
+                 \"committed_at\":{committed_at},{}",
+                &text[opening.len()..]
+            );
+            let declared = value["ontology"]["node_types"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .chain(value["ontology"]["edge_types"].as_array().unwrap());
+            for declared in declared {
+                let id = declared["id"].as_str().unwrap();
+                let entry = format!("{{\"type\":\"{id}\",\"count\":");
+                assert_eq!(expected.matches(&entry).count(), 1, "{name} at {at}: {id}");
+                expected = expected.replace(
+                    &entry,
+                    &format!(
+                        "{{\"type\":\"{id}\",\"name\":{},\"count\":",
+                        serde_json::to_string(&declared["name"]).unwrap()
+                    ),
+                );
+            }
+            assert_eq!(
+                std::str::from_utf8(&named.bytes).unwrap(),
+                expected,
+                "{name} at {at}"
+            );
+            assert_eq!(named.summary.committed_at, Some(committed_at), "{name}");
+        }
+    }
 }

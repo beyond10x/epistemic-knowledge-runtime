@@ -1,0 +1,68 @@
+# ekr-mcp-fixes-20261015 #1: ekr.node-detail/2 answers a String value longer than 2,000 bytes cut
+# to at most 2,000 on a character boundary, and marks it truncated.
+#
+# The store `bounded-detail` is the one a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-
+# a-group describes. The router 00000000-0000-4000-8000-000000b00100 holds one description
+# assertion, 00000000-0000-4000-8000-000000b03002, whose value is `a`, 2,499 `é` (two bytes each)
+# and `b`: 5,000 bytes. Byte 2,000 falls inside an `é`, so the longest prefix of at most 2,000
+# bytes that ends on a character boundary is 1,999 bytes.
+#
+# What is held:
+#   - the router's /2 detail lists one property group with one value, cut (cut_values 1) to
+#     1,999 bytes (longest_value), and the answer is truncated;
+#   - at limit 1 the same: one value per group is all the group holds.
+# The value's bytes (a prefix of the stored value) and its `truncated` flag are held in
+# tests/query.rs, which reads the document.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-node-detail-v2-cuts-a-long-string-and-marks-it
+summary: A 5,000-byte String property value is answered cut to 1,999 bytes, the longest prefix of at most 2,000 that ends on a character boundary, and marked truncated.
+
+timeline:
+  - at: 2027-01-16T12:00:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          properties: 1
+          values: 1
+          cut_values: 1
+          longest_value: 1999
+          truncated: true
+
+  - at: 2027-01-16T12:01:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00100
+      format: ekr.node-detail/2
+      limit: 1
+      edge_type: works_on
+      after: null
+    outcome: detailed
+    events:
+      - event: ekr.views.NodeDetailed
+        payload:
+          limit: 1
+          properties: 0
+          values: 0
+          cut_values: 0
+          longest_value: 0
+          relations:
+            - type: 00000000-0000-4000-8000-000000b00011
+              direction: in
+              total: 1
+              nodes: 1
+          truncated: false

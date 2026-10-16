@@ -1,7 +1,7 @@
-//! The four bounded reads of `ekr.views` over one [`Index`]: ekr.graph-overview/1,
-//! ekr.graph-slice/1, ekr.node-detail/1 and ekr.node-matches/1, held against
+//! The bounded reads of `ekr.views` over one [`Index`]: ekr.graph-overview/1,
+//! ekr.graph-slice/1, ekr.node-detail/1 and /2 and ekr.node-matches/1 and /2, held against
 //! `systems/ekr/domains/views.yaml`'s determinism rules, bounds and refusal order on the `hub`,
-//! `growth` and `timeline` fixtures; and the revision cache `ekr view` keeps them in.
+//! `growth`, `timeline` and `search` fixtures; and the revision cache `ekr view` keeps them in.
 
 mod support;
 
@@ -9,15 +9,21 @@ use std::sync::Arc;
 
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_views::{
-    ExpandRequest, Index, IndexCache, LimitExceeded, Lineage, OverviewRequest, OverviewSection,
-    ProjectError, QueryError, RevisionIdentity, SearchRequest, SliceRecord,
+    DetailFormat, DetailGroupCount, DetailRequest, EdgeDirection, ExpandRequest, Index, IndexCache,
+    LimitExceeded, Lineage, MatchesFormat, OverviewRequest, OverviewSection, ProjectError,
+    QueryError, RevisionIdentity, SameNameNode, SearchError, SearchFilter, SearchRequest,
+    SliceRecord, TypeKind, UnknownDetailFormat, UnknownMatchesFormat, WindowBound, WindowMalformed,
 };
+use ekr_views::{OverviewFormat, SliceFormat};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use support::fixtures::{
-    self, id, Fixture, Provider, GROWTH_EDGE, GROWTH_FIRST, GROWTH_SECOND, HUB, HUB_LEAVES,
-    JANUARY_FIRST_0900_MS, KIND_A, KIND_B, KIND_C,
+    self, id, Fixture, Provider, BD_AFFECTS, BD_ALERTS, BD_COMPONENT, BD_COMPONENT_NODE,
+    BD_DESCRIPTION_CLAIM, BD_ROUTER, BD_SERVICE, BD_WORKS_ON, BD_WORKS_ON_CLAIM, GROWTH_EDGE,
+    GROWTH_FIRST, GROWTH_SECOND, HUB, HUB_LEAVES, JANUARY_FIRST_0900_MS, KIND_A, KIND_B, KIND_C,
+    SEARCH_EU_LATENCY_MS, SEARCH_INCIDENT, SEARCH_INCIDENTS, SEARCH_ROUTER_OUTAGE_MS,
+    SEARCH_SERVICES,
 };
 
 fn uuid(n: u64) -> String {
@@ -167,6 +173,81 @@ fn the_overview_opens_with_its_meta_and_lists_its_sections_in_declared_order() {
         (Some(601), Some(600))
     );
     assert_eq!(summary.observation_type, None);
+    assert_eq!(summary.format, "ekr.graph-overview/1");
+    assert_eq!(
+        (summary.committed_at, summary.node_type_names),
+        (None, None)
+    );
+
+    // ekr-mcp-fixes-20261015 #3, #13: the same revision and limit in ekr.graph-overview/3, every
+    // section named. meta carries committed_at, the seed's commit time, after the revision, and
+    // each type count its type's name; every section is /1's above, byte for byte.
+    let plain = value;
+    let named = hub
+        .overview_as(
+            OverviewFormat::V3,
+            &OverviewRequest::new(Some(2))
+                .unwrap()
+                .with_sections(OverviewSection::ALL),
+        )
+        .expect("overview/3");
+    let (text, value) = json(&named.bytes);
+    assert!(
+        text.starts_with(
+            "{\"meta\":{\"format\":\"ekr.graph-overview/3\",\"revision\":0,\
+             \"committed_at\":1800000000001,\"node_count\":601,\"edge_count\":600,\
+             \"assertion_count\":0,\"evidence_count\":0,\"limit\":2},\"ontology\":{\"node_types\":["
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!(
+            "}},\"node_types\":[{{\"type\":\"{}\",\"name\":\"vertex\",\"count\":601}}],\
+             \"edge_types\":[{{\"type\":\"{}\",\"name\":\"joins\",\"count\":600}}],\"roles\":",
+            uuid(0x11_0000),
+            uuid(0x11_0001)
+        )),
+        "{text}"
+    );
+    for section in ["ontology", "schema", "roles", "timeline", "top"] {
+        assert_eq!(value[section], plain[section], "{section}");
+    }
+    let summary = named.summary;
+    assert_eq!(summary.format, "ekr.graph-overview/3");
+    assert_eq!(summary.committed_at, Some(1_800_000_000_001));
+    assert_eq!(summary.node_type_names, Some(vec!["vertex".to_owned()]));
+    assert_eq!(summary.edge_type_names, Some(vec!["joins".to_owned()]));
+    assert_eq!(
+        summary.overview_hash,
+        hex::encode(Sha256::digest(&named.bytes))
+    );
+
+    // ekr.graph-overview/2 of the same request is unchanged by /3: no name, no committed_at.
+    let sections = hub
+        .overview_as(
+            OverviewFormat::V2,
+            &OverviewRequest::new(Some(2))
+                .unwrap()
+                .with_sections(OverviewSection::ALL),
+        )
+        .expect("overview/2");
+    assert_eq!(
+        sections.bytes,
+        hub.overview_sections(
+            &OverviewRequest::new(Some(2))
+                .unwrap()
+                .with_sections(OverviewSection::ALL)
+        )
+        .unwrap()
+        .bytes
+    );
+    let (text, _) = json(&sections.bytes);
+    assert!(
+        text.starts_with(
+            "{\"meta\":{\"format\":\"ekr.graph-overview/2\",\"revision\":0,\"node_count\":601,"
+        ) && !text.contains("\"name\":\"vertex\",\"count\""),
+        "{text}"
+    );
 }
 
 #[test]
@@ -335,6 +416,7 @@ fn with_all_four_sections_named_the_overview_is_v1_but_its_format_name() {
             let mut summary = second.summary.clone();
             assert_eq!(summary.sections, OverviewSection::ALL.to_vec());
             summary.overview_hash = first.summary.overview_hash.clone();
+            summary.format = first.summary.format;
             assert_eq!(summary, first.summary, "{fixture:?} at {at}");
             compared += 1;
         }
@@ -523,9 +605,75 @@ fn each_overview_section_can_be_requested_alone() {
 #[test]
 fn a_slice_lists_each_node_before_the_edges_it_closes_and_pages_by_record() {
     let hub = index(Fixture::Hub, None);
+    // ekr-mcp-fixes-20261015 #3: ekr.graph-slice/2, each node and edge named by its type.
+    let named = hub
+        .expand_as(SliceFormat::V2, &expand(&[HUB, HUB], 1, 3, None, None))
+        .expect("expanded");
+    let (text, _) = json(&named.bytes);
+    assert_eq!(
+        text,
+        format!(
+            "{{\"meta\":{{\"format\":\"ekr.graph-slice/2\",\"revision\":0,\
+             \"seeds\":[\"{hub}\"],\"depth\":1,\"after\":0,\"node_total\":601,\"edge_total\":600}},\
+             \"nodes\":[\
+             {{\"id\":\"{hub}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\"name\":\"hub\",\"degree\":600,\"distance\":0}},\
+             {{\"id\":\"{l1}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\"name\":\"leaf-001\",\"degree\":1,\"distance\":1}},\
+             {{\"id\":\"{l2}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\"name\":\"leaf-002\",\"degree\":1,\"distance\":1}}],\
+             \"edges\":[\
+             {{\"id\":\"{e1}\",\"source\":\"{hub}\",\"target\":\"{l1}\",\"type\":\"{joins}\",\"type_name\":\"joins\",\"assertions\":[]}},\
+             {{\"id\":\"{e2}\",\"source\":\"{hub}\",\"target\":\"{l2}\",\"type\":\"{joins}\",\"type_name\":\"joins\",\"assertions\":[]}}],\
+             \"next\":5}}",
+            hub = uuid(HUB),
+            vertex = uuid(0x11_0000),
+            joins = uuid(0x11_0001),
+            l1 = uuid(HUB + 1),
+            l2 = uuid(HUB + 2),
+            e1 = uuid(0x20_0001),
+            e2 = uuid(0x20_0002),
+        )
+    );
+    assert_eq!(named.summary.format, "ekr.graph-slice/2");
+    assert_eq!(
+        named.summary.type_names,
+        Some(vec!["joins".to_owned(), "vertex".to_owned()])
+    );
+    assert_eq!(
+        named.summary.slice_hash,
+        hex::encode(Sha256::digest(&named.bytes))
+    );
+    // The same records in the same order as /1's, and the same pages.
+    let (named_page, plain_page) = (
+        hub.page_as(SliceFormat::V2, &expand(&[HUB], 1, 7, Some(5), Some(9)))
+            .unwrap(),
+        hub.page(&expand(&[HUB], 1, 7, Some(5), Some(9))).unwrap(),
+    );
+    assert_eq!(
+        (
+            named_page.next(),
+            named_page.remaining(),
+            named_page.records().len()
+        ),
+        (
+            plain_page.next(),
+            plain_page.remaining(),
+            plain_page.records().len()
+        )
+    );
+
+    // The kept case: ekr.graph-slice/1's bytes, as before /2 existed.
     let answer = hub
         .expand(&expand(&[HUB, HUB], 1, 3, None, None))
         .expect("expanded");
+    assert_eq!(
+        answer.bytes,
+        hub.expand_as(SliceFormat::V1, &expand(&[HUB, HUB], 1, 3, None, None))
+            .unwrap()
+            .bytes
+    );
+    assert_eq!(
+        (answer.summary.format, &answer.summary.type_names),
+        ("ekr.graph-slice/1", &None)
+    );
     let (text, value) = json(&answer.bytes);
     assert_eq!(
         text,
@@ -718,12 +866,16 @@ fn a_node_created_later_is_not_found_at_an_earlier_revision() {
 
 // ---- ekr.node-matches/1 -------------------------------------------------------------------------
 
+/// ekr.node-matches/1's bytes, unchanged since /2 was declared: the /1 copy of
+/// [`exact_matches_come_before_folded_ones_whatever_their_degree`], which moved to /2.
 #[test]
-fn exact_matches_come_before_folded_ones_whatever_their_degree() {
+fn exact_matches_come_before_folded_ones_whatever_their_degree_under_v1() {
     let hub = index(Fixture::Hub, None);
     let answer = hub
         .search(&SearchRequest::new("Hub".into(), 10).unwrap())
         .unwrap();
+    assert_eq!(answer.summary.format, "ekr.node-matches/1");
+    assert_eq!(answer.summary.first_tier, Some("Exact"));
     let (text, _) = json(&answer.bytes);
     assert_eq!(
         text,
@@ -751,6 +903,245 @@ fn exact_matches_come_before_folded_ones_whatever_their_degree() {
         .search(&SearchRequest::new("absent".into(), 1).unwrap())
         .unwrap();
     assert_eq!((none.summary.matches, none.summary.first_match), (0, None));
+    // `search_as` with /1 is `search`, and reads no filter.
+    let named = hub
+        .search_as(
+            MatchesFormat::V1,
+            &SearchRequest::new("Hub".into(), 10).unwrap(),
+            &SearchFilter::new(Some("vertex".into()), Some(0), None),
+        )
+        .unwrap();
+    assert_eq!(named.bytes, answer.bytes);
+}
+
+/// Moved to ekr.node-matches/2 (ekr-mcp-fixes-20261015 #2): each match gains `type_name`, and
+/// meta `types`.
+#[test]
+fn exact_matches_come_before_folded_ones_whatever_their_degree() {
+    let hub = index(Fixture::Hub, None);
+    let answer = hub
+        .search_v2(
+            &SearchRequest::new("Hub".into(), 10).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!(answer.summary.format, "ekr.node-matches/2");
+    let (text, _) = json(&answer.bytes);
+    assert_eq!(
+        text,
+        format!(
+            "{{\"meta\":{{\"format\":\"ekr.node-matches/2\",\"revision\":0,\
+             \"text\":\"Hub\",\"types\":[],\"total\":2,\"exact_total\":1}},\"matches\":[\
+             {{\"id\":\"{leaf}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\
+             \"name\":\"leaf-600\",\"degree\":1,\
+             \"tier\":\"Exact\",\"field\":\"Alias\",\"alias\":\"Hub-Leaf\"}},\
+             {{\"id\":\"{hub}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\
+             \"name\":\"hub\",\"degree\":600,\
+             \"tier\":\"Folded\",\"field\":\"Name\"}}]}}",
+            leaf = uuid(HUB + HUB_LEAVES),
+            hub = uuid(HUB),
+            vertex = uuid(0x11_0000),
+        )
+    );
+    assert_eq!(answer.summary.first_match, Some(id(HUB + HUB_LEAVES)));
+    assert_eq!(answer.summary.first_tier, Some("Exact"));
+    let every = hub
+        .search_v2(
+            &SearchRequest::new(String::new(), 100).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!((every.summary.total, every.summary.exact_total), (601, 601));
+    let (_, value) = json(&every.bytes);
+    assert_eq!(value["matches"][0]["id"], uuid(HUB), "highest degree first");
+    assert_eq!(value["matches"][0]["field"], "Name");
+    let none = hub
+        .search_v2(
+            &SearchRequest::new("absent".into(), 1).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        (
+            none.summary.matches,
+            none.summary.first_match,
+            none.summary.first_tier
+        ),
+        (0, None, None)
+    );
+}
+
+fn search_v2(text: &str, filter: SearchFilter) -> (String, Value) {
+    let search = index(Fixture::Search, None);
+    let answer = search
+        .search_v2(&SearchRequest::new(text.into(), 10).unwrap(), &filter)
+        .unwrap();
+    json(&answer.bytes)
+}
+
+fn match_ids(value: &Value) -> Vec<String> {
+    ids(&value["matches"])
+}
+
+/// ekr-mcp-fixes-20261015 #2: a text of two or more words matches a name holding every word, in
+/// any order, as Words, after Exact and Folded; a whole match first within its tier; under /1
+/// the same text finds nothing.
+#[test]
+fn every_word_of_a_text_matches_in_any_order_and_a_whole_match_comes_first() {
+    let router = uuid(SEARCH_SERVICES + 1);
+    let router_2 = uuid(SEARCH_SERVICES + 4);
+    for text in ["widget router", "router  widget", "ROUTER\tWidget"] {
+        let (bytes, value) = search_v2(text, SearchFilter::default());
+        assert_eq!(
+            match_ids(&value),
+            [router.clone(), router_2.clone()],
+            "{text:?}: {bytes}"
+        );
+        assert_eq!(value["matches"][0]["tier"], "Words", "{bytes}");
+        assert_eq!(value["matches"][0]["field"], "Name", "{bytes}");
+        assert_eq!(value["matches"][0]["type_name"], "Service", "{bytes}");
+        assert_eq!(value["meta"]["exact_total"], 0, "{bytes}");
+    }
+    let search = index(Fixture::Search, None);
+    let v1 = search
+        .search(&SearchRequest::new("widget router".into(), 10).unwrap())
+        .unwrap();
+    assert_eq!(v1.summary.total, 0, "/1 has no Words tier");
+
+    // `eu`: the whole name `eu` (degree 0) before prod-eu-central-9 (degree 2) and eu latency.
+    let (bytes, value) = search_v2("eu", SearchFilter::default());
+    assert_eq!(
+        match_ids(&value),
+        [
+            uuid(SEARCH_SERVICES + 2),
+            uuid(SEARCH_SERVICES + 3),
+            uuid(SEARCH_INCIDENTS + 2)
+        ],
+        "{bytes}"
+    );
+    let v1 = search
+        .search(&SearchRequest::new("eu".into(), 10).unwrap())
+        .unwrap();
+    assert_eq!(
+        v1.summary.first_match,
+        Some(id(SEARCH_SERVICES + 3)),
+        "/1: degree first"
+    );
+
+    // A one-word text keeps /1's tiers: `WIDGET-ROUTER` is Folded, the whole name first.
+    let (bytes, value) = search_v2("WIDGET-ROUTER", SearchFilter::default());
+    assert_eq!(match_ids(&value), [router.clone(), router_2], "{bytes}");
+    assert_eq!(value["matches"][0]["tier"], "Folded", "{bytes}");
+    // Words are split on whitespace only: `widget-router outage` holds no word of a name.
+    let (bytes, value) = search_v2("widget-router outage", SearchFilter::default());
+    assert_eq!(value["meta"]["total"], 0, "{bytes}");
+}
+
+/// ekr-mcp-fixes-20261015 #9: an empty text with a node type lists that type's nodes, by
+/// degree, then id, by name or by id alike; a name the ontology does not hold is refused.
+#[test]
+fn an_empty_text_with_a_type_lists_that_type_by_degree() {
+    let incidents = [
+        uuid(SEARCH_INCIDENTS + 1),
+        uuid(SEARCH_INCIDENTS + 3),
+        uuid(SEARCH_INCIDENTS + 2),
+    ];
+    let (by_name, value) = search_v2("", SearchFilter::new(Some("Incident".into()), None, None));
+    assert_eq!(match_ids(&value), incidents, "{by_name}");
+    assert_eq!(value["meta"]["types"], json!([uuid(SEARCH_INCIDENT)]));
+    for hit in value["matches"].as_array().unwrap() {
+        assert_eq!(hit["type_name"], "Incident", "{hit}");
+    }
+    let (by_id, _) = search_v2(
+        "",
+        SearchFilter::new(Some(uuid(SEARCH_INCIDENT)), None, None),
+    );
+    assert_eq!(by_id, by_name);
+    let (bytes, value) = search_v2("eu", SearchFilter::new(Some("Service".into()), None, None));
+    assert_eq!(
+        match_ids(&value),
+        [uuid(SEARCH_SERVICES + 2), uuid(SEARCH_SERVICES + 3)],
+        "{bytes}"
+    );
+
+    let search = index(Fixture::Search, None);
+    // The edge type `affects`, by its id: a type, but no node type.
+    let affects = uuid(0xc5_0004);
+    for named in ["incident", "affects", "no such node type", affects.as_str()] {
+        match search.search_v2(
+            &SearchRequest::new(String::new(), 10).unwrap(),
+            &SearchFilter::new(Some(named.to_owned()), None, None),
+        ) {
+            Err(SearchError::NodeTypeNotFound {
+                node_type,
+                revision,
+            }) => assert_eq!((node_type.as_str(), revision.get()), (named, 0)),
+            other => panic!("{named}: {other:?}"),
+        }
+    }
+}
+
+/// ekr-mcp-fixes-20261015 #9: `from` and `to` admit the nodes whose timeline time falls in the
+/// window, both bounds included, newest first before degree; a node with no time is in no window.
+#[test]
+fn a_window_admits_the_nodes_whose_time_falls_in_it_newest_first() {
+    let outage = uuid(SEARCH_INCIDENTS + 1);
+    let latency = uuid(SEARCH_INCIDENTS + 2);
+    let january = (
+        WindowBound::From.read("2027-01-01").unwrap(),
+        WindowBound::To.read("2027-01-31").unwrap(),
+    );
+    assert_eq!(january, (1_798_761_600_000, 1_801_439_999_999));
+    let window =
+        |from: Option<i64>, to: Option<i64>| search_v2("", SearchFilter::new(None, from, to));
+    let (bytes, value) = window(Some(january.0), Some(january.1));
+    assert_eq!(match_ids(&value), std::slice::from_ref(&outage), "{bytes}");
+    assert_eq!(
+        value["matches"][0]["time"], SEARCH_ROUTER_OUTAGE_MS,
+        "{bytes}"
+    );
+    assert_eq!(value["meta"]["from"], january.0, "{bytes}");
+    assert_eq!(value["meta"]["to"], january.1, "{bytes}");
+    let (bytes, value) = window(Some(january.0), None);
+    assert_eq!(
+        match_ids(&value),
+        [latency.clone(), outage.clone()],
+        "{bytes}"
+    );
+    assert!(value["meta"].get("to").is_none(), "{bytes}");
+    let (bytes, value) = window(Some(SEARCH_ROUTER_OUTAGE_MS), Some(SEARCH_ROUTER_OUTAGE_MS));
+    assert_eq!(match_ids(&value), std::slice::from_ref(&outage), "{bytes}");
+    let (bytes, value) = window(None, Some(SEARCH_EU_LATENCY_MS - 1));
+    assert_eq!(match_ids(&value), [outage], "{bytes}");
+    let (bytes, value) = window(Some(SEARCH_EU_LATENCY_MS), Some(SEARCH_ROUTER_OUTAGE_MS));
+    assert_eq!(value["meta"]["total"], 0, "from after to: {bytes}");
+    // A type and a window together; with no window every node has its time in the answer.
+    let (bytes, value) = search_v2(
+        "",
+        SearchFilter::new(Some("Incident".into()), Some(SEARCH_EU_LATENCY_MS), None),
+    );
+    assert_eq!(match_ids(&value), [latency], "{bytes}");
+    let (bytes, value) = search_v2("disk", SearchFilter::default());
+    assert!(value["matches"][0].get("time").is_none(), "{bytes}");
+}
+
+#[test]
+fn search_v2_answers_the_same_bytes_on_both_providers() {
+    let answers: Vec<Vec<u8>> = [Provider::File, Provider::Sqlite]
+        .into_iter()
+        .map(|provider| {
+            let (_work, runtime) = built(Fixture::Search, provider);
+            Index::load(&runtime, None)
+                .unwrap()
+                .search_v2(
+                    &SearchRequest::new("router widget".into(), 10).unwrap(),
+                    &SearchFilter::new(Some("Service".into()), None, None),
+                )
+                .unwrap()
+                .bytes
+        })
+        .collect();
+    assert_eq!(answers[0], answers[1]);
 }
 
 // ---- bounds and refusals ------------------------------------------------------------------------
@@ -1086,4 +1477,322 @@ fn a_host_pages_a_slice_record_by_record_and_reads_each_format_tag() {
         json(&matches.bytes).1["meta"]["format"],
         ekr_views::MATCHES_FORMAT
     );
+}
+
+// ---- ekr.node-detail/2 (ekr-mcp-fixes-20261015 #1, #10, #11) -----------------------------------
+
+fn detail_v2(index: &Index, node: u64, limit: Option<i64>, edge_type: Option<&str>) -> Value {
+    let request = DetailRequest::new(limit, edge_type.map(str::to_owned), None).expect("bounded");
+    let answer = index.detail_v2(id(node), &request).expect("detailed");
+    json(&answer.bytes).1
+}
+
+/// ekr-mcp-fixes-20261015 #1: the router of `bounded-detail` has 121 edges; its /2 answer is
+/// under the 75 KB budget an agent's tool result has, smaller than its /1, and names the one
+/// `works_on` neighbour that 120 `affects` neighbours would otherwise bury, with the Relation
+/// assertion between the two.
+#[test]
+fn a_node_detail_v2_of_a_hub_stays_under_75_kb_and_names_the_rare_neighbour() {
+    let index = index(Fixture::BoundedDetail, None);
+    let request = DetailRequest::new(None, None, None).unwrap();
+    let v2 = index.detail_v2(id(BD_ROUTER), &request).unwrap().bytes;
+    let v1 = index.describe(id(BD_ROUTER)).unwrap().bytes;
+    assert!(v2.len() < 75_000, "{} bytes", v2.len());
+    assert!(
+        v2.len() < v1.len(),
+        "/2 {} bytes, /1 {} bytes",
+        v2.len(),
+        v1.len()
+    );
+    let (_, detail) = json(&v2);
+    assert_eq!(detail["meta"]["format"], "ekr.node-detail/2");
+    assert_eq!(detail["node"]["type_name"], "Service");
+    let relations = detail["relations"].as_array().unwrap();
+    assert_eq!(
+        relations
+            .iter()
+            .map(|group| (
+                group["name"].as_str().unwrap(),
+                group["direction"].as_str().unwrap(),
+                group["total"].as_u64().unwrap(),
+                group["nodes"].as_array().unwrap().len(),
+                group["next"].as_u64()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("affects", "in", 120, 10, Some(10)),
+            ("works_on", "in", 1, 1, None)
+        ]
+    );
+    let rare = &relations[1]["nodes"][0];
+    assert_eq!(rare["id"], uuid(BD_COMPONENT_NODE));
+    assert_eq!(rare["name"], "router component");
+    assert_eq!(rare["type_name"], "Component");
+    assert_eq!(rare["assertion"], uuid(BD_WORKS_ON_CLAIM));
+    assert_eq!(rare["assertions"], 1);
+    // An affects neighbour has an edge and no Relation assertion: no `assertion`, and 0.
+    let first = &relations[0]["nodes"][0];
+    assert_eq!(first["name"], "alert-001");
+    assert!(first.get("assertion").is_none(), "{first}");
+    assert_eq!(first["assertions"], 0);
+    assert_eq!(detail["meta"]["edges"], 121);
+    assert_eq!(detail["meta"]["truncated"], true);
+}
+
+/// ekr-mcp-fixes-20261015 #1: a 5,000-byte String is answered as its longest prefix of at most
+/// 2,000 bytes ending on a character boundary — 1,999 here, since byte 2,000 falls inside an `é` —
+/// with `truncated` true; the assertion, its valid time and its evidence are carried whole.
+#[test]
+fn a_node_detail_v2_cuts_a_long_string_on_a_character_boundary_and_marks_it() {
+    let detail = detail_v2(&index(Fixture::BoundedDetail, None), BD_ROUTER, None, None);
+    let group = &detail["properties"][0];
+    assert_eq!(group["name"], "description");
+    assert_eq!(group["total"], 1);
+    let value = &group["values"][0];
+    assert_eq!(value["assertion"], uuid(BD_DESCRIPTION_CLAIM));
+    assert_eq!(value["truncated"], true);
+    assert_eq!(value["valid_from"], 500);
+    assert_eq!(value["evidence"].as_array().unwrap().len(), 1);
+    let text = value["value"]["value"].as_str().unwrap();
+    assert_eq!(text.len(), 1_999);
+    assert!(fixtures::bd_long_description().starts_with(text));
+    assert_eq!(value["value"]["kind"], "String");
+}
+
+/// ekr-mcp-fixes-20261015 #11: a Service and a Component that share `Widget-Router` — one by an
+/// alias, in another case — each list the other under `same_name`, with type name and degree; an
+/// alert, which shares no name, lists none.
+#[test]
+fn a_node_detail_v2_lists_same_name_nodes_with_their_type_name_and_degree() {
+    let index = index(Fixture::BoundedDetail, None);
+    let router = detail_v2(&index, BD_ROUTER, None, None);
+    assert_eq!(
+        router["same_name"],
+        json!([{"id": uuid(BD_COMPONENT_NODE), "type": uuid(BD_COMPONENT),
+                "type_name": "Component", "name": "router component", "degree": 1}])
+    );
+    let component = detail_v2(&index, BD_COMPONENT_NODE, None, None);
+    assert_eq!(
+        component["same_name"],
+        json!([{"id": uuid(BD_ROUTER), "type": uuid(BD_SERVICE),
+                "type_name": "Service", "name": "Widget-Router", "degree": 121}])
+    );
+    let alert = detail_v2(&index, BD_ALERTS + 1, None, None);
+    assert_eq!(alert["same_name"], json!([]));
+    // Narrowed to an edge type, the answer pages relations only.
+    let narrowed = detail_v2(&index, BD_ROUTER, Some(1), Some("WORKS_ON"));
+    assert_eq!(narrowed["same_name"], json!([]));
+    assert_eq!(narrowed["properties"], json!([]));
+    assert_eq!(narrowed["meta"]["edge_type"], "WORKS_ON");
+    assert_eq!(narrowed["relations"][0]["name"], "works_on");
+}
+
+/// ekr-mcp-fixes-20261015 #10: an ekr.node-detail/2 request for a node type id or an edge type id
+/// is refused as NodeIsAType, its message naming the type and pointing at overview and search; the
+/// same id under /1 is NodeNotFound, as before.
+#[test]
+fn a_node_detail_v2_refuses_a_type_id_by_naming_the_type() {
+    let index = index(Fixture::BoundedDetail, None);
+    let request = DetailRequest::new(None, None, None).unwrap();
+    for (type_id, kind, name) in [
+        (BD_SERVICE, TypeKind::NodeType, "Service"),
+        (BD_AFFECTS, TypeKind::EdgeType, "affects"),
+    ] {
+        let refused = index.detail_v2(id(type_id), &request).unwrap_err();
+        assert_eq!(
+            refused.to_string(),
+            format!(
+                "{} is the type {name}, not a node: overview lists the types; search (with \
+                 type) lists its nodes",
+                uuid(type_id)
+            )
+        );
+        assert!(
+            matches!(&refused, QueryError::NodeIsAType { kind: k, type_name, .. }
+                if *k == kind && type_name == name),
+            "{refused:?}"
+        );
+        assert!(matches!(
+            index.describe(id(type_id)),
+            Err(QueryError::NodeNotFound { .. })
+        ));
+    }
+}
+
+/// ekr-mcp-fixes-20261015 #1: /2's bounds, refused before any store is read, naming the first
+/// broken input of limit and after.
+#[test]
+fn a_node_detail_v2_request_refuses_one_past_each_bound() {
+    assert_eq!(
+        DetailRequest::new(Some(501), None, Some(-1)).unwrap_err(),
+        limit("limit", 501, 1, Some(500))
+    );
+    assert_eq!(
+        DetailRequest::new(Some(0), None, None).unwrap_err(),
+        limit("limit", 0, 1, Some(500))
+    );
+    assert_eq!(
+        DetailRequest::new(None, None, Some(-1)).unwrap_err(),
+        limit("after", -1, 0, None)
+    );
+    assert_eq!(DetailRequest::new(None, None, None).unwrap().limit(), 10);
+    assert_eq!(
+        DetailRequest::new(Some(500), None, None).unwrap().limit(),
+        500
+    );
+}
+
+/// ekr-mcp-fixes-20261015 #1: both providers answer one /2 request with the same bytes, every
+/// time, and the document's keys come in the order views.yaml declares them.
+#[test]
+fn a_node_detail_v2_is_the_same_bytes_on_both_providers() {
+    let answers: Vec<Vec<u8>> = [Provider::File, Provider::Sqlite, Provider::File]
+        .into_iter()
+        .map(|provider| {
+            let (_work, runtime) = built(Fixture::BoundedDetail, provider);
+            let index = Index::load(&runtime, None).unwrap();
+            let request = DetailRequest::new(Some(3), None, Some(1)).unwrap();
+            index.detail_v2(id(BD_ROUTER), &request).unwrap().bytes
+        })
+        .collect();
+    assert!(answers.windows(2).all(|pair| pair[0] == pair[1]));
+    assert_eq!(
+        keys(&answers[0]),
+        ["meta", "node", "same_name", "properties", "relations"]
+    );
+    let (text, _) = json(&answers[0]);
+    assert!(
+        text.starts_with(&format!(
+            "{{\"meta\":{{\"format\":\"ekr.node-detail/2\",\"revision\":0,\"limit\":3,\"after\":1,\
+             \"property_values\":1,\"edges\":121,\"truncated\":true}},\"node\":{{\"id\":\"{}\",\
+             \"name\":\"Widget-Router\",\"type\":\"{}\",\"type_name\":\"Service\",\"aliases\":[],\
+             \"degree\":121}},",
+            uuid(BD_ROUTER),
+            uuid(BD_SERVICE)
+        )),
+        "{text}"
+    );
+}
+
+/// ekr-mcp-fixes-20261015 #1, #10, #11, #2: the format literals the two new formats carry, the
+/// texts that name them, and the summary a /2 detail answers with, counted from its document.
+#[test]
+fn the_v2_formats_are_named_by_their_literals_and_the_detail_summary_counts_its_groups() {
+    assert_eq!(ekr_views::DETAIL_V2_FORMAT, "ekr.node-detail/2");
+    assert_eq!(ekr_views::MATCHES_V2_FORMAT, "ekr.node-matches/2");
+    assert_eq!(DetailFormat::V2.name(), ekr_views::DETAIL_V2_FORMAT);
+    assert_eq!(MatchesFormat::V2.name(), ekr_views::MATCHES_V2_FORMAT);
+    assert_eq!(ekr_views::DETAIL_V2_FORMAT.parse(), Ok(DetailFormat::V2));
+    assert_eq!(ekr_views::MATCHES_V2_FORMAT.parse(), Ok(MatchesFormat::V2));
+    assert_eq!(
+        "ekr.node-detail/3".parse::<DetailFormat>(),
+        Err(UnknownDetailFormat("ekr.node-detail/3".into()))
+    );
+    assert_eq!(
+        "ekr.node-matches/3".parse::<MatchesFormat>(),
+        Err(UnknownMatchesFormat("ekr.node-matches/3".into()))
+    );
+    assert_eq!(EdgeDirection::In.name(), "in");
+    assert_eq!(EdgeDirection::Out.name(), "out");
+    assert!(EdgeDirection::In < EdgeDirection::Out);
+
+    let malformed = WindowBound::To.read("2027-02-30").unwrap_err();
+    assert_eq!(
+        malformed,
+        WindowMalformed {
+            bound: WindowBound::To,
+            text: "2027-02-30".into()
+        }
+    );
+
+    let index = index(Fixture::BoundedDetail, None);
+    assert_eq!(
+        index.type_kind(id(BD_SERVICE)),
+        Some((TypeKind::NodeType, "Service"))
+    );
+    assert_eq!(
+        index.type_kind(id(BD_AFFECTS)),
+        Some((TypeKind::EdgeType, "affects"))
+    );
+    assert_eq!(index.type_kind(id(BD_ROUTER)), None);
+    assert_eq!(index.edge_type_named("affects"), Some(id(BD_AFFECTS)));
+    assert_eq!(index.edge_type_named("WORKS_ON"), Some(id(BD_WORKS_ON)));
+    assert_eq!(index.edge_type_named("Service"), None);
+    assert_eq!(index.edge_type_named("nothing"), None);
+
+    let request = DetailRequest::new(None, None, None).unwrap();
+    let answer = index.detail_v2(id(BD_ROUTER), &request).unwrap();
+    let summary = answer.summary;
+    assert_eq!(summary.limit, 10);
+    assert_eq!(
+        summary.same_name,
+        [SameNameNode {
+            id: id(BD_COMPONENT_NODE),
+            type_id: id(BD_COMPONENT),
+            type_name: Some("Component".into()),
+            name: "router component".into(),
+            degree: 1,
+        }]
+    );
+    let mut groups = summary.relations;
+    groups.sort_by_key(|group| group.type_id);
+    assert_eq!(
+        groups,
+        [
+            DetailGroupCount {
+                type_id: id(BD_AFFECTS),
+                direction: EdgeDirection::In,
+                total: 120,
+                nodes: 10,
+                next: Some(10),
+            },
+            DetailGroupCount {
+                type_id: id(BD_WORKS_ON),
+                direction: EdgeDirection::In,
+                total: 1,
+                nodes: 1,
+                next: None,
+            },
+        ]
+    );
+    assert!(ekr_views::VALUE_BYTES > "x".len());
+    assert_eq!(summary.longest_value as usize, ekr_views::VALUE_BYTES - 1);
+    assert_eq!(summary.cut_values, 1);
+}
+
+/// The named formats: each literal is its selector's name, only the successor is named, a name no
+/// read answers is `UnknownFormat`, and `ontology_names` names exactly the ids a document holds.
+#[test]
+fn named_format_literals_selectors_and_names_agree() {
+    for (literal, name) in [
+        (ekr_views::OVERVIEW_V3_FORMAT, OverviewFormat::V3.name()),
+        (ekr_views::SLICE_V2_FORMAT, SliceFormat::V2.name()),
+        (
+            ekr_views::TIMELINE_V2_FORMAT,
+            ekr_views::TimelineFormat::V2.name(),
+        ),
+        (
+            ekr_views::CHANGES_V2_FORMAT,
+            ekr_views::ChangesFormat::V2.name(),
+        ),
+    ] {
+        assert_eq!(literal, name);
+    }
+    assert!(OverviewFormat::V3.is_named());
+    assert!(!OverviewFormat::V2.is_named());
+    let refused: ekr_views::UnknownFormat = "ekr.graph-slice/9".parse::<SliceFormat>().unwrap_err();
+    assert_eq!(refused.given, "ekr.graph-slice/9");
+    assert_eq!(refused.expected.len(), 2);
+
+    let (_work, runtime) = built(Fixture::Names, Provider::File);
+    let loaded = ekr_views::load(&runtime, None).unwrap();
+    let person = uuid(fixtures::NAMES_PERSON);
+    let document = json!({"type": person, "other": uuid_text_unknown()});
+    let names = ekr_views::ontology_names(&loaded.graph.ontology, &document);
+    assert_eq!(names.get(&person).map(String::as_str), Some("Person"));
+    assert_eq!(names.len(), 1, "{names:?}");
+}
+
+fn uuid_text_unknown() -> String {
+    uuid(0x0f_ffff)
 }

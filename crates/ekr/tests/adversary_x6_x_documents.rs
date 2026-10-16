@@ -154,7 +154,8 @@ fn documents_returns_the_records_propose_and_commit_printed_on_every_lane() {
                 "clientInfo": {"name": "adversary-x6-x", "version": "0"}}}),
             json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
             json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
-                "name": "explain", "arguments": {"assertion": ALICE, "documents": true}}}),
+                "name": "explain", "arguments": {"assertion": ALICE, "documents": true,
+                    "format": "ekr.explanation/2"}}}),
         ]
         .iter()
         .map(|r| r.to_string() + "\n")

@@ -80,6 +80,7 @@ use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
 pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
+pub use explain::Scope;
 pub use mcp::serve_mcp;
 pub use session::serve;
 pub use stage::StageCommand;
@@ -226,6 +227,17 @@ pub enum Command {
         /// absent.
         #[arg(long, requires = "documents", value_parser = clap::value_parser!(u64).range(1..))]
         limit: Option<u64>,
+        /// The format printed: `ekr.explanation/2` when absent, or `ekr.explanation/3`: the chain
+        /// with only the evidence it cites (see --scope), no proposal record, at most 48 KiB in
+        /// all (the longest evidence text halved, and marked `truncated`, until it fits), and
+        /// `names`, the name of every node type, edge type and property id it holds.
+        #[arg(long, value_enum)]
+        format: Option<explain::Format>,
+        /// With --format ekr.explanation/3, which evidence to answer: `cited` (when absent), the
+        /// evidence the chain's assertions and attachments cite, the rest counted as
+        /// `omitted_evidence`; or `all`, every evidence entry of the chain's transactions.
+        #[arg(long, value_enum)]
+        scope: Option<explain::Scope>,
     },
     /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
     /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
@@ -240,6 +252,10 @@ pub enum Command {
         /// The committed revision to resolve against; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+        /// The format printed: `outcome`, the bare outcome, when absent, or `ekr.resolution/1`,
+        /// the outcome under `outcome` with `names`, the name of every type id it holds.
+        #[arg(long, value_enum)]
+        format: Option<resolve::Format>,
     },
     /// Apply an extraction document (`ekr.integrate.ApplyExtraction`): its missing ontology as one
     /// schema change, each named thing resolved and created where the store holds none, each fact
@@ -986,16 +1002,35 @@ fn dispatch(
             documents,
             offset,
             limit,
+            format,
+            scope,
         } => {
+            let format = format.unwrap_or(explain::Format::V2);
+            if format == explain::Format::V2 && scope.is_some() {
+                return Err(Failure::Usage {
+                    message: format!("error: {}\n", explain::SCOPE_WITHOUT_V3),
+                });
+            }
             let runtime = source.resolve("explain")?.open()?;
             let documents = documents.then_some(explain::Bounds { offset, limit });
-            render(&explain::run(&runtime, assertion_id, documents)?)
+            render(&explain::run(
+                &runtime,
+                assertion_id,
+                documents,
+                format,
+                scope,
+            )?)
         }
-        Command::Resolve { reference, at } => {
+        Command::Resolve {
+            reference,
+            at,
+            format,
+        } => {
             let store = source.resolve("resolve")?;
             let reference = resolve::read(&reference, stdin)?;
             let runtime = store.open()?;
-            render(&resolve::run(&runtime, &reference, at)?)
+            let format = format.unwrap_or(resolve::Format::Outcome);
+            render(&resolve::answer(&runtime, &reference, at, format)?)
         }
         Command::ApplyExtraction { document, strict } => {
             let store = source.configured("apply-extraction")?;

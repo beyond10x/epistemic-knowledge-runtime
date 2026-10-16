@@ -21,8 +21,25 @@
 //! whole history; what does not narrow is the kernel's capture of the retained transaction
 //! records, which [`Runtime`] offers only whole, and a valid-time since, which chooses by the
 //! valid time of each change and so reads every revision up to `at`.
+//!
+//! `ekr.graph-changes/2` ([`Index::changes_as`]) is the same page with `names`, the names map of
+//! the types its changes cite (`names.rs`; ekr-mcp-fixes-20261015 #3).
+//! Each revision's change list is derived once (`views.yaml`, the cost of ChangesSince;
+//! ekr-mcp-fixes-20261015 #5): a committed revision never changes, and neither does what its
+//! transaction document lists, so the index holds each list it derived in its `ChangeLists`,
+//! keyed by the revision's [`RevisionIdentity`], and a later request choosing that revision
+//! answers from it — parsing no document, and reading neither the retained records nor the seed's
+//! replay when every chosen revision is held. An [`crate::IndexCache`] shares one
+//! `ChangeLists` among the indexes it holds, so a request after a later commit, read from the
+//! new head's index, derives only the revisions that commit added. A list's superseded or
+//! retracted assertion is read from the read revision's graph, but only its subject, evidence and
+//! valid-time start, which no later revision changes, so a list derived at one revision is the
+//! list derived at any later one. [`Index::transaction_documents_parsed`] counts the documents
+//! parsed, the measure the cost clause is held by.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use ekr_core::{AssertionId, ContentHash, EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{CanonicalGraph, Subject};
@@ -30,11 +47,51 @@ use ekr_kernel::{GraphOperation, Runtime, TransactionDocument};
 use serde::Serialize;
 
 use crate::index::Index;
+use crate::names::{names_of, ChangesFormat};
 use crate::query::{bounded, encode, hash, Answer, LimitExceeded};
-use crate::{LoadedRevisionEntry, ProjectError};
+use crate::{LoadedRevisionEntry, ProjectError, RevisionIdentity};
 
 /// The format literal of [`Index::changes`]'s documents.
 pub const CHANGES_FORMAT: &str = "ekr.graph-changes/1";
+
+/// One held change list with the identity of the revision it was derived from.
+type HeldList = (RevisionIdentity, Arc<Vec<GraphChange>>);
+
+/// The change lists [`Index::changes`] derived, one per committed revision, and how many
+/// transaction documents it parsed to derive them. Shared, behind an [`Arc`], by the indexes one
+/// [`crate::IndexCache`] holds; dropped with the last of them.
+#[derive(Debug, Default)]
+pub(crate) struct ChangeLists {
+    /// By revision number, each with the identity of the revision it was derived from: a list is
+    /// answered only for that identity, never for another revision under the same number.
+    held: Mutex<BTreeMap<RevisionNumber, HeldList>>,
+    /// Transaction documents parsed to derive the lists, ever.
+    parsed: AtomicU64,
+}
+
+impl ChangeLists {
+    /// The held list of the revision `entry` names, if one is held for its identity.
+    fn get(&self, entry: &LoadedRevisionEntry) -> Option<Arc<Vec<GraphChange>>> {
+        let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        held.get(&entry.number)
+            .filter(|(identity, _)| *identity == entry.identity())
+            .map(|(_, list)| Arc::clone(list))
+    }
+
+    /// Holds `list` as the change list of the revision `entry` names, replacing one held under
+    /// its number for another identity.
+    fn hold(&self, entry: &LoadedRevisionEntry, list: Arc<Vec<GraphChange>>) {
+        self.held
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(entry.number, (entry.identity(), list));
+    }
+
+    /// Transaction documents parsed to derive the held lists, ever.
+    pub(crate) fn parsed(&self) -> u64 {
+        self.parsed.load(Ordering::Relaxed)
+    }
+}
 
 /// `ekr.views.SinceKind`: which of the three a `since` is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -217,6 +274,10 @@ pub struct ChangesListed {
     pub first_revision: Option<u64>,
     /// The revision of the page's last change; `None` for an empty page.
     pub last_revision: Option<u64>,
+    /// `meta.format`: [`CHANGES_FORMAT`] or [`crate::CHANGES_V2_FORMAT`].
+    pub format: &'static str,
+    /// `ekr.graph-changes/2`'s `names`; `None` under /1.
+    pub names: Option<BTreeMap<String, String>>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub changes_hash: String,
 }
@@ -321,6 +382,9 @@ struct GraphChangesV1<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     next: Option<u64>,
     remaining: u64,
+    /// `ekr.graph-changes/2`'s only (`ekr.views.GraphChangesV2`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    names: Option<BTreeMap<String, String>>,
 }
 
 fn inconsistent(detail: String) -> ProjectError {
@@ -487,11 +551,21 @@ fn transaction_changes(
 }
 
 impl Index {
+    /// How many transaction documents [`Self::changes`] has parsed to derive the change lists
+    /// this index holds — counted over every index sharing them, which is every index one
+    /// [`crate::IndexCache`] held together with this one. A request whose chosen revisions are
+    /// all held adds 0 (ekr-mcp-fixes-20261015 #5).
+    #[must_use]
+    pub fn transaction_documents_parsed(&self) -> u64 {
+        self.change_lists.parsed()
+    }
+
     /// `ChangesSince`: one page of `ekr.graph-changes/1`, the changes `request`'s `since`
     /// chooses among the revisions from the seed up to this index's revision, which is `at`.
     ///
     /// Each chosen revision's changes are read off its committed transaction — the seed's off
-    /// its state — and ordered by revision, then change kind in declared order, then id; the
+    /// its state, and either from the change list held for it when one is (the module's cost
+    /// paragraph) — and ordered by revision, then change kind in declared order, then id; the
     /// page is the `limit` of them from position `after`. The answer names no head, so the same
     /// request answers the same bytes before and after any later commit.
     ///
@@ -505,6 +579,23 @@ impl Index {
         &self,
         runtime: &Runtime,
         request: &ChangesRequest,
+    ) -> Result<Answer<ChangesListed>, ChangesError> {
+        self.changes_as(runtime, request, ChangesFormat::V1)
+    }
+
+    /// `ChangesSince` in the format `format` names: [`Self::changes`]'s `ekr.graph-changes/1`,
+    /// or `ekr.graph-changes/2` — the same page with `names`, the names map of the types its
+    /// changes cite, read from this index's revision's ontology (`views.yaml`,
+    /// `ekr.views.GraphChangesV2`).
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::changes`] refuses.
+    pub fn changes_as(
+        &self,
+        runtime: &Runtime,
+        request: &ChangesRequest,
+        format: ChangesFormat,
     ) -> Result<Answer<ChangesListed>, ChangesError> {
         let loaded = &self.loaded;
         let at = self.revision();
@@ -543,21 +634,33 @@ impl Index {
             .filter(|entry| entry.number.get() >= first && entry.number <= at)
             .collect();
 
+        let lists = &self.change_lists;
+        let held: Vec<(&LoadedRevisionEntry, Option<Arc<Vec<GraphChange>>>)> = chosen
+            .into_iter()
+            .map(|entry| (entry, lists.get(entry)))
+            .collect();
         let mut changes = Vec::new();
-        let records = if chosen
+        let records = if held
             .iter()
-            .any(|entry| entry.number != RevisionNumber::SEED)
+            .any(|(entry, list)| list.is_none() && entry.number != RevisionNumber::SEED)
         {
             runtime.transactions().map_err(ProjectError::from)?
         } else {
-            std::sync::Arc::default()
+            Arc::default()
         };
-        for entry in chosen {
+        for (entry, list) in held {
+            if let Some(list) = list {
+                changes.extend(list.iter().cloned());
+                continue;
+            }
+            let mut derived = Vec::new();
             if entry.number == RevisionNumber::SEED {
                 let seed = runtime
                     .replay(RevisionNumber::SEED)
                     .map_err(ProjectError::from)?;
-                seed_changes(&seed, entry, &mut changes);
+                seed_changes(&seed, entry, &mut derived);
+                changes.extend(derived.iter().cloned());
+                lists.hold(entry, Arc::new(derived));
                 continue;
             }
             let receipt = entry
@@ -571,6 +674,7 @@ impl Index {
                         entry.number
                     ))
                 })?;
+            lists.parsed.fetch_add(1, Ordering::Relaxed);
             let document =
                 TransactionDocument::parse(&receipt.proposal.document_bytes).map_err(|error| {
                     inconsistent(format!(
@@ -582,8 +686,10 @@ impl Index {
                 &loaded.graph,
                 entry,
                 &document.transaction().operations,
-                &mut changes,
+                &mut derived,
             )?;
+            changes.extend(derived.iter().cloned());
+            lists.hold(entry, Arc::new(derived));
         }
         if request.kind() == SinceKind::ValidTime {
             changes.retain(|change| {
@@ -607,9 +713,9 @@ impl Index {
             SinceKind::ValidTime => (None, Some(since), None),
             SinceKind::TransactionTime => (None, None, Some(since)),
         };
-        let document = GraphChangesV1 {
+        let mut document = GraphChangesV1 {
             meta: ChangesMeta {
-                format: CHANGES_FORMAT,
+                format: format.name(),
                 revision: at.get(),
                 since_revision,
                 since_valid,
@@ -621,7 +727,11 @@ impl Index {
             changes: page,
             next: (remaining > 0).then(|| request.after().saturating_add(page.len() as u64)),
             remaining,
+            names: None,
         };
+        if format.is_named() {
+            document.names = Some(names_of(&loaded.graph.ontology, &document)?);
+        }
         let bytes = encode(&document)?;
         let count =
             |kind: ChangeKind| page.iter().filter(|change| change.change == kind).count() as u64;
@@ -639,6 +749,8 @@ impl Index {
             evidence_added: count(ChangeKind::EvidenceAdded),
             first_revision: page.first().map(|change| change.revision),
             last_revision: page.last().map(|change| change.revision),
+            format: document.meta.format,
+            names: document.names.clone(),
             changes_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })

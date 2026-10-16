@@ -1,0 +1,82 @@
+# ekr-mcp-fixes-20261015 #10: an ekr.node-detail/2 request whose id is a type of the revision's
+# ontology, not a node, is refused by a name that says so, naming the type.
+#
+# The store `bounded-detail` is the one a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-
+# a-group describes: the node type Service is 00000000-0000-4000-8000-000000b00001 and the edge
+# type affects 00000000-0000-4000-8000-000000b00010; no node holds either id.
+#
+# What is held:
+#   - /2 with the node type's id is refused as NodeIsAType, kind NodeType, type_name Service;
+#   - /2 with the edge type's id is refused as NodeIsAType, kind EdgeType, type_name affects;
+#   - /1 with the node type's id is NodeNotFound, as it was before /2 existed.
+# A surface's message for NodeIsAType ("<id> is the type Service, not a node: overview lists the
+# types; search (with type) lists its nodes") is held in crates/ekr/tests/mcp.rs.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-node-detail-v2-on-a-type-id-names-the-type
+summary: A /2 detail asked for a node type id or an edge type id is refused as NodeIsAType naming the type; the same id under /1 is NodeNotFound.
+
+timeline:
+  - at: 2027-01-16T11:00:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00001
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: node-is-a-type
+    error:
+      name: ekr.views.NodeIsAType
+      fields:
+        node: 00000000-0000-4000-8000-000000b00001
+        kind: NodeType
+        type_name: Service
+        revision: 0
+    no_events:
+      - ekr.views.NodeDetailed
+
+  - at: 2027-01-16T11:01:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00010
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: node-is-a-type
+    error:
+      name: ekr.views.NodeIsAType
+      fields:
+        node: 00000000-0000-4000-8000-000000b00010
+        kind: EdgeType
+        type_name: affects
+        revision: 0
+    no_events:
+      - ekr.views.NodeDetailed
+
+  - at: 2027-01-16T11:02:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: bounded-detail
+      at: null
+      node: 00000000-0000-4000-8000-000000b00001
+      format: ekr.node-detail/1
+      limit: null
+      edge_type: null
+      after: null
+    outcome: node-not-found
+    error:
+      name: ekr.views.NodeNotFound
+      fields:
+        node: 00000000-0000-4000-8000-000000b00001
+        revision: 0
+    no_events:
+      - ekr.views.NodeDescribed

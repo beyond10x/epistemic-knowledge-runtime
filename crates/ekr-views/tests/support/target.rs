@@ -18,6 +18,8 @@
 //! * **External outcomes.** A control establishes the state its branch declares and never selects
 //!   the reported outcome: `not-found` builds the named store as the seed alone, so the requested
 //!   revision does not exist; `not-seeded` opens the named store's provider without seeding it;
+//!   `node-is-a-type` builds it as `Fixture::DescribedType`, whose ontology declares a node type
+//!   with the id the generated scenario names (ekr-mcp-fixes-20261015 #10);
 //!   `node-not-found` and `event-type-not-found` build it as `schema-evolution` — revision 1
 //!   exists, and [`fixtures::DESCRIBED`], the node the generated scenarios name, does not, nor
 //!   does a node type named [`fixtures::UNDECLARED_TYPE_NAME`]. An expansion that names no seed is
@@ -25,15 +27,21 @@
 //!   that name as its one, which is what makes a seed or a name unknown; the generated
 //!   `ExpandNeighbourhood`, `ExportOcel` and `ProjectProcessMap` scenarios send `seeds: []` and
 //!   `events: []`. `event-time-invalid` builds it as `schema-evolution` too and selects the event
-//!   time `undeclared.at`, a type no fixture declares. `judged-twice` judges the first
-//!   judgement's assertion a second time, or, where the request judges none (the generated
-//!   scenario sends `judgements: []`), judges one fixture assertion twice. The reads then answer
-//!   whatever they answer.
+//!   time `undeclared.at`, a type no fixture declares. `node-type-not-found` builds it as
+//!   `schema-evolution` too and asks `SearchNodes` under `ekr.node-matches/2` (the only format that
+//!   reads a type) for the request's `type`, or [`fixtures::UNDECLARED_TYPE_NAME`] when it names
+//!   none: the generated scenario sends `type: type`, which that store does not declare.
+//!   `judged-twice` judges the first judgement's assertion a second time, or, where the request
+//!   judges none (the generated scenario sends `judgements: []`), judges one fixture assertion
+//!   twice. The reads then answer whatever they answer.
 //! * **Observations.** A command reports the event built from the summary the read returned, and
 //!   every event the provider log gained while it ran, by its logged name — so a read that wrote
 //!   anything is caught by the suite's `expect_no_event` steps.
 //! * **Responses.** None: no admitted views scenario observes a command response. A document
 //!   reaches the suite through its event's hash and counts.
+//! * **Formats.** `ProjectOverview`, `ExpandNeighbourhood`, `ProjectTimeline` and `ChangesSince`
+//!   read their `format` by its literal ([`read_format`]); absent or null is the command's
+//!   predecessor format, as the command answers it.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -42,13 +50,15 @@ use std::path::PathBuf;
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
-    FactJudgements, FactQualityError, FactQualityReported, FactSampleDrawn, GraphOverviewed,
-    GraphProjected, Index, Judgement, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OcelError, OcelExported, OverviewRequest, OverviewSection, ProcessMapped,
-    ProjectError, QueryError, SampleRequest, SearchRequest, SinceKind, SourceText,
+    BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, DetailFormat,
+    DetailRequest, ExpandRequest, FactJudgements, FactQualityError, FactQualityReported,
+    FactSampleDrawn, GraphOverviewed, GraphProjected, Index, Judgement, LimitExceeded,
+    MatchesFormat, NeighbourhoodExpanded, NodeDescribed, NodeDetailed, NodesSearched, OcelError,
+    OcelExported, OverviewRequest, OverviewSection, ProcessMapped, ProjectError, QueryError,
+    SampleRequest, SearchError, SearchFilter, SearchRequest, SinceKind, SourceText,
     StoreQualityReported, SubjectsTimelined, TimelineRequest, Verdict,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
     ImplementationIdentity, ObservedEvent, RedeliveryRequest, ScenarioContext,
@@ -94,9 +104,12 @@ enum Control {
     RevisionAbsent,
     Unseeded,
     NodeAbsent,
+    /// `DescribeNode`'s node-is-a-type: the requested id is a node type's.
+    NodeIsAType,
     EventTypeAbsent,
     EventTimeInvalid,
     JudgedTwice,
+    NodeTypeAbsent,
 }
 
 struct Scenario {
@@ -124,12 +137,20 @@ pub struct ViewsTarget {
 /// One command's input, read and — for the bounded reads — bounded.
 enum Read {
     Graph,
-    Overview(Result<OverviewRequest, LimitExceeded>),
-    Expand(Result<ExpandRequest, LimitExceeded>),
-    Describe(NodeId),
-    Search(Result<SearchRequest, LimitExceeded>),
-    Timeline(Result<TimelineRequest, LimitExceeded>),
-    Changes(Result<ChangesRequest, ChangesError>),
+    Overview(Result<OverviewRequest, LimitExceeded>, OverviewFormat),
+    Expand(Result<ExpandRequest, LimitExceeded>, SliceFormat),
+    /// The node, and for `ekr.node-detail/2` its bounded request (`None` for /1): the bounds are
+    /// checked whatever the format.
+    Describe(NodeId, Result<Option<DetailRequest>, LimitExceeded>),
+    /// `SearchNodes`: the bounded request, the format, and the filter /2 reads (empty under /1,
+    /// which reads none).
+    Search(
+        Result<SearchRequest, LimitExceeded>,
+        MatchesFormat,
+        SearchFilter,
+    ),
+    Timeline(Result<TimelineRequest, LimitExceeded>, TimelineFormat),
+    Changes(Result<ChangesRequest, ChangesError>, ChangesFormat),
     CodeNames(Vec<SourceText>, ekr_views::CodeNameMode),
     Quality,
     /// `ExportOcel`, or `ProjectProcessMap` when `map` is set: the same input, the same log.
@@ -244,6 +265,16 @@ fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetEr
     if let Some(observation) = summary.observation_type {
         fields.push(("observation_type", Node::Text(observation.to_string())));
     }
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(committed_at) = summary.committed_at {
+        fields.push(("committed_at", signed(committed_at)));
+    }
+    if let Some(names) = &summary.node_type_names {
+        fields.push(("node_type_names", texts(names)));
+    }
+    if let Some(names) = &summary.edge_type_names {
+        fields.push(("edge_type_names", texts(names)));
+    }
     fields.push(("overview_hash", Node::Text(summary.overview_hash.clone())));
     observed("ekr.views.GraphOverviewed", fields)
 }
@@ -260,6 +291,10 @@ fn neighbourhood_expanded(summary: &NeighbourhoodExpanded) -> Result<ObservedEve
         ("edge_total", summary.edge_total),
         ("remaining", summary.remaining),
     ])?;
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(names) = &summary.type_names {
+        fields.push(("type_names", texts(names)));
+    }
     fields.push(("slice_hash", Node::Text(summary.slice_hash.clone())));
     observed("ekr.views.NeighbourhoodExpanded", fields)
 }
@@ -277,6 +312,60 @@ fn node_described(summary: &NodeDescribed) -> Result<ObservedEvent, TargetError>
     observed("ekr.views.NodeDescribed", fields)
 }
 
+/// One `ekr.views.SameNameNode` or `ekr.views.DetailGroupCount` of a `NodeDetailed`, as a map.
+fn map(fields: Vec<(&str, Node)>) -> Node {
+    Node::Map(
+        fields
+            .into_iter()
+            .map(|(field, value)| (field.to_owned(), value))
+            .collect(),
+    )
+}
+
+fn node_detailed(summary: &NodeDetailed) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("limit", summary.limit),
+        ("after", summary.after),
+        ("properties", summary.properties),
+        ("values", summary.values),
+        ("cut_values", summary.cut_values),
+        ("longest_value", summary.longest_value),
+    ])?;
+    fields.push(("node", Node::Text(summary.node.to_string())));
+    let mut same_name = Vec::new();
+    for other in &summary.same_name {
+        let mut entry = vec![
+            ("id", Node::Text(other.id.to_string())),
+            ("type", Node::Text(other.type_id.to_string())),
+            ("name", Node::Text(other.name.clone())),
+            ("degree", integer(other.degree)?),
+        ];
+        if let Some(type_name) = &other.type_name {
+            entry.push(("type_name", Node::Text(type_name.clone())));
+        }
+        same_name.push(map(entry));
+    }
+    fields.push(("same_name", Node::Seq(same_name)));
+    let mut relations = Vec::new();
+    for group in &summary.relations {
+        let mut entry = vec![
+            ("type", Node::Text(group.type_id.to_string())),
+            ("direction", Node::Text(group.direction.name().to_owned())),
+            ("total", integer(group.total)?),
+            ("nodes", integer(group.nodes)?),
+        ];
+        if let Some(next) = group.next {
+            entry.push(("next", integer(next)?));
+        }
+        relations.push(map(entry));
+    }
+    fields.push(("relations", Node::Seq(relations)));
+    fields.push(("truncated", Node::Bool(summary.truncated)));
+    fields.push(("detail_hash", Node::Text(summary.detail_hash.clone())));
+    observed("ekr.views.NodeDetailed", fields)
+}
+
 fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
@@ -285,8 +374,12 @@ fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError>
         ("exact_total", summary.exact_total),
     ])?;
     fields.push(("text", Node::Text(summary.text.clone())));
+    fields.push(("format", Node::Text(summary.format.to_owned())));
     if let Some(first) = summary.first_match {
         fields.push(("first_match", Node::Text(first.to_string())));
+    }
+    if let Some(tier) = summary.first_tier {
+        fields.push(("first_tier", Node::Text(tier.to_owned())));
     }
     fields.push(("matches_hash", Node::Text(summary.matches_hash.clone())));
     observed("ekr.views.NodesSearched", fields)
@@ -313,6 +406,10 @@ fn subjects_timelined(summary: &SubjectsTimelined) -> Result<ObservedEvent, Targ
     if let Some(first) = summary.first_row {
         fields.push(("first_row", Node::Text(first.to_string())));
     }
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(names) = &summary.names {
+        fields.push(("names", names_map(names)));
+    }
     fields.push(("timeline_hash", Node::Text(summary.timeline_hash.clone())));
     observed("ekr.views.SubjectsTimelined", fields)
 }
@@ -337,8 +434,41 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
     if let Some(last) = summary.last_revision {
         fields.push(("last_revision", integer(last)?));
     }
+    fields.push(("format", Node::Text(summary.format.to_owned())));
+    if let Some(names) = &summary.names {
+        fields.push(("names", names_map(names)));
+    }
     fields.push(("changes_hash", Node::Text(summary.changes_hash.clone())));
     observed("ekr.views.ChangesListed", fields)
+}
+
+/// A list of texts, in order.
+fn texts(items: &[String]) -> Node {
+    Node::Seq(items.iter().cloned().map(Node::Text).collect())
+}
+
+/// An `ekr.views.OntologyNames`, as the map it is.
+fn names_map(names: &BTreeMap<String, String>) -> Node {
+    Node::Map(
+        names
+            .iter()
+            .map(|(id, name)| (id.clone(), Node::Text(name.clone())))
+            .collect(),
+    )
+}
+
+/// A read's `format`, by its literal: absent or null is the command's predecessor format.
+fn read_format<F>(request: &SemanticCommandRequest, predecessor: F) -> Result<F, TargetError>
+where
+    F: std::str::FromStr<Err = UnknownFormat>,
+{
+    optional_text(request, "format")?
+        .map(|text| {
+            text.parse()
+                .map_err(|error| unavailable("reading `format`", error))
+        })
+        .transpose()
+        .map(|format| format.unwrap_or(predecessor))
 }
 
 fn code_names_found(summary: &CodeNamesFound) -> Result<ObservedEvent, TargetError> {
@@ -668,6 +798,30 @@ fn optional_text(
     }
 }
 
+/// `SearchNodes`' `format`, `/1` when absent as the command's own default, and the filter /2 reads:
+/// `type` as given, `from` and `to` in milliseconds. Under /1 the command reads none of the
+/// three, so the filter is empty whatever the request names (`views.yaml`, `ekr.views.SearchNodes`).
+fn search_input(
+    request: &SemanticCommandRequest,
+) -> Result<(MatchesFormat, SearchFilter), TargetError> {
+    let format = optional_text(request, "format")?
+        .map(|name| {
+            name.parse::<MatchesFormat>()
+                .map_err(|e| unavailable("reading `format`", e))
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let filter = match format {
+        MatchesFormat::V1 => SearchFilter::default(),
+        MatchesFormat::V2 => SearchFilter::new(
+            optional_text(request, "type")?,
+            optional_integer(request, "from")?,
+            optional_integer(request, "to")?,
+        ),
+    };
+    Ok((format, filter))
+}
+
 /// `ProjectTimeline`'s input, bounded.
 fn timeline_request(
     request: &SemanticCommandRequest,
@@ -770,6 +924,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
             Read::Overview(
                 OverviewRequest::new(optional_integer(request, "limit")?)
                     .map(|overview| overview.with_sections(sections)),
+                read_format(request, OverviewFormat::V2)?,
             )
         }
         EXPAND_NEIGHBOURHOOD => {
@@ -783,21 +938,57 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
                     .collect::<Result<Vec<_>, _>>()?,
                 _ => return Err(unavailable("reading `seeds`", "not a list")),
             };
-            Read::Expand(ExpandRequest::new(
-                seeds,
-                required_integer(request, "depth")?,
-                required_integer(request, "limit")?,
-                optional_integer(request, "edge_limit")?,
-                optional_integer(request, "after")?,
-            ))
+            Read::Expand(
+                ExpandRequest::new(
+                    seeds,
+                    required_integer(request, "depth")?,
+                    required_integer(request, "limit")?,
+                    optional_integer(request, "edge_limit")?,
+                    optional_integer(request, "after")?,
+                ),
+                read_format(request, SliceFormat::V1)?,
+            )
         }
-        DESCRIBE_NODE => Read::Describe(node_id(&text(request, "node")?, "node")?),
-        SEARCH_NODES => Read::Search(SearchRequest::new(
-            text(request, "text")?,
-            required_integer(request, "limit")?,
-        )),
-        PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
-        CHANGES_SINCE => Read::Changes(changes_request(request)?),
+        DESCRIBE_NODE => {
+            let node = node_id(&text(request, "node")?, "node")?;
+            let format = match request.input.get("format") {
+                None | Some(Node::Null) => DetailFormat::V1,
+                Some(Node::Text(format)) => format
+                    .parse()
+                    .map_err(|error| unavailable("reading `format`", error))?,
+                _ => return Err(unavailable("reading `format`", "not a text")),
+            };
+            let edge_type = match request.input.get("edge_type") {
+                None | Some(Node::Null) => None,
+                Some(Node::Text(edge_type)) => Some(edge_type.clone()),
+                _ => return Err(unavailable("reading `edge_type`", "not a text")),
+            };
+            let bounded = DetailRequest::new(
+                optional_integer(request, "limit")?,
+                edge_type,
+                optional_integer(request, "after")?,
+            );
+            Read::Describe(
+                node,
+                bounded.map(|detail| (format == DetailFormat::V2).then_some(detail)),
+            )
+        }
+        SEARCH_NODES => {
+            let (format, filter) = search_input(request)?;
+            Read::Search(
+                SearchRequest::new(text(request, "text")?, required_integer(request, "limit")?),
+                format,
+                filter,
+            )
+        }
+        PROJECT_TIMELINE => Read::Timeline(
+            timeline_request(request)?,
+            read_format(request, TimelineFormat::V1)?,
+        ),
+        CHANGES_SINCE => Read::Changes(
+            changes_request(request)?,
+            read_format(request, ChangesFormat::V1)?,
+        ),
         FIND_CODE_NAMES => Read::CodeNames(
             sources(request)?,
             match request.input.get("mode") {
@@ -843,6 +1034,20 @@ fn refused(command: &str, refusal: QueryError) -> Result<SemanticCommandResult, 
                 .with("node", Node::Text(node.to_string()))
                 .with("revision", integer(revision.get())?),
         )),
+        QueryError::NodeIsAType {
+            node,
+            kind,
+            type_name,
+            revision,
+        } => Ok(
+            SemanticCommandResult::took(outcome_ref(command, "node-is-a-type")?).with_error(
+                error("ekr.views.NodeIsAType")?
+                    .with("node", Node::Text(node.to_string()))
+                    .with("kind", Node::Text(kind.name().to_owned()))
+                    .with("type_name", Node::Text(type_name))
+                    .with("revision", integer(revision.get())?),
+            ),
+        ),
         QueryError::Project(ProjectError::RevisionNotFound { requested, head }) => Ok(
             SemanticCommandResult::took(outcome_ref(command, "not-found")?).with_error(
                 error("ekr.views.RevisionNotFound")?
@@ -942,15 +1147,43 @@ fn answer(
             )),
         };
     }
-    if let Read::Changes(request) = read {
+    if let Read::Changes(request, format) = read {
         // The since and the bounds first: a broken one is refused before the store is read.
         let listed = request.and_then(|request| {
             let index = Index::load(runtime, at)?;
-            index.changes(runtime, &request)
+            index.changes_as(runtime, &request, format)
         });
         return match listed {
             Ok(answer) => Ok((took("listed", changes_listed(&answer.summary)?)?, None)),
             Err(refusal) => Ok((changes_refused(command, refusal)?, None)),
+        };
+    }
+    if let Read::Search(request, format, filter) = read {
+        // The bound first: a broken one is refused before the store is read.
+        let request = match request {
+            Ok(request) => request,
+            Err(refusal) => return Ok((limit_exceeded(command, &refusal)?, None)),
+        };
+        let searched = Index::load(runtime, at)
+            .map_err(SearchError::Project)
+            .and_then(|index| index.search_as(format, &request, &filter));
+        return match searched {
+            Ok(answer) => Ok((took("searched", nodes_searched(&answer.summary)?)?, None)),
+            Err(SearchError::NodeTypeNotFound {
+                node_type,
+                revision,
+            }) => Ok((
+                SemanticCommandResult::took(outcome_ref(command, "node-type-not-found")?)
+                    .with_error(
+                        error("ekr.views.NodeTypeNotFound")?
+                            .with("type", Node::Text(node_type))
+                            .with("revision", integer(revision.get())?),
+                    ),
+                None,
+            )),
+            Err(SearchError::Project(error)) => {
+                Ok((refused(command, QueryError::Project(error))?, None))
+            }
         };
     }
     if let Read::CodeNames(sources, mode) = read {
@@ -963,38 +1196,42 @@ fn answer(
         // The bound first: a broken one is refused before the store is read.
         match read {
             Read::Graph
-            | Read::Changes(_)
+            | Read::Changes(..)
+            | Read::Search(..)
             | Read::CodeNames(_, _)
             | Read::Quality
             | Read::Ocel { .. }
             | Read::Sample(_) => unreachable!("answered above"),
-            Read::Overview(request) => {
+            Read::Overview(request, format) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.overview_sections(&request)?;
+                let answer = index.overview_as(format, &request)?;
                 Ok(graph_overviewed(&answer.summary).and_then(|e| took("overviewed", e)))
             }
-            Read::Expand(request) => {
+            Read::Expand(request, format) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.expand(&request)?;
+                let answer = index.expand_as(format, &request)?;
                 Ok(neighbourhood_expanded(&answer.summary).and_then(|e| took("expanded", e)))
             }
-            Read::Describe(node) => {
-                let index = Index::load(runtime, at)?;
-                let answer = index.describe(node)?;
-                Ok(node_described(&answer.summary).and_then(|e| took("described", e)))
-            }
-            Read::Search(request) => {
+            Read::Describe(node, request) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.search(&request)?;
-                Ok(nodes_searched(&answer.summary).and_then(|e| took("searched", e)))
+                Ok(match request {
+                    None => {
+                        let answer = index.describe(node)?;
+                        node_described(&answer.summary).and_then(|e| took("described", e))
+                    }
+                    Some(request) => {
+                        let answer = index.detail_v2(node, &request)?;
+                        node_detailed(&answer.summary).and_then(|e| took("detailed", e))
+                    }
+                })
             }
-            Read::Timeline(request) => {
+            Read::Timeline(request, format) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
-                let answer = index.timeline(&request)?;
+                let answer = index.timeline_as(format, &request)?;
                 Ok(subjects_timelined(&answer.summary).and_then(|e| took("timelined", e)))
             }
         }
@@ -1120,16 +1357,33 @@ impl ConformanceTarget for ViewsTarget {
             };
         }
         if control == Some(Control::NodeAbsent) {
-            if let Read::Expand(Ok(expansion)) = &read {
+            if let Read::Expand(Ok(expansion), format) = &read {
                 if expansion.seeds().is_empty() {
-                    read = Read::Expand(ExpandRequest::new(
-                        vec![fixtures::id(fixtures::DESCRIBED)],
-                        i64::try_from(expansion.depth()).unwrap_or(i64::MAX),
-                        i64::try_from(expansion.limit()).unwrap_or(i64::MAX),
-                        Some(i64::try_from(expansion.edge_limit()).unwrap_or(i64::MAX)),
-                        Some(i64::try_from(expansion.after()).unwrap_or(i64::MAX)),
-                    ));
+                    read = Read::Expand(
+                        ExpandRequest::new(
+                            vec![fixtures::id(fixtures::DESCRIBED)],
+                            i64::try_from(expansion.depth()).unwrap_or(i64::MAX),
+                            i64::try_from(expansion.limit()).unwrap_or(i64::MAX),
+                            Some(i64::try_from(expansion.edge_limit()).unwrap_or(i64::MAX)),
+                            Some(i64::try_from(expansion.after()).unwrap_or(i64::MAX)),
+                        ),
+                        *format,
+                    );
                 }
+            }
+        }
+        if control == Some(Control::NodeTypeAbsent) {
+            // The branch's state is a `type` naming no node type, which only /2 reads: the
+            // request's `type` (the undeclared type name when it names none) under /2, against
+            // the schema-evolution store, which declares neither.
+            if let Read::Search(search, _, _) = read {
+                let named = optional_text(&request, "type")?
+                    .unwrap_or_else(|| fixtures::UNDECLARED_TYPE_NAME.to_owned());
+                read = Read::Search(
+                    search,
+                    MatchesFormat::V2,
+                    SearchFilter::new(Some(named), None, None),
+                );
             }
         }
         if !scenario.stores.contains_key(&store) {
@@ -1145,10 +1399,16 @@ impl ConformanceTarget for ViewsTarget {
                 Some(Control::Unseeded) => {}
                 Some(Control::RevisionAbsent) => Fixture::SeedOnly.build(&runtime),
                 Some(
-                    Control::NodeAbsent | Control::EventTypeAbsent | Control::EventTimeInvalid,
+                    Control::NodeAbsent
+                    | Control::EventTypeAbsent
+                    | Control::EventTimeInvalid
+                    | Control::NodeTypeAbsent,
                 ) => {
                     Fixture::SchemaEvolution.build(&runtime);
                 }
+                // The generated scenario names [`fixtures::DESCRIBED`] at revision 1: a store whose
+                // ontology declares a node type of that id, and no node of it.
+                Some(Control::NodeIsAType) => Fixture::DescribedType.build(&runtime),
                 // Judged-twice is ReportFactQuality's, which names no store: no store's state.
                 None | Some(Control::JudgedTwice) => fixture.build(&runtime),
             }
@@ -1213,9 +1473,11 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-found") if COMMANDS.contains(&command) => Control::RevisionAbsent,
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
+            (DESCRIBE_NODE, "node-is-a-type") => Control::NodeIsAType,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-type-not-found") => Control::EventTypeAbsent,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-time-invalid") => Control::EventTimeInvalid,
             (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,
+            (SEARCH_NODES, "node-type-not-found") => Control::NodeTypeAbsent,
             _ => {
                 return Err(TargetError::unsupported(
                     format!("establishing `{}`", request.force),

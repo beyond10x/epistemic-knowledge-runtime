@@ -1,7 +1,10 @@
 //! The four bounded reads of `ekr.views` and their formats: `ekr.graph-overview/2`
 //! ([`Index::overview_sections`], with `ekr.graph-overview/1` its every-section predecessor,
 //! [`Index::overview`]), `ekr.graph-slice/1` ([`Index::expand`]), `ekr.node-detail/1`
-//! ([`Index::describe`]) and `ekr.node-matches/1` ([`Index::search`]).
+//! ([`Index::describe`]) and `ekr.node-matches/1` ([`Index::search`]); and the named successors
+//! `ekr.graph-overview/3` ([`Index::overview_as`]) and `ekr.graph-slice/2`
+//! ([`Index::expand_as`], [`Index::page_as`]), which name each type they count or carry
+//! (`names.rs`).
 //!
 //! A request is bounded when it is built — [`OverviewRequest::new`], [`ExpandRequest::new`],
 //! [`SearchRequest::new`] — so a broken bound is refused before any store is read, naming the
@@ -25,6 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::document::{self, ProjectedAssertion, ProjectedEdge, ProjectedOntology, ProjectedValue};
 use crate::index::Index;
+use crate::names::{OverviewFormat, SliceFormat};
 use crate::ProjectError;
 
 /// The format literal of [`Index::overview`]'s documents.
@@ -66,6 +70,22 @@ pub enum QueryError {
     NodeNotFound {
         /// The node asked for.
         node: NodeId,
+        /// The revision that was read.
+        revision: RevisionNumber,
+    },
+    /// `ekr.views.NodeIsAType` (ekr-mcp-fixes-20261015 #10): an `ekr.node-detail/2` request whose
+    /// id no node of the revision holds and a node type or edge type of its ontology does.
+    #[error(
+        "{node} is the type {type_name}, not a node: overview lists the types; search (with type) \
+         lists its nodes"
+    )]
+    NodeIsAType {
+        /// The id asked for.
+        node: NodeId,
+        /// Which kind of type it names.
+        kind: crate::detail::TypeKind,
+        /// The name the revision's ontology gives that type.
+        type_name: String,
         /// The revision that was read.
         revision: RevisionNumber,
     },
@@ -402,6 +422,17 @@ pub struct GraphOverviewed {
     pub top: u64,
     /// The optional sections the document carries, in declared order.
     pub sections: Vec<OverviewSection>,
+    /// `meta.format`: [`OVERVIEW_V2_FORMAT`], [`OVERVIEW_FORMAT`] or
+    /// [`crate::OVERVIEW_V3_FORMAT`].
+    pub format: &'static str,
+    /// `ekr.graph-overview/3`'s `meta.committed_at`; `None` for /1 and /2.
+    pub committed_at: Option<i64>,
+    /// `ekr.graph-overview/3`'s `name` of each `node_types` entry, in order; `None` for /1 and
+    /// /2.
+    pub node_type_names: Option<Vec<String>>,
+    /// `ekr.graph-overview/3`'s `name` of each `edge_types` entry, in order; `None` for /1 and
+    /// /2.
+    pub edge_type_names: Option<Vec<String>>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub overview_hash: String,
 }
@@ -427,6 +458,11 @@ pub struct NeighbourhoodExpanded {
     pub edge_total: u64,
     /// Records of the sequence after this page; 0 exactly when the page has no `next`.
     pub remaining: u64,
+    /// `meta.format`: [`SLICE_FORMAT`] or [`crate::SLICE_V2_FORMAT`].
+    pub format: &'static str,
+    /// Under `ekr.graph-slice/2`, every distinct `type_name` of the page's records, ascending by
+    /// its UTF-8 bytes; `None` under /1.
+    pub type_names: Option<Vec<String>>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub slice_hash: String,
 }
@@ -463,8 +499,12 @@ pub struct NodesSearched {
     pub total: u64,
     /// `meta.exact_total`.
     pub exact_total: u64,
+    /// `meta.format`: [`MATCHES_FORMAT`] or [`crate::MATCHES_V2_FORMAT`].
+    pub format: &'static str,
     /// The first match's id; `None` when there is none.
     pub first_match: Option<NodeId>,
+    /// The first match's tier (`Exact`, `Folded` or `Words`); `None` when there is none.
+    pub first_tier: Option<&'static str>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub matches_hash: String,
 }
@@ -485,7 +525,8 @@ pub struct NodeSummary {
     pub degree: u64,
 }
 
-/// `ekr.views.SliceNode`: a node of a neighbourhood, with its hop distance from the nearest seed.
+/// `ekr.views.SliceNode`: a node of a neighbourhood, with its hop distance from the nearest seed;
+/// with `type_name`, `ekr.views.SliceNodeV2`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SliceNode {
     /// The node.
@@ -493,6 +534,9 @@ pub struct SliceNode {
     /// Its type.
     #[serde(rename = "type")]
     pub type_id: TypeId,
+    /// Its type's name, in an `ekr.graph-slice/2` page; `None`, and not written, in /1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_name: Option<String>,
     /// Its canonical name.
     pub name: String,
     /// Its degree over the whole revision.
@@ -501,7 +545,8 @@ pub struct SliceNode {
     pub distance: u64,
 }
 
-/// `ekr.views.SliceEdge`: an edge of a neighbourhood, without its props.
+/// `ekr.views.SliceEdge`: an edge of a neighbourhood, without its props; with `type_name`,
+/// `ekr.views.SliceEdgeV2`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SliceEdge {
     /// The edge.
@@ -513,6 +558,9 @@ pub struct SliceEdge {
     /// Its type.
     #[serde(rename = "type")]
     pub type_id: TypeId,
+    /// Its type's name, in an `ekr.graph-slice/2` page; `None`, and not written, in /1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_name: Option<String>,
     /// The assertions whose subject is this edge, by id.
     pub assertions: Vec<AssertionId>,
 }
@@ -529,7 +577,8 @@ pub enum SliceRecord {
 /// `ekr.views.SliceMeta`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SliceMeta {
-    /// [`SLICE_FORMAT`].
+    /// [`SLICE_FORMAT`], or [`crate::SLICE_V2_FORMAT`] for a page whose records carry their
+    /// `type_name`.
     pub format: &'static str,
     /// The revision read.
     pub revision: u64,
@@ -579,7 +628,8 @@ impl SlicePage {
         self.remaining
     }
 
-    /// The page as `ekr.graph-slice/1`.
+    /// The page as the format its meta names: `ekr.graph-slice/1`, or `ekr.graph-slice/2`, whose
+    /// records carry their `type_name`, for a page [`Index::page_as`] built in /2.
     ///
     /// # Errors
     ///
@@ -602,6 +652,14 @@ impl SlicePage {
             }
         }
         let (node_count, edge_count) = (nodes.len() as u64, edges.len() as u64);
+        let type_names = (self.meta.format != SLICE_FORMAT).then(|| {
+            let named: BTreeSet<&str> = nodes
+                .iter()
+                .filter_map(|node| node.type_name.as_deref())
+                .chain(edges.iter().filter_map(|edge| edge.type_name.as_deref()))
+                .collect();
+            named.into_iter().map(str::to_owned).collect()
+        });
         let bytes = encode(&GraphSliceV1 {
             meta: &self.meta,
             nodes,
@@ -618,6 +676,8 @@ impl SlicePage {
             node_total: self.meta.node_total,
             edge_total: self.meta.edge_total,
             remaining: self.remaining,
+            format: self.meta.format,
+            type_names,
             slice_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })
@@ -630,6 +690,9 @@ impl SlicePage {
 struct OverviewMeta {
     format: &'static str,
     revision: u64,
+    /// `ekr.graph-overview/3`'s only (`ekr.views.OverviewMetaV3`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    committed_at: Option<i64>,
     node_count: u64,
     edge_count: u64,
     assertion_count: u64,
@@ -704,6 +767,32 @@ pub(crate) struct TypeCount {
     #[serde(rename = "type")]
     pub(crate) type_id: TypeId,
     pub(crate) count: u64,
+}
+
+/// `ekr.views.NamedTypeCount`: a type count of `ekr.graph-overview/3`, named.
+#[derive(Clone, Debug, Serialize)]
+struct NamedTypeCount<'a> {
+    #[serde(rename = "type")]
+    type_id: TypeId,
+    name: &'a str,
+    count: u64,
+}
+
+/// An overview's node_types or edge_types: /1's and /2's type counts, or /3's named ones.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum TypeCounts<'a> {
+    Counted(&'a [TypeCount]),
+    Named(Vec<NamedTypeCount<'a>>),
+}
+
+impl TypeCounts<'_> {
+    fn names(&self) -> Option<Vec<String>> {
+        match self {
+            Self::Counted(_) => None,
+            Self::Named(named) => Some(named.iter().map(|count| count.name.to_owned()).collect()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -795,15 +884,29 @@ struct NodeDetailV1<'a> {
     neighbours: Vec<NodeSummary>,
 }
 
-/// Which comparison a match passed; `Exact` orders first.
+/// Which comparison a match passed, in the order the tiers rank (`views.yaml`,
+/// `ekr.views.MatchTier`). `ekr.node-matches/1` answers `Exact` and `Folded` only; `Words` is
+/// `ekr.node-matches/2`'s ([`Index::search_v2`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-enum MatchTier {
+pub(crate) enum MatchTier {
     Exact,
     Folded,
+    Words,
+}
+
+impl MatchTier {
+    /// The tier's name, as the documents write it.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Exact => "Exact",
+            Self::Folded => "Folded",
+            Self::Words => "Words",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-enum MatchField {
+pub(crate) enum MatchField {
     Name,
     Alias,
 }
@@ -893,6 +996,23 @@ impl Index {
         self.render_overview(OVERVIEW_V2_FORMAT, request.limit(), request)
     }
 
+    /// `ProjectOverview` in the format `format` names: [`Self::overview_sections`]'s
+    /// `ekr.graph-overview/2`, or `ekr.graph-overview/3` — the same sections, each node_types and
+    /// edge_types entry with its type's `name`, and meta.committed_at, the time the revision read
+    /// was committed (`views.yaml`, `ekr.views.GraphOverviewV3`; ekr-mcp-fixes-20261015 #3,
+    /// #13). /3 costs /2's answer and one name per declared type.
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::overview_sections`] refuses.
+    pub fn overview_as(
+        &self,
+        format: OverviewFormat,
+        request: &OverviewRequest,
+    ) -> Result<Answer<GraphOverviewed>, ProjectError> {
+        self.render_overview(format.name(), request.limit(), request)
+    }
+
     fn render_overview(
         &self,
         format: &'static str,
@@ -906,8 +1026,8 @@ impl Index {
             ontology: Option<&'a ProjectedOntology>,
             #[serde(skip_serializing_if = "Option::is_none")]
             schema: Option<&'a OverviewSchema>,
-            node_types: &'a [TypeCount],
-            edge_types: &'a [TypeCount],
+            node_types: TypeCounts<'a>,
+            edge_types: TypeCounts<'a>,
             #[serde(skip_serializing_if = "Option::is_none")]
             roles: Option<&'a OverviewRoles>,
             #[serde(skip_serializing_if = "Option::is_none")]
@@ -915,6 +1035,33 @@ impl Index {
             top: Vec<NodeSummary>,
         }
         let parts = &self.overview;
+        let named = format == OverviewFormat::V3.name();
+        let (node_types, edge_types, committed_at) = if named {
+            let committed_at = self
+                .loaded
+                .revisions
+                .iter()
+                .rev()
+                .find(|entry| entry.number == self.loaded.graph.revision)
+                .map(|entry| entry.committed_at.millis())
+                .ok_or_else(|| {
+                    ProjectError::Inconsistent(format!(
+                        "revision {} is not in its own revision list",
+                        self.loaded.graph.revision
+                    ))
+                })?;
+            (
+                TypeCounts::Named(self.named_counts(&parts.node_types)?),
+                TypeCounts::Named(self.named_counts(&parts.edge_types)?),
+                Some(committed_at),
+            )
+        } else {
+            (
+                TypeCounts::Counted(&parts.node_types),
+                TypeCounts::Counted(&parts.edge_types),
+                None,
+            )
+        };
         let ontology = if request.names(OverviewSection::Ontology) {
             Some(
                 parts
@@ -952,6 +1099,7 @@ impl Index {
             meta: OverviewMeta {
                 format,
                 revision: graph.revision.get(),
+                committed_at,
                 node_count: graph.nodes.len() as u64,
                 edge_count: graph.edges.len() as u64,
                 assertion_count: graph.assertions.len() as u64,
@@ -960,8 +1108,8 @@ impl Index {
             },
             ontology,
             schema,
-            node_types: &parts.node_types,
-            edge_types: &parts.edge_types,
+            node_types,
+            edge_types,
             roles,
             timeline,
             top,
@@ -1001,6 +1149,10 @@ impl Index {
             undated_assertions: timeline.map(|timeline| timeline.undated),
             top: document.top.len() as u64,
             sections: request.sections(),
+            format,
+            committed_at,
+            node_type_names: document.node_types.names(),
+            edge_type_names: document.edge_types.names(),
             overview_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })
@@ -1018,6 +1170,22 @@ impl Index {
     /// [`QueryError::NodeNotFound`] for the first seed, in the request's order, the revision
     /// does not hold.
     pub fn page(&self, request: &ExpandRequest) -> Result<SlicePage, QueryError> {
+        self.page_as(SliceFormat::V1, request)
+    }
+
+    /// [`Self::page`] in the format `format` names: in `ekr.graph-slice/2` each record carries
+    /// its type's name and the meta names /2 (`views.yaml`, `ekr.views.GraphSliceV2`;
+    /// ekr-mcp-fixes-20261015 #3). The same records, in the same order, as /1.
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::page`] refuses.
+    pub fn page_as(
+        &self,
+        format: SliceFormat,
+        request: &ExpandRequest,
+    ) -> Result<SlicePage, QueryError> {
+        let named = format.is_named();
         let graph = &self.loaded.graph;
         let mut seeds = Vec::with_capacity(request.seeds().len());
         for seed in request.seeds() {
@@ -1068,7 +1236,11 @@ impl Index {
         for (place, node) in order.iter().enumerate() {
             if at >= after && !full {
                 if nodes < limit {
-                    records.push(SliceRecord::Node(self.slice_node(*node, distance[node])));
+                    records.push(SliceRecord::Node(self.slice_node(
+                        *node,
+                        distance[node],
+                        named,
+                    )?));
                     nodes += 1;
                 } else {
                     full = true;
@@ -1085,7 +1257,7 @@ impl Index {
                 }
                 if at >= after && !full {
                     if edges < edge_limit {
-                        records.push(SliceRecord::Edge(self.slice_edge(*edge)));
+                        records.push(SliceRecord::Edge(self.slice_edge(*edge, named)?));
                         edges += 1;
                     } else {
                         full = true;
@@ -1099,7 +1271,7 @@ impl Index {
         let end = after.saturating_add(records.len() as u64);
         Ok(SlicePage {
             meta: SliceMeta {
-                format: SLICE_FORMAT,
+                format: format.name(),
                 revision: graph.revision.get(),
                 seeds: seeds
                     .iter()
@@ -1126,6 +1298,20 @@ impl Index {
         request: &ExpandRequest,
     ) -> Result<Answer<NeighbourhoodExpanded>, QueryError> {
         Ok(self.page(request)?.render()?)
+    }
+
+    /// `ExpandNeighbourhood` in the format `format` names: [`Self::page_as`] encoded as
+    /// `ekr.graph-slice/1` or `ekr.graph-slice/2`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`Index::page`] refuses.
+    pub fn expand_as(
+        &self,
+        format: SliceFormat,
+        request: &ExpandRequest,
+    ) -> Result<Answer<NeighbourhoodExpanded>, QueryError> {
+        Ok(self.page_as(format, request)?.render()?)
     }
 
     /// `DescribeNode`: one node's `ekr.node-detail/1` — its record, every assertion about it,
@@ -1285,6 +1471,7 @@ impl Index {
             })
             .collect();
         let first_match = matches.first().map(|hit| hit.id);
+        let first_tier = matches.first().map(|hit| hit.tier.name());
         let document = NodeMatchesV1 {
             meta: MatchesMeta {
                 format: MATCHES_FORMAT,
@@ -1302,7 +1489,9 @@ impl Index {
             matches: document.matches.len() as u64,
             total,
             exact_total,
+            format: MATCHES_FORMAT,
             first_match,
+            first_tier,
             matches_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })
@@ -1319,26 +1508,71 @@ impl Index {
         }
     }
 
-    fn slice_node(&self, node: u32, distance: u64) -> SliceNode {
+    fn slice_node(&self, node: u32, distance: u64, named: bool) -> Result<SliceNode, ProjectError> {
         let summary = self.summary(node);
-        SliceNode {
+        let type_name = named
+            .then(|| self.declared_type_name(summary.type_id).map(str::to_owned))
+            .transpose()?;
+        Ok(SliceNode {
             id: summary.id,
             type_id: summary.type_id,
+            type_name,
             name: summary.name,
             degree: summary.degree,
             distance,
-        }
+        })
     }
 
-    fn slice_edge(&self, edge: u32) -> SliceEdge {
+    fn slice_edge(&self, edge: u32, named: bool) -> Result<SliceEdge, ProjectError> {
         let id = self.edge_ids[edge as usize];
         let held = &self.loaded.graph.edges[&id];
-        SliceEdge {
+        let type_name = named
+            .then(|| self.declared_type_name(held.type_id).map(str::to_owned))
+            .transpose()?;
+        Ok(SliceEdge {
             id,
             source: held.source.id(),
             target: held.target.id(),
             type_id: held.type_id,
+            type_name,
             assertions: self.about_edge.get(&edge).cloned().unwrap_or_default(),
-        }
+        })
+    }
+
+    /// The name the revision's ontology declares for the node or edge type `type_id`. Every
+    /// node's and edge's type is declared in the ontology of the revision that holds it.
+    fn declared_type_name(&self, type_id: TypeId) -> Result<&str, ProjectError> {
+        let ontology = &self.loaded.graph.ontology;
+        ontology
+            .node_type(type_id)
+            .map(|declared| declared.name.as_str())
+            .or_else(|| {
+                ontology
+                    .edge_type(type_id)
+                    .map(|declared| declared.name.as_str())
+            })
+            .ok_or_else(|| {
+                ProjectError::Inconsistent(format!(
+                    "revision {} holds the type {type_id}, which its ontology does not declare",
+                    self.loaded.graph.revision
+                ))
+            })
+    }
+
+    /// `counts`, each named by its type (`ekr.views.NamedTypeCount`).
+    fn named_counts<'a>(
+        &'a self,
+        counts: &'a [TypeCount],
+    ) -> Result<Vec<NamedTypeCount<'a>>, ProjectError> {
+        counts
+            .iter()
+            .map(|count| {
+                Ok(NamedTypeCount {
+                    type_id: count.type_id,
+                    name: self.declared_type_name(count.type_id)?,
+                    count: count.count,
+                })
+            })
+            .collect()
     }
 }

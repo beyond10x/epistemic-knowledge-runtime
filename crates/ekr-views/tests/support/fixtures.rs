@@ -144,6 +144,24 @@ const TRANSACTIONS: u64 = 0x200;
 /// witness id, which `Fixture::Evolved` holds from its seed onward.
 pub const DESCRIBED: u64 = 0x1bba_d186_42ad;
 
+// `search`: the a-search-v2-*.yaml scenarios (ekr-mcp-fixes-20261015 #2, #9).
+/// The node type `Service`.
+pub const SEARCH_SERVICE: u64 = 0xc5_0001;
+/// The node type `Incident`, whose `opened` is an Integer.
+pub const SEARCH_INCIDENT: u64 = 0xc5_0002;
+const SEARCH_OPENED: u64 = 0xc5_0003;
+const SEARCH_AFFECTS: u64 = 0xc5_0004;
+/// The Services `Widget-Router`, `eu`, `prod-eu-central-9` and `Widget-Router-2` are
+/// `SEARCH_SERVICES + 1` to `+ 4`.
+pub const SEARCH_SERVICES: u64 = 0xc5_0100;
+/// The Incidents `router outage`, `eu latency` and `disk full` are `SEARCH_INCIDENTS + 1` to `+ 3`.
+pub const SEARCH_INCIDENTS: u64 = 0xc5_0200;
+const SEARCH_EDGES: u64 = 0xc5_0300;
+/// `router outage`'s `opened`: 2027-01-10T08:00:00Z.
+pub const SEARCH_ROUTER_OUTAGE_MS: i64 = 1_799_568_000_000;
+/// `eu latency`'s `opened`: 2027-02-20T12:00:00Z.
+pub const SEARCH_EU_LATENCY_MS: i64 = 1_803_124_800_000;
+
 // `hub`: an-overview-lists-at-most-its-limit-of-top-nodes.yaml.
 pub const HUB: u64 = 0x10_0000;
 pub const HUB_LEAVES: u64 = 600;
@@ -199,6 +217,40 @@ const GROWTH_EVIDENCE: u64 = 0x40_0031;
 const GROWTH_NODE_TYPE: u64 = 0x40_0100;
 const GROWTH_PROPERTY: u64 = 0x40_0101;
 const GROWTH_EDGE_TYPE: u64 = 0x40_0102;
+
+// `bounded-detail`: the a-node-detail-v2-*.yaml scenarios and `tests/query.rs`
+// (ekr-mcp-fixes-20261015 #1, #10, #11). A seed only; see [`bounded_detail`].
+/// The node type `Service`, …
+pub const BD_SERVICE: u64 = 0xb0_0001;
+/// … `Component` …
+pub const BD_COMPONENT: u64 = 0xb0_0002;
+/// … and `Alert`.
+pub const BD_ALERT: u64 = 0xb0_0003;
+/// The edge type `affects`, from `Alert` to `Service`, …
+pub const BD_AFFECTS: u64 = 0xb0_0010;
+/// … and `works_on`, from `Component` to `Service`.
+pub const BD_WORKS_ON: u64 = 0xb0_0011;
+/// `Service`'s String property `description`.
+pub const BD_DESCRIPTION: u64 = 0xb0_0020;
+/// The `Service` named `Widget-Router`.
+pub const BD_ROUTER: u64 = 0xb0_0100;
+/// The `Component` named `router component`, with the alias `widget-router`.
+pub const BD_COMPONENT_NODE: u64 = 0xb0_0101;
+/// Alerts `alert-001` to `alert-120` are `BD_ALERTS + 1` to `+ 120`.
+pub const BD_ALERTS: u64 = 0xb0_0200;
+pub const BD_ALERT_COUNT: u64 = 120;
+const BD_AFFECTS_EDGES: u64 = 0xb0_1000;
+const BD_WORKS_ON_EDGE: u64 = 0xb0_2000;
+/// The Relation assertion `router component` works_on `Widget-Router`.
+pub const BD_WORKS_ON_CLAIM: u64 = 0xb0_3001;
+/// The router's 5,000-byte `description`.
+pub const BD_DESCRIPTION_CLAIM: u64 = 0xb0_3002;
+const BD_EVIDENCE: u64 = 0xb0_4000;
+/// The router's `description`: `a`, then 2,499 `é` (two bytes each), then `b`: 5,000 bytes, whose
+/// byte 2,000 falls inside an `é`.
+pub fn bd_long_description() -> String {
+    format!("a{}b", "é".repeat(2_499))
+}
 
 // `build_shared_id`: a node and an edge holding one UUID.
 pub const SHARED: u64 = 0x90_0001;
@@ -344,6 +396,10 @@ pub enum Fixture {
     Evolved,
     /// A seed only: one hub joined by one edge to each of 600 leaves.
     Hub,
+    /// A seed only: the node types Person, Service and Incident and the edge types `works_on` and
+    /// `affects`, whose names the named formats carry (ekr-mcp-fixes-20261015 #3, #13;
+    /// [`names_seed`]).
+    Names,
     /// Three node types whose facts gather in valid time or do not, over three revisions.
     Timeline,
     /// One node at the seed and a second, its edge and two assertions at revision 1.
@@ -382,6 +438,17 @@ pub enum Fixture {
     /// `Refined` ([`REFINED_TYPE`]), a child of `Subject`, and `ModifyProperty` on it redeclaring
     /// `label` as the Integer `rank`, so two types declare one property id with two definitions.
     PropertyRedeclared,
+    /// A seed only: a `Service` hub with 120 incoming `affects` edges and one incoming `works_on`
+    /// edge from a `Component` that shares its name by an alias, and a 5,000-byte `description`
+    /// ([`bounded_detail`]).
+    BoundedDetail,
+    /// [`Fixture::SchemaEvolution`] whose seed also declares a node type whose id is [`DESCRIBED`],
+    /// the node the generated `DescribeNode` scenarios name: the generated `node-is-a-type`
+    /// scenario's state.
+    DescribedType,
+    /// A seed only: Services and Incidents with names that exercise `ekr.node-matches/2`'s word
+    /// tier, whole-name order and time window ([`search_seed`]).
+    Search,
 }
 
 impl Fixture {
@@ -395,6 +462,7 @@ impl Fixture {
             "schema-evolution" => Self::SchemaEvolution,
             "store" => Self::Evolved,
             "hub" => Self::Hub,
+            "names" => Self::Names,
             "timeline" => Self::Timeline,
             "growth" => Self::Growth,
             "subjects" => Self::Subjects,
@@ -407,6 +475,8 @@ impl Fixture {
             "process-map" => Self::ProcessMap,
             "schema-changes" => Self::SchemaChanges,
             "property-redeclared" => Self::PropertyRedeclared,
+            "bounded-detail" => Self::BoundedDetail,
+            "search" => Self::Search,
             _ => return None,
         })
     }
@@ -440,7 +510,18 @@ impl Fixture {
                 writer.seed(seed(0, false, false, 1));
                 writer.commit(first_schema_change(false), Some(id(VERSION_1)));
             }
+            Self::DescribedType => {
+                let mut document = seed(0, false, false, 1);
+                document
+                    .ontology
+                    .node_types
+                    .push(NodeType::new(id(DESCRIBED), "Described"));
+                writer.seed(document);
+                writer.commit(first_schema_change(false), Some(id(VERSION_1)));
+            }
+            Self::BoundedDetail => writer.seed(bounded_detail()),
             Self::Hub => writer.seed(hub()),
+            Self::Search => writer.seed(search_seed()),
             Self::Timeline => {
                 writer.seed(timeline_seed());
                 writer.commit(
@@ -561,6 +642,7 @@ impl Fixture {
                     Some(id(REDECLARED_VERSION)),
                 );
             }
+            Self::Names => writer.seed(names_seed()),
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(
@@ -1664,6 +1746,153 @@ fn hub() -> SeedDocument {
     document
 }
 
+/// The `bounded-detail` seed (ekr-mcp-fixes-20261015 #1, #10, #11): node types `Service` (with the
+/// String property `description`), `Component` and `Alert`; edge types `affects` (`Alert` →
+/// `Service`) and `works_on` (`Component` → `Service`). `Widget-Router`, a `Service`; `router
+/// component`, a `Component` whose alias is `widget-router`; `alert-001` to `alert-120`, each with
+/// one `affects` edge to the router; one `works_on` edge from the component to the router, with
+/// the Relation assertion that matches it; and the router's `description` assertion, the
+/// 5,000-byte [`bd_long_description`], valid from 500. One retained statement backs both
+/// assertions.
+fn bounded_detail() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let mut service = NodeType::new(id(BD_SERVICE), "Service");
+    service.properties.insert(
+        id(BD_DESCRIPTION),
+        PropertyDefinition::new(id(BD_DESCRIPTION), "description", ValueType::String),
+    );
+    document.ontology.node_types.extend([
+        service,
+        NodeType::new(id(BD_COMPONENT), "Component"),
+        NodeType::new(id(BD_ALERT), "Alert"),
+    ]);
+    let mut affects = EdgeType::new(id(BD_AFFECTS), "affects");
+    affects.source_types = [id(BD_ALERT)].into_iter().collect();
+    affects.target_types = [id(BD_SERVICE)].into_iter().collect();
+    affects.cardinality = Cardinality::Many;
+    let mut works_on = EdgeType::new(id(BD_WORKS_ON), "works_on");
+    works_on.source_types = [id(BD_COMPONENT)].into_iter().collect();
+    works_on.target_types = [id(BD_SERVICE)].into_iter().collect();
+    works_on.cardinality = Cardinality::Many;
+    document.ontology.edge_types.extend([affects, works_on]);
+    let router = Node::<Value>::new(id(BD_ROUTER), root, id(BD_SERVICE), "Widget-Router");
+    document.graph.nodes.insert(router.id, router);
+    let mut component = Node::<Value>::new(
+        id(BD_COMPONENT_NODE),
+        root,
+        id(BD_COMPONENT),
+        "router component",
+    );
+    component.aliases = vec!["widget-router".into()];
+    document.graph.nodes.insert(component.id, component);
+    let edge = |n: u64, type_id: u64, source: u64| Edge::<Value> {
+        id: id(n),
+        root_id: root,
+        type_id: id(type_id),
+        source: id(source),
+        target: id(BD_ROUTER),
+        properties: BTreeMap::new(),
+    };
+    for n in 1..=BD_ALERT_COUNT {
+        let alert = Node::<Value>::new(
+            id(BD_ALERTS + n),
+            root,
+            id(BD_ALERT),
+            format!("alert-{n:03}"),
+        );
+        document.graph.nodes.insert(alert.id, alert);
+        let affects = edge(BD_AFFECTS_EDGES + n, BD_AFFECTS, BD_ALERTS + n);
+        document.graph.edges.insert(affects.id, affects);
+    }
+    let works = edge(BD_WORKS_ON_EDGE, BD_WORKS_ON, BD_COMPONENT_NODE);
+    document.graph.edges.insert(works.id, works);
+    let evidence = statement(&mut document, BD_EVIDENCE);
+    for assertion in [
+        fact(
+            BD_WORKS_ON_CLAIM,
+            Subject::Node(id(BD_COMPONENT_NODE)),
+            Predicate::Relation(id(BD_WORKS_ON)),
+            Object::Node(id(BD_ROUTER)),
+            None,
+            evidence,
+        ),
+        fact(
+            BD_DESCRIPTION_CLAIM,
+            Subject::Node(id(BD_ROUTER)),
+            Predicate::Property(id(BD_DESCRIPTION)),
+            Object::Value(Value::String(bd_long_description())),
+            Some(500),
+            evidence,
+        ),
+    ] {
+        document.graph.assertions.insert(assertion.id, assertion);
+    }
+    document
+}
+
+/// The `search` seed, as a-search-v2-matches-every-word-in-any-order.yaml's header states it: the
+/// node types Service and Incident (Incident with the Integer `opened`, the node's time), the edge
+/// type `affects` from Incident to Service, four Services with no time and three Incidents, two of
+/// them opened. No assertion and no evidence.
+fn search_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    document
+        .ontology
+        .node_types
+        .push(NodeType::new(id(SEARCH_SERVICE), "Service"));
+    let mut incident = NodeType::new(id(SEARCH_INCIDENT), "Incident");
+    incident.properties.insert(
+        id(SEARCH_OPENED),
+        PropertyDefinition::new(id(SEARCH_OPENED), "opened", ValueType::Integer),
+    );
+    document.ontology.node_types.push(incident);
+    let mut affects = EdgeType::new(id(SEARCH_AFFECTS), "affects");
+    affects.source_types = [id(SEARCH_INCIDENT)].into_iter().collect();
+    affects.target_types = [id(SEARCH_SERVICE)].into_iter().collect();
+    affects.cardinality = Cardinality::Many;
+    document.ontology.edge_types.push(affects);
+    let services = [
+        "Widget-Router",
+        "eu",
+        "prod-eu-central-9",
+        "Widget-Router-2",
+    ];
+    for (n, name) in (1..).zip(services) {
+        let node = Node::<Value>::new(id(SEARCH_SERVICES + n), root, id(SEARCH_SERVICE), name);
+        document.graph.nodes.insert(node.id, node);
+    }
+    let incidents = [
+        ("router outage", Some(SEARCH_ROUTER_OUTAGE_MS)),
+        ("eu latency", Some(SEARCH_EU_LATENCY_MS)),
+        ("disk full", None),
+    ];
+    for (n, (name, opened)) in (1..).zip(incidents) {
+        let mut node =
+            Node::<Value>::new(id(SEARCH_INCIDENTS + n), root, id(SEARCH_INCIDENT), name);
+        if let Some(opened) = opened {
+            node.properties
+                .insert(id(SEARCH_OPENED), vec![Value::Integer(opened)]);
+        }
+        document.graph.nodes.insert(node.id, node);
+    }
+    // Incident n affects Service s.
+    let affected = [(1, 1), (1, 4), (2, 3), (3, 3), (3, 4)];
+    for (n, (incident, service)) in (1..).zip(affected) {
+        let edge = Edge::<Value> {
+            id: id(SEARCH_EDGES + n),
+            root_id: root,
+            type_id: id(SEARCH_AFFECTS),
+            source: id(SEARCH_INCIDENTS + incident),
+            target: id(SEARCH_SERVICES + service),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
+}
+
 /// A timeline assertion: `node`'s own String property `property`, valid from `valid_from`.
 fn timeline_fact(
     assertion: u64,
@@ -2092,4 +2321,98 @@ fn observed() -> Vec<GraphOperation> {
             &[1],
         ))),
     ]
+}
+
+// `names`: the named-format scenarios (ekr-mcp-fixes-20261015 #3, #13): an-overview-v3-*,
+// a-slice-v2-*, a-timeline-v2-*.
+/// The node type `Person`, with the String property `role`.
+pub const NAMES_PERSON: u64 = 0xf3_0001;
+/// The node type `Service`.
+pub const NAMES_SERVICE: u64 = 0xf3_0002;
+/// The node type `Incident`, with the Integer property `opened`, the node's time.
+pub const NAMES_INCIDENT: u64 = 0xf3_0003;
+const NAMES_OPENED: u64 = 0xf3_0010;
+const NAMES_ROLE: u64 = 0xf3_0011;
+/// The edge type `works_on`, from Person to Service.
+pub const NAMES_WORKS_ON: u64 = 0xf3_0020;
+/// The edge type `affects`, from Incident to Service.
+pub const NAMES_AFFECTS: u64 = 0xf3_0021;
+/// The Person `ada`.
+pub const NAMES_ADA: u64 = 0xf3_0101;
+/// The Services `router` and `ledger`.
+pub const NAMES_ROUTER: u64 = 0xf3_0201;
+pub const NAMES_LEDGER: u64 = 0xf3_0202;
+/// The Incidents `outage` and `latency`.
+pub const NAMES_OUTAGE: u64 = 0xf3_0301;
+pub const NAMES_LATENCY: u64 = 0xf3_0302;
+/// The edges `ada` works_on `router`, `outage` affects `router` and `latency` affects `ledger`.
+const NAMES_EDGES: u64 = 0xf3_0400;
+
+/// The `names` seed, as an-overview-v3-names-its-types-and-says-when-its-revision-was-committed's
+/// header states it: Person (`ada`, whose `role` is `maintainer`), Service (`router`, `ledger`)
+/// and Incident (`outage` opened at T0 + 1 day, `latency` at T0 + 2 days, T0 being
+/// [`JANUARY_FIRST_0900_MS`]), joined by `ada` works_on `router`, `outage` affects `router` and
+/// `latency` affects `ledger`. No assertion and no evidence; the seed is committed at
+/// 1800000000001.
+fn names_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let mut person = NodeType::new(id(NAMES_PERSON), "Person");
+    person.properties.insert(
+        id(NAMES_ROLE),
+        PropertyDefinition::new(id(NAMES_ROLE), "role", ValueType::String),
+    );
+    document.ontology.node_types.push(person);
+    document
+        .ontology
+        .node_types
+        .push(NodeType::new(id(NAMES_SERVICE), "Service"));
+    let mut incident = NodeType::new(id(NAMES_INCIDENT), "Incident");
+    incident.properties.insert(
+        id(NAMES_OPENED),
+        PropertyDefinition::new(id(NAMES_OPENED), "opened", ValueType::Integer),
+    );
+    document.ontology.node_types.push(incident);
+    for (edge_type, name, source) in [
+        (NAMES_WORKS_ON, "works_on", NAMES_PERSON),
+        (NAMES_AFFECTS, "affects", NAMES_INCIDENT),
+    ] {
+        let mut declared = EdgeType::new(id(edge_type), name);
+        declared.source_types = [id(source)].into_iter().collect();
+        declared.target_types = [id(NAMES_SERVICE)].into_iter().collect();
+        declared.cardinality = Cardinality::Many;
+        document.ontology.edge_types.push(declared);
+    }
+    let mut ada = Node::<Value>::new(id(NAMES_ADA), root, id(NAMES_PERSON), "ada");
+    ada.properties
+        .insert(id(NAMES_ROLE), vec![Value::String("maintainer".into())]);
+    document.graph.nodes.insert(ada.id, ada);
+    for (node, name) in [(NAMES_ROUTER, "router"), (NAMES_LEDGER, "ledger")] {
+        let service = Node::<Value>::new(id(node), root, id(NAMES_SERVICE), name);
+        document.graph.nodes.insert(service.id, service);
+    }
+    for (node, name, days) in [(NAMES_OUTAGE, "outage", 1), (NAMES_LATENCY, "latency", 2)] {
+        let mut incident = Node::<Value>::new(id(node), root, id(NAMES_INCIDENT), name);
+        incident.properties.insert(
+            id(NAMES_OPENED),
+            vec![Value::Integer(JANUARY_FIRST_0900_MS + days * DAY_MS)],
+        );
+        document.graph.nodes.insert(incident.id, incident);
+    }
+    for (n, (edge_type, source, target)) in (1..).zip([
+        (NAMES_WORKS_ON, NAMES_ADA, NAMES_ROUTER),
+        (NAMES_AFFECTS, NAMES_OUTAGE, NAMES_ROUTER),
+        (NAMES_AFFECTS, NAMES_LATENCY, NAMES_LEDGER),
+    ]) {
+        let edge = Edge::<Value> {
+            id: id(NAMES_EDGES + n),
+            root_id: root,
+            type_id: id(edge_type),
+            source: id(source),
+            target: id(target),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
 }

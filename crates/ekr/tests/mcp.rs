@@ -11,9 +11,17 @@
 //! * a refusal is a tool result with `isError` carrying the refusal's name, and the server keeps
 //!   serving; a malformed message, an unknown method, bad arguments and an unknown tool are
 //!   JSON-RPC errors;
+//! * an input taken under an alias answers what it answers under its own name, and naming one
+//!   input twice is a JSON-RPC error (ekr-mcp-fixes-20261015 #8);
 //! * a commit made by another process is what the next tool call reads;
 //! * evidence an `AddEvidence` added is one `EvidenceAdded` change to `changes_since`,
 //!   `GET /changes` and the session's `changes` verb alike;
+//! * 100 `search` and 100 `describe_node` calls over one server are timed and printed;
+//! * `overview`, `expand`, `timeline`, `changes_since`, `explain` and `resolve` answer their named
+//!   formats (ekr-mcp-fixes-20261015 #3, #13) unless `format` names the predecessor, each byte for
+//!   byte the verb's answer with the format named.
+//! * `expand` and `changes_since` naming no bound read 200 edges and 100 changes, and answer what
+//!   the endpoint and the session verb answer with that bound named (ekr-mcp-fixes-20261015 #4);
 //! * 100 `search` and 100 `describe_node` calls over one server are timed and printed.
 
 use std::collections::BTreeSet;
@@ -28,8 +36,9 @@ use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, OverviewSection,
-    ProjectError, SearchRequest, SinceKind, TimelineRequest,
+    ProjectError, SearchFilter, SearchRequest, SinceKind, TimelineRequest,
 };
+use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat};
 use serde_json::{json, Value};
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
@@ -44,6 +53,8 @@ const GLOBEX: &str = "00000000-0000-4000-8000-000000000901";
 const TRANSACTION: &str = "00000000-0000-4000-8000-000000000902";
 const MANY: &str = "00000000-0000-4000-8000-000000000903";
 const UNKNOWN: &str = "00000000-0000-4000-8000-000000000999";
+/// The example seed's edge type `CEO_OF`.
+const CEO_OF: &str = "00000000-0000-4000-8000-000000000203";
 
 /// The nine tools, and nothing else.
 const TOOLS: [&str; 9] = [
@@ -196,6 +207,16 @@ impl World {
     /// The `ekr.views` index of revision `at` (the head when `None`), loaded in this process.
     fn index(&self, at: Option<u64>) -> Index {
         Index::load(&self.runtime(), at.map(RevisionNumber::new)).unwrap()
+    }
+
+    /// `ekr view --port 0` over the store now at this world's path.
+    fn view(&self) -> View {
+        View::start(self.command(&["view", "--port", "0"]))
+    }
+
+    /// The 200 body `ekr view` serves at `GET path`, from a view started for that one request.
+    fn served(&self, path: &str) -> String {
+        self.view().served(path)
     }
 
     /// `ekr mcp` started and initialized.
@@ -519,15 +540,20 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let mut server = world.server();
+        let view = world.view();
         let head = world.index(None);
         let alice = node(ALICE);
         let person: TypeId = PERSON.parse().unwrap();
 
+        // ekr-mcp-fixes-20261015 #3, #13: overview, expand and timeline answer their named formats
+        // when no format is named, and the predecessor when it is; `GET /overview`,
+        // `GET /timeline` and the session's `expand` with the format named are held below.
+        let v3 = OverviewFormat::V3;
         let cases: Vec<(&str, Value, Vec<u8>)> = vec![
             (
                 "overview",
                 json!({}),
-                head.overview_sections(&OverviewRequest::new(None).unwrap())
+                head.overview_as(v3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -536,14 +562,15 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                 json!({"limit": 2, "revision": 0}),
                 world
                     .index(Some(0))
-                    .overview_sections(&OverviewRequest::new(Some(2)).unwrap())
+                    .overview_as(v3, &OverviewRequest::new(Some(2)).unwrap())
                     .unwrap()
                     .bytes,
             ),
             (
                 "overview",
                 json!({"sections": ["timeline", "ontology", "timeline"]}),
-                head.overview_sections(
+                head.overview_as(
+                    v3,
                     &OverviewRequest::new(None)
                         .unwrap()
                         .with_sections([OverviewSection::Ontology, OverviewSection::Timeline]),
@@ -554,45 +581,100 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "overview",
                 json!({"sections": []}),
+                head.overview_as(v3, &OverviewRequest::new(None).unwrap())
+                    .unwrap()
+                    .bytes,
+            ),
+            (
+                "overview",
+                json!({"format": "ekr.graph-overview/2"}),
                 head.overview_sections(&OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes,
             ),
+            // ekr-mcp-fixes-20261015 #2: the tool answers ekr.node-matches/2 when no format is
+            // named, and /1 when it is; `GET /search` with the format named is held below.
             (
                 "search",
                 json!({"text": "Ac"}),
-                head.search(&SearchRequest::new("Ac".to_owned(), 20).unwrap())
-                    .unwrap()
-                    .bytes,
+                head.search_v2(
+                    &SearchRequest::new("Ac".to_owned(), 20).unwrap(),
+                    &SearchFilter::default(),
+                )
+                .unwrap()
+                .bytes,
             ),
             (
                 "search",
                 json!({"text": "", "limit": 2, "revision": 0}),
-                head.search(&SearchRequest::new(String::new(), 2).unwrap())
+                world
+                    .index(Some(0))
+                    .search_v2(
+                        &SearchRequest::new(String::new(), 2).unwrap(),
+                        &SearchFilter::default(),
+                    )
                     .unwrap()
                     .bytes,
             ),
             (
+                "search",
+                json!({"text": "Ac", "format": "ekr.node-matches/1"}),
+                head.search(&SearchRequest::new("Ac".to_owned(), 20).unwrap())
+                    .unwrap()
+                    .bytes,
+            ),
+            // ekr-mcp-fixes-20261015 #1: describe_node answers ekr.node-detail/2 by default, byte for
+            // byte what `ekr view` serves at /node/<id> asked for /2 explicitly, and `full` the /1
+            // that `ekr view` serves asked for /1 explicitly.
+            (
                 "describe_node",
                 json!({"node": ALICE}),
-                head.describe(alice).unwrap().bytes,
+                view.served(&detail_v2(ALICE, "")).into_bytes(),
             ),
             (
                 "describe_node",
-                json!({"node": ACME, "revision": 0}),
+                json!({"node": ACME, "revision": 0, "limit": 1}),
+                view.served(&detail_v2(ACME, "revision=0&limit=1"))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ACME, "edge_type": "ceo_of", "after": 0}),
+                view.served(&detail_v2(ACME, "edge_type=ceo_of&after=0"))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ACME, "edge_type": CEO_OF, "after": 1}),
+                view.served(&detail_v2(ACME, &format!("edge_type={CEO_OF}&after=1")))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true}),
+                view.served(&format!("/node/{ALICE}?format=ekr.node-detail/1"))
+                    .into_bytes(),
+            ),
+            (
+                "describe_node",
+                json!({"node": ACME, "revision": 0, "full": true}),
                 head.describe(node(ACME)).unwrap().bytes,
             ),
             (
                 "expand",
                 json!({"seeds": [ALICE], "depth": 1, "limit": 10}),
-                head.expand(&ExpandRequest::new(vec![alice], 1, 10, None, None).unwrap())
-                    .unwrap()
-                    .bytes,
+                head.expand_as(
+                    SliceFormat::V2,
+                    &ExpandRequest::new(vec![alice], 1, 10, Some(200), None).unwrap(),
+                )
+                .unwrap()
+                .bytes,
             ),
             (
                 "expand",
                 json!({"seeds": [ALICE, ACME], "depth": 2, "limit": 1, "edges": 1, "after": 1}),
-                head.expand(
+                head.expand_as(
+                    SliceFormat::V2,
                     &ExpandRequest::new(vec![alice, node(ACME)], 2, 1, Some(1), Some(1)).unwrap(),
                 )
                 .unwrap()
@@ -601,21 +683,35 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "expand",
                 json!({"seeds": [], "depth": 0, "limit": 1}),
-                head.expand(&ExpandRequest::new(Vec::new(), 0, 1, None, None).unwrap())
+                head.expand_as(
+                    SliceFormat::V2,
+                    &ExpandRequest::new(Vec::new(), 0, 1, Some(200), None).unwrap(),
+                )
+                .unwrap()
+                .bytes,
+            ),
+            (
+                "expand",
+                json!({"seeds": [ALICE], "depth": 1, "limit": 10, "format": "ekr.graph-slice/1"}),
+                head.expand(&ExpandRequest::new(vec![alice], 1, 10, Some(200), None).unwrap())
                     .unwrap()
                     .bytes,
             ),
             (
                 "timeline",
                 json!({"hops": 2, "limit": 10}),
-                head.timeline(&TimelineRequest::new(None, 2, 10, None, None).unwrap())
-                    .unwrap()
-                    .bytes,
+                head.timeline_as(
+                    TimelineFormat::V2,
+                    &TimelineRequest::new(None, 2, 10, None, None).unwrap(),
+                )
+                .unwrap()
+                .bytes,
             ),
             (
                 "timeline",
                 json!({"type": PERSON, "hops": 1, "limit": 3, "bucket": "day", "subject": ALICE}),
-                head.timeline(
+                head.timeline_as(
+                    TimelineFormat::V2,
                     &TimelineRequest::new(Some(person), 1, 3, Some(BucketWidth::Day), Some(alice))
                         .unwrap(),
                 )
@@ -625,11 +721,19 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "timeline",
                 json!({"hops": 3, "limit": 500, "bucket": "week", "revision": 0}),
-                head.timeline(
+                head.timeline_as(
+                    TimelineFormat::V2,
                     &TimelineRequest::new(None, 3, 500, Some(BucketWidth::Week), None).unwrap(),
                 )
                 .unwrap()
                 .bytes,
+            ),
+            (
+                "timeline",
+                json!({"hops": 2, "limit": 10, "format": "ekr.graph-timeline/1"}),
+                head.timeline(&TimelineRequest::new(None, 2, 10, None, None).unwrap())
+                    .unwrap()
+                    .bytes,
             ),
         ];
         for (tool, arguments, expected) in cases {
@@ -641,12 +745,156 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             );
         }
 
-        // explain and resolve: what the one-shot verb prints, byte for byte.
+        // search: byte for byte what `GET /search` serves with the format named.
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        for (arguments, query) in [
+            (json!({"text": "Ac"}), "q=Ac&format=ekr.node-matches%2F2"),
+            (
+                json!({"text": "", "limit": 2, "revision": 0}),
+                "q=&limit=2&revision=0&format=ekr.node-matches%2F2",
+            ),
+            (
+                json!({"text": "Ac", "format": "ekr.node-matches/1"}),
+                "q=Ac&format=ekr.node-matches%2F1",
+            ),
+        ] {
+            let answered = server.document("search", arguments.clone());
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 200, "{backend} GET /search?{query}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: search {arguments} is not GET /search?{query}"
+            );
+        }
+        drop(view);
+
+        // overview and timeline: what `GET /overview` and `GET /timeline` serve with the format
+        // named; expand: what the session's `expand` answers with the format named, the page as
+        // one document (`ekr view` streams its records).
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        for (tool, arguments, path) in [
+            (
+                "overview",
+                json!({}),
+                "/overview?format=ekr.graph-overview%2F3",
+            ),
+            (
+                "overview",
+                json!({"limit": 2, "revision": 0, "sections": ["roles"]}),
+                "/overview?limit=2&revision=0&sections=roles&format=ekr.graph-overview%2F3",
+            ),
+            (
+                "overview",
+                json!({"format": "ekr.graph-overview/2"}),
+                "/overview?format=ekr.graph-overview%2F2",
+            ),
+            (
+                "timeline",
+                json!({"hops": 2, "limit": 10}),
+                "/timeline?hops=2&limit=10&format=ekr.graph-timeline%2F2",
+            ),
+            (
+                "timeline",
+                json!({"type": PERSON, "hops": 1, "limit": 3, "subject": ALICE}),
+                &*format!(
+                    "/timeline?type={PERSON}&hops=1&limit=3&subject={ALICE}&format=ekr.graph-timeline%2F2"
+                ),
+            ),
+        ] {
+            let answered = server.document(tool, arguments.clone());
+            let (status, served) = view.get(path);
+            assert_eq!(status, 200, "{backend} GET {path}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: {tool} {arguments} is not GET {path}"
+            );
+        }
+        drop(view);
+        let paged = server.document("expand", json!({"seeds": [ALICE], "depth": 1, "limit": 10}));
+        let paged: Value = serde_json::from_str(&paged).unwrap();
+        assert_eq!(
+            session_answer(
+                &world,
+                &[
+                    "expand",
+                    ALICE,
+                    "--depth",
+                    "1",
+                    "--limit",
+                    "10",
+                    "--format",
+                    "ekr.graph-slice/2"
+                ]
+            ),
+            paged,
+            "{backend}: expand is the session's expand with the format named"
+        );
+        assert_eq!(paged["meta"]["format"], "ekr.graph-slice/2", "{paged}");
+        assert!(
+            paged["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|node| node["type_name"].is_string()),
+            "{paged}"
+        );
+
+        // explain and resolve: what the one-shot verb prints with the format named, byte for
+        // byte; ekr.explanation/3, scope cited, and ekr.resolution/1 when the call names none
+        // (ekr-mcp-fixes-20261015 #3, #7).
         let explained = server.document("explain", json!({"assertion": SEEDED_ASSERTION}));
         assert_eq!(
             explained,
-            world.ok(&["explain", SEEDED_ASSERTION]),
+            world.ok(&[
+                "explain",
+                SEEDED_ASSERTION,
+                "--format",
+                "ekr.explanation/3",
+                "--scope",
+                "cited"
+            ]),
             "{backend}: explain"
+        );
+        for (arguments, verb) in [
+            (
+                json!({"assertion": SEEDED_ASSERTION, "scope": "all"}),
+                vec!["--format", "ekr.explanation/3", "--scope", "all"],
+            ),
+            (
+                json!({"assertion": SEEDED_ASSERTION, "documents": true, "scope": "cited"}),
+                vec![
+                    "--documents",
+                    "--format",
+                    "ekr.explanation/3",
+                    "--scope",
+                    "cited",
+                ],
+            ),
+        ] {
+            let mut argv = vec!["explain", SEEDED_ASSERTION];
+            argv.extend(verb);
+            assert_eq!(
+                server.document("explain", arguments.clone()),
+                world.ok(&argv),
+                "{backend}: explain {arguments}"
+            );
+        }
+        let named: Value = serde_json::from_str(&explained).unwrap();
+        assert_eq!(named["format"], "ekr.explanation/3", "{named}");
+        assert_eq!(named["scope"], "cited", "{named}");
+        assert_eq!(
+            named["names"]["00000000-0000-4000-8000-000000000203"], "CEO_OF",
+            "{backend}: the relation the assertion states is named: {named}"
+        );
+        assert_eq!(
+            server.document(
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "format": "ekr.explanation/2"})
+            ),
+            world.ok(&["explain", SEEDED_ASSERTION]),
+            "{backend}: explain /2"
         );
         for (reference, at) in [
             (json!({"type_id": ORGANIZATION, "aliases": ["Acme"]}), None),
@@ -657,16 +905,42 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
         ] {
             world.file("reference.json", &reference.to_string());
             let mut arguments = reference.clone();
-            let mut verb = vec!["resolve", "reference.json"];
+            let mut verb = vec!["resolve", "reference.json", "--format", "ekr.resolution/1"];
             if let Some(at) = at {
                 arguments["at"] = json!(at);
                 verb.extend(["--at", "0"]);
             }
-            let resolved = server.document("resolve", arguments);
+            let resolved = server.document("resolve", arguments.clone());
             assert_eq!(resolved, world.ok(&verb), "{backend}: resolve {reference}");
+            arguments["format"] = json!("outcome");
+            verb.truncate(2);
+            if at.is_some() {
+                verb.extend(["--at", "0"]);
+            }
+            assert_eq!(
+                server.document("resolve", arguments),
+                world.ok(&verb),
+                "{backend}: resolve {reference} as the bare outcome"
+            );
         }
         server.close();
     }
+}
+
+/// What the session answers `argv` with, run as one request: its `stdout`, after exit 0.
+fn session_answer(world: &World, argv: &[&str]) -> Value {
+    let mut session = world
+        .command(&["session"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    writeln!(session.stdin.take().unwrap(), "{}", json!({ "argv": argv })).unwrap();
+    let output = session.wait_with_output().unwrap();
+    let answer: Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(answer["exit"], 0, "{argv:?}: {answer}");
+    answer["stdout"].clone()
 }
 
 // 3 --------------------------------------------------------------------------------------------
@@ -794,6 +1068,81 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             }
         }
 
+        // ekr-mcp-fixes-20261015 #1: describe_node's bounds are refused before the store is read,
+        // as `ekr view` refuses them on /node/<id> asked for ekr.node-detail/2, body for body.
+        // #10: a type id under /2 is refused by name, naming the type; under /1 (`full`) it is
+        // NodeNotFound, as it was before /2.
+        let view = world.view();
+        for (arguments, path, name) in [
+            (
+                json!({"node": ALICE, "limit": 501}),
+                detail_v2(ALICE, "limit=501"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                json!({"node": ALICE, "limit": 0, "revision": 7}),
+                detail_v2(ALICE, "limit=0&revision=7"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                json!({"node": ALICE, "after": -1}),
+                detail_v2(ALICE, "after=-1"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                json!({"node": PERSON}),
+                detail_v2(PERSON, ""),
+                "ekr.views.NodeIsAType",
+            ),
+            (
+                json!({"node": CEO_OF}),
+                detail_v2(CEO_OF, ""),
+                "ekr.views.NodeIsAType",
+            ),
+            (
+                json!({"node": PERSON, "full": true}),
+                format!("/node/{PERSON}?format=ekr.node-detail/1"),
+                "ekr.views.NodeNotFound",
+            ),
+            (
+                json!({"node": UNKNOWN}),
+                detail_v2(UNKNOWN, ""),
+                "ekr.views.NodeNotFound",
+            ),
+        ] {
+            let refusal = server.refusal("describe_node", arguments.clone());
+            let (status, body) = view.get(&path);
+            assert_eq!(
+                refusal,
+                serde_json::from_slice::<Value>(&body).unwrap(),
+                "{backend}: describe_node {arguments} is GET {path} ({status})"
+            );
+            assert_eq!(refusal["refusal"], name, "{backend}: {arguments}");
+        }
+        // Where the tool answers -32602 for `full` with a bound, the endpoint answers invalid-query.
+        for query in ["limit=1", "edge_type=CEO_OF", "after=0"] {
+            let (status, body) =
+                view.get(&format!("/node/{ALICE}?format=ekr.node-detail/1&{query}"));
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(
+                (status, &body["refusal"]),
+                (400, &json!("invalid-query")),
+                "{body}"
+            );
+        }
+        drop(view);
+        for (id, named) in [(PERSON, "Person"), (CEO_OF, "CEO_OF")] {
+            let refusal = server.refusal("describe_node", json!({"node": id}));
+            assert_eq!(
+                refusal["message"],
+                format!(
+                    "{id} is the type {named}, not a node: overview lists the types; search \
+                     (with type) lists its nodes"
+                ),
+                "{backend}"
+            );
+        }
+
         // The kernel's refusals: the name and message the one-shot verb writes to stderr.
         world.file(
             "undeclared.json",
@@ -811,6 +1160,19 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             (
                 "explain",
                 json!({"assertion": UNKNOWN}),
+                vec![
+                    "explain",
+                    UNKNOWN,
+                    "--format",
+                    "ekr.explanation/3",
+                    "--scope",
+                    "cited",
+                ],
+                "ekr.kernel.AssertionNotFound",
+            ),
+            (
+                "explain",
+                json!({"assertion": UNKNOWN, "format": "ekr.explanation/2"}),
                 vec!["explain", UNKNOWN],
                 "ekr.kernel.AssertionNotFound",
             ),
@@ -868,11 +1230,28 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             ("overview", json!({"sections": ["top"]})),
             ("overview", json!({"sections": "schema"})),
             ("describe_node", json!({})),
+            // ekr-mcp-fixes-20261015 #1: `full` is the whole /1, which takes no bound.
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true, "limit": 1}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true, "edge_type": "CEO_OF"}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "full": true, "after": 0}),
+            ),
+            ("describe_node", json!({"node": ALICE, "full": "yes"})),
+            ("describe_node", json!({"node": ALICE, "limit": "3"})),
             (
                 "expand",
                 json!({"seeds": ["not-a-node-id"], "depth": 1, "limit": 1}),
             ),
-            ("expand", json!({"seeds": ALICE, "depth": 1, "limit": 1})),
+            // ekr-mcp-fixes-20261015 #8: one id is a list of one, so only another kind of value
+            // is refused; `an_aliased_argument_answers_what_its_input_answers` holds the id.
+            ("expand", json!({"seeds": 7, "depth": 1, "limit": 1})),
             ("expand", json!({"seeds": [ALICE], "limit": 1})),
             (
                 "timeline",
@@ -884,6 +1263,16 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
                 json!({"hops": 1, "limit": 1, "subject": "alice"}),
             ),
             ("explain", json!({"assertion": "not-an-assertion-id"})),
+            // ekr-mcp-fixes-20261015 #7: a scope that is none, and a scope with /2, as the verb
+            // refuses `--scope` with them.
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "scope": "some"}),
+            ),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "format": "ekr.explanation/2", "scope": "all"}),
+            ),
             ("resolve", json!({"aliases": ["Acme"]})),
             (
                 "resolve",
@@ -946,9 +1335,9 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
             assert!(line.contains(&format!(r#""id":{id},"#)), "{id}: {line}");
         }
 
-        // And the server still reads.
+        // And the server still reads: ekr.node-detail/2 by default (ekr-mcp-fixes-20261015 #1).
         let alice = server.document("describe_node", json!({"node": ALICE}));
-        assert_eq!(alice, utf8(head.describe(node(ALICE)).unwrap().bytes));
+        assert_eq!(alice, world.served(&detail_v2(ALICE, "")));
         server.close();
     }
 }
@@ -970,10 +1359,17 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
         assert_eq!(before["refusal"], "ekr.views.NodeNotFound");
         let unresolved: Value =
             serde_json::from_str(&server.document("resolve", globex.clone())).unwrap();
-        assert_eq!(unresolved["kind"], "ProposeNew", "{unresolved}");
+        assert_eq!(unresolved["outcome"]["kind"], "ProposeNew", "{unresolved}");
+        assert_eq!(
+            unresolved["names"],
+            json!({ORGANIZATION: "Organization"}),
+            "{backend}: ekr-mcp-fixes-20261015 #3, the type the outcome holds: {unresolved}"
+        );
         let overview: Value =
             serde_json::from_str(&server.document("overview", json!({}))).unwrap();
         assert_eq!(overview["meta"]["revision"], 0, "{overview}");
+        let seeded_at = overview["meta"]["committed_at"].clone();
+        assert!(seeded_at.is_i64(), "{backend}: #13: {overview}");
 
         world.commit("create.yaml");
 
@@ -982,34 +1378,51 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
         let described = server.document("describe_node", json!({"node": GLOBEX}));
         assert_eq!(
             described,
-            utf8(head.describe(node(GLOBEX)).unwrap().bytes),
-            "{backend}: the node another process committed"
+            world.served(&detail_v2(GLOBEX, "")),
+            "{backend}: the node another process committed, as ekr.node-detail/2 \
+             (ekr-mcp-fixes-20261015 #1)"
         );
         let resolved = server.document("resolve", globex);
-        assert_eq!(resolved, world.ok(&["resolve", "globex.json"]));
+        assert_eq!(
+            resolved,
+            world.ok(&["resolve", "globex.json", "--format", "ekr.resolution/1"])
+        );
         let resolved: Value = serde_json::from_str(&resolved).unwrap();
-        assert_eq!(resolved["kind"], "Resolved", "{resolved}");
-        assert_eq!(resolved["node_id"], GLOBEX);
+        assert_eq!(resolved["outcome"]["kind"], "Resolved", "{resolved}");
+        assert_eq!(resolved["outcome"]["node_id"], GLOBEX);
+        assert_eq!(resolved["names"], json!({}), "{resolved}");
         let overview = server.document("overview", json!({}));
         assert_eq!(
             overview,
             utf8(
-                head.overview_sections(&OverviewRequest::new(None).unwrap())
+                head.overview_as(OverviewFormat::V3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             )
         );
-        // The revision before is still readable, loaded under the new head.
+        // #13: the head's own commit time, after the seed's.
+        let committed_at = serde_json::from_str::<Value>(&overview).unwrap()["meta"]
+            ["committed_at"]
+            .as_i64()
+            .unwrap();
+        assert!(committed_at >= seeded_at.as_i64().unwrap(), "{backend}");
+        // The revision before is still readable, loaded under the new head, and still says when
+        // it was committed.
         let at_seed = server.document("overview", json!({"revision": 0}));
         assert_eq!(
             at_seed,
             utf8(
                 world
                     .index(Some(0))
-                    .overview_sections(&OverviewRequest::new(None).unwrap())
+                    .overview_as(OverviewFormat::V3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             )
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&at_seed).unwrap()["meta"]["committed_at"],
+            seeded_at,
+            "{backend}"
         );
         server.close();
     }
@@ -1154,15 +1567,16 @@ fn a_running_server_answers_from_a_store_replaced_by_rename() {
             utf8(
                 world
                     .index(Some(1))
-                    .overview_sections(&OverviewRequest::new(None).unwrap())
+                    .overview_as(OverviewFormat::V3, &OverviewRequest::new(None).unwrap())
                     .unwrap()
                     .bytes
             ),
             "{backend}: revision 1 of the replacement, not the index of the replaced store"
         );
+        // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
         assert_eq!(
             server.document("describe_node", json!({"node": INITECH})),
-            utf8(world.index(None).describe(node(INITECH)).unwrap().bytes),
+            world.served(&detail_v2(INITECH, "")),
             "{backend}"
         );
 
@@ -1232,9 +1646,10 @@ fn a_running_server_answers_from_a_sqlite_database_copied_over_its_file() {
         "precondition: the same device and inode"
     );
 
+    // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
     assert_eq!(
         server.document("describe_node", json!({"node": INITECH})),
-        utf8(world.index(None).describe(node(INITECH)).unwrap().bytes),
+        world.served(&detail_v2(INITECH, "")),
         "a node of the database now at the path"
     );
     let gone = server.refusal("describe_node", json!({"node": GLOBEX}));
@@ -1300,6 +1715,25 @@ impl View {
         let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
         (status, raw[split + 4..].to_vec())
     }
+
+    /// `GET path`'s body, which must be a 200.
+    fn served(&self, path: &str) -> String {
+        let (status, body) = self.get(path);
+        let body = utf8(body);
+        assert_eq!(status, 200, "GET {path}: {body}");
+        body
+    }
+}
+
+/// `GET /node/<id>` asking for `ekr.node-detail/2` explicitly, with `query` (`&`-joined pairs,
+/// or empty) after it: what the MCP `describe_node` answers by default (ekr-mcp-fixes-20261015 #1).
+fn detail_v2(id: &str, query: &str) -> String {
+    let query = if query.is_empty() {
+        String::new()
+    } else {
+        format!("&{query}")
+    };
+    format!("/node/{id}?format=ekr.node-detail/2{query}")
 }
 
 impl Drop for View {
@@ -1309,10 +1743,11 @@ impl Drop for View {
     }
 }
 
-/// `changes_since` answers byte for byte what `GET /changes` serves for the same arguments — the
-/// document `ekr_views::Index::changes` returns — and refuses by the name, and with the body,
-/// that the endpoint refuses with; where the endpoint answers `invalid-query`, the tool answers
-/// the arguments' error.
+/// `changes_since` answers byte for byte what `GET /changes` serves for the same arguments with
+/// the format named — the document `ekr_views::Index::changes_as` returns, `ekr.graph-changes/2`
+/// unless the call names /1 (ekr-mcp-fixes-20261015 #3) — and refuses by the name, and with the
+/// body, that the endpoint refuses with; where the endpoint answers `invalid-query`, the tool
+/// answers the arguments' error.
 #[test]
 fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
     for backend in BACKENDS {
@@ -1320,8 +1755,10 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         world.commit("create.yaml");
         let mut server = world.server();
         let view = View::start(world.command(&["view", "--port", "0"]));
+        // ekr-mcp-fixes-20261015 #4: a call naming no limit reads 100, so it is `GET /changes`
+        // with `limit=100` named; one naming its limit is `GET /changes` with the same limit.
         for (arguments, query) in [
-            (json!({"since_revision": 0}), "since_revision=0"),
+            (json!({"since_revision": 0}), "since_revision=0&limit=100"),
             (
                 json!({"since_revision": 0, "at": 1, "limit": 1}),
                 "since_revision=0&at=1&limit=1",
@@ -1330,14 +1767,23 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
                 json!({"since_recorded": 0, "at": 0, "limit": 2, "after": 1}),
                 "since_recorded=0&at=0&limit=2&after=1",
             ),
-            (json!({"since_recorded": 0}), "since_recorded=0"),
+            (json!({"since_recorded": 0}), "since_recorded=0&limit=100"),
             (
                 json!({"since_valid": 0, "limit": 2000}),
                 "since_valid=0&limit=2000",
             ),
-            (json!({"since_revision": 1}), "since_revision=1"),
+            (json!({"since_revision": 1}), "since_revision=1&limit=100"),
+            (
+                json!({"since_revision": 0, "format": "ekr.graph-changes/1"}),
+                "since_revision=0&limit=100&format=ekr.graph-changes%2F1",
+            ),
         ] {
             let answered = server.document("changes_since", arguments.clone());
+            let query = if query.contains("format=") {
+                query.to_owned()
+            } else {
+                format!("{query}&format=ekr.graph-changes%2F2")
+            };
             let (status, served) = view.get(&format!("/changes?{query}"));
             assert_eq!(status, 200, "{backend} GET /changes?{query}");
             assert_eq!(
@@ -1350,9 +1796,10 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         let runtime = world.runtime();
         let head = Index::load(&runtime, None).unwrap();
         let expected = head
-            .changes(
+            .changes_as(
                 &runtime,
-                &ChangesRequest::new(SinceKind::Revision, 0, None, None).unwrap(),
+                &ChangesRequest::new(SinceKind::Revision, 0, Some(100), None).unwrap(),
+                ChangesFormat::V2,
             )
             .unwrap()
             .bytes;
@@ -1367,6 +1814,12 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         assert_eq!(listed["changes"][0]["change"], "NodeCreated", "{listed}");
         assert_eq!(listed["changes"][0]["id"], GLOBEX, "{listed}");
         assert_eq!(listed["changes"][0]["revision"], 1, "{listed}");
+        assert_eq!(listed["meta"]["format"], "ekr.graph-changes/2", "{listed}");
+        assert_eq!(
+            listed["names"],
+            json!({ORGANIZATION: "Organization"}),
+            "{backend}: the type Globex was created with: {listed}"
+        );
 
         for (arguments, query, name, status) in [
             (
@@ -1441,10 +1894,220 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
     }
 }
 
+/// `story:search-words-type-and-time`: `search` answers byte for byte what `GET /search` serves
+/// with the format named, and refuses by the name, and with the body, the endpoint refuses with;
+/// where the endpoint answers `invalid-query`, the tool answers the arguments' error. `text` is
+/// also taken as `query` and `q` (ekr-mcp-fixes-20261015 #6: on 0.0.34 `{"query": …}` is
+/// -32602), every word of a two-word text matches (#2), and `type`, `from` and `to` narrow the
+/// matches (#9). In the example seed Alice, Bob and Acme each have the time 1577836800000
+/// (2020-01-01, their earliest dated fact) and Globex none.
+#[test]
+fn search_answers_and_refuses_exactly_as_get_search_does_with_the_format_named() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.commit("create.yaml");
+        let mut server = world.server();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        let v2 = "format=ekr.node-matches%2F2";
+
+        // #6: `query` and `q` are `text`, and change no answer.
+        let by_text = server.document("search", json!({"text": "Alice"}));
+        assert_eq!(
+            server.document("search", json!({"query": "Alice"})),
+            by_text,
+            "{backend}: query"
+        );
+        assert_eq!(
+            server.document("search", json!({"q": "Alice"})),
+            by_text,
+            "{backend}: q"
+        );
+
+        let mut answers: Vec<Value> = Vec::new();
+        for (arguments, query) in [
+            (json!({"query": "Alice"}), format!("q=Alice&{v2}")),
+            // #2: `me ac` is in no name, and both of its words are in `acme`.
+            (json!({"text": "me ac"}), format!("q=me+ac&{v2}")),
+            // #9: one type, by name and by id; a window as dates and as milliseconds.
+            (
+                json!({"text": "", "type": "Person"}),
+                format!("q=&type=Person&{v2}"),
+            ),
+            (
+                json!({"text": "", "type": PERSON}),
+                format!("q=&type={PERSON}&{v2}"),
+            ),
+            (
+                json!({"text": "", "from": "2020-01-01", "to": "2020-01-01"}),
+                format!("q=&from=2020-01-01&to=2020-01-01&{v2}"),
+            ),
+            (
+                json!({"text": "", "from": 1_577_836_800_000_i64, "to": 1_577_836_800_000_i64}),
+                format!("q=&from=1577836800000&to=1577836800000&{v2}"),
+            ),
+            (
+                json!({"text": "", "from": "2020-01-02"}),
+                format!("q=&from=2020-01-02&{v2}"),
+            ),
+        ] {
+            let answered = server.document("search", arguments.clone());
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 200, "{backend} GET /search?{query}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: search {arguments} is not GET /search?{query}"
+            );
+            answers.push(serde_json::from_str(&answered).unwrap());
+        }
+        let ids = |answer: &Value| -> Vec<String> {
+            answer["matches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|hit| hit["id"].as_str().unwrap().to_owned())
+                .collect()
+        };
+        assert_eq!(answers[0]["meta"]["format"], "ekr.node-matches/2");
+        assert_eq!(answers[0]["matches"][0]["type_name"], "Person");
+        assert_eq!(ids(&answers[1]), [ACME], "{backend}: {}", answers[1]);
+        assert_eq!(answers[1]["matches"][0]["tier"], "Words");
+        assert_eq!(
+            answers[2], answers[3],
+            "{backend}: a type by name and by id"
+        );
+        assert_eq!(answers[2]["meta"]["types"], json!([PERSON]));
+        assert_eq!(ids(&answers[2]).len(), 2, "{backend}: {}", answers[2]);
+        assert!(
+            answers[2]["matches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|hit| hit["type_name"] == "Person" && hit["type"] == PERSON),
+            "{backend}: {}",
+            answers[2]
+        );
+        for windowed in [&answers[4], &answers[5]] {
+            assert_eq!(windowed["meta"]["total"], 3, "{backend}: {windowed}");
+            assert!(
+                !ids(windowed).contains(&GLOBEX.to_owned()),
+                "{backend}: {windowed}"
+            );
+            assert!(
+                windowed["matches"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|hit| hit["time"] == 1_577_836_800_000_i64),
+                "{backend}: {windowed}"
+            );
+        }
+        assert_eq!(answers[4]["meta"]["to"], 1_577_923_199_999_i64);
+        assert_eq!(answers[6]["meta"]["total"], 0, "{backend}: {}", answers[6]);
+
+        for (arguments, query, name, status) in [
+            (
+                json!({"text": "", "type": "person"}),
+                format!("q=&type=person&{v2}"),
+                "ekr.views.NodeTypeNotFound",
+                404,
+            ),
+            (
+                json!({"text": "", "type": UNKNOWN, "revision": 0}),
+                format!("q=&type={UNKNOWN}&revision=0&{v2}"),
+                "ekr.views.NodeTypeNotFound",
+                404,
+            ),
+            (
+                json!({"text": "", "type": "Person", "revision": 7}),
+                format!("q=&type=Person&revision=7&{v2}"),
+                "ekr.views.RevisionNotFound",
+                404,
+            ),
+            (
+                json!({"text": "", "type": "person", "limit": 0}),
+                format!("q=&type=person&limit=0&{v2}"),
+                "ekr.views.LimitExceeded",
+                400,
+            ),
+        ] {
+            let refusal = server.refusal("search", arguments.clone());
+            assert_eq!(refusal["refusal"], name, "{backend} {arguments}: {refusal}");
+            let (served_status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(served_status, status, "{backend} GET /search?{query}");
+            let served: Value = serde_json::from_slice(&served).unwrap();
+            assert_eq!(
+                refusal, served,
+                "{backend}: {arguments} and GET /search?{query}"
+            );
+        }
+        for (arguments, query) in [
+            (
+                json!({"text": "A", "format": "ekr.node-matches/1", "type": "Person"}),
+                "q=A&format=ekr.node-matches%2F1&type=Person",
+            ),
+            (
+                json!({"text": "A", "format": "ekr.node-matches/1", "from": 0}),
+                "q=A&format=ekr.node-matches%2F1&from=0",
+            ),
+            (
+                json!({"text": "A", "from": "2020-13-01"}),
+                "q=A&from=2020-13-01&format=ekr.node-matches%2F2",
+            ),
+            (
+                json!({"text": "A", "to": "yesterday"}),
+                "q=A&to=yesterday&format=ekr.node-matches%2F2",
+            ),
+            (
+                json!({"text": "A", "format": "ekr.node-matches/3"}),
+                "q=A&format=ekr.node-matches%2F3",
+            ),
+        ] {
+            let refused = server.call("search", arguments.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {arguments}"
+            );
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 400, "{backend} GET /search?{query}");
+            let served: Value = serde_json::from_slice(&served).unwrap();
+            assert_eq!(served["refusal"], "invalid-query", "{served}");
+        }
+        // Naming `text` twice, under two of its names, is a duplicate argument.
+        for arguments in [
+            json!({"text": "A", "query": "A"}),
+            json!({"query": "A", "q": "A"}),
+        ] {
+            let refused = server.call("search", arguments.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {arguments}"
+            );
+        }
+        // `GET /search` without a format answers /1, as before /2 was declared.
+        let (status, served) = view.get("/search?q=Alice");
+        assert_eq!(status, 200);
+        assert_eq!(
+            utf8(served),
+            server.document(
+                "search",
+                json!({"text": "Alice", "format": "ekr.node-matches/1"})
+            ),
+            "{backend}"
+        );
+        server.close();
+        drop(view);
+    }
+}
+
 /// `task:changes-since-lists-added-evidence`: a transaction whose one operation is the
 /// `ekr operations AddEvidence` example commits revision 1. `changes_since`, `GET /changes` and
 /// the session's `changes` verb each answer it once, as an `EvidenceAdded` of revision 1 carrying
-/// the evidence id, its source identity and its payload hash, on both providers.
+/// the evidence id, its source identity and its payload hash, on both providers. The tool names
+/// no limit, so `GET /changes` and the session verb are given `limit` 100
+/// (ekr-mcp-fixes-20261015 #4).
 #[test]
 fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_verb() {
     const ADDED: &str = "00000000-0000-4000-8000-000000000403";
@@ -1472,7 +2135,8 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         let answered = server.document("changes_since", json!({"since_revision": 0}));
         server.close();
         let view = View::start(world.command(&["view", "--port", "0"]));
-        let (status, served) = view.get("/changes?since_revision=0");
+        let (status, served) =
+            view.get("/changes?since_revision=0&limit=100&format=ekr.graph-changes%2F2");
         drop(view);
         assert_eq!(status, 200, "{backend}");
         assert_eq!(
@@ -1490,7 +2154,7 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         writeln!(
             session.stdin.take().unwrap(),
             "{}",
-            json!({"argv": ["changes", "--since-revision", "0"]})
+            json!({"argv": ["changes", "--since-revision", "0", "--limit", "100", "--format", "ekr.graph-changes/2"]})
         )
         .unwrap();
         let output = session.wait_with_output().unwrap();
@@ -1509,6 +2173,162 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         assert_eq!(change["locator"], "Runtime operator", "{backend}: {change}");
         assert_eq!(change["content_hash"], PAYLOAD_HASH, "{backend}: {change}");
         assert_eq!(change["evidence"], json!([]), "{backend}: {change}");
+        assert_eq!(
+            listed["names"],
+            json!({}),
+            "{backend}: no type id: {listed}"
+        );
+    }
+}
+
+// smaller default pages (ekr-mcp-fixes-20261015 #4) ------------------------------------------
+
+/// The one budget a tool result is held to here: 75 KB, the most one result an agent reads whole
+/// should hold.
+const TOOL_BUDGET: usize = 75_000;
+const HUB_TRANSACTION: &str = "00000000-0000-4000-8000-000000000908";
+const ACME_EVIDENCE: &str = "00000000-0000-4000-8000-000000000401";
+
+/// One transaction of `count` new Person nodes, each with a CEO_OF edge to Acme and the CEO_OF
+/// assertion that it holds, citing the seed's evidence: revision 1 holds `count` assertions, and
+/// Acme `count` more incident edges than the seed's one.
+fn hub(count: u64) -> String {
+    let id = |kind: u64, n: u64| format!("00000000-0000-4000-8000-{:012x}", kind + n);
+    let mut document = format!(
+        "format: ekr.transaction-document/2\ntransaction:\n  id: {HUB_TRANSACTION}\n  proposer: \
+         {OPERATOR}\n  operations:\n"
+    );
+    for n in 0..count {
+        let (person, edge, claim) = (id(0x2_0000, n), id(0x3_0000, n), id(0x4_0000, n));
+        document.push_str(&format!(
+            "  - !CreateNode\n    id: {person}\n    root_id: {ROOT}\n    type_id: {PERSON}\n    \
+             canonical_name: Member{n:03}\n    properties: {{}}\n    aliases: []\n\
+             \x20 - !CreateEdge\n    id: {edge}\n    root_id: {ROOT}\n    type_id: {CEO_OF}\n    \
+             source: {person}\n    target: {ACME}\n    properties: {{}}\n\
+             \x20 - !AddAssertion\n    id: {claim}\n    root_id: {ROOT}\n    subject: !Node \
+             {person}\n    predicate: !Relation {CEO_OF}\n    object: !Node {ACME}\n    \
+             evidence:\n    - {ACME_EVIDENCE}\n    proposed_by: {OPERATOR}\n    assessment: \
+             Proposed\n    lifecycle: Active\n    valid_time:\n      from: 1577836800000\n      \
+             to: null\n    transaction_time:\n      recorded_from: 0\n      recorded_to: null\n"
+        ));
+    }
+    document.push_str(&format!("  evidence:\n  - {ACME_EVIDENCE}\n"));
+    document
+}
+
+/// ekr-mcp-fixes-20261015 #4: on a store of 250 assertions (and as many nodes and edges, 750
+/// changes in revision 1), `changes_since` from revision 0 naming no limit answers one page of
+/// 100 changes, under the tool budget, byte for byte `GET /changes` with `limit=100`. Measured on
+/// 0.0.34 against the consumer's store of 250 assertions: 125 KB at the default of 500.
+#[test]
+fn changes_since_from_revision_zero_answers_within_the_tool_budget() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.file("hub.yaml", &hub(250));
+        world.commit("hub.yaml");
+        let mut server = world.server();
+        let answered = server.document("changes_since", json!({"since_revision": 0}));
+        server.close();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        let (status, served) =
+            view.get("/changes?since_revision=0&limit=100&format=ekr.graph-changes%2F2");
+        let (_, whole) = view.get("/changes?since_revision=0");
+        drop(view);
+        assert_eq!(status, 200, "{backend}");
+        assert_eq!(
+            answered,
+            utf8(served),
+            "{backend}: changes_since is GET /changes with limit=100"
+        );
+        let listed: Value = serde_json::from_str(&answered).unwrap();
+        assert_eq!(
+            listed["meta"]["limit"], 100,
+            "{backend}: {}",
+            listed["meta"]
+        );
+        assert_eq!(
+            listed["meta"]["total"], 750,
+            "{backend}: {}",
+            listed["meta"]
+        );
+        assert_eq!(
+            listed["changes"].as_array().unwrap().len(),
+            100,
+            "{backend}"
+        );
+        assert_eq!(listed["next"], 100, "{backend}: the next page's cursor");
+        assert!(
+            answered.len() < TOOL_BUDGET,
+            "{backend}: {} bytes, over the {TOOL_BUDGET}-byte budget",
+            answered.len()
+        );
+        // The verb keeps its default of 500, which this store fills past the budget.
+        assert!(
+            whole.len() > TOOL_BUDGET,
+            "{backend}: GET /changes's own default page is {} bytes",
+            whole.len()
+        );
+    }
+}
+
+/// ekr-mcp-fixes-20261015 #4: around a node with more than 200 incident edges, `expand` naming no
+/// `edges` answers a page of 200 edges with a `next`: byte for byte the `ekr.views` page of the
+/// request with `edges` 200, which `GET /expand` streams record by record, and what the session's
+/// `expand` verb prints given `--edges 200`. Measured on 0.0.34: depth 1 around a node of degree
+/// 494 answered 996 edges and 439 KB at the default of 5,000.
+#[test]
+fn expand_defaults_to_two_hundred_edges() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.file("hub.yaml", &hub(250));
+        world.commit("hub.yaml");
+        let mut server = world.server();
+        let arguments = json!({"seeds": [ACME], "depth": 1, "limit": 2000});
+        let answered = server.document("expand", arguments.clone());
+        server.close();
+
+        let mut session = world
+            .command(&["session"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        writeln!(
+            session.stdin.take().unwrap(),
+            "{}",
+            json!({"argv": ["expand", ACME, "--depth", "1", "--limit", "2000", "--edges", "200", "--format", "ekr.graph-slice/2"]})
+        )
+        .unwrap();
+        let output = session.wait_with_output().unwrap();
+        let printed: Value =
+            serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+        assert_eq!(printed["exit"], 0, "{backend}: {printed}");
+        let page: Value = serde_json::from_str(&answered).unwrap();
+        assert_eq!(
+            printed["stdout"], page,
+            "{backend}: expand {arguments} is the session's expand --edges 200"
+        );
+
+        let expected = world
+            .index(None)
+            .expand_as(
+                SliceFormat::V2,
+                &ExpandRequest::new(vec![node(ACME)], 1, 2000, Some(200), None).unwrap(),
+            )
+            .unwrap()
+            .bytes;
+        assert_eq!(answered, utf8(expected), "{backend}: the ekr.views page");
+        assert_eq!(page["edges"].as_array().unwrap().len(), 200, "{backend}");
+        assert!(
+            page["next"].is_u64(),
+            "{backend}: a next page: {}",
+            page["meta"]
+        );
+        assert_eq!(
+            page["meta"]["edge_total"], 251,
+            "{backend}: {}",
+            page["meta"]
+        );
     }
 }
 
@@ -1540,29 +2360,52 @@ fn a_hundred_searches_and_node_descriptions_over_one_server_are_timed() {
         let first = first.elapsed();
         let opened = started.elapsed();
 
+        // ekr-mcp-fixes-20261015 #2: the tool answers ekr.node-matches/2; every 25th answer is
+        // held to the index's /2 bytes here and to `GET /search` with /2 named after the timing.
+        let mut sampled: Vec<(String, String)> = Vec::new();
         let searches = Instant::now();
         for at in 0..100 {
             let text = format!("Member{:03}", at * 2);
             let answered = server.document("search", json!({"text": text}));
             if at % 25 == 0 {
                 let expected = head
-                    .search(&SearchRequest::new(text, 20).unwrap())
+                    .search_v2(
+                        &SearchRequest::new(text.clone(), 20).unwrap(),
+                        &SearchFilter::default(),
+                    )
                     .unwrap()
                     .bytes;
                 assert_eq!(answered, utf8(expected));
+                sampled.push((text, answered));
             }
         }
         let searches = searches.elapsed();
 
+        // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
+        let view = world.view();
+        let mut expected = Vec::new();
         let describes = Instant::now();
         for (at, (id, _)) in nodes.iter().take(100).enumerate() {
             let answered = server.document("describe_node", json!({"node": id}));
             if at % 25 == 0 {
-                assert_eq!(answered, utf8(head.describe(node(id)).unwrap().bytes));
+                expected.push((answered, id));
             }
         }
         let describes = describes.elapsed();
+        for (answered, id) in expected {
+            assert_eq!(answered, view.served(&detail_v2(id, "")));
+        }
+        drop(view);
         server.close();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        assert_eq!(sampled.len(), 4, "{backend}");
+        for (text, answered) in &sampled {
+            let query = format!("q={text}&format=ekr.node-matches%2F2");
+            let (status, served) = view.get(&format!("/search?{query}"));
+            assert_eq!(status, 200, "{backend} GET /search?{query}");
+            assert_eq!(answered, &utf8(served), "{backend}: search {text}");
+        }
+        drop(view);
 
         eprintln!(
             "ekr mcp timing, {backend}, {} nodes: start and first search {:.1} ms (first search \
@@ -1649,9 +2492,10 @@ fn the_library_seam_serves_mcp_in_process() {
         .collect();
     assert_eq!(answers.len(), 2, "{served}");
     assert_eq!(answers[1]["id"], "two");
+    // ekr-mcp-fixes-20261015 #1: ekr.node-detail/2, as `ekr view` serves it asked for /2.
     assert_eq!(
         document_text(&answers[1]["result"]),
-        utf8(world.index(None).describe(node(ALICE)).unwrap().bytes)
+        world.served(&detail_v2(ALICE, ""))
     );
 }
 
@@ -1678,4 +2522,127 @@ fn the_page_lists_exactly_the_tools_the_server_has() {
         .filter(|name| name.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
         .collect();
     assert_eq!(documented, TOOLS.into_iter().collect());
+}
+
+/// A call's response without its id: the result or the error it was answered with.
+fn answered(server: &mut Server, tool: &str, arguments: Value) -> Value {
+    let mut response = server.call(tool, arguments);
+    if let Some(object) = response.as_object_mut() {
+        object.remove("id");
+    }
+    response
+}
+
+/// ekr-mcp-fixes-20261015 #8: an input taken under an alias answers what the input answers under
+/// its own name, refusals included, and one id as `seeds` answers what the list of that one id
+/// answers; on 0.0.34 each aliased call was -32602. Naming one input twice, by its name and an
+/// alias, is -32602.
+#[test]
+fn an_aliased_argument_answers_what_its_input_answers() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let mut server = world.server();
+        let expand = |seeds: (&str, Value)| {
+            let mut arguments = json!({"depth": 1, "limit": 10});
+            arguments[seeds.0] = seeds.1;
+            arguments
+        };
+        let timeline = |subject: &str| {
+            let mut arguments = json!({"hops": 1, "limit": 5});
+            arguments[subject] = json!(ALICE);
+            arguments
+        };
+        for (tool, named, aliased) in [
+            (
+                "describe_node",
+                json!({"node": ALICE}),
+                json!({"id": ALICE}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE}),
+                json!({"node_id": ALICE}),
+            ),
+            (
+                "describe_node",
+                json!({"node": UNKNOWN}),
+                json!({"id": UNKNOWN}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE, "edge_type": CEO_OF}),
+                json!({"node": ALICE, "edge": CEO_OF}),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE]))),
+                expand(("seeds", json!(ALICE))),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE]))),
+                expand(("seed", json!(ALICE))),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE]))),
+                expand(("node", json!(ALICE))),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE, ACME]))),
+                expand(("nodes", json!([ALICE, ACME]))),
+            ),
+            ("timeline", timeline("subject"), timeline("node")),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION}),
+                json!({"id": SEEDED_ASSERTION}),
+            ),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION}),
+                json!({"assertion_id": SEEDED_ASSERTION}),
+            ),
+        ] {
+            let expected = answered(&mut server, tool, named.clone());
+            assert!(
+                expected.get("result").is_some(),
+                "{backend} {tool} {named}: {expected}"
+            );
+            assert_eq!(
+                answered(&mut server, tool, aliased.clone()),
+                expected,
+                "{backend} {tool}: {aliased} does not answer what {named} answers"
+            );
+        }
+        for (tool, twice) in [
+            ("describe_node", json!({"node": ALICE, "id": ALICE})),
+            ("describe_node", json!({"id": ALICE, "node_id": ALICE})),
+            (
+                "describe_node",
+                json!({"node": ALICE, "edge_type": CEO_OF, "edge": CEO_OF}),
+            ),
+            (
+                "expand",
+                json!({"seeds": [ALICE], "seed": ALICE, "depth": 1, "limit": 10}),
+            ),
+            (
+                "timeline",
+                json!({"subject": ALICE, "node": ALICE, "hops": 1, "limit": 5}),
+            ),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "id": SEEDED_ASSERTION}),
+            ),
+        ] {
+            let refused = server.call(tool, twice.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {tool} {twice}: {refused}"
+            );
+        }
+        server.close();
+    }
 }

@@ -27,7 +27,8 @@
 //! `ekr.graph-overview/1`),
 //! [`Index::expand`] (`ekr.graph-slice/1`, with [`Index::page`] for a host that streams the
 //! records), [`Index::describe`] (`ekr.node-detail/1`), [`Index::search`]
-//! (`ekr.node-matches/1`) and [`Index::timeline`] (`ekr.graph-timeline/1`) then answer from it,
+//! (`ekr.node-matches/1`; `ekr.node-matches/2` is [`Index::search_v2`]) and
+//! [`Index::timeline`] (`ekr.graph-timeline/1`) then answer from it,
 //! each costing its answer. [`OverviewRequest`], [`ExpandRequest`], [`SearchRequest`] and
 //! [`TimelineRequest`] hold each command's bounds, so a broken one is refused as
 //! [`LimitExceeded`] before a store is read. [`IndexCache`] keeps the most recently used indexes
@@ -62,14 +63,17 @@
 
 mod changes;
 mod code_names;
+mod detail;
 mod document;
 mod index;
+mod names;
 mod ocel;
 mod process_map;
 mod quality;
 mod query;
 mod roles;
 mod sample;
+mod search;
 mod timeline;
 
 pub use changes::{
@@ -80,7 +84,15 @@ pub use code_names::{
     runtime_vocabulary, CodeNameMode, CodeNamesFound, Literal, SourceText, CODE_NAMES_FORMAT,
     EMBEDDED_DOMAINS,
 };
+pub use detail::{
+    DetailFormat, DetailGroupCount, DetailRequest, EdgeDirection, NodeDetailed, SameNameNode,
+    TypeKind, UnknownDetailFormat, DETAIL_V2_FORMAT, VALUE_BYTES,
+};
 pub use index::{Index, IndexCache};
+pub use names::{
+    ontology_names, ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat,
+    CHANGES_V2_FORMAT, OVERVIEW_V3_FORMAT, SLICE_V2_FORMAT, TIMELINE_V2_FORMAT,
+};
 pub use ocel::{
     export_ocel, export_ocel_with_event_time, ocel, ocel_with_event_time, OcelError, OcelExported,
     OCEL_FORMAT,
@@ -101,6 +113,10 @@ pub use sample::{
     FactQualityError, FactQualityReported, FactSampleDrawn, Judgement, JudgementsMalformed,
     SampleOrigin, SampleRequest, Verdict, DEFAULT_CONFIDENCE, FACT_QUALITY_FORMAT,
     JUDGEMENTS_FORMAT, SAMPLE_FORMAT,
+};
+pub use search::{
+    MatchesFormat, SearchError, SearchFilter, UnknownMatchesFormat, WindowBound, WindowMalformed,
+    MATCHES_V2_FORMAT,
 };
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 

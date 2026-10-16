@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-16T16:00:39Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:explain-scoped-to-cited-evidence",
+  "kind": "story",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Wave 2026-10-15a package gates on each unit's merge into wave/20261015a (cargo test --no-fail-fast and clippy -D warnings of the crates it touched, ekr --test mcp --test conformance --test public_surface --test docs_cli among them), and on 3b7f7efe after the 0.0.35 fix merged: ekr-store, ekr-kernel, ekr, ekr-views tests and clippy, all passed; the full task check runs on the wave's final head before its pull request"
+  }
+}
