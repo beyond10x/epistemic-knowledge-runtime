@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:bounded-node-detail
 kind: story
-status: active
+status: implemented
 title: describe_node answers a bounded, named ekr.node-detail/2
 summary: 'Bounded node detail, same-name siblings and a refusal that names a type (ekr-mcp-fixes-20261015 #1, #10, #11).'
 relations:
@@ -35,10 +35,11 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-15T13:21:15Z", actor: "agent:ekr-controller-planner", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-15T13:21:15Z", actor: "agent:ekr-controller-planner", revision: 4}
+- {from: "active", to: "implemented", at: "2026-10-16T16:00:38Z", actor: "agent:claude-ekr-controller", revision: 5, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

@@ -2,7 +2,7 @@
 
 Skill: aep:implementing (wave mode). Coordinator: the repository's controlling Claude session of
 2026-10-15.
-Status: **planned**: six stories active; no unit dispatched.
+Status: **integrated**: U1–U6 merged into `wave/20261015a` in sequence; the six stories implemented on their package gates; the release that fixes a stage begin (0.0.35) merged in; released as 0.0.36 after the full gate.
 
 Source: a consumer's measured patch for the MCP tools, against 0.0.34, cited by item as
 "ekr-mcp-fixes-20261015 #N" (13 items, each with a measurement, a change and a test). It is a
@@ -87,7 +87,7 @@ Near this wave, not in it:
 
 | unit | branch | worktree id | build dir | scratch | stage |
 |---|---|---|---|---|---|
-| all, in sequence | `wave/20261015a` | `ekr-w20261015a` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261015a` | planned |
+| all, in sequence | `wave/20261015a` | `ekr-w20261015a` | `<tree>/target` | `~/.cache/epistemic-knowledge-runtime-w20261015a` | integrated; finished after the merge |
 
 ## Gate
 

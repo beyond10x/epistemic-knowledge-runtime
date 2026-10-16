@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:search-words-type-and-time
 kind: story
-status: active
+status: implemented
 title: 'search answers ekr.node-matches/2: every word, a whole name first, by type and time'
 summary: 'Word matching, type and time filters and a query alias (ekr-mcp-fixes-20261015 #2, #6, #9).'
 relations:
@@ -34,10 +34,11 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-15T13:21:15Z", actor: "agent:ekr-controller-planner", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-15T13:21:16Z", actor: "agent:ekr-controller-planner", revision: 4}
+- {from: "active", to: "implemented", at: "2026-10-16T16:00:38Z", actor: "agent:claude-ekr-controller", revision: 5, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 
