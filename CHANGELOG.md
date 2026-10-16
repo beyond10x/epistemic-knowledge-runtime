@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.35] — 2026-10-16
+
 ### Fixed
 
 - `ekr stage begin` whose copy into the stage's tenant does not land no longer answers
