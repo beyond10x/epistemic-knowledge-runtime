@@ -915,7 +915,7 @@ struct DescribeArguments {
     revision: Option<u64>,
     #[serde(default)]
     limit: Option<i64>,
-    #[serde(default)]
+    #[serde(default, alias = "edge")]
     edge_type: Option<String>,
     #[serde(default)]
     after: Option<i64>,
@@ -1045,8 +1045,9 @@ fn format_argument(names: [&str; 2]) -> Value {
 /// on the input's field above. An alias changes no answer; a call naming one input twice — by its
 /// name and an alias, or by two aliases — is serde's `duplicate field` error, -32602.
 /// [`tools`] lists each alias in the tool's input schema beside the input it names.
-const ALIASES: [(&str, &str, &[&str]); 4] = [
+const ALIASES: [(&str, &str, &[&str]); 5] = [
     ("describe_node", "node", &["id", "node_id"]),
+    ("describe_node", "edge_type", &["edge"]),
     ("expand", "seeds", &["seed", "node", "nodes"]),
     ("timeline", "subject", &["node"]),
     ("explain", "assertion", &["id", "assertion_id"]),
@@ -1560,6 +1561,9 @@ mod tests {
     fn decoded(tool: &str, input: &str, arguments: Value) -> Result<Value, Unanswered> {
         Ok(match (tool, input) {
             ("describe_node", "node") => json!(decode::<DescribeArguments>(arguments)?.node),
+            ("describe_node", "edge_type") => {
+                json!(decode::<DescribeArguments>(arguments)?.edge_type)
+            }
             ("expand", "seeds") => json!(decode::<ExpandArguments>(arguments)?.seeds),
             ("timeline", "subject") => json!(decode::<TimelineArguments>(arguments)?.subject),
             ("explain", "assertion") => json!(decode::<ExplainArguments>(arguments)?.assertion),

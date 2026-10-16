@@ -53,7 +53,7 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   marked `truncated` with `offset` and `record_length`, until it fits. `--scope` needs `--format
   ekr.explanation/3`; `ekr explain` without a format prints `ekr.explanation/2` unchanged.
 - The MCP tools take a few arguments under a second name: `describe_node`'s `node` as `id` or
-  `node_id`, `expand`'s `seeds` as `seed`, `node` or `nodes` (and one id where a list was
+  `node_id` and its `edge_type` as `edge`, `expand`'s `seeds` as `seed`, `node` or `nodes` (and one id where a list was
   required), `explain`'s `assertion` as `id` or `assertion_id`, and `timeline`'s `subject` as
   `node`. Each tool's `inputSchema` lists them. An alias answers exactly what the argument's own
   name answers; naming one argument twice is `-32602`. `ekr view` is unchanged.

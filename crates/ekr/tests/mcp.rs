@@ -2569,6 +2569,11 @@ fn an_aliased_argument_answers_what_its_input_answers() {
                 json!({"id": UNKNOWN}),
             ),
             (
+                "describe_node",
+                json!({"node": ALICE, "edge_type": CEO_OF}),
+                json!({"node": ALICE, "edge": CEO_OF}),
+            ),
+            (
                 "expand",
                 expand(("seeds", json!([ALICE]))),
                 expand(("seeds", json!(ALICE))),
@@ -2614,6 +2619,10 @@ fn an_aliased_argument_answers_what_its_input_answers() {
         for (tool, twice) in [
             ("describe_node", json!({"node": ALICE, "id": ALICE})),
             ("describe_node", json!({"id": ALICE, "node_id": ALICE})),
+            (
+                "describe_node",
+                json!({"node": ALICE, "edge_type": CEO_OF, "edge": CEO_OF}),
+            ),
             (
                 "expand",
                 json!({"seeds": [ALICE], "seed": ALICE, "depth": 1, "limit": 10}),

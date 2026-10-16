@@ -1838,7 +1838,7 @@ Ask for the next page with `after` set to the page's `next`.
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
 A few arguments are also taken under another name, and each tool's `inputSchema` lists the
-alias beside the argument: `describe_node`'s `node` as `id` or `node_id`; `expand`'s `seeds` as
+alias beside the argument: `describe_node`'s `node` as `id` or `node_id` and its `edge_type` as `edge`; `expand`'s `seeds` as
 `seed`, `node` or `nodes`, each one node id or a list of them (`seeds` too takes one id, which
 answers what the list of that one id answers); `explain`'s `assertion` as `id` or
 `assertion_id`; and `timeline`'s `subject` as `node`. A call through an alias answers what the
