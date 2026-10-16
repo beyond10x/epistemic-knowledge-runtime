@@ -2018,7 +2018,9 @@ unset EKR_STAGE
   interrupted publication left of the stage's tenant.
 - **`ekr stage list`** prints every stage the store has had, in every state, as a list of
   `stage_id`, `store` (the store's tenant), `base`, `base_revision`, `published_revisions` and
-  `state`. A stage's record stays after its tenant is emptied. A `Begun` stage whose
+  `state`. It lists every stage whose begin committed, on PostgreSQL whatever other transaction
+  is open on the server, each in the state `ekr stage show` answers for it. A stage's record
+  stays after its tenant is emptied. A `Begun` stage whose
   `ekr stage begin` answer was lost is found here, then joined or abandoned; nothing abandons an
   unclaimed stage by itself, and its tenant holds a copy of the store until it is.
 
