@@ -52,6 +52,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   a `text`, and the printed answer is at most 48 KiB: the longest evidence text is halved, and
   marked `truncated` with `offset` and `record_length`, until it fits. `--scope` needs `--format
   ekr.explanation/3`; `ekr explain` without a format prints `ekr.explanation/2` unchanged.
+- The MCP tools take a few arguments under a second name: `describe_node`'s `node` as `id` or
+  `node_id`, `expand`'s `seeds` as `seed`, `node` or `nodes` (and one id where a list was
+  required), `explain`'s `assertion` as `id` or `assertion_id`, and `timeline`'s `subject` as
+  `node`. Each tool's `inputSchema` lists them. An alias answers exactly what the argument's own
+  name answers; naming one argument twice is `-32602`. `ekr view` is unchanged.
 
 ### Changed
 
@@ -78,6 +83,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   the same revisions parses no transaction document, and one after a commit parses only the
   revisions it added. Answers are unchanged. `ekr_views::Index::transaction_documents_parsed`
   counts the documents parsed.
+- `ekr mcp-http` answers `initialize`, `ping`, `tools/list`, notifications and every transport
+  refusal on the request's own connection, never behind the store's queue: a client's handshake
+  no longer waits for another client's tool call or for the store's first open, and is answered
+  (with the same bytes) before the store is admitted. Only `tools/call` and `/readyz` wait for
+  the store.
 
 ## [0.0.34] — 2026-10-14
 

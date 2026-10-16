@@ -132,6 +132,16 @@ summary: >-
   request after a later commit parses only the revisions that commit added. Holding a change list
   changes no answer: every answer is byte for byte the one a freshly loaded index gives.
 
+  The MCP tools (`ekr mcp`, `ekr mcp-http`) bind these commands' inputs by name, and take a few
+  inputs under a second name as well (ekr-mcp-fixes-20261015 #8): describe_node's `node` also as
+  `id` and `node_id`; expand's `seeds` also as `seed`, `node` and `nodes`, as one node id or a
+  list of them; explain's `assertion` also as `id` and `assertion_id`; timeline's `subject` also
+  as `node`. An alias names the input it aliases and nothing else: a call through it answers the
+  bytes the call naming the input answers, refusals included, and one id given as `seeds` answers
+  what the list of that one id answers. A call naming one input twice, by its name and an alias
+  or by two aliases, is malformed input that never reaches the command (the MCP tool -32602).
+  The aliases are the MCP tools' only; `ekr view`'s query names are unchanged.
+
   Evidence without retained bytes is unreachable. Evidence enters canonical state in two ways, and
   both carry its bytes: with the seed, whose envelope retains each payload, and through an
   ekr.kernel AddEvidence operation, which carries the payload beside the entry and whose commit

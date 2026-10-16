@@ -46,6 +46,21 @@
 //! empty or whitespace-only line. A response's `id` is the request's id token as the client wrote
 //! it ([`Id`]).
 //!
+//! A few inputs are also taken under another name ([`ALIASES`], ekr-mcp-fixes-20261015 #8):
+//! `describe_node`'s `node` as `id` or `node_id`, `expand`'s `seeds` as `seed`, `node` or
+//! `nodes` (one id or a list), `explain`'s `assertion` as `id` or `assertion_id`, and
+//! `timeline`'s `subject` as `node`. An alias answers what the input's own name answers; naming
+//! one input twice is -32602.
+//!
+//! **`ekr mcp-http` answers a handshake off the store's thread** (ekr-mcp-fixes-20261015 #12).
+//! Every transport refusal and every `/mcp` message that is not `tools/call` — `initialize`,
+//! `ping`, `tools/list`, notifications, responses and malformed lines — is answered on its
+//! connection's own thread ([`direct`]), before the queue, with the bytes the store's thread
+//! would answer, and opens no store. Only `tools/call` and `/readyz` wait for the store's thread,
+//! so a client's handshake never waits behind another client's call or the store's first open.
+//! This is transport behaviour no domain under `systems/ekr/` declares; this paragraph and
+//! `docs/cli.md` are its contract.
+//!
 //! **Reads only.** The store calls are [`IndexCache::index`] (which reads the head on every call,
 //! so a commit made by another process is what the next call reads, and loads a revision once,
 //! since no document names the head, while the store holds that revision: it reads the store's
@@ -340,6 +355,16 @@ impl Server {
     /// The response to one message line; `None` for a notification, a response, or a line that
     /// is empty or whitespace only, which carries no message.
     fn message<'a>(&mut self, line: &'a [u8]) -> Option<Response<'a>> {
+        Self::message_with(line, &mut |params| self.call(params))
+    }
+
+    /// [`Self::message`] with `call` answering `tools/call`. No other method reads the store,
+    /// so with a `call` that never runs this answers every other message without one: what
+    /// `ekr mcp-http` answers on a connection's own thread ([`direct`]).
+    fn message_with<'a>(
+        line: &'a [u8],
+        call: &mut dyn FnMut(Map<String, Value>) -> Result<Value, Unanswered>,
+    ) -> Option<Response<'a>> {
         if line.iter().all(u8::is_ascii_whitespace) {
             return None;
         }
@@ -399,7 +424,7 @@ impl Server {
             "initialize" => initialize(&params),
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({ "tools": tools() })),
-            "tools/call" => self.call(params),
+            "tools/call" => call(params),
             other => Err(Unanswered::Error {
                 code: METHOD_NOT_FOUND,
                 message: format!("the server has no method {other:?}"),
@@ -884,6 +909,7 @@ impl WindowArgument {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DescribeArguments {
+    #[serde(alias = "id", alias = "node_id")]
     node: String,
     #[serde(default)]
     revision: Option<u64>,
@@ -900,6 +926,12 @@ struct DescribeArguments {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExpandArguments {
+    #[serde(
+        alias = "seed",
+        alias = "node",
+        alias = "nodes",
+        deserialize_with = "one_or_many"
+    )]
     seeds: Vec<String>,
     depth: i64,
     limit: i64,
@@ -922,7 +954,7 @@ struct TimelineArguments {
     limit: i64,
     #[serde(default)]
     bucket: Option<Bucket>,
-    #[serde(default)]
+    #[serde(default, alias = "node")]
     subject: Option<String>,
     #[serde(default)]
     revision: Option<u64>,
@@ -966,6 +998,7 @@ struct HeadArguments {}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExplainArguments {
+    #[serde(alias = "id", alias = "assertion_id")]
     assertion: String,
     #[serde(default)]
     documents: bool,
@@ -1005,6 +1038,58 @@ fn format_argument(names: [&str; 2]) -> Value {
             names[1], names[0]
         ),
     })
+}
+
+/// The inputs a tool also takes under another name (ekr-mcp-fixes-20261015 #8, and
+/// `systems/ekr/domains/views.yaml`): the tool, the input, and its aliases, each a `serde` alias
+/// on the input's field above. An alias changes no answer; a call naming one input twice — by its
+/// name and an alias, or by two aliases — is serde's `duplicate field` error, -32602.
+/// [`tools`] lists each alias in the tool's input schema beside the input it names.
+const ALIASES: [(&str, &str, &[&str]); 4] = [
+    ("describe_node", "node", &["id", "node_id"]),
+    ("expand", "seeds", &["seed", "node", "nodes"]),
+    ("timeline", "subject", &["node"]),
+    ("explain", "assertion", &["id", "assertion_id"]),
+];
+
+/// `expand`'s seeds: one node id or a list of them; one id is the list of that one id.
+fn one_or_many<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        One(String),
+        Many(Vec<String>),
+    }
+    Ok(match OneOrMany::deserialize(deserializer)? {
+        OneOrMany::One(one) => vec![one],
+        OneOrMany::Many(many) => many,
+    })
+}
+
+/// `tools` with every alias of [`ALIASES`] listed in its tool's input schema: the input's own
+/// schema, described as another name for it. The aliases are never required, so `required`
+/// still names each input by its own name.
+fn aliased(mut tools: Vec<Value>) -> Vec<Value> {
+    for (name, input, aliases) in ALIASES {
+        let Some(properties) = tools
+            .iter_mut()
+            .find(|tool| tool["name"] == name)
+            .and_then(|tool| tool["inputSchema"]["properties"].as_object_mut())
+        else {
+            continue;
+        };
+        let Some(schema) = properties.get(input).cloned() else {
+            continue;
+        };
+        for alias in aliases {
+            let mut schema = schema.clone();
+            schema["description"] = json!(format!(
+                "Another name for `{input}`: the same input. A call names one of them, never both."
+            ));
+            properties.insert((*alias).to_owned(), schema);
+        }
+    }
+    tools
 }
 
 /// A `revision` argument: the committed revision read, the head when absent.
@@ -1080,7 +1165,7 @@ fn tools() -> Vec<Value> {
             }),
         );
     }
-    vec![
+    aliased(vec![
         tool(
             "overview",
             "Project overview",
@@ -1177,9 +1262,11 @@ fn tools() -> Vec<Value> {
             object(
                 json!({
                     "seeds": {
-                        "type": "array",
-                        "items": node_id("A node id."),
-                        "description": "The node ids to start from; empty answers an empty page.",
+                        "anyOf": [
+                            {"type": "array", "items": node_id("A node id.")},
+                            node_id("One node id: the list of that one id."),
+                        ],
+                        "description": "The node ids to start from, as a list or one id; an empty list answers an empty page.",
                     },
                     "depth": bounded(0, Some(ExpandRequest::MAX_DEPTH), "The hops from the seeds."),
                     "limit": bounded(1, Some(ExpandRequest::MAX_LIMIT), "The most nodes a page holds."),
@@ -1291,7 +1378,7 @@ fn tools() -> Vec<Value> {
              names. It takes no argument.",
             object(json!({}), &[]),
         ),
-    ]
+    ])
 }
 
 /// Stateless Streamable HTTP over the same read-only dispatcher as stdio.
@@ -1304,7 +1391,7 @@ pub(super) fn run_http(
 ) -> Result<String, Failure> {
     let mut server = None;
     let (listener, authorities) = super::http::bind(bind, port, hosts)?;
-    super::http::serve(listener, authorities, origins, move |request| {
+    super::http::serve(listener, authorities, origins, direct, move |request| {
         if let Err(reply) = http_request(&request) {
             return reply;
         }
@@ -1316,6 +1403,51 @@ pub(super) fn run_http(
             None => super::http::Reply::refusal(503, "store is not admitted, seeded and available"),
         }
     })
+}
+
+/// What a connection's own thread answers, before the store's queue (ekr-mcp-fixes-20261015
+/// #12): every transport refusal, and every `/mcp` message that is not `tools/call` —
+/// `initialize`, `ping`, `tools/list`, notifications, responses and lines that are not a
+/// request — none of which reads the store. So a client's handshake never waits behind another
+/// client's tool call, nor behind the store's first open, and opens no store. `None` queues the
+/// request for the store's thread: a `tools/call` and `/readyz`. The answers are the bytes the
+/// store's thread answers for the same request ([`Server::http`]).
+fn direct(request: &super::http::Request) -> Option<super::http::Reply> {
+    if let Err(reply) = http_request(request) {
+        return Some(reply);
+    }
+    if request.target != "/mcp" {
+        return None;
+    }
+    let method = serde_json::from_slice::<Value>(&request.body)
+        .ok()
+        .and_then(|message| {
+            message
+                .get("method")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        });
+    if method.as_deref() == Some("tools/call") {
+        return None;
+    }
+    Some(http_reply(Server::message_with(&request.body, &mut |_| {
+        Err(Unanswered::internal(
+            "a tools/call is answered on the store's thread",
+        ))
+    })))
+}
+
+/// The HTTP reply carrying one message's answer: the response with 200, or 202 and no body for
+/// a message that is not answered.
+fn http_reply(answer: Option<Response<'_>>) -> super::http::Reply {
+    use super::http::Reply;
+    match answer {
+        Some(response) => match serde_json::to_vec(&response) {
+            Ok(body) => Reply::json(200, body),
+            Err(_) => Reply::refusal(500, "cannot serialize MCP response"),
+        },
+        None => Reply::json(202, Vec::new()),
+    }
 }
 
 /// Transport refusals do not depend on whether store admission has succeeded yet.
@@ -1403,13 +1535,7 @@ impl Server {
                 _ => Reply::refusal(503, "store is not admitted, seeded and available"),
             };
         }
-        match self.message(&request.body) {
-            Some(response) => match serde_json::to_vec(&response) {
-                Ok(body) => Reply::json(200, body),
-                Err(_) => Reply::refusal(500, "cannot serialize MCP response"),
-            },
-            None => Reply::json(202, Vec::new()),
-        }
+        http_reply(self.message(&request.body))
     }
 }
 
@@ -1428,6 +1554,229 @@ mod tests {
         let result = answer.result.expect("the call answered");
         assert_eq!(result["isError"], false, "{result}");
         result["structuredContent"].clone()
+    }
+
+    /// `arguments` decoded as `tool` declares them: what its input `input` decoded to.
+    fn decoded(tool: &str, input: &str, arguments: Value) -> Result<Value, Unanswered> {
+        Ok(match (tool, input) {
+            ("describe_node", "node") => json!(decode::<DescribeArguments>(arguments)?.node),
+            ("expand", "seeds") => json!(decode::<ExpandArguments>(arguments)?.seeds),
+            ("timeline", "subject") => json!(decode::<TimelineArguments>(arguments)?.subject),
+            ("explain", "assertion") => json!(decode::<ExplainArguments>(arguments)?.assertion),
+            other => panic!("ALIASES names {other:?}, which this case does not decode"),
+        })
+    }
+
+    /// The arguments `tool` requires besides `input`.
+    fn besides(tool: &str, input: &str) -> Value {
+        match (tool, input) {
+            ("expand", _) => json!({"depth": 0, "limit": 1}),
+            ("timeline", _) => json!({"hops": 1, "limit": 1}),
+            ("describe_node", input) if input != "node" => {
+                json!({"node": "00000000-0000-4000-8000-000000000301"})
+            }
+            _ => json!({}),
+        }
+    }
+
+    /// ekr-mcp-fixes-20261015 #8: every alias [`ALIASES`] lists is taken by the tool's arguments
+    /// as the input it names, is listed in the tool's input schema and never required, and a call
+    /// naming one input twice — by its name and an alias, or by two aliases — is -32602.
+    #[test]
+    fn every_alias_names_its_input_and_a_second_name_for_one_input_is_refused() {
+        const ID: &str = "00000000-0000-4000-8000-000000000301";
+        let listed = tools();
+        for (tool, input, aliases) in ALIASES {
+            let base = besides(tool, input);
+            let with = |names: &[&str]| {
+                let mut arguments = base.clone();
+                for name in names {
+                    arguments[*name] = json!(ID);
+                }
+                arguments
+            };
+            let named = decoded(tool, input, with(&[input])).expect("the input's own name decodes");
+            let schema = &listed
+                .iter()
+                .find(|listed| listed["name"] == tool)
+                .expect("the tool is listed")["inputSchema"];
+            for alias in aliases {
+                let aliased = decoded(tool, input, with(&[*alias]))
+                    .unwrap_or_else(|_| panic!("{tool}: the alias {alias} is not taken"));
+                assert_eq!(aliased, named, "{tool}: {alias} names {input}");
+                assert!(
+                    schema["properties"][*alias].is_object(),
+                    "{tool}: the schema does not list {alias}: {schema}"
+                );
+                assert!(
+                    !schema["required"]
+                        .as_array()
+                        .is_some_and(|required| required.contains(&json!(alias))),
+                    "{tool}: {alias} is required: {schema}"
+                );
+                for twice in [[input, *alias], [*alias, input]] {
+                    match decoded(tool, input, with(&twice)) {
+                        Err(Unanswered::Error { code, message }) => {
+                            assert_eq!(code, INVALID_PARAMS, "{tool} {twice:?}: {message}");
+                            assert!(message.contains("duplicate field"), "{tool}: {message}");
+                        }
+                        _ => panic!("{tool}: {twice:?} names one input twice and was taken"),
+                    }
+                }
+                for other in aliases.iter().filter(|other| *other != alias) {
+                    assert!(
+                        decoded(tool, input, with(&[*alias, *other])).is_err(),
+                        "{tool}: {alias} and {other} name one input twice and were taken"
+                    );
+                }
+            }
+        }
+        // One id as `seeds` is the list of that one id.
+        assert_eq!(
+            decoded(
+                "expand",
+                "seeds",
+                json!({"seeds": "x", "depth": 0, "limit": 1})
+            )
+            .ok(),
+            Some(json!(["x"]))
+        );
+    }
+
+    /// One `POST /mcp` of `body` to the listener on `port`: the response's status line and its
+    /// body bytes.
+    fn post(port: u16, body: &str) -> (String, Vec<u8>) {
+        use std::io::Read;
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).expect("connect");
+        let request = format!(
+            "POST /mcp HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Type: application/json\r\n\
+             Accept: application/json\r\nMCP-Protocol-Version: {PROTOCOL}\r\n\
+             Content-Length: {}\r\n\r\n{body}",
+            body.len()
+        );
+        stream.write_all(request.as_bytes()).expect("send");
+        let mut answer = Vec::new();
+        stream.read_to_end(&mut answer).expect("read");
+        let split = answer
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .expect("an HTTP response head");
+        let status = String::from_utf8_lossy(&answer[..split])
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .to_owned();
+        (status, answer[split + 4..].to_vec())
+    }
+
+    /// What the store's thread answers for `body`, through a server on a seeded store: today's
+    /// status and bytes for that message.
+    fn answered_on_the_store_thread(server: &mut Server, port: u16, body: &str) -> (u16, Vec<u8>) {
+        let reply = server.http(super::super::http::Request {
+            method: "POST".to_owned(),
+            target: "/mcp".to_owned(),
+            hosts: vec![format!("localhost:{port}")],
+            headers: vec![
+                ("Content-Type".to_owned(), "application/json".to_owned()),
+                ("Accept".to_owned(), "application/json".to_owned()),
+                ("MCP-Protocol-Version".to_owned(), PROTOCOL.to_owned()),
+            ],
+            body: body.as_bytes().to_vec(),
+        });
+        (reply.status, reply.body)
+    }
+
+    /// ekr-mcp-fixes-20261015 #12: a `tools/call` is held on the store's thread by a channel
+    /// this case owns; while it is held, `initialize`, `ping`, `tools/list` and a notification
+    /// on other connections are answered, with the bytes the store's thread answers them with;
+    /// then the held call is released and answered. The case asserts the order of answers and
+    /// counts the handler's calls; it measures no duration. Had a handshake been queued behind
+    /// the held call, it would be answered 503 when its wait ends, and the case would fail on
+    /// that status.
+    #[test]
+    fn a_handshake_is_answered_while_a_tool_call_holds_the_store_thread() {
+        use super::super::http::{self as transport, Reply};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::mpsc::{channel, TryRecvError};
+
+        #[derive(Debug)]
+        enum Event {
+            /// The store's thread holds a request.
+            Held,
+            /// The held `tools/call` was answered: its status line and body.
+            Called(String, Vec<u8>),
+        }
+
+        let (listener, authorities) =
+            transport::bind(std::net::IpAddr::from([127, 0, 0, 1]), 0, Vec::new()).expect("bind");
+        let port = listener.local_addr().expect("address").port();
+        let (events, observed) = channel::<Event>();
+        let (release, released) = channel::<()>();
+        let handled = Arc::new(AtomicUsize::new(0));
+        {
+            let events = events.clone();
+            let handled = Arc::clone(&handled);
+            std::thread::spawn(move || {
+                let _ = transport::serve(listener, authorities, Vec::new(), direct, move |_| {
+                    handled.fetch_add(1, Ordering::SeqCst);
+                    let _ = events.send(Event::Held);
+                    let _ = released.recv();
+                    Reply::json(200, b"{\"held\":true}".to_vec())
+                });
+            });
+        }
+        let call = std::thread::spawn(move || {
+            let (status, body) = post(
+                port,
+                r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"head"}}"#,
+            );
+            let _ = events.send(Event::Called(status, body));
+        });
+        match observed.recv().expect("an event") {
+            Event::Held => {}
+            other => {
+                panic!("the tools/call was answered without reaching the store's thread: {other:?}")
+            }
+        }
+
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let store = seeded(directory.path(), BACKENDS[0], "store");
+        let mut server = Server::new(Held::open(store).expect("the store opens"));
+        for body in [
+            r#"{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{}}}"#,
+            r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            r#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#,
+            r#"{"jsonrpc":"2.0","id":4,"method":"ping"}"#,
+        ] {
+            let (status, answered) = post(port, body);
+            let (expected_status, expected) = answered_on_the_store_thread(&mut server, port, body);
+            assert!(
+                status.starts_with(&format!("HTTP/1.1 {expected_status} ")),
+                "{body} while a tools/call is held: {status} {}",
+                String::from_utf8_lossy(&answered)
+            );
+            assert_eq!(answered, expected, "{body}: not the store thread's bytes");
+            assert!(
+                matches!(observed.try_recv(), Err(TryRecvError::Empty)),
+                "{body}: the held tools/call was answered before the handshake"
+            );
+        }
+        assert_eq!(
+            handled.load(Ordering::SeqCst),
+            1,
+            "a handshake reached the store's thread"
+        );
+
+        release.send(()).expect("the store's thread holds the call");
+        match observed.recv().expect("an event") {
+            Event::Called(status, body) => {
+                assert!(status.starts_with("HTTP/1.1 200 "), "{status}");
+                assert_eq!(body, b"{\"held\":true}");
+            }
+            other => panic!("the released tools/call was not answered: {other:?}"),
+        }
+        call.join().expect("the calling client");
+        assert_eq!(handled.load(Ordering::SeqCst), 1);
     }
 
     /// Without a replacement a call costs the identity check and no store open; `tools/list` and

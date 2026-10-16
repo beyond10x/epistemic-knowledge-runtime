@@ -1760,7 +1760,7 @@ implement, so an absent header is not silently interpreted as the newest revisio
 announcement precede store admission, so temporary store failure does not make process health
 depend on it. Readiness and tool calls use one held admitted store, follow external commits,
 and retain immutable historical documents. Failed initial admission and failed readiness return
-503. After admission, accepted tool calls retain stdio's JSON-RPC/tool-error behavior with HTTP
+503 to `/readyz` and to a `tools/call`. After admission, accepted tool calls retain stdio's JSON-RPC/tool-error behavior with HTTP
 200 when a store read fails; clients inspect the result's error fields. Unknown paths,
 unsupported methods and invalid transport headers are refused before initial store admission.
 
@@ -1769,6 +1769,13 @@ connections to 64, and queued requests to 16. It refuses transfer encoding, dupl
 lengths and duplicate Host headers. A whole request must arrive within 5 seconds; its store
 wait ends 35 seconds after accept, and its whole response has a 5-second write deadline.
 Expired jobs are discarded before execution. Store operations remain outside any async runtime.
+
+Only a `tools/call` and `/readyz` wait for the store. Every transport refusal, and every `/mcp`
+message that is not a `tools/call` — `initialize`, `ping`, `tools/list`, notifications,
+responses and messages that are not requests — is answered on its own connection as soon as it
+is read, never queued, with the bytes the store's thread would answer it with, and opens no
+store. So a client's handshake does not wait behind another client's tool call, nor behind the
+store's first open, and is answered before admission as after it.
 
 ### `ekr mcp`
 
@@ -1829,6 +1836,14 @@ Ask for the next page with `after` set to the page's `next`.
 | `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`), `scope` (with /3: `cited` when absent, or `all`) | what `ekr explain <assertion> --format ekr.explanation/3 --scope cited` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N] --format ekr.explanation/3 --scope cited` prints: the evidence the chain cites, at most 48 KiB in all | `ekr explain [--documents [--offset N] [--limit N]] --format ekr.explanation/3 --scope cited` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — `at` (a revision) and `format` (`ekr.resolution/1` when absent, or `outcome`) | what `ekr resolve --format ekr.resolution/1` prints for that reference, byte for byte | `ekr resolve [--at N] --format ekr.resolution/1` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
+
+A few arguments are also taken under another name, and each tool's `inputSchema` lists the
+alias beside the argument: `describe_node`'s `node` as `id` or `node_id`; `expand`'s `seeds` as
+`seed`, `node` or `nodes`, each one node id or a list of them (`seeds` too takes one id, which
+answers what the list of that one id answers); `explain`'s `assertion` as `id` or
+`assertion_id`; and `timeline`'s `subject` as `node`. A call through an alias answers what the
+call naming the argument answers, refusals included. A call naming one argument twice, under its
+name and an alias or under two aliases, is `-32602`. `ekr view`'s query names have no aliases.
 
 A tool's answer is a result with one text content item holding the document, the same document
 parsed as `structuredContent`, and `"isError": false`:

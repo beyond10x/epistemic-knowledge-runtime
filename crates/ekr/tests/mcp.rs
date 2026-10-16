@@ -11,6 +11,8 @@
 //! * a refusal is a tool result with `isError` carrying the refusal's name, and the server keeps
 //!   serving; a malformed message, an unknown method, bad arguments and an unknown tool are
 //!   JSON-RPC errors;
+//! * an input taken under an alias answers what it answers under its own name, and naming one
+//!   input twice is a JSON-RPC error (ekr-mcp-fixes-20261015 #8);
 //! * a commit made by another process is what the next tool call reads;
 //! * evidence an `AddEvidence` added is one `EvidenceAdded` change to `changes_since`,
 //!   `GET /changes` and the session's `changes` verb alike;
@@ -1247,7 +1249,9 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
                 "expand",
                 json!({"seeds": ["not-a-node-id"], "depth": 1, "limit": 1}),
             ),
-            ("expand", json!({"seeds": ALICE, "depth": 1, "limit": 1})),
+            // ekr-mcp-fixes-20261015 #8: one id is a list of one, so only another kind of value
+            // is refused; `an_aliased_argument_answers_what_its_input_answers` holds the id.
+            ("expand", json!({"seeds": 7, "depth": 1, "limit": 1})),
             ("expand", json!({"seeds": [ALICE], "limit": 1})),
             (
                 "timeline",
@@ -2518,4 +2522,118 @@ fn the_page_lists_exactly_the_tools_the_server_has() {
         .filter(|name| name.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
         .collect();
     assert_eq!(documented, TOOLS.into_iter().collect());
+}
+
+/// A call's response without its id: the result or the error it was answered with.
+fn answered(server: &mut Server, tool: &str, arguments: Value) -> Value {
+    let mut response = server.call(tool, arguments);
+    if let Some(object) = response.as_object_mut() {
+        object.remove("id");
+    }
+    response
+}
+
+/// ekr-mcp-fixes-20261015 #8: an input taken under an alias answers what the input answers under
+/// its own name, refusals included, and one id as `seeds` answers what the list of that one id
+/// answers; on 0.0.34 each aliased call was -32602. Naming one input twice, by its name and an
+/// alias, is -32602.
+#[test]
+fn an_aliased_argument_answers_what_its_input_answers() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let mut server = world.server();
+        let expand = |seeds: (&str, Value)| {
+            let mut arguments = json!({"depth": 1, "limit": 10});
+            arguments[seeds.0] = seeds.1;
+            arguments
+        };
+        let timeline = |subject: &str| {
+            let mut arguments = json!({"hops": 1, "limit": 5});
+            arguments[subject] = json!(ALICE);
+            arguments
+        };
+        for (tool, named, aliased) in [
+            (
+                "describe_node",
+                json!({"node": ALICE}),
+                json!({"id": ALICE}),
+            ),
+            (
+                "describe_node",
+                json!({"node": ALICE}),
+                json!({"node_id": ALICE}),
+            ),
+            (
+                "describe_node",
+                json!({"node": UNKNOWN}),
+                json!({"id": UNKNOWN}),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE]))),
+                expand(("seeds", json!(ALICE))),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE]))),
+                expand(("seed", json!(ALICE))),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE]))),
+                expand(("node", json!(ALICE))),
+            ),
+            (
+                "expand",
+                expand(("seeds", json!([ALICE, ACME]))),
+                expand(("nodes", json!([ALICE, ACME]))),
+            ),
+            ("timeline", timeline("subject"), timeline("node")),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION}),
+                json!({"id": SEEDED_ASSERTION}),
+            ),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION}),
+                json!({"assertion_id": SEEDED_ASSERTION}),
+            ),
+        ] {
+            let expected = answered(&mut server, tool, named.clone());
+            assert!(
+                expected.get("result").is_some(),
+                "{backend} {tool} {named}: {expected}"
+            );
+            assert_eq!(
+                answered(&mut server, tool, aliased.clone()),
+                expected,
+                "{backend} {tool}: {aliased} does not answer what {named} answers"
+            );
+        }
+        for (tool, twice) in [
+            ("describe_node", json!({"node": ALICE, "id": ALICE})),
+            ("describe_node", json!({"id": ALICE, "node_id": ALICE})),
+            (
+                "expand",
+                json!({"seeds": [ALICE], "seed": ALICE, "depth": 1, "limit": 10}),
+            ),
+            (
+                "timeline",
+                json!({"subject": ALICE, "node": ALICE, "hops": 1, "limit": 5}),
+            ),
+            (
+                "explain",
+                json!({"assertion": SEEDED_ASSERTION, "id": SEEDED_ASSERTION}),
+            ),
+        ] {
+            let refused = server.call(tool, twice.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {tool} {twice}: {refused}"
+            );
+        }
+        server.close();
+    }
 }
