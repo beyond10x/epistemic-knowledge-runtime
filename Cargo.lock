@@ -688,6 +688,7 @@ dependencies = [
  "eventlog-file",
  "eventlog-sqlite",
  "proptest",
+ "rustls",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -696,6 +697,8 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
  "trybuild",
 ]
 
