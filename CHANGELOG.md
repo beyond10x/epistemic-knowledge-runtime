@@ -68,6 +68,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `resolve` reads the outcome under `outcome`. For one request with the format (and for
   `explain` the scope) named, each answer is byte for byte what `ekr view`, the session verb,
   `ekr explain` or `ekr resolve` answers.
+- The MCP tools answer smaller default pages, since an agent reads a tool result whole: `expand`
+  takes `edges` as 200 (was 5,000) and `changes_since` takes `limit` as 100 (was 500) when the
+  call names none. The answer is what `ekr view` and the session verb answer with that bound
+  named; their own defaults are unchanged. A page ends at whichever of its limits comes first,
+  and the `describe_node` and `expand` descriptions say how to ask for the next page.
+- `changes_since`, `GET /changes` and the session's `changes` derive each revision's changes
+  from its transaction document once while the server keeps its indexes: a second request over
+  the same revisions parses no transaction document, and one after a commit parses only the
+  revisions it added. Answers are unchanged. `ekr_views::Index::transaction_documents_parsed`
+  counts the documents parsed.
 
 ## [0.0.34] — 2026-10-14
 

@@ -18,6 +18,9 @@
 //! * `overview`, `expand`, `timeline`, `changes_since`, `explain` and `resolve` answer their named
 //!   formats (ekr-mcp-fixes-20261015 #3, #13) unless `format` names the predecessor, each byte for
 //!   byte the verb's answer with the format named.
+//! * `expand` and `changes_since` naming no bound read 200 edges and 100 changes, and answer what
+//!   the endpoint and the session verb answer with that bound named (ekr-mcp-fixes-20261015 #4);
+//! * 100 `search` and 100 `describe_node` calls over one server are timed and printed.
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Write as _};
@@ -660,7 +663,7 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                 json!({"seeds": [ALICE], "depth": 1, "limit": 10}),
                 head.expand_as(
                     SliceFormat::V2,
-                    &ExpandRequest::new(vec![alice], 1, 10, None, None).unwrap(),
+                    &ExpandRequest::new(vec![alice], 1, 10, Some(200), None).unwrap(),
                 )
                 .unwrap()
                 .bytes,
@@ -680,7 +683,7 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
                 json!({"seeds": [], "depth": 0, "limit": 1}),
                 head.expand_as(
                     SliceFormat::V2,
-                    &ExpandRequest::new(Vec::new(), 0, 1, None, None).unwrap(),
+                    &ExpandRequest::new(Vec::new(), 0, 1, Some(200), None).unwrap(),
                 )
                 .unwrap()
                 .bytes,
@@ -688,7 +691,7 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             (
                 "expand",
                 json!({"seeds": [ALICE], "depth": 1, "limit": 10, "format": "ekr.graph-slice/1"}),
-                head.expand(&ExpandRequest::new(vec![alice], 1, 10, None, None).unwrap())
+                head.expand(&ExpandRequest::new(vec![alice], 1, 10, Some(200), None).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -763,7 +766,6 @@ fn each_tool_answers_the_document_its_read_returns_on_the_same_store_state() {
             );
         }
         drop(view);
-
 
         // overview and timeline: what `GET /overview` and `GET /timeline` serve with the format
         // named; expand: what the session's `expand` answers with the format named, the page as
@@ -1749,8 +1751,10 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         world.commit("create.yaml");
         let mut server = world.server();
         let view = View::start(world.command(&["view", "--port", "0"]));
+        // ekr-mcp-fixes-20261015 #4: a call naming no limit reads 100, so it is `GET /changes`
+        // with `limit=100` named; one naming its limit is `GET /changes` with the same limit.
         for (arguments, query) in [
-            (json!({"since_revision": 0}), "since_revision=0"),
+            (json!({"since_revision": 0}), "since_revision=0&limit=100"),
             (
                 json!({"since_revision": 0, "at": 1, "limit": 1}),
                 "since_revision=0&at=1&limit=1",
@@ -1759,15 +1763,15 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
                 json!({"since_recorded": 0, "at": 0, "limit": 2, "after": 1}),
                 "since_recorded=0&at=0&limit=2&after=1",
             ),
-            (json!({"since_recorded": 0}), "since_recorded=0"),
+            (json!({"since_recorded": 0}), "since_recorded=0&limit=100"),
             (
                 json!({"since_valid": 0, "limit": 2000}),
                 "since_valid=0&limit=2000",
             ),
-            (json!({"since_revision": 1}), "since_revision=1"),
+            (json!({"since_revision": 1}), "since_revision=1&limit=100"),
             (
                 json!({"since_revision": 0, "format": "ekr.graph-changes/1"}),
-                "since_revision=0&format=ekr.graph-changes%2F1",
+                "since_revision=0&limit=100&format=ekr.graph-changes%2F1",
             ),
         ] {
             let answered = server.document("changes_since", arguments.clone());
@@ -1790,7 +1794,7 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         let expected = head
             .changes_as(
                 &runtime,
-                &ChangesRequest::new(SinceKind::Revision, 0, None, None).unwrap(),
+                &ChangesRequest::new(SinceKind::Revision, 0, Some(100), None).unwrap(),
                 ChangesFormat::V2,
             )
             .unwrap()
@@ -2097,7 +2101,9 @@ fn search_answers_and_refuses_exactly_as_get_search_does_with_the_format_named()
 /// `task:changes-since-lists-added-evidence`: a transaction whose one operation is the
 /// `ekr operations AddEvidence` example commits revision 1. `changes_since`, `GET /changes` and
 /// the session's `changes` verb each answer it once, as an `EvidenceAdded` of revision 1 carrying
-/// the evidence id, its source identity and its payload hash, on both providers.
+/// the evidence id, its source identity and its payload hash, on both providers. The tool names
+/// no limit, so `GET /changes` and the session verb are given `limit` 100
+/// (ekr-mcp-fixes-20261015 #4).
 #[test]
 fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_verb() {
     const ADDED: &str = "00000000-0000-4000-8000-000000000403";
@@ -2125,7 +2131,8 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         let answered = server.document("changes_since", json!({"since_revision": 0}));
         server.close();
         let view = View::start(world.command(&["view", "--port", "0"]));
-        let (status, served) = view.get("/changes?since_revision=0&format=ekr.graph-changes%2F2");
+        let (status, served) =
+            view.get("/changes?since_revision=0&limit=100&format=ekr.graph-changes%2F2");
         drop(view);
         assert_eq!(status, 200, "{backend}");
         assert_eq!(
@@ -2143,7 +2150,7 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
         writeln!(
             session.stdin.take().unwrap(),
             "{}",
-            json!({"argv": ["changes", "--since-revision", "0", "--format", "ekr.graph-changes/2"]})
+            json!({"argv": ["changes", "--since-revision", "0", "--limit", "100", "--format", "ekr.graph-changes/2"]})
         )
         .unwrap();
         let output = session.wait_with_output().unwrap();
@@ -2166,6 +2173,157 @@ fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_v
             listed["names"],
             json!({}),
             "{backend}: no type id: {listed}"
+        );
+    }
+}
+
+// smaller default pages (ekr-mcp-fixes-20261015 #4) ------------------------------------------
+
+/// The one budget a tool result is held to here: 75 KB, the most one result an agent reads whole
+/// should hold.
+const TOOL_BUDGET: usize = 75_000;
+const HUB_TRANSACTION: &str = "00000000-0000-4000-8000-000000000908";
+const ACME_EVIDENCE: &str = "00000000-0000-4000-8000-000000000401";
+
+/// One transaction of `count` new Person nodes, each with a CEO_OF edge to Acme and the CEO_OF
+/// assertion that it holds, citing the seed's evidence: revision 1 holds `count` assertions, and
+/// Acme `count` more incident edges than the seed's one.
+fn hub(count: u64) -> String {
+    let id = |kind: u64, n: u64| format!("00000000-0000-4000-8000-{:012x}", kind + n);
+    let mut document = format!(
+        "format: ekr.transaction-document/2\ntransaction:\n  id: {HUB_TRANSACTION}\n  proposer: \
+         {OPERATOR}\n  operations:\n"
+    );
+    for n in 0..count {
+        let (person, edge, claim) = (id(0x2_0000, n), id(0x3_0000, n), id(0x4_0000, n));
+        document.push_str(&format!(
+            "  - !CreateNode\n    id: {person}\n    root_id: {ROOT}\n    type_id: {PERSON}\n    \
+             canonical_name: Member{n:03}\n    properties: {{}}\n    aliases: []\n\
+             \x20 - !CreateEdge\n    id: {edge}\n    root_id: {ROOT}\n    type_id: {CEO_OF}\n    \
+             source: {person}\n    target: {ACME}\n    properties: {{}}\n\
+             \x20 - !AddAssertion\n    id: {claim}\n    root_id: {ROOT}\n    subject: !Node \
+             {person}\n    predicate: !Relation {CEO_OF}\n    object: !Node {ACME}\n    \
+             evidence:\n    - {ACME_EVIDENCE}\n    proposed_by: {OPERATOR}\n    assessment: \
+             Proposed\n    lifecycle: Active\n    valid_time:\n      from: 1577836800000\n      \
+             to: null\n    transaction_time:\n      recorded_from: 0\n      recorded_to: null\n"
+        ));
+    }
+    document.push_str(&format!("  evidence:\n  - {ACME_EVIDENCE}\n"));
+    document
+}
+
+/// ekr-mcp-fixes-20261015 #4: on a store of 250 assertions (and as many nodes and edges, 750
+/// changes in revision 1), `changes_since` from revision 0 naming no limit answers one page of
+/// 100 changes, under the tool budget, byte for byte `GET /changes` with `limit=100`. Measured on
+/// 0.0.34 against the consumer's store of 250 assertions: 125 KB at the default of 500.
+#[test]
+fn changes_since_from_revision_zero_answers_within_the_tool_budget() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.file("hub.yaml", &hub(250));
+        world.commit("hub.yaml");
+        let mut server = world.server();
+        let answered = server.document("changes_since", json!({"since_revision": 0}));
+        server.close();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        let (status, served) =
+            view.get("/changes?since_revision=0&limit=100&format=ekr.graph-changes%2F2");
+        let (_, whole) = view.get("/changes?since_revision=0");
+        drop(view);
+        assert_eq!(status, 200, "{backend}");
+        assert_eq!(
+            answered,
+            utf8(served),
+            "{backend}: changes_since is GET /changes with limit=100"
+        );
+        let listed: Value = serde_json::from_str(&answered).unwrap();
+        assert_eq!(
+            listed["meta"]["limit"], 100,
+            "{backend}: {}",
+            listed["meta"]
+        );
+        assert_eq!(
+            listed["meta"]["total"], 750,
+            "{backend}: {}",
+            listed["meta"]
+        );
+        assert_eq!(
+            listed["changes"].as_array().unwrap().len(),
+            100,
+            "{backend}"
+        );
+        assert_eq!(listed["next"], 100, "{backend}: the next page's cursor");
+        assert!(
+            answered.len() < TOOL_BUDGET,
+            "{backend}: {} bytes, over the {TOOL_BUDGET}-byte budget",
+            answered.len()
+        );
+        // The verb keeps its default of 500, which this store fills past the budget.
+        assert!(
+            whole.len() > TOOL_BUDGET,
+            "{backend}: GET /changes's own default page is {} bytes",
+            whole.len()
+        );
+    }
+}
+
+/// ekr-mcp-fixes-20261015 #4: around a node with more than 200 incident edges, `expand` naming no
+/// `edges` answers a page of 200 edges with a `next`: byte for byte the `ekr.views` page of the
+/// request with `edges` 200, which `GET /expand` streams record by record, and what the session's
+/// `expand` verb prints given `--edges 200`. Measured on 0.0.34: depth 1 around a node of degree
+/// 494 answered 996 edges and 439 KB at the default of 5,000.
+#[test]
+fn expand_defaults_to_two_hundred_edges() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.file("hub.yaml", &hub(250));
+        world.commit("hub.yaml");
+        let mut server = world.server();
+        let arguments = json!({"seeds": [ACME], "depth": 1, "limit": 2000});
+        let answered = server.document("expand", arguments.clone());
+        server.close();
+
+        let mut session = world
+            .command(&["session"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        writeln!(
+            session.stdin.take().unwrap(),
+            "{}",
+            json!({"argv": ["expand", ACME, "--depth", "1", "--limit", "2000", "--edges", "200", "--format", "ekr.graph-slice/2"]})
+        )
+        .unwrap();
+        let output = session.wait_with_output().unwrap();
+        let printed: Value =
+            serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+        assert_eq!(printed["exit"], 0, "{backend}: {printed}");
+        let page: Value = serde_json::from_str(&answered).unwrap();
+        assert_eq!(
+            printed["stdout"], page,
+            "{backend}: expand {arguments} is the session's expand --edges 200"
+        );
+
+        let expected = world
+            .index(None)
+            .expand_as(
+                SliceFormat::V2,
+                &ExpandRequest::new(vec![node(ACME)], 1, 2000, Some(200), None).unwrap(),
+            )
+            .unwrap()
+            .bytes;
+        assert_eq!(answered, utf8(expected), "{backend}: the ekr.views page");
+        assert_eq!(page["edges"].as_array().unwrap().len(), 200, "{backend}");
+        assert!(
+            page["next"].is_u64(),
+            "{backend}: a next page: {}",
+            page["meta"]
+        );
+        assert_eq!(
+            page["meta"]["edge_total"], 251,
+            "{backend}: {}",
+            page["meta"]
         );
     }
 }
