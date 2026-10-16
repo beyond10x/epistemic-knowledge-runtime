@@ -144,6 +144,24 @@ const TRANSACTIONS: u64 = 0x200;
 /// witness id, which `Fixture::Evolved` holds from its seed onward.
 pub const DESCRIBED: u64 = 0x1bba_d186_42ad;
 
+// `search`: the a-search-v2-*.yaml scenarios (ekr-mcp-fixes-20261015 #2, #9).
+/// The node type `Service`.
+pub const SEARCH_SERVICE: u64 = 0xc5_0001;
+/// The node type `Incident`, whose `opened` is an Integer.
+pub const SEARCH_INCIDENT: u64 = 0xc5_0002;
+const SEARCH_OPENED: u64 = 0xc5_0003;
+const SEARCH_AFFECTS: u64 = 0xc5_0004;
+/// The Services `Widget-Router`, `eu`, `prod-eu-central-9` and `Widget-Router-2` are
+/// `SEARCH_SERVICES + 1` to `+ 4`.
+pub const SEARCH_SERVICES: u64 = 0xc5_0100;
+/// The Incidents `router outage`, `eu latency` and `disk full` are `SEARCH_INCIDENTS + 1` to `+ 3`.
+pub const SEARCH_INCIDENTS: u64 = 0xc5_0200;
+const SEARCH_EDGES: u64 = 0xc5_0300;
+/// `router outage`'s `opened`: 2027-01-10T08:00:00Z.
+pub const SEARCH_ROUTER_OUTAGE_MS: i64 = 1_799_568_000_000;
+/// `eu latency`'s `opened`: 2027-02-20T12:00:00Z.
+pub const SEARCH_EU_LATENCY_MS: i64 = 1_803_124_800_000;
+
 // `hub`: an-overview-lists-at-most-its-limit-of-top-nodes.yaml.
 pub const HUB: u64 = 0x10_0000;
 pub const HUB_LEAVES: u64 = 600;
@@ -424,6 +442,9 @@ pub enum Fixture {
     /// the node the generated `DescribeNode` scenarios name: the generated `node-is-a-type`
     /// scenario's state.
     DescribedType,
+    /// A seed only: Services and Incidents with names that exercise `ekr.node-matches/2`'s word
+    /// tier, whole-name order and time window ([`search_seed`]).
+    Search,
 }
 
 impl Fixture {
@@ -450,6 +471,7 @@ impl Fixture {
             "schema-changes" => Self::SchemaChanges,
             "property-redeclared" => Self::PropertyRedeclared,
             "bounded-detail" => Self::BoundedDetail,
+            "search" => Self::Search,
             _ => return None,
         })
     }
@@ -494,6 +516,7 @@ impl Fixture {
             }
             Self::BoundedDetail => writer.seed(bounded_detail()),
             Self::Hub => writer.seed(hub()),
+            Self::Search => writer.seed(search_seed()),
             Self::Timeline => {
                 writer.seed(timeline_seed());
                 writer.commit(
@@ -1798,6 +1821,68 @@ fn bounded_detail() -> SeedDocument {
         ),
     ] {
         document.graph.assertions.insert(assertion.id, assertion);
+    }
+    document
+}
+
+/// The `search` seed, as a-search-v2-matches-every-word-in-any-order.yaml's header states it: the
+/// node types Service and Incident (Incident with the Integer `opened`, the node's time), the edge
+/// type `affects` from Incident to Service, four Services with no time and three Incidents, two of
+/// them opened. No assertion and no evidence.
+fn search_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    document
+        .ontology
+        .node_types
+        .push(NodeType::new(id(SEARCH_SERVICE), "Service"));
+    let mut incident = NodeType::new(id(SEARCH_INCIDENT), "Incident");
+    incident.properties.insert(
+        id(SEARCH_OPENED),
+        PropertyDefinition::new(id(SEARCH_OPENED), "opened", ValueType::Integer),
+    );
+    document.ontology.node_types.push(incident);
+    let mut affects = EdgeType::new(id(SEARCH_AFFECTS), "affects");
+    affects.source_types = [id(SEARCH_INCIDENT)].into_iter().collect();
+    affects.target_types = [id(SEARCH_SERVICE)].into_iter().collect();
+    affects.cardinality = Cardinality::Many;
+    document.ontology.edge_types.push(affects);
+    let services = [
+        "Widget-Router",
+        "eu",
+        "prod-eu-central-9",
+        "Widget-Router-2",
+    ];
+    for (n, name) in (1..).zip(services) {
+        let node = Node::<Value>::new(id(SEARCH_SERVICES + n), root, id(SEARCH_SERVICE), name);
+        document.graph.nodes.insert(node.id, node);
+    }
+    let incidents = [
+        ("router outage", Some(SEARCH_ROUTER_OUTAGE_MS)),
+        ("eu latency", Some(SEARCH_EU_LATENCY_MS)),
+        ("disk full", None),
+    ];
+    for (n, (name, opened)) in (1..).zip(incidents) {
+        let mut node =
+            Node::<Value>::new(id(SEARCH_INCIDENTS + n), root, id(SEARCH_INCIDENT), name);
+        if let Some(opened) = opened {
+            node.properties
+                .insert(id(SEARCH_OPENED), vec![Value::Integer(opened)]);
+        }
+        document.graph.nodes.insert(node.id, node);
+    }
+    // Incident n affects Service s.
+    let affected = [(1, 1), (1, 4), (2, 3), (3, 3), (3, 4)];
+    for (n, (incident, service)) in (1..).zip(affected) {
+        let edge = Edge::<Value> {
+            id: id(SEARCH_EDGES + n),
+            root_id: root,
+            type_id: id(SEARCH_AFFECTS),
+            source: id(SEARCH_INCIDENTS + incident),
+            target: id(SEARCH_SERVICES + service),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
     }
     document
 }

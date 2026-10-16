@@ -19,12 +19,28 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `ekr view` serves it at `/node/<id>?format=ekr.node-detail/2[&limit=L][&edge_type=E][&after=A]`
   and the session's `describe` with `--format ekr.node-detail/2`; both keep answering `/1` by
   default, byte for byte as before.
+- A search format, `ekr.node-matches/2`, served by `ekr view`'s `/search` and the session verb
+  `search` when asked for (`format=ekr.node-matches/2`, `--format ekr.node-matches/2`) and by the
+  MCP tool `search` by default. A text of two or more words also matches a name or an alias
+  holding every word in any order, as the new tier `Words` (`widget router` finds
+  `Widget-Router`); within a tier a node whose whole name or alias is the text comes first (`eu`
+  before a busier `prod-eu-central-9`); every match carries `type_name` and, when the node has
+  one, its timeline `time`. `type` (a node type's id or name) lists only that type's nodes, an
+  empty text listing them all, and `from` and `to` (milliseconds or `YYYY-MM-DD`) only nodes
+  whose time falls in the window, newest first. A `type` naming no node type is refused as
+  `ekr.views.NodeTypeNotFound`. `ekr.node-matches/1` is unchanged and stays the default of
+  `ekr view` and the session verb; the SDK's `NodeMatches` keeps reading /1.
+
+- The MCP tool `search` takes `text` as `query` or `q` as well; naming two of them is refused.
 
 ### Changed
 
 - The MCP tool `describe_node` answers `ekr.node-detail/2` by default, byte for byte what
   `ekr view` serves for the same request with the format named, and takes `limit`, `edge_type`
   and `after`; `full: true` answers the whole `ekr.node-detail/1` as before.
+- The MCP tool `search` answers `ekr.node-matches/2` unless `format` names
+  `ekr.node-matches/1`: an agent reading `tier` sees `Words`, and each match gains `type_name`.
+  For one request with the format named, its answer is byte for byte what `ekr view` serves.
 
 ## [0.0.34] — 2026-10-14
 

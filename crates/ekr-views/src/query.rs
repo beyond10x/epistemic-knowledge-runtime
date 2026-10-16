@@ -479,8 +479,12 @@ pub struct NodesSearched {
     pub total: u64,
     /// `meta.exact_total`.
     pub exact_total: u64,
+    /// `meta.format`: [`MATCHES_FORMAT`] or [`crate::MATCHES_V2_FORMAT`].
+    pub format: &'static str,
     /// The first match's id; `None` when there is none.
     pub first_match: Option<NodeId>,
+    /// The first match's tier (`Exact`, `Folded` or `Words`); `None` when there is none.
+    pub first_tier: Option<&'static str>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub matches_hash: String,
 }
@@ -811,15 +815,29 @@ struct NodeDetailV1<'a> {
     neighbours: Vec<NodeSummary>,
 }
 
-/// Which comparison a match passed; `Exact` orders first.
+/// Which comparison a match passed, in the order the tiers rank (`views.yaml`,
+/// `ekr.views.MatchTier`). `ekr.node-matches/1` answers `Exact` and `Folded` only; `Words` is
+/// `ekr.node-matches/2`'s ([`Index::search_v2`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-enum MatchTier {
+pub(crate) enum MatchTier {
     Exact,
     Folded,
+    Words,
+}
+
+impl MatchTier {
+    /// The tier's name, as the documents write it.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Exact => "Exact",
+            Self::Folded => "Folded",
+            Self::Words => "Words",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-enum MatchField {
+pub(crate) enum MatchField {
     Name,
     Alias,
 }
@@ -1301,6 +1319,7 @@ impl Index {
             })
             .collect();
         let first_match = matches.first().map(|hit| hit.id);
+        let first_tier = matches.first().map(|hit| hit.tier.name());
         let document = NodeMatchesV1 {
             meta: MatchesMeta {
                 format: MATCHES_FORMAT,
@@ -1318,7 +1337,9 @@ impl Index {
             matches: document.matches.len() as u64,
             total,
             exact_total,
+            format: MATCHES_FORMAT,
             first_match,
+            first_tier,
             matches_hash: hash(&bytes),
         };
         Ok(Answer { bytes, summary })

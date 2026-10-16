@@ -1552,6 +1552,41 @@ fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
             vec!["search", "--limit", "2", "--revision", "0", "--", ""],
             "/search?q=&limit=2&revision=0".into(),
         ),
+        // ekr-mcp-fixes-20261015 #2, #9: ekr.node-matches/2 when the format is named, with a
+        // type by name, a window as dates, and the refusal of a type naming no node type.
+        (
+            vec!["search", "--format", "ekr.node-matches/2", "me ac"],
+            "/search?q=me+ac&format=ekr.node-matches%2F2".into(),
+        ),
+        (
+            vec![
+                "search",
+                "--format",
+                "ekr.node-matches/2",
+                "--type",
+                "Person",
+                "--from",
+                "2020-01-01",
+                "--to",
+                "2020-01-01",
+                "--",
+                "",
+            ],
+            "/search?q=&format=ekr.node-matches%2F2&type=Person&from=2020-01-01&to=2020-01-01"
+                .into(),
+        ),
+        (
+            vec![
+                "search",
+                "--format",
+                "ekr.node-matches/2",
+                "--type",
+                "person",
+                "--",
+                "",
+            ],
+            "/search?q=&format=ekr.node-matches%2F2&type=person".into(),
+        ),
         (vec!["describe", ALICE], format!("/node/{ALICE}")),
         (vec!["describe", NODE], format!("/node/{NODE}")),
         (
@@ -1696,7 +1731,7 @@ fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
                 refusals += 1;
             }
         }
-        assert_eq!((documents, refusals), (17, 8), "{backend}");
+        assert_eq!((documents, refusals), (19, 9), "{backend}");
     }
 }
 

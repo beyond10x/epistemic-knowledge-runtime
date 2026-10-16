@@ -1,0 +1,55 @@
+# ekr-mcp-fixes-20261015 #2: under ekr.node-matches/2 a node whose whole name is the text comes
+# first within its tier, whatever its degree (ekr.views.NodeMatchV2).
+#
+# The store `search` is the one a-search-v2-matches-every-word-in-any-order describes. `eu` is a
+# byte-exact substring of three names: `eu` …c50102 (degree 0, the whole name), `prod-eu-central-9`
+# …c50103 (degree 2) and `eu latency` …c50202 (degree 1). All three are Exact. Under /2 `eu` is
+# first, because its whole name is the text; under /1, which orders a tier by degree,
+# prod-eu-central-9 is.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v2-ranks-a-whole-name-first-within-its-tier
+summary: Under /2, "eu" answers the node named "eu" (degree 0) before "prod-eu-central-9" (degree 2); under /1 the higher degree comes first.
+
+timeline:
+  - at: 2027-03-01T10:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: eu
+      limit: 10
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: eu
+          format: ekr.node-matches/2
+          matches: 3
+          total: 3
+          exact_total: 3
+          first_match: 00000000-0000-4000-8000-000000c50102
+          first_tier: Exact
+
+  - at: 2027-03-01T10:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: eu
+      limit: 10
+      format: ekr.node-matches/1
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/1
+          matches: 3
+          total: 3
+          exact_total: 3
+          first_match: 00000000-0000-4000-8000-000000c50103
+          first_tier: Exact

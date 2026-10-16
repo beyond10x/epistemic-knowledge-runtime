@@ -1,0 +1,93 @@
+# ekr-mcp-fixes-20261015 #9: under ekr.node-matches/2 an empty text with `type` lists that node
+# type's nodes, by degree, then id; `type` is the type's name or its id.
+#
+# The store `search` is the one a-search-v2-matches-every-word-in-any-order describes; its node
+# type Incident is 00000000-0000-4000-8000-000000c50002 and holds three nodes: `router outage`
+# …c50201 and `disk full` …c50203 (degree 2 each) and `eu latency` …c50202 (degree 1). So the
+# list is …c50201, …c50203, …c50202: 3 matches, every one Exact (an empty text is a substring of
+# every name), and no Service among them. The name is compared byte for byte, so `incident` names
+# no node type and is refused, after the revision is read, with the text as the request gave it.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v2-lists-one-type-by-degree
+summary: Under /2, an empty text with type Incident, by name and again by id, lists exactly the three Incident nodes, highest degree first; a type name the ontology does not hold is refused.
+
+timeline:
+  - at: 2027-03-01T11:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      type: Incident
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: ""
+          format: ekr.node-matches/2
+          matches: 3
+          total: 3
+          exact_total: 3
+          first_match: 00000000-0000-4000-8000-000000c50201
+          first_tier: Exact
+
+  - at: 2027-03-01T11:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      type: 00000000-0000-4000-8000-000000c50002
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/2
+          matches: 3
+          total: 3
+          first_match: 00000000-0000-4000-8000-000000c50201
+
+  - at: 2027-03-01T11:02:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      type: Service
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/2
+          matches: 4
+          total: 4
+
+  - at: 2027-03-01T11:03:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: search
+      at: null
+      text: ""
+      limit: 10
+      format: ekr.node-matches/2
+      type: incident
+    outcome: node-type-not-found
+    error:
+      name: ekr.views.NodeTypeNotFound
+      fields:
+        type: incident
+        revision: 0
+    no_events:
+      - ekr.views.NodesSearched

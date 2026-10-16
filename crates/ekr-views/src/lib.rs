@@ -27,7 +27,8 @@
 //! `ekr.graph-overview/1`),
 //! [`Index::expand`] (`ekr.graph-slice/1`, with [`Index::page`] for a host that streams the
 //! records), [`Index::describe`] (`ekr.node-detail/1`), [`Index::search`]
-//! (`ekr.node-matches/1`) and [`Index::timeline`] (`ekr.graph-timeline/1`) then answer from it,
+//! (`ekr.node-matches/1`; `ekr.node-matches/2` is [`Index::search_v2`]) and
+//! [`Index::timeline`] (`ekr.graph-timeline/1`) then answer from it,
 //! each costing its answer. [`OverviewRequest`], [`ExpandRequest`], [`SearchRequest`] and
 //! [`TimelineRequest`] hold each command's bounds, so a broken one is refused as
 //! [`LimitExceeded`] before a store is read. [`IndexCache`] keeps the most recently used indexes
@@ -71,6 +72,7 @@ mod quality;
 mod query;
 mod roles;
 mod sample;
+mod search;
 mod timeline;
 
 pub use changes::{
@@ -106,6 +108,10 @@ pub use sample::{
     FactQualityError, FactQualityReported, FactSampleDrawn, Judgement, JudgementsMalformed,
     SampleOrigin, SampleRequest, Verdict, DEFAULT_CONFIDENCE, FACT_QUALITY_FORMAT,
     JUDGEMENTS_FORMAT, SAMPLE_FORMAT,
+};
+pub use search::{
+    MatchesFormat, SearchError, SearchFilter, UnknownMatchesFormat, WindowBound, WindowMalformed,
+    MATCHES_V2_FORMAT,
 };
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 

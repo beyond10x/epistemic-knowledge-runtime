@@ -8,7 +8,8 @@
 //!   isolated nodes and repeated seeds;
 //! * the same revision answered under two heads gives the same bytes;
 //! * `ekr.node-detail/1` carries every assertion about, and every assertion pointing at, the node;
-//! * `ekr.node-matches/1`'s tiers and lowercase folding;
+//! * `ekr.node-matches/1`'s tiers and lowercase folding, and `ekr.node-matches/2`'s, with its
+//!   Words tier and whole matches first (ekr-mcp-fixes-20261015 #2);
 
 mod support;
 
@@ -18,7 +19,7 @@ use ekr_core::{EdgeId, NodeId, RevisionNumber, Timestamp, TypeId};
 use ekr_graph::{Edge, Node, Object, Subject};
 use ekr_kernel::Runtime;
 use ekr_ontology::{Cardinality, EdgeType, NodeType, Value};
-use ekr_views::{ExpandRequest, Index, OverviewRequest, SearchRequest, SliceRecord};
+use ekr_views::{ExpandRequest, Index, OverviewRequest, SearchFilter, SearchRequest, SliceRecord};
 use serde_json::Value as Json;
 
 use support::fixtures::{self, id, Fixture, Provider};
@@ -360,6 +361,21 @@ fn four_answers(index: &Index) -> Vec<(String, String)> {
             ),
         ));
     }
+    // ekr-mcp-fixes-20261015 #2: /2 too, a Words text among them.
+    for query in ["", "a", "ALPHA", "-alias-", "alias alpha"] {
+        answers.push((
+            format!("search /2 {query:?}"),
+            text(
+                index
+                    .search_v2(
+                        &SearchRequest::new(query.to_owned(), 100).unwrap(),
+                        &SearchFilter::default(),
+                    )
+                    .unwrap()
+                    .bytes,
+            ),
+        ));
+    }
     answers
 }
 
@@ -597,6 +613,170 @@ fn search_tiers_fields_and_aliases_are_the_ones_views_yaml_names() {
             expected.iter().filter(|e| e.0 == 0).count(),
             "text {text:?}"
         );
+    }
+}
+
+/// The runs `views.yaml`'s ekr.views.NodeMatchV2 compares a Words match by: maximal runs of
+/// alphanumeric characters, sorted.
+/// Unicode's Lowercase_Mapping, as views.yaml folds.
+fn lower(field: &str) -> String {
+    field.to_lowercase()
+}
+
+/// Whether every word is a substring of `field`.
+fn every_word(words: &[&str], field: &str) -> bool {
+    words.iter().all(|word| field.contains(word))
+}
+
+fn alphanumeric_runs(text: &str) -> Vec<String> {
+    let mut runs: Vec<String> = text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|run| !run.is_empty())
+        .map(str::to_owned)
+        .collect();
+    runs.sort();
+    runs
+}
+
+/// ekr-mcp-fixes-20261015 #2: views.yaml's ekr.views.MatchTier and ekr.views.NodeMatchV2, read
+/// literally, over the same names as the /1 case: Exact, Folded, and for two or more words
+/// Words; within a tier a whole match first, then id (every degree is 0); every match named by
+/// its type. One-word texts answer /1's matches, reordered only by wholeness.
+#[test]
+fn search_v2_tiers_words_and_whole_matches_are_the_ones_views_yaml_names() {
+    let names: &[(&str, &[&str])] = &[
+        ("İstanbul", &["ISTANBUL", "istanbul"]),
+        ("STRASSE", &["Straẞe", "strasse"]),
+        ("ǅemal", &[]),
+        ("ΟΔΟΣ", &["οδος"]),
+        ("plain", &["PLAIN", "Plain"]),
+        ("Mixed Case", &["mixed case"]),
+        ("Case-Mixed-2", &[]),
+    ];
+    let (_work, runtime) = named_seed(names);
+    let index = Index::load(&runtime, None).unwrap();
+    for text in [
+        "",
+        "i",
+        "İ",
+        "i̇",
+        "ISTANBUL",
+        "istanbul",
+        "ß",
+        "STRASSE",
+        "ǆ",
+        "ǅ",
+        "σ",
+        "ς",
+        "Σ",
+        "PLAIN",
+        "plain",
+        "Plain",
+        "case",
+        "CASE",
+        "case mixed",
+        "MIXED  case",
+        "mixed case",
+        "plain mixed",
+        "İ i",
+        "case 2",
+    ] {
+        let answer: Json = serde_json::from_slice(
+            &index
+                .search_v2(
+                    &SearchRequest::new(text.to_owned(), 100).unwrap(),
+                    &SearchFilter::default(),
+                )
+                .unwrap()
+                .bytes,
+        )
+        .unwrap();
+        let folded = text.to_lowercase();
+        let words: Vec<&str> = folded.split_whitespace().collect();
+        let runs = alphanumeric_runs(&folded);
+        // (tier, not whole, id, field, alias)
+        let mut expected: Vec<(u8, bool, String, &str, Option<&str>)> = Vec::new();
+        for (n, (name, aliases)) in names.iter().enumerate() {
+            let node = uuid(0xf0_0000 + n as u64);
+            let hit = if name.contains(text) {
+                Some((0, "Name", None))
+            } else if let Some(alias) = aliases.iter().find(|a| a.contains(text)) {
+                Some((0, "Alias", Some(*alias)))
+            } else if lower(name).contains(&folded) {
+                Some((1, "Name", None))
+            } else if let Some(alias) = aliases.iter().find(|a| lower(a).contains(&folded)) {
+                Some((1, "Alias", Some(*alias)))
+            } else if words.len() < 2 {
+                None
+            } else if every_word(&words, &lower(name)) {
+                Some((2, "Name", None))
+            } else {
+                aliases
+                    .iter()
+                    .find(|a| every_word(&words, &lower(a)))
+                    .map(|alias| (2, "Alias", Some(*alias)))
+            };
+            let Some((tier, field, alias)) = hit else {
+                continue;
+            };
+            let fields = std::iter::once(*name).chain(aliases.iter().copied());
+            let whole = match tier {
+                0 => fields.into_iter().any(|f| f == text),
+                1 => fields.into_iter().any(|f| lower(f) == folded),
+                _ => fields
+                    .into_iter()
+                    .any(|f| alphanumeric_runs(&lower(f)) == runs),
+            };
+            expected.push((tier, !whole, node, field, alias));
+        }
+        expected.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+        let tier_name = |tier: u8| ["Exact", "Folded", "Words"][usize::from(tier)];
+        let got: Vec<(String, String, &str, Option<&str>)> = answer["matches"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| {
+                assert_eq!(m["type_name"], "vertex", "text {text:?}: {m}");
+                (
+                    m["tier"].as_str().unwrap().to_owned(),
+                    m["id"].as_str().unwrap().to_owned(),
+                    m["field"].as_str().unwrap(),
+                    m.get("alias").map(|a| a.as_str().unwrap()),
+                )
+            })
+            .collect();
+        let want: Vec<(String, String, &str, Option<&str>)> = expected
+            .iter()
+            .map(|(tier, _, node, field, alias)| {
+                (tier_name(*tier).to_owned(), node.clone(), *field, *alias)
+            })
+            .collect();
+        assert_eq!(got, want, "text {text:?}");
+        assert_eq!(answer["meta"]["total"], expected.len(), "text {text:?}");
+        assert_eq!(
+            answer["meta"]["exact_total"],
+            expected.iter().filter(|e| e.0 == 0).count(),
+            "text {text:?}"
+        );
+        if words.len() < 2 {
+            // A one-word text: /1's matches, as a set.
+            let v1: Json = serde_json::from_slice(
+                &index
+                    .search(&SearchRequest::new(text.to_owned(), 100).unwrap())
+                    .unwrap()
+                    .bytes,
+            )
+            .unwrap();
+            let set = |answer: &Json| -> BTreeSet<String> {
+                answer["matches"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|m| format!("{} {} {}", m["id"], m["tier"], m["field"]))
+                    .collect()
+            };
+            assert_eq!(set(&answer), set(&v1), "text {text:?}");
+        }
     }
 }
 

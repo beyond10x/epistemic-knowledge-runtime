@@ -10,6 +10,9 @@
 #   - `Hub` is a byte-exact substring of leaf-600's alias only, and of the hub's name only after
 #     lowercasing: 2 matches, 1 Exact. The first is leaf-600, because Exact comes before Folded;
 #     a renderer that orders by degree first answers the hub first.
+# The same three texts are asked again under ekr.node-matches/2 (ekr-mcp-fixes-20261015 #2).
+# Each is one word, so /2 answers the same matches in the same order: Words needs two words, and
+# the one whole match, the hub (`hub` is `Hub` lowercased), is alone in its tier.
 type: ess-scenario/1
 domain: ekr.views
 scenario: a-search-with-no-match-answers-an-empty-list
@@ -69,3 +72,65 @@ timeline:
           total: 2
           exact_total: 1
           first_match: 00000000-0000-4000-8000-000000100258
+
+  - at: 2027-01-15T14:33:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: absent-from-every-name
+      limit: 10
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: absent-from-every-name
+          format: ekr.node-matches/2
+          matches: 0
+          total: 0
+          exact_total: 0
+
+  - at: 2027-01-15T14:34:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: LEAF-00
+      limit: 10
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          text: LEAF-00
+          format: ekr.node-matches/2
+          matches: 9
+          total: 9
+          exact_total: 0
+          first_match: 00000000-0000-4000-8000-000000100001
+          first_tier: Folded
+
+  - at: 2027-01-15T14:35:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: Hub
+      limit: 10
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          text: Hub
+          format: ekr.node-matches/2
+          matches: 2
+          total: 2
+          exact_total: 1
+          first_match: 00000000-0000-4000-8000-000000100258
+          first_tier: Exact

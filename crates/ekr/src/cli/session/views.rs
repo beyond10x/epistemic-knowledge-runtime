@@ -7,8 +7,9 @@
 //! `ekr_views` calls, with the same bounds checked in the same order, and refuses what that route
 //! refuses by the same name and message: `ekr.views.LimitExceeded` and `ekr.views.SinceMalformed`
 //! before the store is read, then `ekr.views.NotSeeded`, `ekr.views.RevisionNotFound`,
-//! `ekr.views.NodeNotFound` and `ekr.views.NodeIsAType`, each a named refusal (exit 2). A query
-//! `ekr view` answers `invalid-query` is an argv clap does not take here: a usage error.
+//! `ekr.views.NodeNotFound`, `ekr.views.NodeIsAType` and `ekr.views.NodeTypeNotFound`, each a named
+//! refusal (exit 2). A query `ekr view` answers `invalid-query` is an argv clap does not take
+//! here, or a search filter `search_filter` refuses: a usage error.
 //!
 //! These are session verbs only: `ekr` has no one-shot verb of these names. A request is parsed
 //! by [`ViewsCli`] when the one-shot verbs' definitions name no such verb.
@@ -21,15 +22,15 @@ use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, DetailFormat, ExpandRequest, IndexCache,
-    LimitExceeded, OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind,
-    TimelineRequest,
+    LimitExceeded, MatchesFormat, OverviewRequest, ProjectError, QueryError, SearchError,
+    SearchRequest, SinceKind, TimelineRequest, UnknownMatchesFormat,
 };
 use serde_json::Value;
 
 use super::super::view::{
-    describe, node_detail, overview_sections, project_refusal, since_not_one, DetailRefused,
-    OverviewSections, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, SEARCH_LIMIT,
-    SINCE_MALFORMED,
+    describe, node_detail, overview_sections, project_refusal, search_filter, since_not_one,
+    DetailRefused, OverviewSections, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND,
+    NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::super::Backend;
 use crate::exit::Failure;
@@ -91,7 +92,8 @@ pub(super) enum Verb {
         #[arg(long, value_parser = overview_sections)]
         sections: Option<OverviewSections>,
     },
-    /// `GET /search`: the `ekr.node-matches/1` document.
+    /// `GET /search`: the `ekr.node-matches/1` document, or `ekr.node-matches/2` when `--format`
+    /// names it.
     Search {
         /// The text searched for; empty matches every node. Put `--` before a text that starts
         /// with `-`.
@@ -99,6 +101,20 @@ pub(super) enum Verb {
         /// The most matches answered, 1 to 100; 20 when absent.
         #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: Option<i64>,
+        /// The format answered: `ekr.node-matches/1` when absent, or `ekr.node-matches/2`.
+        #[arg(long, value_parser = matches_format)]
+        format: Option<MatchesFormat>,
+        /// `ekr.node-matches/2` only: the node type matched, by id or name.
+        #[arg(long = "type")]
+        node_type: Option<String>,
+        /// `ekr.node-matches/2` only: the window's first instant, milliseconds since the epoch
+        /// or `YYYY-MM-DD` (that day's first millisecond, UTC).
+        #[arg(long, allow_hyphen_values = true)]
+        from: Option<String>,
+        /// `ekr.node-matches/2` only: the window's last instant, milliseconds since the epoch or
+        /// `YYYY-MM-DD` (that day's last millisecond, UTC).
+        #[arg(long, allow_hyphen_values = true)]
+        to: Option<String>,
         /// The committed revision to read; the head when absent.
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
@@ -269,12 +285,24 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
         Verb::Search {
             text,
             limit,
+            format,
+            node_type,
+            from,
+            to,
             revision: at,
         } => {
+            let format = format.unwrap_or(MatchesFormat::V1);
+            let filter = search_filter(format, node_type.clone(), from.as_deref(), to.as_deref())
+                .map_err(|message| Failure::Usage {
+                message: format!("error: {message}\n"),
+            })?;
             let request = SearchRequest::new(text.clone(), limit.unwrap_or(SEARCH_LIMIT))
                 .map_err(limit_exceeded)?;
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
-            index.search(&request).map_err(project)?.bytes
+            index
+                .search_as(format, &request, &filter)
+                .map_err(search)?
+                .bytes
         }
         Verb::Describe {
             node,
@@ -366,6 +394,22 @@ fn query(error: QueryError) -> Failure {
         error @ QueryError::NodeIsAType { .. } => Failure::refused(NODE_IS_A_TYPE, error),
         QueryError::Project(error) => project(error),
     }
+}
+
+/// A `search` that answered nothing once its bounds held.
+fn search(error: SearchError) -> Failure {
+    match error {
+        error @ SearchError::NodeTypeNotFound { .. } => {
+            Failure::refused(NODE_TYPE_NOT_FOUND, error)
+        }
+        SearchError::Project(error) => project(error),
+    }
+}
+
+/// `--format`: a search format's literal.
+fn matches_format(text: &str) -> Result<MatchesFormat, String> {
+    text.parse()
+        .map_err(|error: UnknownMatchesFormat| error.to_string())
 }
 
 /// A `changes` that answered nothing.
