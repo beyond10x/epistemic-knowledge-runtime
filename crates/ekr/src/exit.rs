@@ -137,7 +137,9 @@ impl Failure {
 /// The name a store refuses a stage command, or a verb joined to a stage, under (design § 107;
 /// `systems/ekr/domains/store.yaml`, the stage's errors): exit 2, nothing written by the verb.
 /// `stage-write-landed` is one too: the write is refused and reported unsuccessful, and its
-/// occurrences are in the store only if the stage's publication holds them. A host tenant that
+/// occurrences are in the store only if the stage's publication holds them. `stage-copy-failed`
+/// is one too: the begin wrote the stage's record and abandoned it as far as that landed, and
+/// the refusal names the stage and what it left; the store's head did not move. A host tenant that
 /// carries the stage marker (`stage-tenant-reserved`) is not a refusal of a stage but a
 /// host-configuration fault, exit 1, and is not here.
 fn stage_refusal(error: &PersistenceError) -> Option<&'static str> {
@@ -149,6 +151,7 @@ fn stage_refusal(error: &PersistenceError) -> Option<&'static str> {
         PersistenceError::StageStreamMoved { .. } => "stage-stream-moved",
         PersistenceError::StageObjectMoved { .. } => "stage-object-moved",
         PersistenceError::StageIncomplete(_) => "stage-incomplete",
+        PersistenceError::StageCopyFailed { .. } => "stage-copy-failed",
         PersistenceError::UnresolvedPreparation { .. } => "unresolved-preparation",
         PersistenceError::StageSuffixRefused { .. } => "stage-suffix-refused",
         PersistenceError::StageUnsupportedProvider(_) => "stage-unsupported-provider",

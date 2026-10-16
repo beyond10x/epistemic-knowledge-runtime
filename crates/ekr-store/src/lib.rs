@@ -247,6 +247,30 @@ pub enum StoreError {
     #[error("stage-incomplete: the copy of stage {0} never finished; abandon it")]
     StageIncomplete(StageId),
 
+    /// `stage-copy-failed` (`ekr.store.StageCopyFailed`): a begin recorded the stage and its
+    /// preserving copy into the stage's tenant then failed — a write of it was refused, or its
+    /// outcome could not be told (a copy group outlasting the provider's operation deadline). The
+    /// begin abandoned the stage where that could be recorded (`state` Abandoned, else Begun) and
+    /// forgot its tenant where it could (`forgotten`); `ekr stage abandon <stage_id>` finishes
+    /// either. The store's head and revision stream are unchanged. `reason` is the copy's own
+    /// refusal, and what the cleanup could not do.
+    #[error(
+        "stage-copy-failed: stage {stage_id} was begun and its copy did not land ({reason}); \
+         it is {state:?}{}, and the store is unchanged; finish with `ekr stage abandon {stage_id}`",
+        if *forgotten { " and its tenant is empty" } else { " and its tenant may hold part of the copy" }
+    )]
+    StageCopyFailed {
+        /// The stage the begin recorded.
+        stage_id: StageId,
+        /// Its record's state after the begin: Abandoned, or Begun where that could not be
+        /// recorded.
+        state: StageState,
+        /// Whether the stage's tenant was forgotten.
+        forgotten: bool,
+        /// Why the copy failed, and what of the cleanup failed.
+        reason: String,
+    },
+
     /// `unresolved-preparation` (`ekr.store.UnresolvedPreparation`): a decision was elected and
     /// never published. Nothing was copied, sealed or appended. A stage's publication elected and
     /// not resolved (design § 107.5) names its stage, which publishing or abandoning resolves, and

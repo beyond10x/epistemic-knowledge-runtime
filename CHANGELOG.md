@@ -89,6 +89,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   (with the same bytes) before the store is admitted. Only `tools/call` and `/readyz` wait for
   the store.
 
+## [0.0.35] — 2026-10-16
+
+### Fixed
+
+- `ekr stage begin` whose copy into the stage's tenant does not land no longer answers
+  `publication outcome is unknown`, which named no stage although the begin had recorded one. It
+  abandons the stage and empties its tenant as far as each lands and refuses with the new named
+  refusal `stage-copy-failed` (exit 2), naming the stage, whether it is `Abandoned` or still
+  `Begun`, whether its tenant may hold part of the copy, and the copy's own error;
+  `ekr stage abandon <stage id>` finishes what the begin could not. The store's head and history
+  do not move.
+- On PostgreSQL a write whose outcome the provider cannot tell is tried again only while less
+  than `pool.transaction_timeout_ms` has passed since its first attempt, at most 16 times as
+  before, so a write that runs into that deadline answers within about two deadlines instead of
+  sixteen. A stage begin of a large store needs `pool.transaction_timeout_ms` (with
+  `statement_timeout_ms` and `lock_timeout_ms`) long enough for its largest copy group; SQLite and
+  File stores retry as before. `docs/cli.md` describes both.
+
 ## [0.0.34] — 2026-10-14
 
 ### Added

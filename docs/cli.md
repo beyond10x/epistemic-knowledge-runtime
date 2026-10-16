@@ -1983,7 +1983,10 @@ unset EKR_STAGE
   `state` (`Begun`), `base` (the store's head) and `base_revision`. The store's head and history
   do not move. The copy is the store's preserving copy, as [`ekr migrate`](#ekr-migrate) writes
   one: a joined `ekr head` names the same revision and the same knowledge, evidence, ontology and
-  authority roots, and its `transaction` is the stage's own seed claim.
+  authority roots, and its `transaction` is the stage's own seed claim. A copy that does not
+  land (on PostgreSQL, one whose group outlasts `pool.transaction_timeout_ms`) is refused
+  `stage-copy-failed`, naming the stage: the begin abandons the stage and empties its tenant as
+  far as it can, and `ekr stage abandon <stage id>` finishes the rest.
 - **Joining.** Every verb that opens an existing store joins the stage `--stage <id>` or
   `EKR_STAGE=<id>` names ([Configuration](#configuration)), `ekr session`, `ekr mcp` and
   `ekr view` included. Its reads see the store at the stage's base and the run's own commits,
@@ -2024,9 +2027,10 @@ as a usage error. `begin`, `publish` and `abandon` write the store and are refus
 `store-read-only` on a store this process may not write; `list` only reads.
 
 Each refusal of a stage is a named refusal, exit 2, `ekr: <name>: <reason>`, and the verb it
-refuses changed nothing. Those a run meets in the ordinary course are rows of
-[Common refusals](#common-refusals). The others arise only when another process interleaves, or
-after an interruption:
+refuses changed nothing, except `stage-copy-failed`, which says what the begin left. Those a run
+meets in the ordinary course are rows of [Common refusals](#common-refusals). The others arise
+only when another process interleaves, after an interruption, or when the provider cannot land a
+write:
 
 | refusal | what it means | what to do |
 |---|---|---|
@@ -2035,6 +2039,7 @@ after an interruption:
 | `stage-suffix-refused` | the kernel refused the run against the store; the stage stays `Sealing` | abandon it and make the run again |
 | `unresolved-preparation` | the stage holds a decision a joined command elected and never published | run that command again in the stage, or abandon it |
 | `stage-incomplete` | a begin stopped before its copy finished; nothing joins or publishes the stage | abandon it and begin another |
+| `stage-copy-failed` | a begin recorded its stage and then could not copy the store into the stage's tenant: a copy write was refused, or its outcome could not be told, as when one copy group outlasts the PostgreSQL `pool.transaction_timeout_ms`. The begin abandoned the stage where that could be recorded and emptied its tenant where it could; the message names the stage, says whether it is `Abandoned` or still `Begun` and whether its tenant may hold part of the copy, and gives the copy's own error. The store's head and history did not move | run `ekr stage abandon <stage id>` with the id the message names, which finishes what the begin could not; for a store too large to copy within the deadline, raise `pool.transaction_timeout_ms` (and `statement_timeout_ms` and `lock_timeout_ms` with it, see [Hosted PostgreSQL](#hosted-postgresql)) and begin again |
 | `stage-sealed` | a verb joined to a stage that is being published | wait for the publish, or make the write in a new stage |
 | `stage-write-landed` | a joined write landed after the stage was sealed; it is not reported successful | read the store for the occurrences it names once the stage is published |
 | `stage-not-sealed` | a `Begun` stage published without its seal, which `ekr stage publish` never does | — |
@@ -3743,7 +3748,13 @@ The application configuration references only application credentials.
 Pool defaults are four connections and 32 waiters. Optional millisecond fields inside `pool` are
 `acquisition_timeout_ms` (2000), `connect_timeout_ms` (2000), `statement_timeout_ms` (5000),
 `lock_timeout_ms` (2000), `transaction_timeout_ms` (10000), and `shutdown_timeout_ms` (5000).
-Each duration is positive and at most one day. Read-only commands, viewer and MCP handles reject
+Each duration is positive and at most one day. `transaction_timeout_ms` bounds one write's
+transaction, a preserving copy's group included: a write whose outcome the provider cannot tell
+is tried again with the same group only while less than that time has passed since its first
+attempt (at most 16 attempts), so a write that runs into the deadline answers within about two of
+them instead of repeating. An `ekr stage begin` of a large store needs it (with
+`statement_timeout_ms` and `lock_timeout_ms`) long enough for its largest copy group; a begin
+that cannot copy is refused `stage-copy-failed`. Read-only commands, viewer and MCP handles reject
 store mutations, including checkpoint writes. A session retains ordinary proposal/validation/commit
 semantics and opens an application writer. Hosted readers follow database revisions, not configuration
 file inode changes; restart them to adopt changed configuration. Pool shutdown is bounded on normal

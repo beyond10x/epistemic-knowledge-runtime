@@ -243,9 +243,47 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
             captured.head().revision,
             captured.head_revision(),
         )?;
-        let destination = open(&tenant)?;
-        captured.copy_into(&destination)?;
-        Ok(record.result())
+        // From here the stage exists in the store. A copy that fails does not answer its own
+        // refusal, which names no stage (an unknown outcome would send the caller to resolve a
+        // publication that is not there): the stage is abandoned and named.
+        let copied = open(&tenant)
+            .map_err(CommitError::from)
+            .and_then(|destination| captured.copy_into(&destination));
+        match copied {
+            Ok(_) => Ok(record.result()),
+            Err(error) => Err(self.copy_failed(&record, &error)),
+        }
+    }
+
+    /// `stage-copy-failed`: abandons `record`, a stage whose copy failed with `error`, as
+    /// `ekr stage abandon` does — its abandonment, then its tenant forgotten — as far as each
+    /// lands, and names what it left.
+    fn copy_failed(&self, record: &StageRecord, error: &CommitError) -> CommitError {
+        let mut reason = error.to_string();
+        let (state, forgotten) = match self.store.record_stage_abandoned(record) {
+            Ok(_) => match self.store.forget_stage_tenant(record.stage_id) {
+                Ok(()) => (StageState::Abandoned, true),
+                Err(forget) => {
+                    reason.push_str(&format!("; its tenant was not forgotten: {forget}"));
+                    (StageState::Abandoned, false)
+                }
+            },
+            Err(abandon) => {
+                reason.push_str(&format!("; its abandonment was not recorded: {abandon}"));
+                let state = match self.store.stage_record(record.stage_id) {
+                    Ok(Some(now)) => now.state,
+                    _ => record.state,
+                };
+                (state, false)
+            }
+        };
+        StoreError::StageCopyFailed {
+            stage_id: record.stage_id,
+            state,
+            forgotten,
+            reason,
+        }
+        .into()
     }
 
     /// `ekr.cli.SealStage`: checks the stage Begun, complete and holding no decision elected and
