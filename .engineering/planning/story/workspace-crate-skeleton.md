@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 25
+revision: 26
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
@@ -92,7 +92,8 @@ and `ekr` present as workspace members.
   - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`,
     `tempfile` (added in wave p1-06, see below), `eventlog-core`, `eventlog-file`,
     `eventlog-sqlite`, `time`, `tokio` (added by `cb6dc41` for direct provider corruption
-    witnesses; dev only, so the runtime gains no edge)
+    witnesses; dev only, so the runtime gains no edge), `rustls`, `tokio-postgres` and `tokio-postgres-rustls`
+    (a PostgreSQL test holds a lock as the schema owner while a stage begin copies; dev only)
   - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file`, `eventlog-postgres` (immutable Git revision
     `fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8`), `rustls` (0.23, PEM and verified TLS configuration), `serde`,
     `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below),

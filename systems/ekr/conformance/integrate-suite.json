@@ -5,7 +5,7 @@
     "counts": {
       "authored": 0,
       "generated": 2,
-      "outside": 127,
+      "outside": 128,
       "refused": 0
     },
     "generated": [
@@ -159,6 +159,17 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.cli.BeginStage/outcome/begun"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.cli.BeginStage"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.cli.BeginStage/outcome/copy-failed"
       },
       {
         "needs": [
@@ -2358,8 +2369,8 @@
   },
   "provenance": {
     "component": "ekr-integrate",
-    "contract_digest": "db1c9f30b7f9e5d8b6e2907542f61561e68ac735679e1c4957cc77d556369827",
-    "spec_digest": "dcf8c5bf7b44384be1b217c1fcab5f3d822b7e547a1b8dd5711693c0b2e166d3",
+    "contract_digest": "1f6c2e434436a4648278e09a493d4024c2806ea946fecf1f61fd9d388426abbd",
+    "spec_digest": "ba2e37a09f73dc1ee73783734fc5c5adc481f3959a24e31dada7c521f2e187e2",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
