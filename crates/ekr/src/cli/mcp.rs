@@ -22,7 +22,7 @@
 //! | `expand` | [`ekr_views::Index::expand_as`]'s whole page: `ekr.graph-slice/2` unless `format` names `ekr.graph-slice/1` |
 //! | `timeline` | [`ekr_views::Index::timeline_as`]'s bytes: `ekr.graph-timeline/2` unless `format` names `ekr.graph-timeline/1` |
 //! | `changes_since` | [`ekr_views::Index::changes_as`]'s bytes: `ekr.graph-changes/2` unless `format` names `ekr.graph-changes/1` |
-//! | `explain` | what `ekr explain --format F` prints for the assertion, through the same `explain::run`: `F` is `ekr.explanation/3` unless `format` names `ekr.explanation/2` |
+//! | `explain` | what `ekr explain --format F [--scope S]` prints for the assertion, through the same `explain::run`: `F` is `ekr.explanation/3` unless `format` names `ekr.explanation/2`, and under /3 `S` is `cited` unless `scope` names `all` |
 //! | `resolve` | what `ekr resolve --format F` prints for the reference, built by the verb's own `resolve::type_id` and `resolve::reference` from the JSON arguments and answered through the same `resolve::answer`: `F` is `ekr.resolution/1` unless `format` names `outcome` |
 //! | `head` | `{"format":"ekr.view-head/1","head":N}`, byte for byte what `ekr view` serves at `GET /head` ([`head_document`]) |
 //!
@@ -635,8 +635,10 @@ impl Server {
 
     /// What `ekr explain <assertion> --format F` prints, byte for byte, or with `documents`, what
     /// `ekr explain <assertion> --documents [--offset N] [--limit N] --format F` prints; `F` is
-    /// `ekr.explanation/3` unless `format` names `ekr.explanation/2`. `offset` and `limit`
-    /// without `documents`, and a `limit` of 0, are refused as the verb refuses them.
+    /// `ekr.explanation/3` unless `format` names `ekr.explanation/2`, and under /3 the scope is
+    /// `cited` unless `scope` names `all` (`kernel.yaml`, `ekr.kernel.ExplanationV3`;
+    /// ekr-mcp-fixes-20261015 #7). `offset` and `limit` without `documents`, a `limit` of 0, and
+    /// a `scope` with /2 are refused as the verb refuses them.
     fn explain(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let ExplainArguments {
             assertion,
@@ -644,7 +646,18 @@ impl Server {
             offset,
             limit,
             format,
+            scope,
         } = decode(arguments)?;
+        let scope = scope
+            .as_deref()
+            .map(|name| {
+                super::explain::Scope::named(name).ok_or_else(|| {
+                    Unanswered::params(format!(
+                        "arguments: {name:?} is no evidence scope; it is cited or all"
+                    ))
+                })
+            })
+            .transpose()?;
         let format = match format.as_deref() {
             None => super::explain::Format::V3,
             Some(name) => super::explain::Format::named(name).ok_or_else(|| {
@@ -654,6 +667,9 @@ impl Server {
                 ))
             })?,
         };
+        if format == super::explain::Format::V2 && scope.is_some() {
+            return Err(Unanswered::params(super::explain::SCOPE_WITHOUT_V3));
+        }
         if !documents && (offset.is_some() || limit.is_some()) {
             return Err(Unanswered::params(
                 "`offset` and `limit` bound `documents`: they need `documents: true`",
@@ -668,7 +684,14 @@ impl Server {
             ))
         })?;
         let documents = documents.then_some(super::explain::Bounds { offset, limit });
-        Ok(super::render(&super::explain::run(self.read()?.0, id, documents, format)?)?.text()?)
+        Ok(super::render(&super::explain::run(
+            self.read()?.0,
+            id,
+            documents,
+            format,
+            scope,
+        )?)?
+        .text()?)
     }
 
     /// What `ekr resolve <reference> [--at N] --format F` prints, byte for byte; `F` is
@@ -936,6 +959,8 @@ struct ExplainArguments {
     limit: Option<u64>,
     #[serde(default)]
     format: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
 }
 
 /// A typed reference's fields and `at`. A missing field is named by the verb's own reference
@@ -1200,10 +1225,12 @@ fn tools() -> Vec<Value> {
             "explain",
             "Explain assertion",
             "What `ekr explain --format ekr.explanation/3` prints: the assertion at the newest \
-             revision, where it came from, what later changed it, and its evidence, each record \
-             by hash, with `names` naming every type and property id it holds; with \
-             `documents`, also the whole records and the evidence text, at most 64 KiB of each \
-             evidence record unless `limit` says otherwise.",
+             revision, where it came from, what later changed it, and the evidence it cites \
+             (the rest counted as omitted_evidence; scope all for every entry of its \
+             transactions), each record by hash, with `names` naming every type and property id \
+             it holds; with `documents`, also the evidence text, at most 64 KiB of each evidence \
+             record unless `limit` says otherwise, and no proposal record. The answer is at most \
+             48 KiB: the longest evidence text is halved, and marked truncated, until it fits.",
             object(
                 json!({
                     "assertion": {"type": "string", "description": "The assertion's id, as describe_node answers it."},
@@ -1217,6 +1244,14 @@ fn tools() -> Vec<Value> {
                         super::explain::Format::V2.name(),
                         super::explain::Format::V3.name(),
                     ]),
+                    "scope": {
+                        "type": "string",
+                        "enum": [
+                            super::explain::Scope::Cited.name(),
+                            super::explain::Scope::All.name(),
+                        ],
+                        "description": "With ekr.explanation/3, the evidence answered: cited (when absent), what the chain's assertions and attachments cite; all, every evidence entry of its transactions. Not with ekr.explanation/2.",
+                    },
                 }),
                 &["assertion"],
             ),

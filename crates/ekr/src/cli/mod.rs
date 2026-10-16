@@ -80,6 +80,7 @@ use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
 pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
+pub use explain::Scope;
 pub use mcp::serve_mcp;
 pub use session::serve;
 pub use stage::StageCommand;
@@ -226,11 +227,17 @@ pub enum Command {
         /// absent.
         #[arg(long, requires = "documents", value_parser = clap::value_parser!(u64).range(1..))]
         limit: Option<u64>,
-        /// The format printed: `ekr.explanation/2` when absent, or `ekr.explanation/3`, the same
-        /// document with `names`, the name of every node type, edge type and property id it
-        /// holds.
+        /// The format printed: `ekr.explanation/2` when absent, or `ekr.explanation/3`: the chain
+        /// with only the evidence it cites (see --scope), no proposal record, at most 48 KiB in
+        /// all (the longest evidence text halved, and marked `truncated`, until it fits), and
+        /// `names`, the name of every node type, edge type and property id it holds.
         #[arg(long, value_enum)]
         format: Option<explain::Format>,
+        /// With --format ekr.explanation/3, which evidence to answer: `cited` (when absent), the
+        /// evidence the chain's assertions and attachments cite, the rest counted as
+        /// `omitted_evidence`; or `all`, every evidence entry of the chain's transactions.
+        #[arg(long, value_enum)]
+        scope: Option<explain::Scope>,
     },
     /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
     /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
@@ -996,11 +1003,23 @@ fn dispatch(
             offset,
             limit,
             format,
+            scope,
         } => {
+            let format = format.unwrap_or(explain::Format::V2);
+            if format == explain::Format::V2 && scope.is_some() {
+                return Err(Failure::Usage {
+                    message: format!("error: {}\n", explain::SCOPE_WITHOUT_V3),
+                });
+            }
             let runtime = source.resolve("explain")?.open()?;
             let documents = documents.then_some(explain::Bounds { offset, limit });
-            let format = format.unwrap_or(explain::Format::V2);
-            render(&explain::run(&runtime, assertion_id, documents, format)?)
+            render(&explain::run(
+                &runtime,
+                assertion_id,
+                documents,
+                format,
+                scope,
+            )?)
         }
         Command::Resolve {
             reference,

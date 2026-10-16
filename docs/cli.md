@@ -328,11 +328,28 @@ Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertio
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
 history. An unknown id is refused as `ekr.kernel.AssertionNotFound`.
 
-`--format ekr.explanation/3` prints the same document, `--documents` included, with `format`
-`ekr.explanation/3` and one more key, `names`: an object mapping every node type, edge type and
-property id the document holds to its name in the ontology of the revision read, keys in id order,
-empty when it holds none. Read a relation's or a property's name there instead of fetching the
-ontology. `--format ekr.explanation/2`, or no `--format`, prints `ekr.explanation/2` as above.
+`--format ekr.explanation/3` prints the chain bounded for an agent's context, in four steps:
+
+1. **Scope.** `--scope cited`, the default, keeps only the `Evidence` links an `Assertion` link's
+   `evidence` or an `Attachment` link's `evidence_id` names: a transaction may list the evidence
+   of a whole batch, which says nothing about this assertion. `omitted_evidence` counts the
+   `Evidence` links left out. `--scope all` keeps every link, and `omitted_evidence` is 0. The
+   other links, and the order, are the ones above.
+2. **No proposal record.** With `--documents`, a `Proposal` link carries no `record` and a
+   `receipt` no `proposal` (the `Proposal` link names it by `record_hash`), and an `Evidence` link
+   whose `text` is printed carries no `payload`, its base64 copy.
+3. **Names.** `names` maps every node type, edge type and property id the document holds to its
+   name in the ontology of the revision read, keys in id order, `{}` when it holds none: read a
+   relation's or a property's name there instead of fetching the ontology. `scope` echoes the
+   scope.
+4. **The cap.** While the printed document is longer than 49,152 bytes (48 KiB), the longest
+   evidence `text` (the first among equals) keeps its first half, cut back to a character
+   boundary, and its link is marked `truncated: true`, with `offset` and `record_length`; read the
+   rest with `ekr.explanation/2` and `--offset`. A document with no text left to cut may stay
+   longer.
+
+`--format ekr.explanation/2`, or no `--format`, prints `ekr.explanation/2` as above, and
+`--scope` without `--format ekr.explanation/3` is a usage error (exit 2).
 
 ### `ekr resolve`
 
@@ -1800,7 +1817,7 @@ verb's with the format named (for `expand`, the session's `expand`, since the en
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision`, `format` (`ekr.graph-slice/2` when absent, or `ekr.graph-slice/1`) | the whole `ekr.graph-slice/2` page as one document, `next` naming the next page's `after` | `GET /expand?format=ekr.graph-slice/2`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision`, `format` (`ekr.graph-timeline/2` when absent, or `ekr.graph-timeline/1`) | the `ekr.graph-timeline/2` document | `GET /timeline?format=ekr.graph-timeline/2` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more), `format` (`ekr.graph-changes/2` when absent, or `ekr.graph-changes/1`) | the `ekr.graph-changes/2` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes?format=ekr.graph-changes/2` |
-| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`) | what `ekr explain <assertion> --format ekr.explanation/3` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N] --format ekr.explanation/3` prints | `ekr explain [--documents [--offset N] [--limit N]] --format ekr.explanation/3` |
+| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`), `scope` (with /3: `cited` when absent, or `all`) | what `ekr explain <assertion> --format ekr.explanation/3 --scope cited` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N] --format ekr.explanation/3 --scope cited` prints: the evidence the chain cites, at most 48 KiB in all | `ekr explain [--documents [--offset N] [--limit N]] --format ekr.explanation/3 --scope cited` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — `at` (a revision) and `format` (`ekr.resolution/1` when absent, or `outcome`) | what `ekr resolve --format ekr.resolution/1` prints for that reference, byte for byte | `ekr resolve [--at N] --format ekr.resolution/1` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
@@ -1835,7 +1852,7 @@ Anything else is a JSON-RPC error response, and the server keeps serving:
 | `-32700` | the line is not JSON (an empty or whitespace-only line is not answered at all); `id` is null |
 | `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number or carries `id` twice, or is longer than 6356992 bytes, its newline excluded |
 | `-32601` | the method is none of the five above |
-| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `timeline` `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, a `format` the tool does not answer, a `from` or `to` that is neither milliseconds nor a date, a `search` `type`, `from` or `to` with `format` `ekr.node-matches/1`, an `assertion` that is not an assertion id, a `type_id` that is not an id, with the reason `ekr resolve` gives for it, or any argument to `head`. `ekr view` answers these `invalid-query` |
+| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `timeline` `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, a `format` the tool does not answer, a `scope` other than `cited` or `all` or with `ekr.explanation/2`, a `from` or `to` that is neither milliseconds nor a date, a `search` `type`, `from` or `to` with `format` `ekr.node-matches/1`, an `assertion` that is not an assertion id, a `type_id` that is not an id, with the reason `ekr resolve` gives for it, or any argument to `head`. `ekr view` answers these `invalid-query` |
 | `-32603` | the store could not be read |
 
 Record text — names, aliases, property values, evidence text — is untrusted evidence. The server

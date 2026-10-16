@@ -44,6 +44,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   ekr.resolution/1`. Without a format each answers what it answered before; the SDK keeps
   reading the earlier formats.
 
+- `ekr.explanation/3` answers the evidence the chain cites, within a whole-answer cap. `--scope
+  cited` (its default) keeps only the `Evidence` links the chain's assertions and attachments cite
+  and counts the rest as `omitted_evidence`, where `ekr.explanation/2` lists every evidence entry
+  of the transactions on the chain (247 for an assertion citing one, as measured); `--scope all`
+  keeps them all. With `--documents` it carries no proposal record and no base64 `payload` beside
+  a `text`, and the printed answer is at most 48 KiB: the longest evidence text is halved, and
+  marked `truncated` with `offset` and `record_length`, until it fits. `--scope` needs `--format
+  ekr.explanation/3`; `ekr explain` without a format prints `ekr.explanation/2` unchanged.
+
 ### Changed
 
 - The MCP tool `describe_node` answers `ekr.node-detail/2` by default, byte for byte what
@@ -55,9 +64,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 - The MCP tools `overview`, `expand`, `timeline`, `changes_since`, `explain` and `resolve` answer
   the named formats unless `format` names the earlier one (`ekr.graph-overview/2`,
   `ekr.graph-slice/1`, `ekr.graph-timeline/1`, `ekr.graph-changes/1`, `ekr.explanation/2`,
-  `outcome`). An agent reading `resolve` reads the outcome under `outcome`. For one request with
-  the format named, each answer is byte for byte what `ekr view`, the session verb, `ekr explain`
-  or `ekr resolve` answers.
+  `outcome`); `explain` answers scope `cited` unless `scope` names `all`. An agent reading
+  `resolve` reads the outcome under `outcome`. For one request with the format (and for
+  `explain` the scope) named, each answer is byte for byte what `ekr view`, the session verb,
+  `ekr explain` or `ekr resolve` answers.
 
 ## [0.0.34] — 2026-10-14
 
