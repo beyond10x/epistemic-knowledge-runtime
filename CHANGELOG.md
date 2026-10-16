@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.36] — 2026-10-16
+
 ### Added
 
 - `ekr.node-detail/2`, one node bounded for an agent's context (ekr-mcp-fixes-20261015 #1, #10,
