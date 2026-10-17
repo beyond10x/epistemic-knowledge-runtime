@@ -2,7 +2,7 @@
 
 Skill: aep:implementing (wave mode). Coordinator: the repository's controlling Claude session of
 2026-10-16.
-Status: **building**: U1 and U2 in their own trees.
+Status: **gating**: U1 and U2 merged into `wave/20261016b`; the full gate runs on its head.
 
 Source: two reports from a consumer running 0.0.35 on PostgreSQL, reproduced here first as red tests
 on a PostgreSQL 17 container (`crates/ekr-kernel/tests/stage_hosted_limits.rs`): issue #93 (a stage
@@ -29,9 +29,9 @@ committed on the integration branch; each runs them on its own PostgreSQL contai
 
 | unit | branch | worktree id | build dir | stage |
 |---|---|---|---|---|
-| integration | `wave/20261016b` | `ekr-stage-locks` | `<tree>/target` | red tests and stories committed |
-| U1 | `unit/20261016b-u1` | `ekr-w16b-u1` | `<tree>/target` | building |
-| U2 | `unit/20261016b-u2` | `ekr-w16b-u2` | `<tree>/target` | building |
+| integration | `wave/20261016b` | `ekr-stage-locks` | `<tree>/target` | both units merged; suites regenerated from the merged specification; release 0.0.37 prepared |
+| U1 | `unit/20261016b-u1` | `ekr-w16b-u1` | `<tree>/target` | merged at `72fd90f2` (`90e54186`, `cc154f3d`); adversary NEEDS-CHANGE on three findings, all fixed |
+| U2 | `unit/20261016b-u2` | `ekr-w16b-u2` | `<tree>/target` | merged at `eeb0c261` (`762e642d`); adversary found nothing; tree finished |
 
 ## Gate
 

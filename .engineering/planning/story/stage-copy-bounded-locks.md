@@ -2,14 +2,15 @@
 format: aep.planning-md/3
 id: story:stage-copy-bounded-locks
 kind: story
-status: active
+status: implemented
 title: A stage begin takes a bounded number of locks per transaction
 relations:
 - serves: vision:o5
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-16T21:34:48Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-16T21:34:49Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-17T03:09:01Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Outcome
 
