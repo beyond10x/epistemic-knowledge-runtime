@@ -364,14 +364,18 @@ types:
     kind: enum
     variants: [File, Sqlite, Postgres]
 
-  # Issue #93, story:stage-copy-bounded-locks. The most streams one provider group of a preserving
-  # copy (`ekr stage begin`, `ekr migrate`) carries: 32. A copied occurrence whose group would
+  # Issue #93, story:stage-copy-bounded-locks. The most streams one provider group of a stage
+  # begin's preserving copy (`ekr stage begin`) carries: 32. A copied occurrence whose group would
   # carry more has its objects other than its record and its seed envelope (evidence payloads)
   # stored ahead of it, at their class and `stored_at`, in groups of at most 32 objects, and its
-  # own group then carries its revision stream, its record and its envelope. PostgreSQL takes one
-  # transaction-scoped advisory lock per stream of a group, so a copy needs at most 32 of them per
-  # transaction, whatever the store holds; the original seed and commit still take one per payload
-  # they carry. `ekr-store`'s `CopyGroupStreams::BOUND` (`COPY_GROUP_STREAMS`); held by
+  # own group then appends to its revision stream, its record and its envelope and binds only the
+  # objects it appends. PostgreSQL takes one transaction-scoped advisory lock per stream of a group
+  # and two more (the publication gate and the group's own), so a begin's copy takes at most 34 per
+  # transaction, whatever the store holds. Only a begin stores ahead: its destination is the
+  # tenant it has just minted, which no other writer can address. `ekr migrate` copies each
+  # occurrence in one group, as the original seed and commit are written, since another migration
+  # may be writing the same destination and a loser must leave nothing in the winner's store.
+  # `ekr-store`'s `CopyGroupStreams::BOUND` (`COPY_GROUP_STREAMS`); held by
   # `a_copy_takes_a_bounded_number_of_streams_per_group` in `crates/ekr-kernel/tests/stage.rs`,
   # counted through the store's group calls. The value is stated here and not as an invariant:
   # no view publishes a value of this type, so ess 0.36.0 synthesizes no scenario for one

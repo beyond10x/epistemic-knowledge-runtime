@@ -248,7 +248,7 @@ impl<S: RevisionLog + ObjectStore + Inventory + StageLog> Commit<S> {
         // publication that is not there): the stage is abandoned and named.
         let copied = open(&tenant)
             .map_err(CommitError::from)
-            .and_then(|destination| captured.copy_into(&destination));
+            .and_then(|destination| captured.copy_into_minted(&destination));
         match copied {
             Ok(_) => Ok(record.result()),
             Err(error) => Err(self.copy_failed(&record, &error)),

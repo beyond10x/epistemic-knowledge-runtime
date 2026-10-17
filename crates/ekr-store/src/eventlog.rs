@@ -1896,6 +1896,9 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 .collect::<BTreeSet<_>>()
                 .len(),
         })?;
+        crate::stage::reached(crate::StagePoint::GroupBlobs {
+            blobs: request.blobs.len(),
+        })?;
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
@@ -2110,9 +2113,17 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                     serde_json::to_value(&publication.event).map_err(json_error)?,
                 )?],
             }];
+            // A blob is bound only for an object this group appends to: one already held at its
+            // class or a stronger one (a payload stored ahead of it, issue #93) keeps the bytes it
+            // has, and binding it again would only repeat that write inside this transaction.
+            let mut blobs = Vec::new();
             for (hash, object) in &publication.objects {
                 if let Some(append) = self.object_append(*hash, object)? {
                     appends.push(append);
+                    blobs.push(BlobWrite {
+                        digest: hash.to_hex(),
+                        bytes: object.bytes.clone(),
+                    });
                 }
             }
             let request = BlobAppendGroup {
@@ -2124,14 +2135,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                         ContentHash::of(&publication.event).to_hex(),
                     ),
                 },
-                blobs: publication
-                    .objects
-                    .iter()
-                    .map(|(hash, object)| BlobWrite {
-                        digest: hash.to_hex(),
-                        bytes: object.bytes.clone(),
-                    })
-                    .collect(),
+                blobs,
             };
             match self.atomic(&request) {
                 Ok(result) => {
