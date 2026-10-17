@@ -4,6 +4,14 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Fixed
+
+- `ekr stage list` on a PostgreSQL store answered `[]`, or left out a stage, while any other
+  transaction on the server was open, although the stage's begin had committed and
+  `ekr stage show` found it (#94). A begin now records the stage in the store's stage index,
+  `ekr.store.StageIndexed`, in the same atomic write as its `StageBegun`, and the listing reads
+  that index as a stream; stages begun before this release are still found through the log.
+
 ## [0.0.36] — 2026-10-16
 
 ### Added

@@ -15,10 +15,10 @@
 #[allow(dead_code)]
 mod current_fixture;
 
-use current_fixture::{SEEDED_AT, anchor, context, seed};
+use current_fixture::{anchor, context, seed, SEEDED_AT};
 use ekr_core::{ContentHash, Timestamp};
 use ekr_graph::{Confidence, Evidence, EvidenceSource};
-use ekr_kernel::{Runtime, SeedDocument, runtime::PostgresConfiguration};
+use ekr_kernel::{runtime::PostgresConfiguration, Runtime, SeedDocument};
 use ekr_store::{ObjectStore, PostgresStore, StageState, StorageClass};
 use std::path::Path;
 use std::sync::Arc;

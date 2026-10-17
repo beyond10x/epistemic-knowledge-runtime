@@ -362,6 +362,10 @@
             "name": "ekr.store.StageBegun"
           },
           {
+            "kind": "event",
+            "name": "ekr.store.StageIndexed"
+          },
+          {
             "kind": "view",
             "name": "ekr.cli.Stages"
           }
@@ -1717,8 +1721,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "40dc4c371cedbeb7ef2490e7e3b761e0e6ad1a3a7b26e850b727874854d7ff7c",
-    "spec_digest": "67e424ef78cba798f0738e52dc0c37754c8c1b2fa9220297ea46d8dcb8e11c77",
+    "contract_digest": "8222e8a601c80c14fcb05e0afc1e62fed476857839fc32644cc921a61279a6c9",
+    "spec_digest": "7a4a46242ddc42ebd850ec364b17ffc8b29570c3ec1b7854c1b6a5ef73c2fa01",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -1851,6 +1855,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -2181,6 +2189,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -2402,6 +2414,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -3759,6 +3775,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -3947,6 +3967,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -4245,6 +4269,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -4436,6 +4464,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -4592,6 +4624,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -4756,6 +4792,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -5233,6 +5273,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -5379,6 +5423,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -5546,6 +5594,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -5692,6 +5744,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -5858,6 +5914,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -7021,6 +7081,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -7451,6 +7515,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -8358,6 +8426,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -8777,6 +8849,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -9358,6 +9434,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -9798,6 +9878,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -9980,6 +10064,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -10398,6 +10486,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -10601,6 +10693,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -10931,6 +11027,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -11150,6 +11250,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -11405,6 +11509,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -11631,6 +11739,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -11929,6 +12041,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -12148,6 +12264,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -12403,6 +12523,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -12594,6 +12718,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -12760,6 +12888,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -12910,6 +13042,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -13076,6 +13212,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -13249,6 +13389,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -13473,6 +13617,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -13666,6 +13814,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -13832,6 +13984,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -13978,6 +14134,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -14147,6 +14307,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -14304,6 +14468,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -14961,6 +15129,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -15127,6 +15299,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -15360,6 +15536,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -15549,6 +15729,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -15719,6 +15903,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -15869,6 +16057,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -16034,6 +16226,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -16214,6 +16410,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -16469,6 +16669,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -16660,6 +16864,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.StagePublished"
         },
         {
@@ -16830,6 +17038,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.StagePublished",
           "step": "expect_no_event"
         },
@@ -16976,6 +17188,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -17139,6 +17355,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {
@@ -17319,6 +17539,10 @@
         {
           "kind": "event",
           "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
         },
         {
           "kind": "event",
@@ -17571,6 +17795,10 @@
         },
         {
           "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
           "step": "expect_no_event"
         },
         {

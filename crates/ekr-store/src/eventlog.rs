@@ -40,6 +40,13 @@ const STAGE_BEGUN: &str = "ekr.store.StageBegun";
 const STAGE_SEALED: &str = "ekr.store.StageSealed";
 const STAGE_PUBLISHED: &str = "ekr.store.StagePublished";
 const STAGE_ABANDONED: &str = "ekr.store.StageAbandoned";
+/// The stream family of the store's stage index (`ekr.store.StageIndexed`, issue #94): one stream
+/// per store tenant, `STAGE_INDEX_STREAM_ID`, holding one entry per stage, appended in the same
+/// atomic group as that stage's `StageBegun`. Listing reads it as a stream, which sees every
+/// committed write, where the provider's published feed can withhold one.
+const STAGE_INDEX_STREAM_TYPE: &str = "ekr.stage-index";
+const STAGE_INDEX_STREAM_ID: &str = "stages";
+const STAGE_INDEXED: &str = "ekr.store.StageIndexed";
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "preparation.rs"]
