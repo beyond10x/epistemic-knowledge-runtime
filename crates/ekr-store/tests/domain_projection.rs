@@ -168,6 +168,27 @@ fn the_strongest_of_two_classes_does_not_depend_on_which_arrived_first() {
     }
 }
 
+/// Issue #93: the group bound the code carries is the one `ekr.store.CopyGroupStreams` states in
+/// `store.yaml` ("carries: 32"), and the count `put_all` groups by is that same bound.
+#[test]
+fn the_copy_group_bound_is_the_one_the_domain_states() {
+    let text = domain_text();
+    let stated = text
+        .split("carries: ")
+        .nth(1)
+        .and_then(|rest| rest.split('.').next())
+        .and_then(|number| number.trim().parse::<usize>().ok())
+        .expect("store.yaml states the streams one copy group carries");
+    assert_eq!(
+        ekr_store::CopyGroupStreams::BOUND,
+        ekr_store::CopyGroupStreams(stated)
+    );
+    assert_eq!(
+        ekr_store::CopyGroupStreams::BOUND.0,
+        ekr_store::COPY_GROUP_STREAMS
+    );
+}
+
 // Every event this crate writes, against the fields the domain declares for it.
 //
 // Correction round 2 found `ekr.store.ObjectRetentionRaised` written with one field where the
