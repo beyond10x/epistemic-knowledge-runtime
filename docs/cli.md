@@ -178,10 +178,10 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
-| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>`, `--require-ready`, optional `--mcp-url <URL>` and `--agent-guide-url <URL>` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
+| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>`, `--require-ready`, optional `--mcp-url <URL>` and `--agent-guide-url <URL>`, `--metrics`, `--request-log <path>` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
-| `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
+| `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>`, `--metrics`, `--request-log <path>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
 | `ekr migrate` | reads, and writes a new store | `--to <path>`, optional `--to-backend <provider>`: empty destination; PostgreSQL uses an application configuration file | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 | `ekr postgres-schema` | provisions provider tables | `--config <file>`: schema-management configuration | `ekr.postgres-schema/1` with `ready: true`; no knowledge is seeded |
 | `ekr stage` | writes; `list` reads | `begin`; `publish <stage id> --expect-head <revision>`; `abandon <stage id>`; `list` | the stage as the verb left it: `stage_id`, `state`, `base` and, once published, `published_first` and `published_last`; `list` prints every stage the store has had |
@@ -1776,6 +1776,53 @@ responses and messages that are not requests — is answered on its own connecti
 is read, never queued, with the bytes the store's thread would answer it with, and opens no
 store. So a client's handshake does not wait behind another client's tool call, nor behind the
 store's first open, and is answered before admission as after it.
+
+#### Metrics and request logs
+
+`ekr mcp-http` and `ekr view` both take `--metrics` and `--request-log <path>`; both are off
+unless given. The stdio `ekr mcp` takes neither.
+
+`--metrics` serves `GET /metrics` in the Prometheus text exposition format
+(`text/plain; version=0.0.4; charset=utf-8`), answered on its connection without waiting for the
+store. It is admitted as every other path is: one admitted Host (else 421) and, on
+`ekr mcp-http`, an admitted Origin when one is sent (else 403); any other method is 405. It has
+no authentication of its own. Without `--metrics` the path answers 404.
+
+| metric | type | labels | what |
+|---|---|---|---|
+| `ekr_read_requests_total` | counter | `tool`, `outcome` | reads dispatched |
+| `ekr_read_duration_seconds` | histogram | `tool` | from accept to the answer ready; buckets 0.001 to 30 s |
+| `ekr_read_result_bytes` | histogram | `tool` | bytes of the document answered; buckets 64 B to 16 MiB |
+| `ekr_read_in_flight` | gauge | | requests waiting for or held by the store |
+| `ekr_store_head_revision` | gauge | | the head revision of the store served, read after each request |
+| `ekr_store_query_errors_total` | counter | `tool` | reads that failed on the store, which are not refusals |
+
+`tool` is a read's wire name: an MCP tool's name (`head`, `overview`, `search`,
+`describe_node`, `expand`, `timeline`, `changes_since`, `explain`, `resolve`), or for an
+`ekr view` route the read it answers: `/node/<id>` is `describe_node`, `/changes` is
+`changes_since`, `/evidence/<id>` is `describe_evidence`, and `/head`, `/overview`, `/search`,
+`/expand`, `/timeline`, `/projection`, `/roles` and `/find` their own names. The same read
+through either server moves the same series. `outcome` is `ok`, `invalid_input` (`invalid-query`,
+`ekr.views.LimitExceeded`, `ekr.views.SinceMalformed`, a -32602 and other input refusals),
+`not_seeded`, `not_found` (every `…NotFound` refusal and `ekr.views.NodeIsAType`), `unavailable`
+(`store-replaced`, a store not admitted) or `store_error` (a 500 or a -32603). A request that is
+no read — health, readiness, `/metrics`, the page, an MCP message that is not `tools/call`, an
+unknown tool — or that is refused before its read (Host, Origin, framing, method) is counted
+under no tool. No label carries request text.
+
+`--request-log <path>` appends one JSON line per request to the file (`-` writes standard
+error), in the format `ekr.request-log/1`:
+
+```json
+{"format":"ekr.request-log/1","server":"mcp-http","request_id":"req-41","request_id_source":"incoming","traceparent":"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01","traceparent_source":"incoming","tool":"search","outcome":"ok","status":200,"duration_seconds":0.0042,"result_bytes":312}
+```
+
+`request_id` is the request's `X-Request-Id` when it is 1 to 128 bytes of ASCII letters, digits
+and `-._:`, and `traceparent` its W3C `traceparent` when that is a well-formed version `00`
+header. Absent, each is generated (`generated`); malformed, oversized or repeated, it is replaced
+by a generated one (`replaced`) and the value sent is neither logged nor echoed. `tool` and
+`outcome` are present for a counted read. No metric and no log line carries a path, a query,
+an argument, a result's text, document content or a credential.
 
 ### `ekr mcp`
 

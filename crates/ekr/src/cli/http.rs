@@ -571,4 +571,64 @@ mod tests {
         }
         assert_eq!(pending.try_iter().count(), QUEUE_LIMIT);
     }
+
+    /// The whole answer to `request` on the loopback listener at `port`.
+    fn exchange(port: u16, request: &str) -> String {
+        let mut client = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(60)))
+            .unwrap();
+        client.write_all(request.as_bytes()).unwrap();
+        let mut answer = String::new();
+        client.read_to_string(&mut answer).unwrap();
+        answer
+    }
+
+    /// The `ekr_read_in_flight` sample `GET /metrics` answers.
+    fn in_flight(port: u16) -> String {
+        let answer = exchange(
+            port,
+            &format!("GET /metrics HTTP/1.1\r\nHost: localhost:{port}\r\n\r\n"),
+        );
+        assert!(answer.starts_with("HTTP/1.1 200 "), "{answer}");
+        answer
+            .lines()
+            .find(|line| line.starts_with("ekr_read_in_flight "))
+            .unwrap_or_else(|| panic!("no gauge: {answer}"))
+            .to_owned()
+    }
+
+    /// story:readers-emit-metrics-and-request-logs: a request the store's thread holds is in
+    /// flight, read from `/metrics` on another connection while it is held; once answered, none
+    /// is. The case orders events by channels and measures no duration.
+    #[test]
+    fn in_flight_returns_to_zero() {
+        use super::super::telemetry::Telemetry;
+        use std::sync::mpsc::channel;
+        let (listener, authorities) = bind(IpAddr::from([127, 0, 0, 1]), 0, Vec::new()).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let telemetry = Arc::new(Telemetry::new("mcp-http", true, None));
+        let (held, holding) = channel::<()>();
+        let (release, released) = channel::<()>();
+        std::thread::spawn(move || {
+            let _ = serve(listener, authorities, Vec::new(), |_| None, telemetry, move |_| {
+                let _ = held.send(());
+                let _ = released.recv();
+                Reply::json(200, b"{}".to_vec())
+            });
+        });
+        assert_eq!(in_flight(port), "ekr_read_in_flight 0");
+        let call = std::thread::spawn(move || {
+            exchange(
+                port,
+                &format!("POST /mcp HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 2\r\n\r\n{{}}"),
+            )
+        });
+        holding.recv().expect("the store's thread holds the call");
+        assert_eq!(in_flight(port), "ekr_read_in_flight 1");
+        release.send(()).unwrap();
+        let answered = call.join().unwrap();
+        assert!(answered.starts_with("HTTP/1.1 200 "), "{answered}");
+        assert_eq!(in_flight(port), "ekr_read_in_flight 0");
+    }
 }
