@@ -1,0 +1,58 @@
+# story:search-match-kinds: under ekr.node-matches/3 a node one of whose aliases is the whole text
+# ranks above a node whose name starts with the text, whatever their degrees (ekr.views.MatchKind).
+#
+# The store `match-kinds` is the one
+# a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches describes. `router` is core's
+# whole alias …c60103 (WholeAlias, degree 0), the start of router-east …c60104 (Prefix, degree 2)
+# and, after lowercasing, of Router-West …c60105 (Prefix, folded), and inside east-router …c60106
+# (Substring). So core is first although router-east's degree is higher and router-east matched by
+# its name: 4 matches, 1 whole, 3 case-exact.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v3-ranks-a-whole-alias-above-a-prefix
+summary: Under /3, "router" answers core (whose alias is "router") before router-east (whose name starts with it), although router-east's degree is higher.
+
+timeline:
+  - at: 2027-03-02T10:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: router
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: router
+          format: ekr.node-matches/3
+          matches: 4
+          total: 4
+          exact_total: 3
+          whole_total: 1
+          first_match: 00000000-0000-4000-8000-000000c60103
+          first_kind: WholeAlias
+          first_folded: false
+
+  - at: 2027-03-02T10:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: router-
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 2
+          total: 2
+          whole_total: 0
+          first_match: 00000000-0000-4000-8000-000000c60104
+          first_kind: Prefix
+          first_folded: false

@@ -17,7 +17,7 @@
 //! | tool | document |
 //! |---|---|
 //! | `overview` | [`ekr_views::Index::overview_as`]'s bytes: `ekr.graph-overview/3` unless `format` names `ekr.graph-overview/2` |
-//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/2` unless `format` names `ekr.node-matches/1`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
+//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/3` unless `format` names `ekr.node-matches/1` or `ekr.node-matches/2`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
 //! | `describe_node` | [`ekr_views::Index::detail_v2`]'s `ekr.node-detail/2` bytes, bounded by `limit` and narrowed by `edge_type` and `after`; with `full: true`, [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes. Each is what `ekr view` serves at `/node/<id>` with that `format` named |
 //! | `expand` | [`ekr_views::Index::expand_as`]'s whole page: `ekr.graph-slice/2` unless `format` names `ekr.graph-slice/1` |
 //! | `timeline` | [`ekr_views::Index::timeline_as`]'s bytes: `ekr.graph-timeline/2` unless `format` names `ekr.graph-timeline/1` |
@@ -561,8 +561,9 @@ impl Server {
         text(self.index(revision)?.overview_as(format, &request)?.bytes)
     }
 
-    /// `ekr.node-matches/2` unless `format` names /1: `ekr view`'s `/search` with the format named
-    /// (`views.yaml`, `ekr.views.SearchNodes`), its inputs read and refused in the same order.
+    /// `ekr.node-matches/3` unless `format` names /1 or /2: `ekr view`'s `/search` with the format
+    /// named (`views.yaml`, `ekr.views.SearchNodes`), its inputs read and refused in the same
+    /// order.
     fn search(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let SearchArguments {
             text: searched,
@@ -577,7 +578,7 @@ impl Server {
             .map(|name| name.parse::<MatchesFormat>())
             .transpose()
             .map_err(|error| Unanswered::params(format!("arguments: {error}")))?
-            .unwrap_or(MatchesFormat::V2);
+            .unwrap_or(MatchesFormat::V3);
         let filter = search_filter(
             format,
             node_type,
@@ -1231,9 +1232,12 @@ fn tools() -> Vec<Value> {
         tool(
             "search",
             "Search nodes",
-            "The ekr.node-matches/2 document: the nodes whose name or an alias contains the \
-             text, or, for two or more words, every word in any order; exact matches first, a \
-             whole name first within each tier, each match with its type_name. With type, only \
+            "The ekr.node-matches/3 document: the nodes whose name or an alias contains the \
+             text, or, for two or more words, every word in any order. A whole name first, then \
+             a whole alias, a prefix, a substring and the words, whatever the case, a case-exact \
+             match before a case-folded one within each kind; each match with its kind, \
+             whether it was case-folded and its type_name, and meta.whole_total counting the \
+             whole matches before limit. With type, only \
              that node type's nodes (an empty text lists them); with from and to, only nodes \
              whose time falls in the window, newest first.",
             object(
@@ -1245,8 +1249,8 @@ fn tools() -> Vec<Value> {
                         "The most matches answered; 20 when absent."),
                     "format": {
                         "type": "string",
-                        "enum": [MatchesFormat::V1.name(), MatchesFormat::V2.name()],
-                        "description": "The format answered; ekr.node-matches/2 when absent. ekr.node-matches/1 takes no type, from or to.",
+                        "enum": [MatchesFormat::V1.name(), MatchesFormat::V2.name(), MatchesFormat::V3.name()],
+                        "description": "The format answered; ekr.node-matches/3 when absent. ekr.node-matches/1 takes no type, from or to.",
                     },
                     "type": {"type": "string", "description": "Only nodes of this node type, by id or by name."},
                     "from": {

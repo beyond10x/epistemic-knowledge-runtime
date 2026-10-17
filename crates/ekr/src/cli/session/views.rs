@@ -102,8 +102,8 @@ pub(super) enum Verb {
         #[arg(long, value_parser = overview_sections)]
         sections: Option<OverviewSections>,
     },
-    /// `GET /search`: the `ekr.node-matches/1` document, or `ekr.node-matches/2` when `--format`
-    /// names it.
+    /// `GET /search`: the `ekr.node-matches/1` document, or `ekr.node-matches/2` or
+    /// `ekr.node-matches/3` when `--format` names it.
     Search {
         /// The text searched for; empty matches every node. Put `--` before a text that starts
         /// with `-`.
@@ -111,18 +111,19 @@ pub(super) enum Verb {
         /// The most matches answered, 1 to 100; 20 when absent.
         #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: Option<i64>,
-        /// The format answered: `ekr.node-matches/1` when absent, or `ekr.node-matches/2`.
+        /// The format answered: `ekr.node-matches/1` when absent, `ekr.node-matches/2` or
+        /// `ekr.node-matches/3`.
         #[arg(long, value_parser = matches_format)]
         format: Option<MatchesFormat>,
-        /// `ekr.node-matches/2` only: the node type matched, by id or name.
+        /// `ekr.node-matches/2` and /3 only: the node type matched, by id or name.
         #[arg(long = "type")]
         node_type: Option<String>,
-        /// `ekr.node-matches/2` only: the window's first instant, milliseconds since the epoch
-        /// or `YYYY-MM-DD` (that day's first millisecond, UTC).
+        /// `ekr.node-matches/2` and /3 only: the window's first instant, milliseconds since the
+        /// epoch or `YYYY-MM-DD` (that day's first millisecond, UTC).
         #[arg(long, allow_hyphen_values = true)]
         from: Option<String>,
-        /// `ekr.node-matches/2` only: the window's last instant, milliseconds since the epoch or
-        /// `YYYY-MM-DD` (that day's last millisecond, UTC).
+        /// `ekr.node-matches/2` and /3 only: the window's last instant, milliseconds since the
+        /// epoch or `YYYY-MM-DD` (that day's last millisecond, UTC).
         #[arg(long, allow_hyphen_values = true)]
         to: Option<String>,
         /// The committed revision to read; the head when absent.

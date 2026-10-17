@@ -23,6 +23,10 @@
       "ekr.views/authored/a-search-v2-lists-one-type-by-degree",
       "ekr.views/authored/a-search-v2-matches-every-word-in-any-order",
       "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier",
+      "ekr.views/authored/a-search-v3-counts-whole-matches-before-the-limit",
+      "ekr.views/authored/a-search-v3-names-each-match-kind-and-fold",
+      "ekr.views/authored/a-search-v3-ranks-a-whole-alias-above-a-prefix",
+      "ekr.views/authored/a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches",
       "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
       "ekr.views/authored/a-seed-only-store-projects-revision-zero",
       "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type",
@@ -158,6 +162,26 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier"
       },
+      "a-search-v3-counts-whole-matches-before-the-limit.yaml": {
+        "digest": "sha256:64821ae159b701177f101d1c8deb4c09c195772a7ce45953d92de3930626643a",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v3-counts-whole-matches-before-the-limit"
+      },
+      "a-search-v3-names-each-match-kind-and-fold.yaml": {
+        "digest": "sha256:e35f0dd239de1ca42eae06b36d6ddaf17a34fb715af9daf9e59b772aca674b3b",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v3-names-each-match-kind-and-fold"
+      },
+      "a-search-v3-ranks-a-whole-alias-above-a-prefix.yaml": {
+        "digest": "sha256:5bfe8d40bfb35d821b3cfc839d82e0522bca2eba6c98c60bd38b10339c43ce61",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v3-ranks-a-whole-alias-above-a-prefix"
+      },
+      "a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches.yaml": {
+        "digest": "sha256:1fd6a20a52a3e3fa8fd59d6acc65ae2f1ca354ce20eca47f4646813e34bd8dcb",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches"
+      },
       "a-search-with-no-match-answers-an-empty-list.yaml": {
         "digest": "sha256:4a7bba8355442daa55dc71b849fe4c8d3d0e643ed2b501384b2b1f6baeb131b7",
         "disposition": "accepted",
@@ -275,7 +299,7 @@
       }
     },
     "counts": {
-      "authored": 45,
+      "authored": 49,
       "generated": 56,
       "outside": 78,
       "refused": 0
@@ -2101,8 +2125,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "4640c53add42d9bdc7ddd6c8c0858a8eee61d82f3d7be22758af394a9dd544eb",
-    "spec_digest": "dc2ccf285e1decc86429374c144431974f57cbe92f70367099ccd74aadeeb31e",
+    "contract_digest": "023d86ae1ee11bf8503220a1fcd1b2b548260a5b2711ac2cf912ad104a9343a8",
+    "spec_digest": "d06b0d94c3c8c78a808aa42bc9b1596d9f9cdef1ac65803c589f306279ec3d8d",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -22142,6 +22166,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.MatchTier"
         },
         {
@@ -22357,6 +22385,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -22375,7 +22419,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -22397,6 +22442,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30583,6 +30633,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.MatchTier"
         },
         {
@@ -30670,6 +30724,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -30688,7 +30758,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -30710,6 +30781,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30755,6 +30831,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -30773,7 +30865,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -30795,6 +30888,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -30914,6 +31012,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.MatchTier"
         },
         {
@@ -31004,6 +31106,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31022,7 +31140,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31044,6 +31163,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31098,6 +31222,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31116,7 +31256,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31138,6 +31279,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31192,6 +31338,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31210,7 +31372,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31232,6 +31395,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31290,6 +31458,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31308,7 +31492,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31330,6 +31515,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31388,6 +31578,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31406,7 +31612,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31428,6 +31635,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31456,6 +31668,10 @@
         {
           "kind": "type",
           "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
         },
         {
           "kind": "type",
@@ -31556,6 +31772,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31574,7 +31806,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31596,6 +31829,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31651,6 +31889,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31669,7 +31923,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31691,6 +31946,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31745,6 +32005,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31763,7 +32039,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31785,6 +32062,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -31863,6 +32145,10 @@
         {
           "kind": "type",
           "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
         },
         {
           "kind": "type",
@@ -31948,6 +32234,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -31966,7 +32268,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -31988,6 +32291,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32040,6 +32348,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32058,7 +32382,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32080,6 +32405,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32131,6 +32461,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32149,7 +32495,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32171,6 +32518,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32224,6 +32576,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32242,7 +32610,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32264,6 +32633,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32292,6 +32666,10 @@
         {
           "kind": "type",
           "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
         },
         {
           "kind": "type",
@@ -32377,6 +32755,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32395,7 +32789,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32417,6 +32812,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32470,6 +32870,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32488,7 +32904,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32510,6 +32927,1992 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v3-counts-whole-matches-before-the-limit": {
+      "purpose": "Under /3, \"gateway\" with limit 1 answers one match and a whole count of 2, of 3 matches in all.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "gateway"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 1.0,
+            "first_folded": true,
+            "first_kind": "WholeName",
+            "first_match": "00000000-0000-4000-8000-000000c60101",
+            "format": "ekr.node-matches/3",
+            "matches": 1.0,
+            "revision": 0.0,
+            "text": "gateway",
+            "total": 3.0,
+            "whole_total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v3-names-each-match-kind-and-fold": {
+      "purpose": "Under /3, ten searches answer a first match of each kind (WholeName, WholeAlias, Prefix, Substring, Words), each once case-exact and once case-folded.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "Gateway"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 2.0,
+            "first_folded": false,
+            "first_kind": "WholeName",
+            "first_match": "00000000-0000-4000-8000-000000c60101",
+            "format": "ekr.node-matches/3",
+            "matches": 3.0,
+            "revision": 0.0,
+            "text": "Gateway",
+            "total": 3.0,
+            "whole_total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "gateway"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_folded": true,
+            "first_kind": "WholeName",
+            "first_match": "00000000-0000-4000-8000-000000c60101"
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "router"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_folded": false,
+            "first_kind": "WholeAlias",
+            "first_match": "00000000-0000-4000-8000-000000c60103"
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "ROUTER"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_folded": true,
+            "first_kind": "WholeAlias",
+            "first_match": "00000000-0000-4000-8000-000000c60103",
+            "matches": 4.0,
+            "total": 4.0,
+            "whole_total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "router-"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_folded": false,
+            "first_kind": "Prefix",
+            "first_match": "00000000-0000-4000-8000-000000c60104"
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "router-w"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_folded": true,
+            "first_kind": "Prefix",
+            "first_match": "00000000-0000-4000-8000-000000c60105",
+            "matches": 1.0,
+            "total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "proxy"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 1.0,
+            "first_folded": false,
+            "first_kind": "Substring",
+            "first_match": "00000000-0000-4000-8000-000000c60102",
+            "matches": 1.0,
+            "total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "PROXY"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_folded": true,
+            "first_kind": "Substring",
+            "first_match": "00000000-0000-4000-8000-000000c60102",
+            "matches": 1.0,
+            "total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "east router"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 0.0,
+            "first_folded": false,
+            "first_kind": "Words",
+            "first_match": "00000000-0000-4000-8000-000000c60104",
+            "matches": 2.0,
+            "total": 2.0,
+            "whole_total": 0.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "EAST ROUTER"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_folded": true,
+            "first_kind": "Words",
+            "first_match": "00000000-0000-4000-8000-000000c60104",
+            "matches": 2.0,
+            "total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v3-ranks-a-whole-alias-above-a-prefix": {
+      "purpose": "Under /3, \"router\" answers core (whose alias is \"router\") before router-east (whose name starts with it), although router-east's degree is higher.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "router"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 3.0,
+            "first_folded": false,
+            "first_kind": "WholeAlias",
+            "first_match": "00000000-0000-4000-8000-000000c60103",
+            "format": "ekr.node-matches/3",
+            "matches": 4.0,
+            "revision": 0.0,
+            "text": "router",
+            "total": 4.0,
+            "whole_total": 1.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "router-"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "first_folded": false,
+            "first_kind": "Prefix",
+            "first_match": "00000000-0000-4000-8000-000000c60104",
+            "matches": 2.0,
+            "total": 2.0,
+            "whole_total": 0.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches": {
+      "purpose": "Under /3, \"gateway\" answers Gateway (its whole name in another case) first and edge-proxy (whose alias holds the text case-exactly in a path) last; under /2 edge-proxy is first.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchTier"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeMatchesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.SearchNodes"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/3"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "gateway"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 1.0,
+            "first_folded": true,
+            "first_kind": "WholeName",
+            "first_match": "00000000-0000-4000-8000-000000c60101",
+            "format": "ekr.node-matches/3",
+            "matches": 3.0,
+            "revision": 0.0,
+            "text": "gateway",
+            "total": 3.0,
+            "whole_total": 2.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.node-matches/2"
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "match-kinds"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "gateway"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "searched"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "payload": {
+            "exact_total": 1.0,
+            "first_match": "00000000-0000-4000-8000-000000c60102",
+            "first_tier": "Exact",
+            "format": "ekr.node-matches/2",
+            "matches": 3.0,
+            "total": 3.0
+          },
+          "shape": {
+            "exact_total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
+            "first_match": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "first_tier": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "Exact",
+                "Folded",
+                "Words"
+              ]
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.node-matches/1",
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
+              ]
+            },
+            "matches": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "matches_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "text": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32538,6 +34941,10 @@
         {
           "kind": "type",
           "name": "ekr.views.EpochMillis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.MatchKind"
         },
         {
           "kind": "type",
@@ -32616,6 +35023,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32634,7 +35057,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32656,6 +35080,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32704,6 +35133,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32722,7 +35167,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32744,6 +35190,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32792,6 +35243,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32810,7 +35277,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32832,6 +35300,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32885,6 +35358,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32903,7 +35392,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -32925,6 +35415,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -32979,6 +35474,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -32997,7 +35508,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -33019,6 +35531,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"
@@ -33073,6 +35590,22 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "first_folded": {
+              "holds": "primitive",
+              "kind": "boolean",
+              "optional": true
+            },
+            "first_kind": {
+              "holds": "enum",
+              "optional": true,
+              "variants": [
+                "WholeName",
+                "WholeAlias",
+                "Prefix",
+                "Substring",
+                "Words"
+              ]
+            },
             "first_match": {
               "holds": "primitive",
               "kind": "uuid",
@@ -33091,7 +35624,8 @@
               "holds": "enum",
               "variants": [
                 "ekr.node-matches/1",
-                "ekr.node-matches/2"
+                "ekr.node-matches/2",
+                "ekr.node-matches/3"
               ]
             },
             "matches": {
@@ -33113,6 +35647,11 @@
             "total": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "whole_total": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
             }
           },
           "step": "expect_event"

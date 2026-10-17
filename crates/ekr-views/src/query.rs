@@ -499,14 +499,24 @@ pub struct NodesSearched {
     pub total: u64,
     /// `meta.exact_total`.
     pub exact_total: u64,
-    /// `meta.format`: [`MATCHES_FORMAT`] or [`crate::MATCHES_V2_FORMAT`].
+    /// `meta.format`: [`MATCHES_FORMAT`], [`crate::MATCHES_V2_FORMAT`] or
+    /// [`crate::MATCHES_V3_FORMAT`].
     pub format: &'static str,
     /// The first match's id; `None` when there is none.
     pub first_match: Option<NodeId>,
-    /// The first match's tier (`Exact`, `Folded` or `Words`); `None` when there is none.
+    /// The first match's tier (`Exact`, `Folded` or `Words`); `None` when there is none, and
+    /// under `ekr.node-matches/3`, which has no tier.
     pub first_tier: Option<&'static str>,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub matches_hash: String,
+    /// `meta.whole_total` under `ekr.node-matches/3`; `None` under /1 and /2.
+    pub whole_total: Option<u64>,
+    /// The first match's kind (`WholeName`, `WholeAlias`, `Prefix`, `Substring` or `Words`)
+    /// under `ekr.node-matches/3`; `None` when there is none, and under /1 and /2.
+    pub first_kind: Option<&'static str>,
+    /// Whether the first match is case-folded under `ekr.node-matches/3`; `None` when there is
+    /// none, and under /1 and /2.
+    pub first_folded: Option<bool>,
 }
 
 // ---- light records ------------------------------------------------------------------------------
@@ -1493,6 +1503,9 @@ impl Index {
             first_match,
             first_tier,
             matches_hash: hash(&bytes),
+            whole_total: None,
+            first_kind: None,
+            first_folded: None,
         };
         Ok(Answer { bytes, summary })
     }
