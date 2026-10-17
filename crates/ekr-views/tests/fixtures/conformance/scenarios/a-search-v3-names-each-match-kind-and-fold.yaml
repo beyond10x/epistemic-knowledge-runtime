@@ -1,0 +1,218 @@
+# story:search-match-kinds: every ekr.node-matches/3 match names its kind and whether it matched
+# only after lowercasing (ekr.views.MatchKind, ekr.views.NodeMatchV3 `folded`): each of the five
+# kinds, once case-exact and once case-folded.
+#
+# The store `match-kinds` is the one
+# a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches describes. Each step's first match:
+#   - `Gateway`: Gateway …c60101, WholeName, case-exact;
+#   - `gateway`: Gateway, WholeName, folded;
+#   - `router`: core …c60103 by its alias `router`, WholeAlias, case-exact;
+#   - `ROUTER`: core, WholeAlias, folded;
+#   - `router-`: router-east …c60104, Prefix, case-exact (Router-West is a folded Prefix after it);
+#   - `router-w`: Router-West …c60105, Prefix, folded;
+#   - `proxy`: edge-proxy …c60102, Substring, case-exact;
+#   - `PROXY`: edge-proxy, Substring, folded;
+#   - `east router`: router-east, Words, case-exact (both words are in `router-east` as given;
+#     east-router, also Words, has the lower degree);
+#   - `EAST ROUTER`: router-east, Words, folded.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v3-names-each-match-kind-and-fold
+summary: Under /3, ten searches answer a first match of each kind (WholeName, WholeAlias, Prefix, Substring, Words), each once case-exact and once case-folded.
+
+timeline:
+  - at: 2027-03-02T11:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: Gateway
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: Gateway
+          format: ekr.node-matches/3
+          matches: 3
+          total: 3
+          exact_total: 2
+          whole_total: 2
+          first_match: 00000000-0000-4000-8000-000000c60101
+          first_kind: WholeName
+          first_folded: false
+
+  - at: 2027-03-02T11:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: gateway
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          first_match: 00000000-0000-4000-8000-000000c60101
+          first_kind: WholeName
+          first_folded: true
+
+  - at: 2027-03-02T11:02:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: router
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          first_match: 00000000-0000-4000-8000-000000c60103
+          first_kind: WholeAlias
+          first_folded: false
+
+  - at: 2027-03-02T11:03:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: ROUTER
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 4
+          total: 4
+          exact_total: 0
+          whole_total: 1
+          first_match: 00000000-0000-4000-8000-000000c60103
+          first_kind: WholeAlias
+          first_folded: true
+
+  - at: 2027-03-02T11:04:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: router-
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          first_match: 00000000-0000-4000-8000-000000c60104
+          first_kind: Prefix
+          first_folded: false
+
+  - at: 2027-03-02T11:05:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: router-w
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 1
+          total: 1
+          exact_total: 0
+          first_match: 00000000-0000-4000-8000-000000c60105
+          first_kind: Prefix
+          first_folded: true
+
+  - at: 2027-03-02T11:06:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: proxy
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 1
+          total: 1
+          exact_total: 1
+          first_match: 00000000-0000-4000-8000-000000c60102
+          first_kind: Substring
+          first_folded: false
+
+  - at: 2027-03-02T11:07:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: PROXY
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 1
+          total: 1
+          exact_total: 0
+          first_match: 00000000-0000-4000-8000-000000c60102
+          first_kind: Substring
+          first_folded: true
+
+  - at: 2027-03-02T11:08:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: east router
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 2
+          total: 2
+          exact_total: 0
+          whole_total: 0
+          first_match: 00000000-0000-4000-8000-000000c60104
+          first_kind: Words
+          first_folded: false
+
+  - at: 2027-03-02T11:09:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: EAST ROUTER
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 2
+          total: 2
+          first_match: 00000000-0000-4000-8000-000000c60104
+          first_kind: Words
+          first_folded: true

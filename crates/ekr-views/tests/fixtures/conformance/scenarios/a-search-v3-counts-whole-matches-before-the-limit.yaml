@@ -1,0 +1,37 @@
+# story:search-match-kinds: ekr.node-matches/3's meta counts the whole matches before `limit`
+# (ekr.views.MatchesMetaV3 `whole_total`), so a reader of the first page knows whether more whole
+# matches exist than it was given.
+#
+# The store `match-kinds` is the one
+# a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches describes. `gateway` matches
+# Gateway (WholeName), uplink (WholeAlias) and edge-proxy (Substring). With a limit of 1 the page
+# holds Gateway alone, and meta still counts 3 matches, 2 of them whole.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v3-counts-whole-matches-before-the-limit
+summary: Under /3, "gateway" with limit 1 answers one match and a whole count of 2, of 3 matches in all.
+
+timeline:
+  - at: 2027-03-02T12:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: gateway
+      limit: 1
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: gateway
+          format: ekr.node-matches/3
+          matches: 1
+          total: 3
+          exact_total: 1
+          whole_total: 2
+          first_match: 00000000-0000-4000-8000-000000c60101
+          first_kind: WholeName
+          first_folded: true

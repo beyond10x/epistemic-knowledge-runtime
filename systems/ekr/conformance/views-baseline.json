@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 101,
-  "answered_floor": 101,
+  "total": 105,
+  "answered_floor": 105,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -90,6 +90,10 @@
     "ekr.views/authored/a-search-v2-lists-one-type-by-degree",
     "ekr.views/authored/a-search-v2-matches-every-word-in-any-order",
     "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier",
+    "ekr.views/authored/a-search-v3-counts-whole-matches-before-the-limit",
+    "ekr.views/authored/a-search-v3-names-each-match-kind-and-fold",
+    "ekr.views/authored/a-search-v3-ranks-a-whole-alias-above-a-prefix",
+    "ekr.views/authored/a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches",
     "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
     "ekr.views/authored/a-seed-only-store-projects-revision-zero",
     "ekr.views/authored/a-slice-v2-names-each-node-and-edge-type",
@@ -202,6 +206,22 @@
     "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier": {
       "file": "a-search-v2-ranks-a-whole-name-first-within-its-tier.yaml",
       "digest": "sha256:d3a630489a2a0dc985048c38dd7b68002069198a5ce782b8c1dea9ae3ce508ae"
+    },
+    "ekr.views/authored/a-search-v3-counts-whole-matches-before-the-limit": {
+      "file": "a-search-v3-counts-whole-matches-before-the-limit.yaml",
+      "digest": "sha256:64821ae159b701177f101d1c8deb4c09c195772a7ce45953d92de3930626643a"
+    },
+    "ekr.views/authored/a-search-v3-names-each-match-kind-and-fold": {
+      "file": "a-search-v3-names-each-match-kind-and-fold.yaml",
+      "digest": "sha256:e35f0dd239de1ca42eae06b36d6ddaf17a34fb715af9daf9e59b772aca674b3b"
+    },
+    "ekr.views/authored/a-search-v3-ranks-a-whole-alias-above-a-prefix": {
+      "file": "a-search-v3-ranks-a-whole-alias-above-a-prefix.yaml",
+      "digest": "sha256:5bfe8d40bfb35d821b3cfc839d82e0522bca2eba6c98c60bd38b10339c43ce61"
+    },
+    "ekr.views/authored/a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches": {
+      "file": "a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches.yaml",
+      "digest": "sha256:1fd6a20a52a3e3fa8fd59d6acc65ae2f1ca354ce20eca47f4646813e34bd8dcb"
     },
     "ekr.views/authored/a-search-with-no-match-answers-an-empty-list": {
       "file": "a-search-with-no-match-answers-an-empty-list.yaml",
@@ -785,6 +805,26 @@
       "expect_outcome": 4
     },
     "ekr.views/authored/a-search-v2-ranks-a-whole-name-first-within-its-tier": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
+    "ekr.views/authored/a-search-v3-counts-whole-matches-before-the-limit": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_outcome": 1
+    },
+    "ekr.views/authored/a-search-v3-names-each-match-kind-and-fold": {
+      "execute_command": 10,
+      "expect_event": 10,
+      "expect_outcome": 10
+    },
+    "ekr.views/authored/a-search-v3-ranks-a-whole-alias-above-a-prefix": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
+    "ekr.views/authored/a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches": {
       "execute_command": 2,
       "expect_event": 2,
       "expect_outcome": 2
