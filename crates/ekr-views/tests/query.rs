@@ -971,6 +971,100 @@ fn exact_matches_come_before_folded_ones_whatever_their_degree() {
     );
 }
 
+/// story:search-match-kinds: under ekr.node-matches/3 the request /2 answers above ranks the
+/// node whose whole name is the text in another case first, ahead of the case-exact prefix of an
+/// alias, and every match names its kind and whether it was case-folded; meta counts the whole
+/// matches. /2's bytes for the same request are the golden above, unchanged.
+#[test]
+fn a_whole_name_in_another_case_comes_before_a_case_exact_prefix_under_v3() {
+    let hub = index(Fixture::Hub, None);
+    let request = SearchRequest::new("Hub".into(), 10).unwrap();
+    let answer = hub.search_v3(&request, &SearchFilter::default()).unwrap();
+    let (text, _) = json(&answer.bytes);
+    assert_eq!(
+        text,
+        format!(
+            "{{\"meta\":{{\"format\":\"ekr.node-matches/3\",\"revision\":0,\
+             \"text\":\"Hub\",\"types\":[],\"total\":2,\"exact_total\":1,\"whole_total\":1}},\
+             \"matches\":[\
+             {{\"id\":\"{hub}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\
+             \"name\":\"hub\",\"degree\":600,\
+             \"kind\":\"WholeName\",\"folded\":true,\"field\":\"Name\"}},\
+             {{\"id\":\"{leaf}\",\"type\":\"{vertex}\",\"type_name\":\"vertex\",\
+             \"name\":\"leaf-600\",\"degree\":1,\
+             \"kind\":\"Prefix\",\"folded\":false,\"field\":\"Alias\",\"alias\":\"Hub-Leaf\"}}]}}",
+            leaf = uuid(HUB + HUB_LEAVES),
+            hub = uuid(HUB),
+            vertex = uuid(0x11_0000),
+        )
+    );
+    let summary = &answer.summary;
+    assert_eq!(summary.format, ekr_views::MATCHES_V3_FORMAT);
+    assert_eq!(summary.first_match, Some(id(HUB)));
+    assert_eq!(
+        (
+            summary.first_tier,
+            summary.first_kind,
+            summary.first_folded,
+            summary.whole_total
+        ),
+        (None, Some("WholeName"), Some(true), Some(1))
+    );
+    // /3 matches the nodes /2 matches, and counts total and exact_total as /2 does.
+    let v2 = hub.search_v2(&request, &SearchFilter::default()).unwrap();
+    assert_eq!(
+        (v2.summary.total, v2.summary.exact_total),
+        (summary.total, summary.exact_total)
+    );
+    assert_eq!(
+        (
+            v2.summary.whole_total,
+            v2.summary.first_kind,
+            v2.summary.first_folded
+        ),
+        (None, None, None)
+    );
+    let via_format = hub
+        .search_as(MatchesFormat::V3, &request, &SearchFilter::default())
+        .unwrap();
+    assert_eq!(via_format.bytes, answer.bytes);
+    let none = hub
+        .search_v3(
+            &SearchRequest::new("absent".into(), 1).unwrap(),
+            &SearchFilter::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        (
+            none.summary.matches,
+            none.summary.first_match,
+            none.summary.first_kind,
+            none.summary.first_folded,
+            none.summary.whole_total
+        ),
+        (0, None, None, None, Some(0))
+    );
+}
+
+#[test]
+fn search_v3_answers_the_same_bytes_on_both_providers() {
+    let answers: Vec<Vec<u8>> = [Provider::File, Provider::Sqlite]
+        .into_iter()
+        .map(|provider| {
+            let (_work, runtime) = built(Fixture::MatchKinds, provider);
+            Index::load(&runtime, None)
+                .unwrap()
+                .search_v3(
+                    &SearchRequest::new("router".into(), 10).unwrap(),
+                    &SearchFilter::new(Some("Service".into()), None, None),
+                )
+                .unwrap()
+                .bytes
+        })
+        .collect();
+    assert_eq!(answers[0], answers[1]);
+}
+
 fn search_v2(text: &str, filter: SearchFilter) -> (String, Value) {
     let search = index(Fixture::Search, None);
     let answer = search
@@ -1684,13 +1778,16 @@ fn the_v2_formats_are_named_by_their_literals_and_the_detail_summary_counts_its_
     assert_eq!(MatchesFormat::V2.name(), ekr_views::MATCHES_V2_FORMAT);
     assert_eq!(ekr_views::DETAIL_V2_FORMAT.parse(), Ok(DetailFormat::V2));
     assert_eq!(ekr_views::MATCHES_V2_FORMAT.parse(), Ok(MatchesFormat::V2));
+    assert_eq!(ekr_views::MATCHES_V3_FORMAT, "ekr.node-matches/3");
+    assert_eq!(MatchesFormat::V3.name(), ekr_views::MATCHES_V3_FORMAT);
+    assert_eq!(ekr_views::MATCHES_V3_FORMAT.parse(), Ok(MatchesFormat::V3));
     assert_eq!(
         "ekr.node-detail/3".parse::<DetailFormat>(),
         Err(UnknownDetailFormat("ekr.node-detail/3".into()))
     );
     assert_eq!(
-        "ekr.node-matches/3".parse::<MatchesFormat>(),
-        Err(UnknownMatchesFormat("ekr.node-matches/3".into()))
+        "ekr.node-matches/4".parse::<MatchesFormat>(),
+        Err(UnknownMatchesFormat("ekr.node-matches/4".into()))
     );
     assert_eq!(EdgeDirection::In.name(), "in");
     assert_eq!(EdgeDirection::Out.name(), "out");

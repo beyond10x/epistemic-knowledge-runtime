@@ -24,7 +24,7 @@ use support::fixtures::{self, Fixture, Provider};
 
 /// Every fixture store, each once. The `match` in [`every_fixture_is_listed`] fails to compile
 /// when a fixture is added and not listed here.
-const FIXTURES: [Fixture; 23] = [
+const FIXTURES: [Fixture; 24] = [
     Fixture::SeedOnly,
     Fixture::SeededEvidence,
     Fixture::EdgeAssertion,
@@ -47,6 +47,7 @@ const FIXTURES: [Fixture; 23] = [
     Fixture::BoundedDetail,
     Fixture::DescribedType,
     Fixture::Search,
+    Fixture::MatchKinds,
     Fixture::Names,
 ];
 
@@ -76,6 +77,7 @@ fn every_fixture_is_listed() {
             | Fixture::BoundedDetail
             | Fixture::DescribedType
             | Fixture::Search
+            | Fixture::MatchKinds
             | Fixture::Names => {}
         }
     }

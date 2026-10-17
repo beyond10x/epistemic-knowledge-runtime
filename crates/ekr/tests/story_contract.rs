@@ -132,6 +132,8 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// `sha2` remains a dev dependency as the independent oracle for unchanged digest bytes.
 /// `ekr-kernel`'s dev `rustls`, `tokio-postgres` and `tokio-postgres-rustls` let a PostgreSQL test
 /// hold a lock as the schema owner while a stage begin copies (`stage_begin_copy_failure.rs`).
+/// `ekr`'s `uuid` generates the request id and trace context a reader logs for a request that
+/// carried none, or a malformed one (`story:readers-emit-metrics-and-request-logs`).
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -222,6 +224,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "serde_yaml_ng",
             "signal-hook",
             "time",
+            "uuid",
         ],
         &[
             "assert_cmd",

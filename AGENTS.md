@@ -131,6 +131,14 @@ build cache it recognises and archives everything else. Before a gate's result c
 observations below are the reason: a shared build directory serves one checkout's test binary to
 another, and a guard run from that binary passes while reading the other checkout's source.
 
+**A compile cache of this repository's own.** A first build in a new tree recompiles every
+dependency. This repository's builds may set `RUSTC_WRAPPER=sccache`,
+`SCCACHE_DIR=~/.cache/sccache/epistemic-knowledge-runtime`, `SCCACHE_SERVER_PORT=4302` and
+`SCCACHE_CACHE_SIZE=2G` in the build's own environment, never in a shared configuration: no
+`.cargo/config.toml` above a checkout, no global `build.rustc-wrapper`, no server on the default
+port 4226 and no server shared with another repository. The cache holds compiler outputs only;
+each tree still builds into its own `target/`, so the rule above is unchanged.
+
 **A test that reads this repository's own source must not locate it with
 `env!("CARGO_MANIFEST_DIR")`.** That macro is a compile-time constant: a test binary compiled in one
 checkout keeps reading that checkout's path, whatever tree later runs it. Use

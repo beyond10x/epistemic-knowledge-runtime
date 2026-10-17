@@ -670,6 +670,14 @@ impl Held {
     pub(super) fn reopens(&self) -> bool {
         self.runtime.as_ref().is_some_and(reopens)
     }
+
+    /// The head revision of the held runtime, without checking the path: what a reader's
+    /// `ekr_store_head_revision` reads after a request. `None` while none is held, the store is
+    /// not seeded, or the head does not read.
+    pub(super) fn head(&self) -> Option<u64> {
+        let head = self.runtime.as_ref()?.head().ok()??;
+        Some(head.revision.get())
+    }
 }
 
 /// Whether `runtime`'s store refuses the history it observed as diverged from the store at its

@@ -162,6 +162,15 @@ pub const SEARCH_ROUTER_OUTAGE_MS: i64 = 1_799_568_000_000;
 /// `eu latency`'s `opened`: 2027-02-20T12:00:00Z.
 pub const SEARCH_EU_LATENCY_MS: i64 = 1_803_124_800_000;
 
+// `match-kinds`: the a-search-v3-*.yaml scenarios (story:search-match-kinds).
+/// The node type `Service`.
+pub const KINDS_SERVICE: u64 = 0xc6_0001;
+const KINDS_LINKS: u64 = 0xc6_0002;
+/// The Services `Gateway`, `edge-proxy`, `core`, `router-east`, `Router-West`, `east-router` and
+/// `uplink` are `KINDS_SERVICES + 1` to `+ 7`.
+pub const KINDS_SERVICES: u64 = 0xc6_0100;
+const KINDS_EDGES: u64 = 0xc6_0300;
+
 // `hub`: an-overview-lists-at-most-its-limit-of-top-nodes.yaml.
 pub const HUB: u64 = 0x10_0000;
 pub const HUB_LEAVES: u64 = 600;
@@ -449,6 +458,9 @@ pub enum Fixture {
     /// A seed only: Services and Incidents with names that exercise `ekr.node-matches/2`'s word
     /// tier, whole-name order and time window ([`search_seed`]).
     Search,
+    /// A seed only: Services whose names and aliases exercise each of `ekr.node-matches/3`'s
+    /// match kinds, case-exact and case-folded ([`match_kinds_seed`]).
+    MatchKinds,
 }
 
 impl Fixture {
@@ -477,6 +489,7 @@ impl Fixture {
             "property-redeclared" => Self::PropertyRedeclared,
             "bounded-detail" => Self::BoundedDetail,
             "search" => Self::Search,
+            "match-kinds" => Self::MatchKinds,
             _ => return None,
         })
     }
@@ -522,6 +535,7 @@ impl Fixture {
             Self::BoundedDetail => writer.seed(bounded_detail()),
             Self::Hub => writer.seed(hub()),
             Self::Search => writer.seed(search_seed()),
+            Self::MatchKinds => writer.seed(match_kinds_seed()),
             Self::Timeline => {
                 writer.seed(timeline_seed());
                 writer.commit(
@@ -1886,6 +1900,52 @@ fn search_seed() -> SeedDocument {
             type_id: id(SEARCH_AFFECTS),
             source: id(SEARCH_INCIDENTS + incident),
             target: id(SEARCH_SERVICES + service),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
+}
+
+/// The `match-kinds` seed, as
+/// a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches.yaml's header states it: the
+/// node type Service, the edge type `links` from Service to Service, and seven Services, three
+/// with an alias. No assertion and no evidence.
+fn match_kinds_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    document
+        .ontology
+        .node_types
+        .push(NodeType::new(id(KINDS_SERVICE), "Service"));
+    let mut links = EdgeType::new(id(KINDS_LINKS), "links");
+    links.source_types = [id(KINDS_SERVICE)].into_iter().collect();
+    links.target_types = [id(KINDS_SERVICE)].into_iter().collect();
+    links.cardinality = Cardinality::Many;
+    document.ontology.edge_types.push(links);
+    let services: [(&str, &[&str]); 7] = [
+        ("Gateway", &[]),
+        ("edge-proxy", &["infra/gateway/edge"]),
+        ("core", &["router"]),
+        ("router-east", &[]),
+        ("Router-West", &[]),
+        ("east-router", &[]),
+        ("uplink", &["Gateway"]),
+    ];
+    for (n, (name, aliases)) in (1..).zip(services) {
+        let mut node = Node::<Value>::new(id(KINDS_SERVICES + n), root, id(KINDS_SERVICE), name);
+        node.aliases = aliases.iter().map(|alias| (*alias).to_owned()).collect();
+        document.graph.nodes.insert(node.id, node);
+    }
+    // edge-proxy links router-east and east-router; router-east links Router-West.
+    let linked = [(2, 4), (2, 6), (4, 5)];
+    for (n, (source, target)) in (1..).zip(linked) {
+        let edge = Edge::<Value> {
+            id: id(KINDS_EDGES + n),
+            root_id: root,
+            type_id: id(KINDS_LINKS),
+            source: id(KINDS_SERVICES + source),
+            target: id(KINDS_SERVICES + target),
             properties: BTreeMap::new(),
         };
         document.graph.edges.insert(edge.id, edge);

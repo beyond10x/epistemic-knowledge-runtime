@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-17T17:18:03Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:readers-emit-metrics-and-request-logs",
+  "kind": "story",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Wave 2026-10-17a unit U2 on unit/20261017a-u2 9eab295c: reader_metrics 11 passed (the adversary cases an_mcp_tool_the_server_lacks_is_counted_under_no_tool and the queue-503 count included), ekr lib 74 passed (a_read_refused_for_a_full_queue_is_counted_unavailable included), clippy -p ekr --all-targets -D warnings clean; earlier at 9043fef9 docs_cli 18, public_surface 12, mcp 18, hosted_http 15; adversary found two introduced defects, both fixed in 8de2f9ec and 9eab295c; the full task check runs on the wave's final head before its pull request"
+  }
+}

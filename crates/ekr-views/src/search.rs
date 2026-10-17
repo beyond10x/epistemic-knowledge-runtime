@@ -10,6 +10,12 @@
 //! match before one that is not; with `from` or `to`, the node's time descending; degree
 //! descending; id. Every node of the revision is compared, so the cost is the revision's name
 //! bytes, as for /1.
+//!
+//! `ekr.node-matches/3` ([`Index::search_v3`]) matches the nodes /2 matches and names each
+//! match's kind (`views.yaml`, `ekr.views.MatchKind` and `ekr.views.NodeMatchesV3`): whole name,
+//! whole alias, prefix, substring, words, each case-exact or case-folded. Its order (determinism
+//! rule for /3): kind, whatever the case; a case-exact match before a case-folded one; with
+//! `from` or `to`, time descending; degree descending; id.
 
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -26,6 +32,9 @@ use crate::ProjectError;
 /// The format literal of [`Index::search_v2`]'s documents.
 pub const MATCHES_V2_FORMAT: &str = "ekr.node-matches/2";
 
+/// The format literal of [`Index::search_v3`]'s documents.
+pub const MATCHES_V3_FORMAT: &str = "ekr.node-matches/3";
+
 /// `ekr.views.NodeMatchesFormat`: the format a `SearchNodes` request is answered in. The
 /// command's default is /1; each surface names its own default (`views.yaml`,
 /// `ekr.views.SearchNodes`).
@@ -36,6 +45,8 @@ pub enum MatchesFormat {
     V1,
     /// `ekr.node-matches/2`, [`Index::search_v2`].
     V2,
+    /// `ekr.node-matches/3`, [`Index::search_v3`].
+    V3,
 }
 
 impl MatchesFormat {
@@ -45,13 +56,17 @@ impl MatchesFormat {
         match self {
             Self::V1 => MATCHES_FORMAT,
             Self::V2 => MATCHES_V2_FORMAT,
+            Self::V3 => MATCHES_V3_FORMAT,
         }
     }
 }
 
 /// A text that names no search format.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-#[error("{0:?} is no search format; the formats are ekr.node-matches/1 and ekr.node-matches/2")]
+#[error(
+    "{0:?} is no search format; the formats are ekr.node-matches/1, ekr.node-matches/2 and \
+     ekr.node-matches/3"
+)]
 pub struct UnknownMatchesFormat(pub String);
 
 impl FromStr for MatchesFormat {
@@ -61,6 +76,7 @@ impl FromStr for MatchesFormat {
         match text {
             MATCHES_FORMAT => Ok(Self::V1),
             MATCHES_V2_FORMAT => Ok(Self::V2),
+            MATCHES_V3_FORMAT => Ok(Self::V3),
             other => Err(UnknownMatchesFormat(other.to_owned())),
         }
     }
@@ -158,7 +174,7 @@ pub struct WindowMalformed {
     pub text: String,
 }
 
-/// What `ekr.node-matches/2` narrows its matches to: node types and a window of time
+/// What `ekr.node-matches/2` and `/3` narrow their matches to: node types and a window of time
 /// (`views.yaml`, `ekr.views.SearchNodes` `type`, `from` and `to`). The default narrows nothing.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SearchFilter {
@@ -262,6 +278,91 @@ struct NodeMatchesV2<'a> {
     matches: Vec<NodeMatchV2<'a>>,
 }
 
+/// `ekr.views.MatchKind`: how an `ekr.node-matches/3` match compares the text with a field, in
+/// the order the kinds rank.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub(crate) enum MatchKind {
+    WholeName,
+    WholeAlias,
+    Prefix,
+    Substring,
+    Words,
+}
+
+impl MatchKind {
+    /// The kind's name, as the documents write it.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::WholeName => "WholeName",
+            Self::WholeAlias => "WholeAlias",
+            Self::Prefix => "Prefix",
+            Self::Substring => "Substring",
+            Self::Words => "Words",
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct NodeMatchV3<'a> {
+    id: NodeId,
+    #[serde(rename = "type")]
+    type_id: TypeId,
+    type_name: &'a str,
+    name: &'a str,
+    degree: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    time: Option<i64>,
+    kind: MatchKind,
+    folded: bool,
+    field: MatchField,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    alias: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+struct MatchesMetaV3<'a> {
+    format: &'static str,
+    revision: u64,
+    text: &'a str,
+    types: &'a [TypeId],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to: Option<i64>,
+    total: u64,
+    exact_total: u64,
+    whole_total: u64,
+}
+
+#[derive(Serialize)]
+struct NodeMatchesV3<'a> {
+    meta: MatchesMetaV3<'a>,
+    matches: Vec<NodeMatchV3<'a>>,
+}
+
+/// One node that matched under /3: its kind, whether it matched only after lowercasing, whether
+/// its name or an alias holds the text byte for byte, its index, field, alias and time.
+struct KindHit<'a> {
+    kind: MatchKind,
+    folded: bool,
+    exact: bool,
+    index: u32,
+    field: MatchField,
+    alias: Option<&'a str>,
+    time: Option<i64>,
+}
+
+/// Whether `field` passes `kind` for `text`, whose whitespace-separated words are `words`, both
+/// sides compared byte for byte. The caller lowercases both sides for a case-folded comparison.
+fn passes(kind: MatchKind, field: &str, text: &str, words: &[&str]) -> bool {
+    match kind {
+        MatchKind::WholeName | MatchKind::WholeAlias => field == text,
+        MatchKind::Prefix => field.starts_with(text),
+        MatchKind::Substring => field.contains(text),
+        MatchKind::Words => words.len() >= 2 && words.iter().all(|word| field.contains(word)),
+    }
+}
+
 /// One node that matched: its tier, whether it is whole, its index, field, alias and time.
 struct Hit<'a> {
     tier: MatchTier,
@@ -284,7 +385,7 @@ fn runs(text: &str) -> Vec<&str> {
 
 impl Index {
     /// `SearchNodes` in the format `format` names: [`Self::search`] for /1, which reads no
-    /// filter, and [`Self::search_v2`] for /2.
+    /// filter, [`Self::search_v2`] for /2 and [`Self::search_v3`] for /3.
     ///
     /// # Errors
     ///
@@ -298,6 +399,21 @@ impl Index {
         match format {
             MatchesFormat::V1 => Ok(self.search(request)?),
             MatchesFormat::V2 => self.search_v2(request, filter),
+            MatchesFormat::V3 => self.search_v3(request, filter),
+        }
+    }
+
+    /// The node types `filter` narrows to, by id: none when it names no type.
+    fn filter_types(&self, filter: &SearchFilter) -> Result<Vec<TypeId>, SearchError> {
+        match filter.node_type() {
+            None => Ok(Vec::new()),
+            Some(named) => {
+                self.node_types_named(named)
+                    .ok_or_else(|| SearchError::NodeTypeNotFound {
+                        node_type: named.to_owned(),
+                        revision: self.loaded.graph.revision,
+                    })
+            }
         }
     }
 
@@ -341,16 +457,7 @@ impl Index {
         filter: &SearchFilter,
     ) -> Result<Answer<NodesSearched>, SearchError> {
         let graph = &self.loaded.graph;
-        let types = match filter.node_type() {
-            None => Vec::new(),
-            Some(named) => {
-                self.node_types_named(named)
-                    .ok_or_else(|| SearchError::NodeTypeNotFound {
-                        node_type: named.to_owned(),
-                        revision: graph.revision,
-                    })?
-            }
-        };
+        let types = self.filter_types(filter)?;
         let text = request.text();
         let folded = text.to_lowercase();
         let words: Vec<&str> = folded.split_whitespace().collect();
@@ -489,6 +596,177 @@ impl Index {
             first_match,
             first_tier,
             matches_hash: hash(&bytes),
+            whole_total: None,
+            first_kind: None,
+            first_folded: None,
+        };
+        Ok(Answer { bytes, summary })
+    }
+
+    /// `SearchNodes` as `ekr.node-matches/3` (`views.yaml`, `ekr.views.NodeMatchesV3`): the
+    /// nodes [`Self::search_v2`] matches for the same request, each naming its
+    /// `ekr.views.MatchKind` and whether it matched only after lowercasing. A node's match is the
+    /// first of WholeName, WholeAlias, Prefix, Substring and Words, each case-exact before
+    /// case-folded, that its canonical name or one alias passes; the first `limit` are ordered by
+    /// that kind and fold, with a window newest first, then degree descending, then id.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::search_v2`].
+    pub fn search_v3(
+        &self,
+        request: &SearchRequest,
+        filter: &SearchFilter,
+    ) -> Result<Answer<NodesSearched>, SearchError> {
+        const KINDS: [MatchKind; 5] = [
+            MatchKind::WholeName,
+            MatchKind::WholeAlias,
+            MatchKind::Prefix,
+            MatchKind::Substring,
+            MatchKind::Words,
+        ];
+        let graph = &self.loaded.graph;
+        let types = self.filter_types(filter)?;
+        let text = request.text();
+        let lowered = text.to_lowercase();
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let lowered_words: Vec<&str> = lowered.split_whitespace().collect();
+        let windowed = filter.windowed();
+        let mut found: Vec<KindHit<'_>> = Vec::new();
+        for (index, (node, (name, aliases))) in graph.nodes.values().zip(&self.folded).enumerate() {
+            if !types.is_empty() && types.binary_search(&node.type_id).is_err() {
+                continue;
+            }
+            let time = self.node_time.get(index).copied().flatten().map(|t| t.0);
+            if windowed {
+                let Some(at) = time else { continue };
+                if filter.from.is_some_and(|from| at < from) || filter.to.is_some_and(|to| at > to)
+                {
+                    continue;
+                }
+            }
+            let index = u32::try_from(index).unwrap_or(u32::MAX);
+            let mut hit = None;
+            'kinds: for kind in KINDS {
+                for folded in [false, true] {
+                    let (needle, needle_words, own_name, own_aliases) = if folded {
+                        (lowered.as_str(), &lowered_words, name, aliases)
+                    } else {
+                        (text, &words, &node.canonical_name, &node.aliases)
+                    };
+                    if kind != MatchKind::WholeAlias && passes(kind, own_name, needle, needle_words)
+                    {
+                        hit = Some((kind, folded, MatchField::Name, None));
+                        break 'kinds;
+                    }
+                    if kind == MatchKind::WholeName {
+                        continue;
+                    }
+                    if let Some(at) = own_aliases
+                        .iter()
+                        .position(|alias| passes(kind, alias, needle, needle_words))
+                    {
+                        hit = Some((
+                            kind,
+                            folded,
+                            MatchField::Alias,
+                            Some(node.aliases[at].as_str()),
+                        ));
+                        break 'kinds;
+                    }
+                }
+            }
+            let Some((kind, folded, field, alias)) = hit else {
+                continue;
+            };
+            let exact = node.canonical_name.contains(text)
+                || node.aliases.iter().any(|alias| alias.contains(text));
+            found.push(KindHit {
+                kind,
+                folded,
+                exact,
+                index,
+                field,
+                alias,
+                time,
+            });
+        }
+        found.sort_unstable_by(|a, b| {
+            a.kind
+                .cmp(&b.kind)
+                .then(a.folded.cmp(&b.folded))
+                .then(if windowed {
+                    b.time.cmp(&a.time)
+                } else {
+                    Ordering::Equal
+                })
+                .then(self.degree[b.index as usize].cmp(&self.degree[a.index as usize]))
+                .then(a.index.cmp(&b.index))
+        });
+        let total = found.len() as u64;
+        let exact_total = found.iter().filter(|hit| hit.exact).count() as u64;
+        let whole_total = found
+            .iter()
+            .filter(|hit| matches!(hit.kind, MatchKind::WholeName | MatchKind::WholeAlias))
+            .count() as u64;
+        let mut matches: Vec<NodeMatchV3<'_>> = Vec::new();
+        for hit in found
+            .iter()
+            .take(usize::try_from(request.limit()).unwrap_or(usize::MAX))
+        {
+            let id = self.node_ids[hit.index as usize];
+            let node = &graph.nodes[&id];
+            let Some(declared) = graph.ontology.node_type(node.type_id) else {
+                return Err(ProjectError::Inconsistent(format!(
+                    "node {id} is of type {}, which revision {} does not declare",
+                    node.type_id, graph.revision
+                ))
+                .into());
+            };
+            matches.push(NodeMatchV3 {
+                id,
+                type_id: node.type_id,
+                type_name: &declared.name,
+                name: &node.canonical_name,
+                degree: self.degree[hit.index as usize],
+                time: hit.time,
+                kind: hit.kind,
+                folded: hit.folded,
+                field: hit.field,
+                alias: hit.alias,
+            });
+        }
+        let first_match = matches.first().map(|hit| hit.id);
+        let first_kind = matches.first().map(|hit| hit.kind.name());
+        let first_folded = matches.first().map(|hit| hit.folded);
+        let document = NodeMatchesV3 {
+            meta: MatchesMetaV3 {
+                format: MATCHES_V3_FORMAT,
+                revision: graph.revision.get(),
+                text,
+                types: &types,
+                from: filter.from,
+                to: filter.to,
+                total,
+                exact_total,
+                whole_total,
+            },
+            matches,
+        };
+        let bytes = encode(&document)?;
+        let summary = NodesSearched {
+            revision: document.meta.revision,
+            text: text.to_owned(),
+            matches: document.matches.len() as u64,
+            total,
+            exact_total,
+            format: MATCHES_V3_FORMAT,
+            first_match,
+            first_tier: None,
+            matches_hash: hash(&bytes),
+            whole_total: Some(whole_total),
+            first_kind,
+            first_folded,
         };
         Ok(Answer { bytes, summary })
     }
@@ -543,11 +821,11 @@ mod tests {
 
     #[test]
     fn the_formats_are_named_by_their_literals() {
-        for format in [MatchesFormat::V1, MatchesFormat::V2] {
+        for format in [MatchesFormat::V1, MatchesFormat::V2, MatchesFormat::V3] {
             assert_eq!(format.name().parse::<MatchesFormat>(), Ok(format));
         }
         assert_eq!(MatchesFormat::default(), MatchesFormat::V1);
-        assert!("ekr.node-matches/3".parse::<MatchesFormat>().is_err());
+        assert!("ekr.node-matches/4".parse::<MatchesFormat>().is_err());
     }
 
     /// ekr-mcp-fixes-20261015 #2: a Words match is whole when its alphanumeric runs are the
