@@ -2,16 +2,19 @@
 format: aep.planning-md/3
 id: architecture-decision-record:0015-evidence-erasure-keeps-history
 kind: architecture-decision-record
-status: proposed
+status: accepted
 title: ADR 0015 — Evidence is erased in place with an audit stub, and its dependants are marked, not deleted
 relations:
 - decides: story:evidence-erasure
-revision: 1
+revision: 3
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-10-17T16:51:19Z", actor: "agent:ekr-controller", revision: 3}
 ---
 ## Status
 
-Proposed. Erasure changes what the store's append-only history holds, so the decision is the
-operator's. No implementing wave starts before it is accepted.
+Accepted by the operator on 2026-10-17, with option A. Erasure changes what the store's
+append-only history holds, so the decision was the operator's. `story:evidence-erasure` builds
+it, spec first, after `story:merge-entity-applies` and `story:retype-node`.
 
 ## Context
 
@@ -28,7 +31,7 @@ Invariant 4 says every canonical assertion has sufficient provenance according t
 `story:evidence-purge-keeps-history` (draft) proposes a purge selected by a predicate that also
 deletes every assertion citing only the purged evidence.
 
-## Decision (proposed)
+## Decision
 
 Option A below: an `EraseEvidence` operation, committed as its own revision through the kernel,
 naming one evidence record, or a byte span within it, and a stated reason.
@@ -47,7 +50,7 @@ naming one evidence record, or a byte span within it, and a stated reason.
 
 ## Options
 
-- **A. Erase in place with an audit stub; dependants marked (proposed).** History keeps every
+- **A. Erase in place with an audit stub; dependants marked (accepted).** History keeps every
   revision; only the bytes go. Cost: a revision's roots change after the fact, so a root recorded
   outside the store before the erasure no longer verifies, and replay must accept a stub in place of
   a payload.
@@ -62,7 +65,7 @@ naming one evidence record, or a byte span within it, and a stated reason.
 
 ## Consequences
 
-If A is accepted: `story:evidence-erasure` builds it, spec first; `story:evidence-purge-keeps-history`
+Accepted with A: `story:evidence-erasure` builds it, spec first; `story:evidence-purge-keeps-history`
 is narrowed to a predicate front end over erasure or archived. Roots published outside the store
 before an erasure are documented as not verifying after it. The erasure is never outward-facing
 (invariant 6 does not apply).

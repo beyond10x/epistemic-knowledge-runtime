@@ -8,15 +8,17 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - depends_on: story:merge-entity-applies
-revision: 1
+- depends_on: story:retype-node
+revision: 2
 ---
 ## Context
 
 A consumer must remove evidence bytes from a store for a privacy cleanup, without losing the store's
 revision history. `RetractAssertion` keeps the evidence stored and served; only a rebuild removes it,
-which replaces history. The design is proposed in
-`architecture-decision-record:0015-evidence-erasure-keeps-history`; this story waits for it to be
-accepted and builds the accepted option. The Build below assumes its proposed option A.
+which replaces history. The design is
+`architecture-decision-record:0015-evidence-erasure-keeps-history`, accepted by the operator on
+2026-10-17 with option A, which the Build below implements. It follows `story:merge-entity-applies`
+and `story:retype-node`.
 
 ## Build (spec first)
 
