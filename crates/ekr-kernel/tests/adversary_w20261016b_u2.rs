@@ -39,8 +39,7 @@ fn postgres() -> Option<PostgresConfiguration> {
     SCHEMA.get_or_init(|| {
         let owner =
             std::env::var_os("EKR_TEST_POSTGRES_OWNER").expect("owner configuration reference");
-        Runtime::postgres_schema(&PostgresConfiguration::read(Path::new(&owner)).unwrap())
-            .unwrap();
+        Runtime::postgres_schema(&PostgresConfiguration::read(Path::new(&owner)).unwrap()).unwrap();
     });
     Some(PostgresConfiguration::read(Path::new(&path)).unwrap())
 }
@@ -346,7 +345,14 @@ fn concurrent_begins_and_every_state_list_once_each_and_only_in_their_store() {
                 .collect();
             handles.into_iter().map(|h| h.join().unwrap()).collect()
         });
-        assert_eq!(concurrent.iter().map(|(id, _)| id).collect::<BTreeSet<_>>().len(), 4);
+        assert_eq!(
+            concurrent
+                .iter()
+                .map(|(id, _)| id)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            4
+        );
         let mut expected: BTreeMap<_, _> = concurrent.into_iter().collect();
         assert_eq!(listed(&store), expected, "after four concurrent begins");
         let begun: Vec<StageId> = (0..3)
@@ -369,7 +375,11 @@ fn concurrent_begins_and_every_state_list_once_each_and_only_in_their_store() {
         expected.insert(begun[1], StageState::Published);
         expected.insert(begun[2], StageState::Abandoned);
         assert_eq!(listed(&store), expected);
-        assert_eq!(listed(&fixture.open()), expected, "a fresh handle reads the same");
+        assert_eq!(
+            listed(&fixture.open()),
+            expected,
+            "a fresh handle reads the same"
+        );
 
         let neighbour = match &fixture.config {
             None => "adversary-u2-neighbour".to_owned(),
@@ -379,7 +389,10 @@ fn concurrent_begins_and_every_state_list_once_each_and_only_in_their_store() {
         other.seed(seed(), || SEEDED_AT).unwrap();
         assert_eq!(listed(&other), BTreeMap::new(), "another store lists none");
         let theirs = other.begin_stage().unwrap().stage_id;
-        assert_eq!(listed(&other), BTreeMap::from([(theirs, StageState::Begun)]));
+        assert_eq!(
+            listed(&other),
+            BTreeMap::from([(theirs, StageState::Begun)])
+        );
         assert_eq!(listed(&store), expected, "nor does this store list theirs");
     });
 }
