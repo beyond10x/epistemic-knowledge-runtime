@@ -436,6 +436,14 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
             "put",
             store.put(StorageClass::Canonical, pending, Timestamp::EPOCH),
         );
+        exercised.refuses(
+            "put_all",
+            store.put_all(&[&PublicationObject {
+                storage_class: StorageClass::Canonical,
+                stored_at: Timestamp::EPOCH,
+                bytes: pending.to_vec(),
+            }]),
+        );
     });
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert_eq!(store.head().unwrap(), None);

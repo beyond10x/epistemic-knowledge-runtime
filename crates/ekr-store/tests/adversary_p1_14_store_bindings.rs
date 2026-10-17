@@ -212,6 +212,8 @@ const CARRIERS: &[(&str, Option<&str>)] = &[
     ("ekr.store.StageId", None),
     ("ekr.store.StoreTenant", None),
     ("ekr.store.ProviderKind", Some("ProviderKind")),
+    // Issue #93: a tuple newtype, no braced body; `domain_projection.rs` binds it.
+    ("ekr.store.CopyGroupStreams", None),
     ("ekr.store.StageResult", Some("StageResult")),
     ("ekr.store.Store", Some("Store")),
     ("ekr.store.Stage", Some("Stage")),

@@ -328,6 +328,13 @@ pub enum StagePoint {
     AbandonRead,
     /// Abandon has written `StageAbandoned` and not yet forgotten the tenant.
     AbandonRecorded,
+    /// A provider group carrying `streams` distinct streams is about to be appended, by any
+    /// write of an Eventlog-backed store, staged or not: what a test counts the streams, and so
+    /// PostgreSQL's advisory locks, of one transaction by.
+    Group {
+        /// The distinct streams the group appends to.
+        streams: usize,
+    },
 }
 
 type Hook = Box<dyn FnMut(StagePoint) -> Result<(), StoreError>>;
