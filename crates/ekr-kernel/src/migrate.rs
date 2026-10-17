@@ -311,7 +311,29 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
         destination: &Commit<D>,
     ) -> Result<StoreMigrationV1, CommitError> {
         empty(destination)?;
-        self.capture()?.copy_unchecked(destination)
+        self.capture()?
+            .copy_unchecked(destination, Destination::Shared)
+    }
+}
+
+/// Where a copy writes, which decides whether it may store an occurrence's objects ahead of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Destination {
+    /// A store another copy may also be initializing (`ekr migrate`, [`CapturedStore::copy_into`]):
+    /// each occurrence is one group, so a copy that loses the destination wrote nothing there.
+    Shared,
+    /// A tenant this run has just minted (a stage's): payloads may be stored ahead.
+    Minted,
+}
+
+/// Whether no other initializer claimed `destination` after its seed was refused: it holds
+/// nothing, read through the provider's consistent capture. A copy that stored objects ahead of
+/// its seed (`ahead`) holds those of its own, so it was claimed only if it holds an occurrence.
+fn unclaimed<D: RevisionLog + Inventory>(destination: &D, ahead: bool) -> Result<bool, StoreError> {
+    if ahead {
+        Ok(destination.history()?.occurrences.is_empty())
+    } else {
+        destination.is_empty()
     }
 }
 
@@ -377,13 +399,30 @@ impl<S: RevisionLog + ObjectStore + Inventory> CapturedStore<'_, S> {
         destination: &Commit<D>,
     ) -> Result<StoreMigrationV1, CommitError> {
         empty(destination)?;
-        self.copy_unchecked(destination)
+        self.copy_unchecked(destination, Destination::Shared)
+    }
+
+    /// [`Self::copy_into`] into a tenant this run has just minted, a stage's (design § 107.2):
+    /// an occurrence whose group would append to more than [`ekr_store::COPY_GROUP_STREAMS`]
+    /// streams has its payloads stored ahead of it in bounded groups (issue #93). No other
+    /// writer can address the tenant, so nothing written ahead lands in a store another copy
+    /// made.
+    ///
+    /// # Errors
+    /// Those of [`Self::copy_into`].
+    pub(crate) fn copy_into_minted<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+    ) -> Result<StoreMigrationV1, CommitError> {
+        empty(destination)?;
+        self.copy_unchecked(destination, Destination::Minted)
     }
 
     /// [`Self::copy_into`] after its destination was found empty.
     fn copy_unchecked<D: RevisionLog + ObjectStore + Initialize + Inventory>(
         &self,
         destination: &Commit<D>,
+        target: Destination,
     ) -> Result<StoreMigrationV1, CommitError> {
         // The seed atomically binds a fresh claim to this copy. Until the
         // completion receipt is written last, other readers refuse `migrate-incomplete`, so a
@@ -401,6 +440,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> CapturedStore<'_, S> {
                 &self.inventory,
                 &self.state,
                 claim,
+                target,
             )?;
             let finished = completion(claim, report.destination_seed_hash)?;
             let _ = destination.store.put(
@@ -425,6 +465,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
         inventory: &ekr_store::StoreInventory,
         source: &ReplayState,
         claim: EventId,
+        target: Destination,
     ) -> Result<StoreMigrationV1, CommitError> {
         let mut occurrences = Vec::with_capacity(history.occurrences.len());
         let mut replaced = BTreeMap::new();
@@ -517,6 +558,31 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 destination_record_hash: publication.event.record_hash,
             });
             published_objects.extend(publication.objects.keys().copied());
+            // An occurrence whose group would append to more streams than one group of a copy
+            // carries (`ekr.store.CopyGroupStreams`, issue #93: PostgreSQL takes one advisory
+            // lock per stream) has its objects other than its record and its seed envelope
+            // stored ahead, with the class and `stored_at` it publishes them with, in groups of
+            // that bound. Its own group then finds them held and appends only its revision
+            // stream, its record and its envelope. Only into a tenant this run minted: a copy
+            // into a shared destination that lost it to another initializer would leave its
+            // payloads in the winner's store.
+            let ahead_of_it = target == Destination::Minted
+                && publication.objects.len() + 1 > ekr_store::COPY_GROUP_STREAMS;
+            if ahead_of_it {
+                let envelope = match publication.event.payload {
+                    RevisionPayload::Seeded { seed_hash, .. } => Some(seed_hash),
+                    _ => None,
+                };
+                let ahead: Vec<_> = publication
+                    .objects
+                    .iter()
+                    .filter(|(hash, _)| {
+                        **hash != publication.event.record_hash && Some(**hash) != envelope
+                    })
+                    .map(|(_, object)| object)
+                    .collect();
+                destination.store.put_all(&ahead)?;
+            }
             let _published = if position == 0 {
                 // The migration claim is part of the atomic seed.
                 // A competing initializer cannot observe a seed without its claim, and a
@@ -525,7 +591,9 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 let initialized = destination.store.initialize(&publication);
                 match initialized {
                     Ok(ekr_store::Appended::Written) => ekr_store::Appended::Written,
-                    Err(error) if destination.store.is_empty()? => return Err(error.into()),
+                    Err(error) if unclaimed(&destination.store, ahead_of_it)? => {
+                        return Err(error.into())
+                    }
                     Ok(ekr_store::Appended::AlreadyRecorded) | Err(_) => {
                         return Err(migration(
                             "migrate-destination-not-empty",

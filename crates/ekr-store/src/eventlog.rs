@@ -40,6 +40,13 @@ const STAGE_BEGUN: &str = "ekr.store.StageBegun";
 const STAGE_SEALED: &str = "ekr.store.StageSealed";
 const STAGE_PUBLISHED: &str = "ekr.store.StagePublished";
 const STAGE_ABANDONED: &str = "ekr.store.StageAbandoned";
+/// The stream family of the store's stage index (`ekr.store.StageIndexed`, issue #94): one stream
+/// per store tenant, `STAGE_INDEX_STREAM_ID`, holding one entry per stage, appended in the same
+/// atomic group as that stage's `StageBegun`. Listing reads it as a stream, which sees every
+/// committed write, where the provider's published feed can withhold one.
+const STAGE_INDEX_STREAM_TYPE: &str = "ekr.stage-index";
+const STAGE_INDEX_STREAM_ID: &str = "stages";
+const STAGE_INDEXED: &str = "ekr.store.StageIndexed";
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "preparation.rs"]
@@ -1886,6 +1893,19 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         if self.joined.is_some() {
             crate::stage::reached(crate::StagePoint::JoinedWrite)?;
         }
+        // PostgreSQL takes one advisory lock per distinct stream of the group; a test counts them.
+        crate::stage::reached(crate::StagePoint::Group {
+            streams: request
+                .group
+                .appends
+                .iter()
+                .map(|append| &append.stream)
+                .collect::<BTreeSet<_>>()
+                .len(),
+        })?;
+        crate::stage::reached(crate::StagePoint::GroupBlobs {
+            blobs: request.blobs.len(),
+        })?;
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
@@ -1913,6 +1933,53 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         )?;
         self.landed(&request.group)?;
         Ok(result)
+    }
+    /// Stores `objects`, distinct by address, in one provider group: each one's
+    /// [`Self::object_append`], and its blob. A conflict reads them again and retries, as a put
+    /// does; once every one is held at its class or a stronger one there is nothing to append.
+    fn put_group(
+        &self,
+        objects: &[(ContentHash, crate::PublicationObject)],
+    ) -> Result<(), StoreError> {
+        let key = ContentHash::of_bytes(
+            &serde_json::to_vec(
+                &objects
+                    .iter()
+                    .map(|(hash, object)| (hash, object.storage_class, object.stored_at))
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(json_error)?,
+        );
+        for attempt in 0..16 {
+            let mut appends = Vec::with_capacity(objects.len());
+            let mut blobs = Vec::with_capacity(objects.len());
+            for (hash, object) in objects {
+                if let Some(append) = self.object_append(*hash, object)? {
+                    appends.push(append);
+                    blobs.push(BlobWrite {
+                        digest: hash.to_hex(),
+                        bytes: object.bytes.clone(),
+                    });
+                }
+            }
+            if appends.is_empty() {
+                return Ok(());
+            }
+            let request = BlobAppendGroup {
+                group: AppendGroup {
+                    tenant: self.tenant.clone(),
+                    appends,
+                    meta: envelope(&format!("ekr.objects.{key}.{attempt}"), key.to_hex()),
+                },
+                blobs,
+            };
+            match self.atomic(&request) {
+                Ok(_) => return Ok(()),
+                Err(StoreError::Conflict) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(StoreError::Conflict)
     }
 }
 
@@ -2053,9 +2120,17 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                     serde_json::to_value(&publication.event).map_err(json_error)?,
                 )?],
             }];
+            // A blob is bound only for an object this group appends to: one already held at its
+            // class or a stronger one (a payload stored ahead of it, issue #93) keeps the bytes it
+            // has, and binding it again would only repeat that write inside this transaction.
+            let mut blobs = Vec::new();
             for (hash, object) in &publication.objects {
                 if let Some(append) = self.object_append(*hash, object)? {
                     appends.push(append);
+                    blobs.push(BlobWrite {
+                        digest: hash.to_hex(),
+                        bytes: object.bytes.clone(),
+                    });
                 }
             }
             let request = BlobAppendGroup {
@@ -2067,14 +2142,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                         ContentHash::of(&publication.event).to_hex(),
                     ),
                 },
-                blobs: publication
-                    .objects
-                    .iter()
-                    .map(|(hash, object)| BlobWrite {
-                        digest: hash.to_hex(),
-                        bytes: object.bytes.clone(),
-                    })
-                    .collect(),
+                blobs,
             };
             match self.atomic(&request) {
                 Ok(result) => {
@@ -2400,6 +2468,28 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
             }
         }
         Err(StoreError::Conflict)
+    }
+    /// One provider group per [`crate::COPY_GROUP_STREAMS`] objects, each appending what
+    /// [`Self::put`] would append for its object, and nothing for one already held at its class
+    /// or a stronger one. Two of `objects` with the same bytes are one object, at the stronger
+    /// class and the first one's `stored_at`, as two puts of them would leave it.
+    fn put_all(&self, objects: &[&crate::PublicationObject]) -> Result<(), StoreError> {
+        self.entered()?;
+        let mut unique: BTreeMap<ContentHash, crate::PublicationObject> = BTreeMap::new();
+        for object in objects {
+            let hash = ContentHash::of_bytes(&object.bytes);
+            unique
+                .entry(hash)
+                .and_modify(|held| {
+                    held.storage_class = held.storage_class.strongest(object.storage_class);
+                })
+                .or_insert_with(|| (*object).clone());
+        }
+        let unique: Vec<_> = unique.into_iter().collect();
+        for chunk in unique.chunks(crate::COPY_GROUP_STREAMS) {
+            self.put_group(chunk)?;
+        }
+        Ok(())
     }
     /// An object this handle already verified is answered from what it holds, once the provider
     /// has confirmed the handle's held state and the memo's stream check has passed, as a history

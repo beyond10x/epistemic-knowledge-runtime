@@ -364,6 +364,26 @@ types:
     kind: enum
     variants: [File, Sqlite, Postgres]
 
+  # Issue #93, story:stage-copy-bounded-locks. The most streams one provider group of a stage
+  # begin's preserving copy (`ekr stage begin`) carries: 32. A copied occurrence whose group would
+  # carry more has its objects other than its record and its seed envelope (evidence payloads)
+  # stored ahead of it, at their class and `stored_at`, in groups of at most 32 objects, and its
+  # own group then appends to its revision stream, its record and its envelope and binds only the
+  # objects it appends. PostgreSQL takes one transaction-scoped advisory lock per stream of a group
+  # and two more (the publication gate and the group's own), so a begin's copy takes at most 34 per
+  # transaction, whatever the store holds. Only a begin stores ahead: its destination is the
+  # tenant it has just minted, which no other writer can address. `ekr migrate` copies each
+  # occurrence in one group, as the original seed and commit are written, since another migration
+  # may be writing the same destination and a loser must leave nothing in the winner's store.
+  # `ekr-store`'s `CopyGroupStreams::BOUND` (`COPY_GROUP_STREAMS`); held by
+  # `a_copy_takes_a_bounded_number_of_streams_per_group` in `crates/ekr-kernel/tests/stage.rs`,
+  # counted through the store's group calls. The value is stated here and not as an invariant:
+  # no view publishes a value of this type, so ess 0.36.0 synthesizes no scenario for one
+  # (ESS-SYNTH-013) and the committed suite admits no refusal.
+  - name: ekr.store.CopyGroupStreams
+    kind: newtype
+    of: Integer
+
   # What begin, seal, publish and abandon answer: the stage record as the command left it. For a
   # publication, `published_first` and `published_last` are the first and last revision it
   # published into the store, by id, and `occurrences` how many revision-stream occurrences it
@@ -644,6 +664,21 @@ events:
         type: ekr.kernel.RevisionNumber
       - name: base_revision
         type: ekr.kernel.RevisionId
+
+  # The store's stage index (story:stage-list-reads-committed, issue #94): one entry per stage,
+  # appended to the store tenant's one index stream in the same atomic group as the stage's
+  # ekr.store.StageBegun, so a stage whose begin committed has its entry committed, and neither
+  # without the other. ekr.cli.Stages finds stage ids by reading this stream as a stream, which
+  # sees every committed write, and not through the provider's published feed: on PostgreSQL that
+  # feed is watermarked below the oldest open transaction on the server, so it hides a committed
+  # begin while any older transaction is open. The entry carries only the id; the stage's state is
+  # always read from its own record stream. A store written before the index has stages without
+  # an entry: the listing unions the index with the feed scan it used before, so those stages,
+  # committed before the index existed, are still found.
+  - name: ekr.store.StageIndexed
+    fields:
+      - name: stage_id
+        type: ekr.store.StageId
 
   # The stage accepts no further write; the suffix a publication captures after this is final.
   - name: ekr.store.StageSealed

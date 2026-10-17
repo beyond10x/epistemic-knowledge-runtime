@@ -85,7 +85,7 @@ pub use log::{
     Initialize, Publication, PublicationObject, ReadModel, RecordedOccurrence, RetainedHistory,
     RetainedObject, RevisionLog,
 };
-pub use objects::{ObjectStore, StorageClass, StoredObject};
+pub use objects::{CopyGroupStreams, ObjectStore, StorageClass, StoredObject, COPY_GROUP_STREAMS};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
 pub use stage::{
     admit_store_tenant, stage_tenant, ProviderKind, Stage, StageLog, StagePublishedRecord,

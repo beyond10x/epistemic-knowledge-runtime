@@ -47,6 +47,13 @@ struct StageAbandonedBody {
     stage_id: StageId,
 }
 
+/// `ekr.store.StageIndexed`'s body: the stage's id only; its state is its record's.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StageIndexedBody {
+    stage_id: StageId,
+}
+
 fn record_disagrees(stage: StageId, why: &str) -> StoreError {
     StoreError::Document(format!("stage-record-disagrees: {stage}: {why}"))
 }
@@ -142,6 +149,37 @@ impl<S: EventStore> EventlogStore<S> {
             STAGE_STREAM_TYPE,
             stage.to_string(),
         )?)
+    }
+    /// The stage index stream of the store whose tenant is `store`.
+    fn stage_index_stream(store: &TenantId) -> Result<StreamId, StoreError> {
+        Ok(StreamId::new(
+            store.clone(),
+            STAGE_INDEX_STREAM_TYPE,
+            STAGE_INDEX_STREAM_ID,
+        )?)
+    }
+    /// The stage ids the store's stage index holds, read as a stream: every entry whose group
+    /// committed, whatever other transaction is open on the provider. Each entry must be a
+    /// `StageIndexed` at schema 1, unredacted, naming a stage no earlier entry names.
+    fn indexed_stages(&self) -> Result<BTreeSet<StageId>, StoreError> {
+        let mut ids = BTreeSet::new();
+        for event in self.read_record_stream(&Self::stage_index_stream(&self.tenant)?)? {
+            if event.name != STAGE_INDEXED || event.schema_version != 1 || event.is_redacted() {
+                return Err(StoreError::Document(format!(
+                    "stage-index-disagrees: version {} is not a StageIndexed entry",
+                    event.version
+                )));
+            }
+            let entry: StageIndexedBody =
+                serde_json::from_value(event.data.clone()).map_err(json_error)?;
+            if !ids.insert(entry.stage_id) {
+                return Err(StoreError::Document(format!(
+                    "stage-index-disagrees: stage {} is indexed twice",
+                    entry.stage_id
+                )));
+            }
+        }
+        Ok(ids)
     }
     /// Every event of `stream`, which may be in another tenant of this provider than the handle's
     /// own, checked to be that stream's in version order.
@@ -320,18 +358,34 @@ impl<S: EventStore> EventlogStore<S> {
     where
         S: AtomicBlobEventStore,
     {
+        let mut appends = vec![StreamAppend {
+            stream: Self::stage_stream(&self.tenant, stage)?,
+            expected: if version == 0 {
+                Expected::NoStream
+            } else {
+                Expected::Exact(version)
+            },
+            events: vec![NewEvent::new(name, 1, event)?],
+        }];
+        // A record's first event opens it: its entry in the store's stage index lands in the same
+        // group, so a committed begin has a committed entry and neither lands without the other.
+        // Any version: the index takes concurrent begins in whichever order they commit.
+        if version == 0 {
+            let indexed = StageIndexedBody { stage_id: stage };
+            appends.push(StreamAppend {
+                stream: Self::stage_index_stream(&self.tenant)?,
+                expected: Expected::Any,
+                events: vec![NewEvent::new(
+                    STAGE_INDEXED,
+                    1,
+                    serde_json::to_value(indexed).map_err(json_error)?,
+                )?],
+            });
+        }
         let request = BlobAppendGroup {
             group: AppendGroup {
                 tenant: self.tenant.clone(),
-                appends: vec![StreamAppend {
-                    stream: Self::stage_stream(&self.tenant, stage)?,
-                    expected: if version == 0 {
-                        Expected::NoStream
-                    } else {
-                        Expected::Exact(version)
-                    },
-                    events: vec![NewEvent::new(name, 1, event)?],
-                }],
+                appends,
                 // The key names the move as well as the version: a seal and an abandonment
                 // appended at one version are two requests, and the one that loses meets the
                 // stream's conditional append, never the other's command receipt.
@@ -363,19 +417,28 @@ impl<S: AtomicBlobEventStore> StageLog for EventlogStore<S> {
     fn stages(&self) -> Result<Vec<StageRecord>, StoreError> {
         self.entered()?;
         self.on_store_tenant()?;
-        let mut ids = BTreeSet::new();
+        // The index names every stage whose begin committed since it existed; the feed scan
+        // finds the stages a store recorded before it, which committed long before any
+        // transaction open now. Every id is then held to its own record.
+        let indexed = self.indexed_stages()?;
+        let mut ids = indexed.clone();
         for event in self.published_events()? {
             if event.stream_type == STAGE_STREAM_TYPE {
-                ids.insert(event.stream_id);
+                let id = &event.stream_id;
+                ids.insert(
+                    id.parse()
+                        .map_err(|_| StoreError::Document(format!("stage-record-stream: {id}")))?,
+                );
             }
         }
         let mut records = Vec::with_capacity(ids.len());
-        for id in ids {
-            let stage: StageId = id
-                .parse()
-                .map_err(|_| StoreError::Document(format!("stage-record-stream: {id}")))?;
-            if let Some(record) = self.read_stage_record(&self.tenant, stage)? {
-                records.push(record);
+        for stage in ids {
+            match self.read_stage_record(&self.tenant, stage)? {
+                Some(record) => records.push(record),
+                None if indexed.contains(&stage) => {
+                    return Err(record_disagrees(stage, "indexed, with no record"));
+                }
+                None => {}
             }
         }
         Ok(records)

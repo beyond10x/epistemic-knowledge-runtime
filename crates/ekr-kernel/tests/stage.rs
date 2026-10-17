@@ -2242,3 +2242,472 @@ fn a_stage_hook_guard_restores_the_hook_it_replaced() {
     drop(outer);
     assert_eq!(ekr_store::stage::reached(StagePoint::Sealed), Ok(()));
 }
+
+/// Evidence payloads a copied seed and a copied commit each carry: three groups' worth of
+/// `ekr.store.CopyGroupStreams`, so a copy that published either occurrence as one group would
+/// carry more streams than the bound.
+const COPIED_PAYLOADS: u64 = 3 * ekr_store::COPY_GROUP_STREAMS as u64;
+
+/// A transaction adding one evidence entry for each of `payloads` and an assertion citing them.
+fn evidence_entries(payloads: &[Vec<u8>]) -> GraphTransaction {
+    let mut operations = Vec::new();
+    let mut cited = BTreeSet::new();
+    for payload in payloads {
+        let id = ekr_core::EvidenceId::mint();
+        cited.insert(id);
+        operations.push(GraphOperation::AddEvidence(Box::new(
+            ekr_kernel::EvidenceAddition {
+                evidence: ekr_graph::Evidence {
+                    id,
+                    source: ekr_graph::EvidenceSource::HumanStatement {
+                        identity: Some("operator".into()),
+                    },
+                    content_hash: ContentHash::of_bytes(payload),
+                    extracted_by: context().operator,
+                    observed_at: Timestamp::from_millis(5),
+                    confidence: ekr_graph::Confidence::CERTAIN,
+                },
+                payload: payload.clone(),
+            },
+        )));
+    }
+    operations.push(GraphOperation::AddAssertion(Box::new(
+        ekr_graph::Assertion {
+            id: ekr_core::AssertionId::mint(),
+            root_id: current_fixture::id(0x02),
+            subject: ekr_graph::Subject::Node(current_fixture::id(0x10)),
+            predicate: ekr_graph::Predicate::Property(current_fixture::id(0x06)),
+            object: ekr_graph::Object::Value(ekr_ontology::Value::String("copied".into())),
+            evidence: cited.clone(),
+            proposed_by: context().operator,
+            assessment: ekr_graph::Assessment::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            valid_time: ekr_graph::TemporalRange::UNBOUNDED,
+            transaction_time: ekr_graph::TransactionTime::since(Timestamp::EPOCH),
+        },
+    )));
+    GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations,
+        evidence: cited,
+        schema_version: None,
+    }
+}
+
+/// Issue #93, `ekr.store.CopyGroupStreams`: a begin copies a seed and a commit that each carry
+/// more evidence payloads than one group of a copy may carry, and no provider group of the copy
+/// appends to more than `COPY_GROUP_STREAMS` streams, so it takes no more than that many of
+/// PostgreSQL's advisory locks in one transaction. Counted through the store's group calls, not
+/// timed. No group binds a blob for an object it does not append: the payloads stored
+/// ahead are not bound again by the occurrence that publishes them. The stage, replayed from
+/// its seed, is the store at its head.
+#[test]
+fn a_copy_takes_a_bounded_number_of_streams_per_group() {
+    each(|fixture| {
+        let store = fixture.open();
+        let mut document = seed();
+        for n in 0..COPIED_PAYLOADS {
+            let bytes = format!("seeded statement {n}").into_bytes();
+            let evidence = ekr_graph::Evidence {
+                id: current_fixture::id(0x1_0000 + n),
+                source: ekr_graph::EvidenceSource::HumanStatement {
+                    identity: Some("operator".into()),
+                },
+                content_hash: ContentHash::of_bytes(&bytes),
+                extracted_by: context().operator,
+                observed_at: Timestamp::EPOCH,
+                confidence: ekr_graph::Confidence::CERTAIN,
+            };
+            document.graph.evidence.insert(evidence.id, evidence);
+            document
+                .evidence_payloads
+                .insert(ContentHash::of_bytes(&bytes), bytes.into());
+        }
+        store.seed(document, || SEEDED_AT).unwrap();
+        let payloads: Vec<Vec<u8>> = (0..COPIED_PAYLOADS)
+            .map(|n| format!("committed statement {n}").into_bytes())
+            .collect();
+        commit_transaction(&store, &evidence_entries(&payloads));
+        let before = store.head().unwrap().unwrap();
+
+        let groups = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let begun = {
+            let groups = groups.clone();
+            let _hook = ekr_store::on_stage_point(move |point| {
+                match point {
+                    StagePoint::Group { streams } => groups.borrow_mut().push((streams, 0)),
+                    StagePoint::GroupBlobs { blobs } => {
+                        if let Some(last) = groups.borrow_mut().last_mut() {
+                            last.1 = blobs;
+                        }
+                    }
+                    _ => {}
+                }
+                Ok(())
+            });
+            store.begin_stage().unwrap()
+        };
+        let groups = groups.borrow();
+        let binding: Vec<_> = groups
+            .iter()
+            .filter(|(streams, blobs)| blobs > streams)
+            .collect();
+        assert!(
+            binding.is_empty(),
+            "a group of the copy bound more blobs than the streams it appended to, so its \
+             transaction stores bytes it does not publish (streams, blobs): {binding:?}"
+        );
+        let groups: Vec<usize> = groups.iter().map(|(streams, _)| *streams).collect();
+        let widest = groups.iter().copied().max().unwrap_or(0);
+        assert!(
+            groups.len() > 1,
+            "the begin's groups are counted: {groups:?}"
+        );
+        assert!(
+            widest <= ekr_store::COPY_GROUP_STREAMS,
+            "a group of the copy appended to {widest} streams, more than {}, of {} groups",
+            ekr_store::COPY_GROUP_STREAMS,
+            groups.len()
+        );
+        assert_eq!(begun.state, StageState::Begun);
+        let mut joined = store.join_stage(begun.stage_id).unwrap();
+        joined.set_full_replay(true);
+        assert_eq!(
+            roots(&joined.head().unwrap().unwrap()),
+            roots(&before),
+            "the stage is the store at its head"
+        );
+        assert_eq!(
+            store.abandon_stage(begun.stage_id).unwrap().state,
+            StageState::Abandoned
+        );
+    });
+}
+
+// Adversary, wave 20261016b unit U1 (`story:stage-copy-bounded-locks`, issue #93).
+
+/// The current seed with `count` further evidence entries, each its own payload `"{label} {n}"`.
+fn seed_carrying(label: &str, count: u64) -> ekr_kernel::SeedDocument {
+    let mut document = seed();
+    for n in 0..count {
+        let bytes = format!("{label} {n}").into_bytes();
+        let evidence = ekr_graph::Evidence {
+            id: current_fixture::id(0x1_0000 + n),
+            source: ekr_graph::EvidenceSource::HumanStatement {
+                identity: Some("operator".into()),
+            },
+            content_hash: ContentHash::of_bytes(&bytes),
+            extracted_by: context().operator,
+            observed_at: Timestamp::EPOCH,
+            confidence: ekr_graph::Confidence::CERTAIN,
+        };
+        document.graph.evidence.insert(evidence.id, evidence);
+        document
+            .evidence_payloads
+            .insert(ContentHash::of_bytes(&bytes), bytes.into());
+    }
+    document
+}
+
+/// What retention and reclamation read of one object: its strongest class, the class it was
+/// first stored with, its raises and its `stored_at`.
+type Retention = (StorageClass, StorageClass, Vec<StorageClass>, Timestamp);
+
+/// Each object `raw` holds, with its [`Retention`].
+fn retained(raw: &Raw) -> std::collections::BTreeMap<ContentHash, Retention> {
+    let inventory = match raw {
+        Raw::Sqlite(store) => store.inventory().unwrap(),
+        Raw::Postgres(store) => store.inventory().unwrap(),
+    };
+    inventory
+        .objects
+        .into_iter()
+        .map(|(hash, held)| {
+            (
+                hash,
+                (
+                    held.object.metadata.storage_class,
+                    held.stored_as,
+                    held.raised_to,
+                    held.object.metadata.stored_at,
+                ),
+            )
+        })
+        .collect()
+}
+
+/// (a), (d), (e), (f): at and either side of the bound — a seed of 29 payloads publishes 32
+/// streams, one of 30 publishes 33; a commit of 30 distinct payloads publishes 32, one of 31
+/// publishes 33 — and at twice it, no group of a begin carries more than `COPY_GROUP_STREAMS`
+/// streams; the stage is the store at its head, replayed from its seed; and every payload is in
+/// the stage tenant with the retention the store holds it with. The commit's payloads include
+/// one the seed carries, one cited twice and one the store held below Provenance before it.
+#[test]
+fn adversary_copy_groups_hold_the_bound_at_its_edges_and_keep_each_payloads_retention() {
+    for n in [29_u64, 30, 31, 32, 33, 63, 64, 65] {
+        each(|fixture| {
+            let store = fixture.open();
+            store
+                .seed(seed_carrying("seeded", n), || SEEDED_AT)
+                .unwrap();
+            // `n` distinct payloads: `n - 2` new ones, the first cited twice, one the seed
+            // carries, and one the store held at Incubating before the commit.
+            let mut payloads: Vec<Vec<u8>> = (0..n - 2)
+                .map(|k| format!("committed {n} {k}").into_bytes())
+                .collect();
+            payloads.push(payloads[0].clone());
+            payloads.push(b"seeded 0".to_vec());
+            let below = format!("incubating {n}").into_bytes();
+            fixture
+                .raw(&fixture.tenant)
+                .put(StorageClass::Incubating, &below);
+            payloads.push(below);
+            commit_transaction(&store, &evidence_entries(&payloads));
+            let before = store.head().unwrap().unwrap();
+
+            let groups = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let begun = {
+                let groups = groups.clone();
+                let _hook = ekr_store::on_stage_point(move |point| {
+                    if let StagePoint::Group { streams } = point {
+                        groups.borrow_mut().push(streams);
+                    }
+                    Ok(())
+                });
+                store.begin_stage()
+            };
+            let groups = groups.borrow().clone();
+            let begun = begun.unwrap_or_else(|error| panic!("n={n}: begin refused: {error}"));
+            assert!(
+                groups
+                    .iter()
+                    .all(|streams| *streams <= ekr_store::COPY_GROUP_STREAMS),
+                "n={n}: a group of the begin carried more than {} streams: {groups:?}",
+                ekr_store::COPY_GROUP_STREAMS
+            );
+
+            let mut joined = store.join_stage(begun.stage_id).unwrap();
+            joined.set_full_replay(true);
+            assert_eq!(
+                roots(&joined.head().unwrap().unwrap()),
+                roots(&before),
+                "n={n}: the stage replayed from its seed is the store at its head"
+            );
+            drop(joined);
+
+            let source = retained(&fixture.raw(&fixture.tenant));
+            let staged = retained(&fixture.raw(&fixture.stage_tenant(begun.stage_id)));
+            let carried: BTreeSet<ContentHash> = (0..n)
+                .map(|k| ContentHash::of_bytes(format!("seeded {k}").as_bytes()))
+                .chain(payloads.iter().map(|bytes| ContentHash::of_bytes(bytes)))
+                .collect();
+            for hash in &carried {
+                assert!(source.contains_key(hash), "n={n}: the store holds {hash}");
+                assert_eq!(
+                    staged.get(hash),
+                    source.get(hash),
+                    "n={n}: payload {hash} is staged with the retention the store holds it with"
+                );
+            }
+            assert_eq!(
+                store.abandon_stage(begun.stage_id).unwrap().state,
+                StageState::Abandoned
+            );
+        });
+    }
+}
+
+/// (b): a begin whose payloads were written ahead and whose seed group then fails is refused
+/// `stage-copy-failed`, naming the stage; the stage is Abandoned and its tenant holds nothing;
+/// and the next begin lands and is the store at its head.
+#[test]
+fn adversary_a_begin_failing_after_its_write_ahead_is_abandoned_and_the_next_lands() {
+    each(|fixture| {
+        let store = fixture.open();
+        let count = 3 * ekr_store::COPY_GROUP_STREAMS as u64;
+        store
+            .seed(seed_carrying("seeded", count), || SEEDED_AT)
+            .unwrap();
+        let before = store.head().unwrap().unwrap();
+        let begun = {
+            let (mut wide, mut failed) = (0_usize, false);
+            let _hook = ekr_store::on_stage_point(move |point| {
+                if let StagePoint::Group { streams } = point {
+                    if streams > 3 {
+                        wide += 1;
+                    } else if wide == 3 && !failed {
+                        failed = true;
+                        return Err(StoreError::Backend(
+                            "interrupted after the write-ahead".into(),
+                        ));
+                    }
+                }
+                Ok(())
+            });
+            store.begin_stage()
+        };
+        let error = match begun {
+            Ok(result) => {
+                panic!("the seed group was interrupted and the begin answered {result:?}")
+            }
+            Err(error) => error.to_string(),
+        };
+        let stages = store.stages().unwrap();
+        assert_eq!(stages.len(), 1, "{error}: {stages:?}");
+        let left = &stages[0];
+        assert!(
+            error.starts_with("stage-copy-failed: ")
+                && error.contains(&format!("stage {} was begun", left.stage.stage_id))
+                && error.contains("interrupted after the write-ahead"),
+            "{error}"
+        );
+        assert_eq!(left.state, StageState::Abandoned, "{error}");
+        assert_eq!(
+            store.stage_tenant_events(left.stage.stage_id).unwrap(),
+            0,
+            "the abandoned stage's tenant holds none of the written-ahead payloads"
+        );
+        let next = store.begin_stage().expect("the next begin lands");
+        let joined = store.join_stage(next.stage_id).unwrap();
+        assert_eq!(roots(&joined.head().unwrap().unwrap()), roots(&before));
+        drop(joined);
+        assert_eq!(
+            store.abandon_stage(next.stage_id).unwrap().state,
+            StageState::Abandoned
+        );
+    });
+}
+
+/// (b), under decision 1: a migration writes nothing ahead of its seed, so its first group is the
+/// seed's, carrying every payload; when that group fails the migration answers its failure, not
+/// `migrate-destination-not-empty`, the destination holds nothing, and a retry into it lands.
+#[test]
+fn adversary_a_migration_whose_seed_group_fails_leaves_its_destination_empty() {
+    let directory = tempfile::tempdir().unwrap();
+    let open = |name: &str| {
+        Runtime::sqlite(
+            &directory.path().join(name),
+            "migrated-store",
+            context(),
+            evolving(),
+        )
+        .unwrap()
+    };
+    let source = open("source.db");
+    source
+        .seed(seed_carrying("seeded", 40), || SEEDED_AT)
+        .unwrap();
+    let destination = open("destination.db");
+    let first = std::rc::Rc::new(std::cell::Cell::new(None));
+    let failed = {
+        let first = first.clone();
+        let _hook = ekr_store::on_stage_point(move |point| {
+            if let StagePoint::Group { streams } = point {
+                if first.get().is_none() {
+                    first.set(Some(streams));
+                    return Err(StoreError::Backend("interrupted at the seed group".into()));
+                }
+            }
+            Ok(())
+        });
+        source.migrate_into(&destination)
+    };
+    assert_eq!(
+        first.get(),
+        Some(40 + 4),
+        "the migration's first group is its seed, carrying every payload (44 streams observed \
+         for 40 payloads on the round-two tree)"
+    );
+    let error = failed
+        .expect_err("the seed group was interrupted")
+        .to_string();
+    assert!(
+        error.contains("interrupted at the seed group")
+            && !error.contains("migrate-destination-not-empty"),
+        "{error}"
+    );
+    source
+        .migrate_into(&destination)
+        .expect("the destination holds nothing, so a retry lands");
+}
+
+/// (c): two migrations into one destination, each past its emptiness check. The one whose seed
+/// lands second loses (`migrate-destination-not-empty`), and the destination is the winner's
+/// store: it holds none of the loser's evidence payloads. Before this unit a loser wrote nothing
+/// ahead of its seed; now it writes its payloads ahead of it, into the store the winner made.
+#[test]
+fn adversary_a_migration_that_loses_its_destination_leaves_none_of_its_payloads_there() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().to_owned();
+    let open = move |name: &str| {
+        Runtime::sqlite(&root.join(name), "migrated-store", context(), evolving()).unwrap()
+    };
+    open("winner.db")
+        .seed(seed_carrying("winner", 40), || SEEDED_AT)
+        .unwrap();
+    open("loser.db")
+        .seed(seed_carrying("loser", 40), || SEEDED_AT)
+        .unwrap();
+    drop(open("destination.db"));
+
+    let (ready, past_its_check) = std::sync::mpsc::channel::<()>();
+    let (seeded, winner_seeded) = std::sync::mpsc::channel::<()>();
+    let loser = std::thread::spawn({
+        let open = open.clone();
+        move || {
+            let source = open("loser.db");
+            let into = open("destination.db");
+            let mut waited = false;
+            let _hook = ekr_store::on_stage_point(move |point| {
+                // The loser's first write-ahead group: it is past its emptiness check.
+                if matches!(point, StagePoint::Group { streams } if streams > 3) && !waited {
+                    waited = true;
+                    ready.send(()).unwrap();
+                    let _ = winner_seeded.recv();
+                }
+                Ok(())
+            });
+            source
+                .migrate_into(&into)
+                .map(|_| ())
+                .map_err(|error| error.to_string())
+        }
+    });
+    past_its_check.recv().unwrap();
+    let into = open("destination.db");
+    let won = {
+        let source = open("winner.db");
+        let (mut after_seed, mut seeded) = (false, Some(seeded));
+        let _hook = ekr_store::on_stage_point(move |point| {
+            if let StagePoint::Group { streams } = point {
+                if after_seed {
+                    // The winner's seed landed: let the loser write its payloads ahead.
+                    if let Some(seeded) = seeded.take() {
+                        seeded.send(()).unwrap();
+                    }
+                } else if streams == 3 {
+                    after_seed = true;
+                }
+            }
+            Ok(())
+        });
+        source.migrate_into(&into)
+    };
+    won.expect("the first seed wins");
+    let lost = loser.join().unwrap().expect_err("the second seed loses");
+    assert!(lost.contains("migrate-destination-not-empty"), "{lost}");
+    let strays: Vec<u64> = (0..40)
+        .filter(|n| {
+            into.content(&ContentHash::of_bytes(format!("loser {n}").as_bytes()))
+                .unwrap()
+                .is_some()
+        })
+        .collect();
+    assert!(
+        strays.is_empty(),
+        "the winner's store holds {} evidence payloads of the losing migration's source: \
+         {strays:?}",
+        strays.len()
+    );
+}

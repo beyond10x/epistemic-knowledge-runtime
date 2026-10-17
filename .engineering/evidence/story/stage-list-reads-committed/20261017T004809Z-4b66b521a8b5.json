@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-17T00:48:09Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:stage-list-reads-committed",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Wave 2026-10-16b unit U2 on unit/20261016b-u2 eeb0c261: ekr-kernel stage_hosted_limits listing cases red (1 failed) before the change and 2 passed after on PostgreSQL; ekr-kernel stage 36 passed on PostgreSQL; cargo test -p ekr-store 210 passed, -p ekr-kernel 644 passed; ekr stage_cli 9, docs_cli 18, conformance 7, conformance_integrate 5 passed; ekr-views conformance 4 passed; adversary cases 5 passed on SQLite and PostgreSQL; clippy -D warnings of ekr-store, ekr-kernel and ekr, spec-check and conform-fresh clean; the full task check runs on the wave's final head before its pull request"
+  }
+}

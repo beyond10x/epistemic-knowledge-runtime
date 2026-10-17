@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-17T03:09:01Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:stage-copy-bounded-locks",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Wave 2026-10-16b unit U1 on unit/20261016b-u1 72fd90f2: ekr-kernel stage a_copy_takes_a_bounded_number_of_streams_per_group red (a group of 100 streams; then 99 blobs bound for 3 streams) before the change, and the stage target 41 passed on SQLite and PostgreSQL after it, adversarial cases included; stage_hosted_limits a_store_with_more_seed_payloads_than_the_lock_table_is_staged passed against PostgreSQL with max_locks_per_transaction 64; cargo test -p ekr-kernel 648 passed with only the replaced case red, -p ekr-store 210 passed; ekr stage_cli, docs_cli, migrate_cli, adversary_migrate_v3_cli, conformance 41 passed; clippy -D warnings of ekr-store, ekr-kernel and ekr, fmt, spec-check and conform-fresh clean; the full task check runs on the wave's final head before its pull request"
+  }
+}
