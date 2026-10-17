@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.37] — 2026-10-17
+
 ### Fixed
 
 - `ekr stage begin` and `ekr migrate` copy a store whose seed or commit carries thousands of
