@@ -2,7 +2,8 @@
 
 Skill: aep:implementing (wave mode). Coordinator: the repository's controlling Claude session of
 2026-10-16.
-Status: **gating**: U1 and U2 merged into `wave/20261016b`; the full gate runs on its head.
+Status: **gated**: U1 and U2 merged into `wave/20261016b`; the full gate is green on its head;
+the pull request follows.
 
 Source: two reports from a consumer running 0.0.35 on PostgreSQL, reproduced here first as red tests
 on a PostgreSQL 17 container (`crates/ekr-kernel/tests/stage_hosted_limits.rs`): issue #93 (a stage
@@ -35,5 +36,16 @@ committed on the integration branch; each runs them on its own PostgreSQL contai
 
 ## Gate
 
-Not run. Each unit runs its package gates; one full `task check` on the combined head, then the
-cross-crate checks of `COORDINATOR.md` check 9, before the pull request.
+One full `task check` on the combined head 4437fdca, in this tree's own `target/`, 2026-10-17,
+with the pinned `ess` 0.36.0 and `aep` 0.64.0 first on the path: `fmt-check`, `search-web-check`
+and `clippy` passed; `test` ran every target (`--no-fail-fast`): 2477 passed, 13 ignored, 1
+failed: `ekr`'s `public_surface::no_public_item_in_any_crate_is_untested`, because
+`ekr-store`'s `CopyGroupStreams` and its `BOUND` were used by no case outside a comment.
+0e17c7d7 adds `domain_projection::the_copy_group_bound_is_the_one_the_domain_states`, which reads
+the bound from `store.yaml` and holds both to it. On 0e17c7d7 the failed step and what follows it
+were rerun and exited zero: `fmt-check`, `ekr-store` clippy on all targets, the `public_surface`
+target (12 passed) and the `domain_projection` target (9 passed), then `doc-check`,
+`vendor-check`, `spec-check`, `conform-fresh`, `plan-check` and `site-check`.
+`cargo test --workspace -- --list` in this tree lists 2489 workspace tests, both named cases among
+them. The cross-crate checks of `COORDINATOR.md` check 9 (format, workspace clippy, the `ekr`
+contract targets) are part of that run.
