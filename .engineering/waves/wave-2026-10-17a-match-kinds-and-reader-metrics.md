@@ -2,7 +2,7 @@
 
 Skill: aep:implementing (wave mode). Coordinator: the repository's controlling Claude session of
 2026-10-17.
-Status: **open**: two units dispatched.
+Status: **integrating**: U2 merged into `wave/20261017a`; U1 runs its package tests.
 
 Source: two consumer requests. A reader that reads only the first five matches per word misses a
 node whose whole name matches in another case (`story:search-match-kinds`). An operator scraping
@@ -23,11 +23,11 @@ Width: 2 units, every ready unit of this source. Both declare their change in `v
 
 ## Trees
 
-| unit | branch | worktree id | build dir |
-|---|---|---|---|
-| integration | `wave/20261017a` | `ekr-w20261017a` | `<tree>/target` |
-| U1 | `unit/20261017a-u1` | `ekr-w17a-u1` | `<tree>/target` |
-| U2 | `unit/20261017a-u2` | `ekr-w17a-u2` | `<tree>/target` |
+| unit | branch | worktree id | build dir | state |
+|---|---|---|---|---|
+| integration | `wave/20261017a` | `ekr-w20261017a` | `<tree>/target` | U2 merged at `4ed86ce8` |
+| U1 | `unit/20261017a-u1` | `ekr-w17a-u1` | `<tree>/target` | at `91bea139`; package tests running |
+| U2 | `unit/20261017a-u2` | `ekr-w17a-u2` | `<tree>/target` | merged at `9eab295c`; adversary found two introduced defects, both fixed |
 
 ## Gate
 

@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: story:readers-emit-metrics-and-request-logs
 kind: story
-status: active
+status: implemented
 title: The MCP and view readers count each tool call and log each request with its incoming ids
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o5
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-17T10:05:36Z", actor: "agent:claude-ekr-controller", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-17T10:05:36Z", actor: "agent:claude-ekr-controller", revision: 4}
+- {from: "active", to: "implemented", at: "2026-10-17T17:18:05Z", actor: "agent:claude-ekr-controller", revision: 5, decided_on: {"recorded":{"test_result":1},"asserted":{"test_result":1}}}
 ---
 ## Context
 
