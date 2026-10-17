@@ -29,6 +29,7 @@ serde_json = { workspace = true, features = ["raw_value"] }
 serde_yaml_ng.workspace = true
 signal-hook = "0.3"
 time.workspace = true
+uuid.workspace = true
 
 [build-dependencies]
 wasm-bindgen-cli-support = "=0.2.129"

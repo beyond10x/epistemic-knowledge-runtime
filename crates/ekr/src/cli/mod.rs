@@ -65,6 +65,7 @@ mod seed;
 mod session;
 mod snapshot;
 mod stage;
+mod telemetry;
 mod transactions;
 mod validate;
 mod view;
@@ -557,6 +558,14 @@ pub enum Command {
         /// Link to this absolute HTTP(S) operator guide instead of the local agent guide.
         #[arg(long, value_parser = agent_help::url)]
         agent_guide_url: Option<String>,
+        /// Serve GET /metrics: per-tool read counts, latency and answer bytes, in-flight reads,
+        /// the served head and store errors, in the Prometheus text format.
+        #[arg(long)]
+        metrics: bool,
+        /// Append one JSON line per request (ids, tool, outcome, status, duration, bytes) to this
+        /// file; `-` writes standard error.
+        #[arg(long, value_name = "PATH")]
+        request_log: Option<PathBuf>,
     },
     /// Serve the JSON verbs over one opened store: one JSON request per line on stdin, one JSON
     /// answer per line on stdout, until end of input.
@@ -615,6 +624,14 @@ pub enum Command {
         /// Exact allowed HTTP or HTTPS Origin, repeatable; absent Origin is accepted.
         #[arg(long)]
         allow_origin: Vec<String>,
+        /// Serve GET /metrics: per-tool read counts, latency and answer bytes, in-flight reads,
+        /// the served head and store errors, in the Prometheus text format.
+        #[arg(long)]
+        metrics: bool,
+        /// Append one JSON line per request (ids, tool, outcome, status, duration, bytes) to this
+        /// file; `-` writes standard error.
+        #[arg(long, value_name = "PATH")]
+        request_log: Option<PathBuf>,
     },
     /// Copy a captured store into the current migration format, leaving the source unchanged:
     /// its seed becomes `ekr-seed-envelope/4`, binding a fresh copy claim to a matching completion
@@ -1139,23 +1156,40 @@ fn dispatch(
             require_ready,
             mcp_url,
             agent_guide_url,
+            metrics,
+            request_log,
         } => {
             let store = source.configured("view")?;
+            let telemetry = telemetry::Telemetry::open("view", metrics, request_log.as_deref())?;
             let help = agent_help::Config {
                 mcp_url,
                 guide_url: agent_guide_url
                     .unwrap_or_else(|| agent_help::Config::default().guide_url),
             };
-            view::run(&store, bind, port, allow_host, require_ready, help).map(Printed::Text)
+            view::run(
+                &store,
+                bind,
+                port,
+                allow_host,
+                require_ready,
+                help,
+                telemetry,
+            )
+            .map(Printed::Text)
         }
         Command::McpHttp {
             port,
             bind,
             allow_host,
             allow_origin,
+            metrics,
+            request_log,
         } => {
             let store = source.configured("mcp-http")?;
-            mcp::run_http(&store, bind, port, allow_host, allow_origin).map(Printed::Text)
+            let telemetry =
+                telemetry::Telemetry::open("mcp-http", metrics, request_log.as_deref())?;
+            mcp::run_http(&store, bind, port, allow_host, allow_origin, telemetry)
+                .map(Printed::Text)
         }
         Command::Migrate { to, to_backend } => {
             let store = source.configured("migrate")?;

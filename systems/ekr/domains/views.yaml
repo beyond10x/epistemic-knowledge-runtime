@@ -2721,6 +2721,144 @@ types:
       - name: upper
         type: Decimal
 
+  # story:readers-emit-metrics-and-request-logs. The read servers `ekr view` and `ekr mcp-http`
+  # count each read they dispatch and log each request they answer. Both take the count at their
+  # own dispatch, under one registry and one set of names, so one read through either moves the
+  # same series for the same wire name. Nothing here is a command: these are the operational
+  # records of the two servers, which read and write no canonical state. The stdio `ekr mcp`
+  # emits neither.
+  #
+  # The wire name. Every counted read is labelled `tool` with its wire name, a value of
+  # ekr.views.ReadWireName and never request text: an MCP `tools/call` by the tool it names
+  # (a name outside the nine tools `ekr mcp-http` serves, `find`, `projection`, `roles` and
+  # `describe_evidence` included, is a -32602 and counted under no tool), and an `ekr view` GET of a
+  # route that reads the store by the read it answers: /head head, /overview overview, /search
+  # search, /node/<id> describe_node, /expand expand, /timeline timeline, /changes changes_since,
+  # /projection projection, /roles roles, /evidence/<id> describe_evidence and /find find. A
+  # request that is no read (`/healthz`, `/readyz`, `/metrics`, the page and its assets, an MCP
+  # message that is not `tools/call`), or that is refused before it reaches the dispatch (Host,
+  # Origin, framing, method, a body on a GET), is counted under no tool and still logged.
+  #
+  # The outcome, ekr.views.ReadOutcome: `ok` for a read that answered its document; one class per
+  # refusal, by the refusal's name: `not_seeded` for ekr.views.NotSeeded; `not_found` for
+  # ekr.views.RevisionNotFound, ekr.views.NodeNotFound, ekr.views.NodeIsAType,
+  # ekr.views.NodeTypeNotFound, ekr.kernel.RevisionNotFound, ekr.kernel.AssertionNotFound and
+  # `ekr view`'s 404 for evidence; `unavailable` for `store-replaced` and a store not admitted
+  # (503), and a read refused 503 because the request queue is full or its deadline passed, on
+  # either server; `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
+  # ekr.views.SinceMalformed, an MCP -32602 and the explain and resolve verbs' other named
+  # refusals. `store_error` is a read that failed on the store (`ekr view`'s 500, an MCP -32603),
+  # which is no refusal: it also moves ekr_store_query_errors_total.
+  #
+  # The metrics, ekr.views.ReaderMetricName, in the Prometheus text exposition format 0.0.4:
+  #
+  # - ekr_read_requests_total{tool,outcome}, counter: reads dispatched, one per read.
+  # - ekr_read_duration_seconds{tool}, histogram: from the connection's accept to the answer
+  #   ready, one observation per read; buckets 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+  #   1, 2.5, 5, 10, 30 and +Inf.
+  # - ekr_read_result_bytes{tool}, histogram: the bytes of the document the read answered — an
+  #   MCP tool result's text, an `ekr view` body, an /expand stream's NDJSON lines without their
+  #   chunk framing — one observation per read, 0 for one that answered no document; buckets 64,
+  #   256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216 and +Inf.
+  # - ekr_read_in_flight, gauge: requests handed to the store's thread and not yet answered.
+  # - ekr_store_head_revision, gauge: the head revision of the store the reader serves, read on
+  #   the store's thread after each request it answers; absent until a seeded store was read.
+  # - ekr_store_query_errors_total{tool}, counter: reads whose outcome is store_error.
+  #
+  # Every family is answered with its HELP and TYPE lines, and every series of a (tool, outcome)
+  # or tool that moved under it; a series that never moved is absent. ekr_read_in_flight is
+  # always answered. No metric carries an argument value, a result's
+  # text, document content, a prompt or a credential (invariant 9): the only label values are a
+  # wire name and an outcome.
+  #
+  # The endpoint. `GET /metrics` answers the exposition, `text/plain; version=0.0.4;
+  # charset=utf-8`, on the connection's own thread without the store's queue, only when the
+  # server runs with `--metrics`; without it the path answers 404 as any unknown path does. It is
+  # admitted as every route is: exactly one Host the server admits (421 otherwise), an Origin
+  # `ekr mcp-http` admits (403 otherwise); any method but GET is 405 and a body 400 or 413 as the
+  # server refuses one elsewhere. It has no authentication of its own.
+  #
+  # The request log, ekr.views.RequestLogV1: with `--request-log <path>` (`-` for standard error)
+  # each server writes one line per request it answers, the record as one JSON object. The
+  # incoming `X-Request-Id` is kept when it is 1 to 128 bytes of ASCII letters, digits and
+  # `-._:`; the incoming `traceparent` when it is a W3C trace context version 00 header (55
+  # bytes, lowercase hex, neither id all zeros). Absent, either is generated (`generated`);
+  # malformed, oversized or given twice, it is replaced by a generated one (`replaced`), and the
+  # incoming value is neither logged nor echoed. The line carries no path, query, header value
+  # beside these two, argument, result text or document content.
+  - name: ekr.views.ReadWireName
+    kind: enum
+    variants:
+      - head
+      - overview
+      - search
+      - describe_node
+      - expand
+      - timeline
+      - changes_since
+      - explain
+      - resolve
+      - describe_evidence
+      - projection
+      - roles
+      - find
+
+  - name: ekr.views.ReadOutcome
+    kind: enum
+    variants: [ok, invalid_input, not_seeded, not_found, unavailable, store_error]
+
+  - name: ekr.views.ReaderMetricName
+    kind: enum
+    variants:
+      - ekr_read_requests_total
+      - ekr_read_duration_seconds
+      - ekr_read_result_bytes
+      - ekr_read_in_flight
+      - ekr_store_head_revision
+      - ekr_store_query_errors_total
+
+  - name: ekr.views.ReaderServer
+    kind: enum
+    variants: [view, mcp-http]
+
+  - name: ekr.views.RequestIdSource
+    kind: enum
+    variants: [incoming, generated, replaced]
+
+  - name: ekr.views.RequestLogFormatV1
+    kind: enum
+    variants: [ekr.request-log/1]
+
+  # One request log line. `tool` and `outcome` are present exactly when the request was a counted
+  # read; `status` is the HTTP status answered; `duration_seconds` runs from the connection's
+  # accept to the answer ready; `result_bytes` is the read's ekr_read_result_bytes observation, 0
+  # for a request that is no read.
+  - name: ekr.views.RequestLogV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.RequestLogFormatV1
+      - name: server
+        type: ekr.views.ReaderServer
+      - name: request_id
+        type: String
+      - name: request_id_source
+        type: ekr.views.RequestIdSource
+      - name: traceparent
+        type: String
+      - name: traceparent_source
+        type: ekr.views.RequestIdSource
+      - name: tool
+        type: Optional<ekr.views.ReadWireName>
+      - name: outcome
+        type: Optional<ekr.views.ReadOutcome>
+      - name: status
+        type: Integer
+      - name: duration_seconds
+        type: Decimal
+      - name: result_bytes
+        type: Integer
+
 actors:
   - name: ekr.views.Reader
     may:

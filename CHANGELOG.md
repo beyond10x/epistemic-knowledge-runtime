@@ -4,6 +4,20 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr mcp-http` and `ekr view` take `--metrics`, which serves `GET /metrics` in the Prometheus
+  text exposition format, and `--request-log <path>` (`-` for standard error), which writes one
+  `ekr.request-log/1` JSON line per request. Both count each read at their dispatch by its wire
+  name and outcome under one set of names: `ekr_read_requests_total{tool,outcome}`,
+  `ekr_read_duration_seconds{tool}`, `ekr_read_result_bytes{tool}`, `ekr_read_in_flight`,
+  `ekr_store_head_revision` and `ekr_store_query_errors_total{tool}`, so one read through either
+  server moves the same series. A log line carries the request's `X-Request-Id` and
+  `traceparent` when they are well formed, generated ones otherwise, and never an argument, a
+  result, document content or a credential. `/metrics` is admitted as every other path is and
+  answers 404 without the option (`ekr.views.ReaderMetricName`, `ekr.views.RequestLogV1`,
+  `ekr.cli.ReaderTelemetryOptions`).
+
 ## [0.0.37] — 2026-10-17
 
 ### Fixed
