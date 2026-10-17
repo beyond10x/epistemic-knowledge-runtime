@@ -10,6 +10,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use super::telemetry::{Call, Header, Incoming, Telemetry, EXPOSITION};
 use crate::exit::Failure;
 
 pub(super) const HEAD_LIMIT: usize = 16 * 1024;
@@ -145,6 +146,9 @@ pub(super) struct Reply {
     pub(super) status: u16,
     pub(super) body: Vec<u8>,
     pub(super) allow: Option<&'static str>,
+    pub(super) content_type: &'static str,
+    /// The read this reply answers, as the handler dispatched it: what the telemetry counts.
+    pub(super) call: Option<Call>,
 }
 impl Reply {
     pub(super) fn json(status: u16, body: Vec<u8>) -> Self {
@@ -152,6 +156,15 @@ impl Reply {
             status,
             body,
             allow: None,
+            content_type: "application/json",
+            call: None,
+        }
+    }
+    /// The Prometheus text exposition `GET /metrics` answers.
+    pub(super) fn exposition(text: String) -> Self {
+        Self {
+            content_type: EXPOSITION,
+            ..Self::json(200, text.into_bytes())
         }
     }
     pub(super) fn refusal(status: u16, reason: &'static str) -> Self {
@@ -162,9 +175,8 @@ impl Reply {
     }
     pub(super) fn method(allow: &'static str) -> Self {
         Self {
-            status: 405,
-            body: Vec::new(),
             allow: Some(allow),
+            ..Self::json(405, Vec::new())
         }
     }
     fn write(self, stream: &mut TcpStream) -> std::io::Result<()> {
@@ -185,7 +197,7 @@ impl Reply {
         let allow = self
             .allow
             .map_or(String::new(), |methods| format!("Allow: {methods}\r\n"));
-        let head = format!("HTTP/1.1 {} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}Connection: close\r\n\r\n",self.status,self.body.len());
+        let head = format!("HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}Connection: close\r\n\r\n",self.status,self.content_type,self.body.len());
         let mut writer = Deadlined {
             stream,
             deadline: Instant::now() + WRITE_TIMEOUT,
@@ -363,6 +375,7 @@ pub(super) fn serve(
     authorities: Authorities,
     origins: Vec<String>,
     direct: fn(&Request) -> Option<Reply>,
+    telemetry: Arc<Telemetry>,
     mut handler: impl FnMut(Request) -> Reply,
 ) -> Result<String, Failure> {
     if origins.iter().any(|origin| {
@@ -391,6 +404,7 @@ pub(super) fn serve(
                     })
                     .is_err()
                 {
+                    telemetry.finish(&Incoming::default(), None, 503, Duration::ZERO);
                     let _ = Reply::refusal(503, "busy").write(&mut stream);
                     continue;
                 }
@@ -398,12 +412,21 @@ pub(super) fn serve(
                 let jobs = jobs.clone();
                 let authorities = authorities.clone();
                 let origins = origins.clone();
+                let telemetry = telemetry.clone();
                 let started = Instant::now();
                 let _ = std::thread::Builder::new()
                     .name("ekr-http-connection".into())
                     .spawn(move || {
                         let _counted = counted;
-                        connection(stream, started, &jobs, &authorities, &origins, direct);
+                        connection(
+                            stream,
+                            started,
+                            &jobs,
+                            &authorities,
+                            &origins,
+                            direct,
+                            &telemetry,
+                        );
                     });
             }
         })
@@ -424,9 +447,17 @@ fn connection(
     authorities: &Authorities,
     origins: &[String],
     direct: fn(&Request) -> Option<Reply>,
+    telemetry: &Telemetry,
 ) {
+    let mut incoming = Incoming::default();
     let result = (|| {
         let request = read(&stream, started + READ_TIMEOUT)?;
+        if telemetry.records() {
+            incoming = Incoming {
+                request_id: Header::of(request.header("x-request-id")),
+                traceparent: Header::of(request.header("traceparent")),
+            };
+        }
         if !authorities.accepts(&request.hosts) {
             return Err(Reply::refusal(421, "unapproved Host"));
         }
@@ -444,6 +475,17 @@ fn connection(
                 Reply::json(200, b"{\"healthy\":true}".to_vec())
             });
         }
+        // Answered here, from the registry alone: it reads no store and never waits behind
+        // one. Without `--metrics` the path is not served and falls through to the handler.
+        if request.target == "/metrics" && telemetry.serves_metrics() {
+            return Ok(if request.method != "GET" {
+                Reply::method("GET")
+            } else if !request.body.is_empty() {
+                Reply::refusal(400, "metrics request has a body")
+            } else {
+                Reply::exposition(telemetry.exposition())
+            });
+        }
         // A request that reads no store is answered here: never queued behind another
         // request's store work (ekr-mcp-fixes-20261015 #12).
         if let Some(reply) = direct(&request) {
@@ -451,17 +493,23 @@ fn connection(
         }
         let deadline = started + READ_TIMEOUT + WAIT_TIMEOUT;
         let (reply, receiver) = sync_channel(1);
+        let waiting = telemetry.waiting();
         jobs.try_send(Job {
             request,
             reply,
             deadline,
         })
         .map_err(|_| Reply::refusal(503, "request queue is full"))?;
-        receiver
+        let answer = receiver
             .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-            .map_err(|_| Reply::refusal(503, "request deadline exceeded"))
+            .map_err(|_| Reply::refusal(503, "request deadline exceeded"));
+        drop(waiting);
+        answer
     })();
-    let _ = result.unwrap_or_else(|reply| reply).write(&mut stream);
+    let reply = result.unwrap_or_else(|reply| reply);
+    // Recorded before the answer is written, so a client that has read it sees it counted.
+    telemetry.finish(&incoming, reply.call, reply.status, started.elapsed());
+    let _ = reply.write(&mut stream);
 }
 
 #[cfg(test)]
@@ -554,6 +602,7 @@ mod tests {
                     &Authorities::loopback(address.port()),
                     &[],
                     |_| None,
+                    &Telemetry::off("mcp-http"),
                 );
             });
             let mut client = TcpStream::connect(address).unwrap();
@@ -611,17 +660,26 @@ mod tests {
         let (held, holding) = channel::<()>();
         let (release, released) = channel::<()>();
         std::thread::spawn(move || {
-            let _ = serve(listener, authorities, Vec::new(), |_| None, telemetry, move |_| {
-                let _ = held.send(());
-                let _ = released.recv();
-                Reply::json(200, b"{}".to_vec())
-            });
+            let _ = serve(
+                listener,
+                authorities,
+                Vec::new(),
+                |_| None,
+                telemetry,
+                move |_| {
+                    let _ = held.send(());
+                    let _ = released.recv();
+                    Reply::json(200, b"{}".to_vec())
+                },
+            );
         });
         assert_eq!(in_flight(port), "ekr_read_in_flight 0");
         let call = std::thread::spawn(move || {
             exchange(
                 port,
-                &format!("POST /mcp HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 2\r\n\r\n{{}}"),
+                &format!(
+                    "POST /mcp HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 2\r\n\r\n{{}}"
+                ),
             )
         });
         holding.recv().expect("the store's thread holds the call");

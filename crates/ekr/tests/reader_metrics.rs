@@ -166,7 +166,11 @@ impl Response {
     }
 
     fn raw(&self) -> String {
-        format!("{}\r\n\r\n{}", self.head, String::from_utf8_lossy(&self.body))
+        format!(
+            "{}\r\n\r\n{}",
+            self.head,
+            String::from_utf8_lossy(&self.body)
+        )
     }
 }
 
@@ -630,7 +634,11 @@ fn metrics_endpoint_off_by_default_and_host_checked() {
     let world = World::seeded("sqlite");
     for verb in VERBS {
         let served = world.serve(verb, &[]);
-        assert_eq!(served.get("/metrics").status, 404, "{verb} without --metrics");
+        assert_eq!(
+            served.get("/metrics").status,
+            404,
+            "{verb} without --metrics"
+        );
 
         let served = world.serve(verb, &["--metrics"]);
         let exposition = served.metrics();

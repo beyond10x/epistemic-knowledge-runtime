@@ -28,7 +28,15 @@ const DURATION_BUCKETS: [f64; 13] = [
 ];
 /// The upper bounds of `ekr_read_result_bytes`'s buckets; `+Inf` follows.
 const BYTE_BUCKETS: [f64; 10] = [
-    64.0, 256.0, 1024.0, 4096.0, 16384.0, 65536.0, 262_144.0, 1_048_576.0, 4_194_304.0,
+    64.0,
+    256.0,
+    1024.0,
+    4096.0,
+    16384.0,
+    65536.0,
+    262_144.0,
+    1_048_576.0,
+    4_194_304.0,
     16_777_216.0,
 ];
 /// The longest `X-Request-Id` kept as it came.
@@ -108,15 +116,6 @@ pub(super) enum Outcome {
 }
 
 impl Outcome {
-    pub(super) const ALL: [Self; 6] = [
-        Self::Ok,
-        Self::InvalidInput,
-        Self::NotSeeded,
-        Self::NotFound,
-        Self::Unavailable,
-        Self::StoreError,
-    ];
-
     pub(super) fn name(self) -> &'static str {
         match self {
             Self::Ok => "ok",
@@ -201,10 +200,16 @@ impl Ids {
     /// The ids of a request that carried `incoming`: a malformed, oversized or repeated header
     /// is replaced, never kept.
     pub(super) fn of(incoming: &Incoming) -> Self {
-        let (request_id, request_id_source) =
-            kept(&incoming.request_id, request_id_admitted, generated_request_id);
-        let (traceparent, traceparent_source) =
-            kept(&incoming.traceparent, traceparent_admitted, generated_traceparent);
+        let (request_id, request_id_source) = kept(
+            &incoming.request_id,
+            request_id_admitted,
+            generated_request_id,
+        );
+        let (traceparent, traceparent_source) = kept(
+            &incoming.traceparent,
+            traceparent_admitted,
+            generated_traceparent,
+        );
         Self {
             request_id,
             request_id_source,
@@ -430,7 +435,13 @@ impl Telemetry {
 
     /// Records one answered request: its read, if it was one, in the metrics, and its line in
     /// the log.
-    pub(super) fn finish(&self, ids: &Ids, call: Option<Call>, status: u16, elapsed: Duration) {
+    pub(super) fn finish(
+        &self,
+        incoming: &Incoming,
+        call: Option<Call>,
+        status: u16,
+        elapsed: Duration,
+    ) {
         let seconds = elapsed.as_secs_f64();
         if let (Some(metrics), Some(call)) = (&self.metrics, call) {
             let mut registry = metrics
@@ -457,6 +468,7 @@ impl Telemetry {
             }
         }
         if let Some(log) = &self.log {
+            let ids = Ids::of(incoming);
             let line = Line {
                 format: "ekr.request-log/1",
                 server: self.server,
@@ -472,7 +484,9 @@ impl Telemetry {
             };
             if let Ok(mut text) = serde_json::to_vec(&line) {
                 text.push(b'\n');
-                let mut out = log.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut out = log
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 // A log that cannot be written loses its line, never the answer.
                 let _ = out.write_all(&text).and_then(|()| out.flush());
             }
@@ -589,11 +603,7 @@ fn series(out: &mut String, name: &str, wire: Wire, bounds: &[f64], histogram: &
         );
     }
     let _ = writeln!(out, "{name}_sum{{tool=\"{tool}\"}} {}", histogram.sum);
-    let _ = writeln!(
-        out,
-        "{name}_count{{tool=\"{tool}\"}} {}",
-        histogram.count
-    );
+    let _ = writeln!(out, "{name}_count{{tool=\"{tool}\"}} {}", histogram.count);
 }
 
 #[cfg(test)]
@@ -624,7 +634,11 @@ mod tests {
             assert_eq!(ids.request_id_source, Source::Replaced, "{bad:?}");
             assert_ne!(ids.request_id, bad);
             assert_eq!(ids.traceparent_source, Source::Generated);
-            assert!(traceparent_admitted(&ids.traceparent), "{}", ids.traceparent);
+            assert!(
+                traceparent_admitted(&ids.traceparent),
+                "{}",
+                ids.traceparent
+            );
             assert!(request_id_admitted(&ids.request_id));
         }
         for bad in [

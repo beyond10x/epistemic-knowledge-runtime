@@ -629,6 +629,7 @@ dependencies = [
  "tempfile",
  "time",
  "tungstenite",
+ "uuid",
  "wasm-bindgen-cli-support",
 ]
 

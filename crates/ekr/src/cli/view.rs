@@ -117,6 +117,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::session::{Checked, Held, Replaced, STORE_REPLACED};
+use super::telemetry::{Call, Header, Incoming, Outcome, Telemetry, Wire, EXPOSITION};
 use super::Store;
 use crate::exit::Failure;
 
@@ -199,7 +200,9 @@ pub(super) fn run(
     hosts: Vec<String>,
     require_ready: bool,
     help: super::agent_help::Config,
+    telemetry: Telemetry,
 ) -> Result<String, Failure> {
+    let telemetry = Arc::new(telemetry);
     let (listener, authorities) = super::http::bind(bind, port, hosts)?;
     let mut held = if require_ready {
         let mut held = Held::open(store.clone())?;
@@ -216,9 +219,18 @@ pub(super) fn run(
     let (jobs, store_thread) = super::http::queue(IN_FLIGHT_LIMIT);
     let connection_authorities = authorities.clone();
     let connection_help = help.clone();
+    let connection_telemetry = Arc::clone(&telemetry);
     std::thread::Builder::new()
         .name("ekr-view-accept".to_owned())
-        .spawn(move || accept(&listener, &jobs, &connection_authorities, &connection_help))
+        .spawn(move || {
+            accept(
+                &listener,
+                &jobs,
+                &connection_authorities,
+                &connection_help,
+                &connection_telemetry,
+            );
+        })
         .map_err(|_| Failure::fault("starting viewer accept thread failed"))?;
     let mut memory = Memory {
         help,
@@ -239,6 +251,11 @@ pub(super) fn run(
                 Reply::text(503, "store is not admitted, seeded and available")
             }),
         };
+        if telemetry.serves_metrics() {
+            if let Some(head) = held.as_ref().and_then(Held::head) {
+                telemetry.head(head);
+            }
+        }
         let _ = job.reply.try_send(answered);
     }
     Err(Failure::fault("the accept loop stopped"))
@@ -273,6 +290,7 @@ fn accept(
     jobs: &SyncSender<Job>,
     authorities: &super::http::Authorities,
     help: &super::agent_help::Config,
+    telemetry: &Arc<Telemetry>,
 ) {
     let in_flight = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
@@ -284,6 +302,7 @@ fn accept(
                         503,
                         format!("busy: {IN_FLIGHT_LIMIT} connections are in flight"),
                     );
+                    telemetry.finish(&Incoming::default(), None, 503, Duration::ZERO);
                     // A client that does not take 200 bytes within the second is its own business.
                     let _ = stream
                         .set_write_timeout(Some(Duration::from_secs(1)))
@@ -294,12 +313,13 @@ fn accept(
                 let jobs = jobs.clone();
                 let authorities = authorities.clone();
                 let help = help.clone();
+                let telemetry = Arc::clone(telemetry);
                 // A thread that cannot start drops the connection and the count with it.
                 let _ = std::thread::Builder::new()
                     .name("ekr-view-connection".to_owned())
                     .spawn(move || {
                         let _counted = counted;
-                        connection(stream, deadline, &jobs, &authorities, &help);
+                        connection(stream, deadline, &jobs, &authorities, &help, &telemetry);
                     });
             }
             // Out of descriptors or a connection reset before accept: take the next one.
@@ -317,7 +337,9 @@ fn connection(
     jobs: &SyncSender<Job>,
     authorities: &super::http::Authorities,
     help: &super::agent_help::Config,
+    telemetry: &Telemetry,
 ) {
+    let started = Instant::now();
     if stream.set_write_timeout(Some(TIMEOUT)).is_err() {
         return;
     }
@@ -334,15 +356,22 @@ fn connection(
         })
     };
     let mut framing = Framing::Chunked;
+    let mut incoming = Incoming::default();
+    let mut wire = None;
     let answered = match head {
-        Ok(asked) => {
+        Ok(mut asked) => {
             framing = asked.framing;
-            if let Some(reply) = immediate(&asked, authorities, help) {
+            incoming = std::mem::take(&mut asked.incoming);
+            if let Some(reply) = metrics(&asked, authorities, telemetry)
+                .or_else(|| immediate(&asked, authorities, help))
+            {
                 Answered::Whole(reply)
             } else {
+                wire = read_wire(&asked);
                 let (reply_to, reply) = sync_channel(1);
                 let deadline = deadline + super::http::WAIT_TIMEOUT;
-                if jobs
+                let waiting = telemetry.waiting();
+                let answered = if jobs
                     .try_send(Job {
                         request: asked,
                         reply: reply_to,
@@ -357,11 +386,18 @@ fn connection(
                         .unwrap_or_else(|_| {
                             Answered::Whole(Reply::text(503, "request deadline exceeded"))
                         })
-                }
+                };
+                drop(waiting);
+                answered
             }
         }
         Err(message) => Answered::Whole(Reply::text(400, format!("bad-request: {message}"))),
     };
+    // Recorded before the answer is written, so a client that has read it sees it counted.
+    if telemetry.records() {
+        let (call, status) = called(wire, &answered);
+        telemetry.finish(&incoming, call, status, started.elapsed());
+    }
     // A client that went away is its own business: the first failed write ends the answer.
     let _ = match answered {
         Answered::Whole(reply) => {
@@ -383,6 +419,128 @@ fn connection(
         ),
     };
     let _ = stream.shutdown(Shutdown::Write);
+}
+
+/// One request header's values as [`Header`]: absent, once, or more than once.
+fn header(values: &[&[u8]]) -> Header {
+    match values {
+        [] => Header::Absent,
+        // Bytes that are not UTF-8 are no admitted id, so the lossy text is replaced, never kept.
+        [value] => Header::One(String::from_utf8_lossy(value).into_owned()),
+        _ => Header::Many,
+    }
+}
+
+/// `GET /metrics`, answered on the connection's own thread from the registry alone, only when the
+/// server runs with `--metrics` and the Host is admitted; otherwise `None`, and the path is what
+/// it is without the option: an unknown one, or a Host refused as on every route.
+fn metrics(
+    asked: &Asked,
+    authorities: &super::http::Authorities,
+    telemetry: &Telemetry,
+) -> Option<Reply> {
+    let path = asked
+        .target
+        .split_once('?')
+        .map_or(asked.target.as_str(), |(path, _)| path);
+    if path != "/metrics" || !telemetry.serves_metrics() || !authorities.accepts(&asked.hosts) {
+        return None;
+    }
+    Some(if asked.method != "GET" {
+        Reply::text(405, "only GET")
+    } else if asked.announces_body {
+        Reply::text(413, "request-body-refused")
+    } else if asked.target != path {
+        Reply::text(400, "metrics take no query")
+    } else {
+        Reply::ok(EXPOSITION, telemetry.exposition().into_bytes())
+    })
+}
+
+/// The wire name of the read a queued request asks for: a `GET` of a read's route announcing no
+/// body. The page, readiness and every other request are no read.
+fn read_wire(asked: &Asked) -> Option<Wire> {
+    if asked.method != "GET" || asked.announces_body {
+        return None;
+    }
+    let path = asked
+        .target
+        .split_once('?')
+        .map_or(asked.target.as_str(), |(path, _)| path);
+    Some(match route(path)? {
+        Route::Page | Route::Ready => return None,
+        Route::Find => Wire::Find,
+        Route::Head => Wire::Head,
+        Route::Projection => Wire::Projection,
+        Route::Roles => Wire::Roles,
+        Route::Evidence(_) => Wire::DescribeEvidence,
+        Route::Overview => Wire::Overview,
+        Route::Expand => Wire::Expand,
+        Route::Node(_) => Wire::DescribeNode,
+        Route::Search => Wire::Search,
+        Route::Timeline => Wire::Timeline,
+        Route::Changes => Wire::ChangesSince,
+    })
+}
+
+/// What the telemetry records of an answer: the read `wire` names with its outcome and the bytes
+/// of its document, and the status.
+fn called(wire: Option<Wire>, answered: &Answered) -> (Option<Call>, u16) {
+    let (status, outcome, bytes) = match answered {
+        Answered::Whole(reply) => {
+            let outcome = match reply.status {
+                200 => Outcome::Ok,
+                400 => Outcome::InvalidInput,
+                404 if refusal_named(reply) == Some("ekr.views.NotSeeded") => Outcome::NotSeeded,
+                404 => Outcome::NotFound,
+                503 => Outcome::Unavailable,
+                _ => Outcome::StoreError,
+            };
+            (reply.status, outcome, reply.body.len() as u64)
+        }
+        Answered::Stream(page) => (200, Outcome::Ok, streamed_bytes(page)),
+    };
+    let call = wire.map(|wire| Call {
+        wire,
+        outcome,
+        bytes,
+    });
+    (call, status)
+}
+
+/// The `refusal` a JSON reply names.
+fn refusal_named(reply: &Reply) -> Option<&str> {
+    #[derive(Deserialize)]
+    struct Named<'a> {
+        #[serde(borrow)]
+        refusal: Option<&'a str>,
+    }
+    if reply.content_type != JSON {
+        return None;
+    }
+    serde_json::from_slice::<Named<'_>>(&reply.body)
+        .ok()?
+        .refusal
+}
+
+/// The bytes of a streamed page's NDJSON lines, without the head or any chunk framing: what an
+/// HTTP/1.0 client reads as the body.
+fn streamed_bytes(page: &SlicePage) -> u64 {
+    struct Counted(u64);
+    impl Write for Counted {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 += bytes.len() as u64;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counted = Counted(0);
+    let _ = write_stream(&mut counted, page, Framing::Close);
+    counted
+        .0
+        .saturating_sub(stream_head(Framing::Close).len() as u64)
 }
 
 /// A connection written to within a deadline: each write waits at most [`TIMEOUT`] and never past
@@ -602,6 +760,10 @@ fn parse_head(head: &[u8]) -> Result<Option<Asked>, String> {
                 hosts,
                 announces_body,
                 framing,
+                incoming: Incoming {
+                    request_id: header(&named("X-Request-Id")),
+                    traceparent: header(&named("traceparent")),
+                },
             }))
         }
     }
@@ -741,6 +903,8 @@ struct Asked {
     /// How a stream answering this request is delimited: chunked for HTTP/1.1, ended by the close
     /// for HTTP/1.0.
     framing: Framing,
+    /// Its `X-Request-Id` and `traceparent`, as they came, for the request log.
+    incoming: Incoming,
 }
 
 /// Whether `hosts` is exactly one `Host`, naming this server's own loopback authority. A page
@@ -1893,6 +2057,7 @@ mod tests {
             hosts: vec!["127.0.0.1:9".to_owned()],
             announces_body: false,
             framing: Framing::Chunked,
+            incoming: Incoming::default(),
         };
         match answer(held, memory, 9, &asked) {
             Answered::Whole(reply) => reply,
@@ -2954,6 +3119,7 @@ mod tests {
                 hosts: vec!["127.0.0.1:9".to_owned()],
                 announces_body: false,
                 framing: Framing::Chunked,
+                incoming: Incoming::default(),
             }
         );
         let older = b"GET /expand HTTP/1.0\r\nHost: 127.0.0.1:9\r\n\r\n";
