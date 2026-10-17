@@ -4,6 +4,25 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr.node-matches/3`, a search that ranks a whole name or alias first whatever its case
+  (story:search-match-kinds). Under `ekr.node-matches/2` a case-exact match comes before a
+  case-folded one, so a node whose whole name is the text in another case ranked below every node
+  holding the text case-exactly inside a longer name or alias, and a reader of the first few
+  matches missed it. /3 matches the nodes /2 matches, with the same `type`, `from` and `to`, and
+  names each match's `kind` — `WholeName`, `WholeAlias`, `Prefix`, `Substring` or `Words` — and
+  `folded`, whether it matched only after lowercasing. Matches rank by kind, then case-exact
+  before case-folded, then (with a window) newest first, degree and id; `meta.whole_total`
+  counts the whole matches before `limit`. `ekr view`'s `/search` and the session verb `search`
+  answer it with `format=ekr.node-matches/3` (`--format`), and the SDK reads it as
+  `Reader::search_v3`, `NodeMatchesV3`. `ekr.node-matches/1` and `/2` answer the bytes they did.
+
+### Changed
+
+- The `search` tool of `ekr mcp` answers `ekr.node-matches/3` when no `format` is named (it
+  answered `/2`); name `ekr.node-matches/2` or `/1` for the earlier documents.
+
 ## [0.0.37] — 2026-10-17
 
 ### Fixed

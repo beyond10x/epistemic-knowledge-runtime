@@ -578,6 +578,91 @@ pub enum MatchField {
     Other,
 }
 
+// ---- ekr.node-matches/3 ------------------------------------------------------------------------
+
+/// `ekr.node-matches/3`: the nodes `ekr.node-matches/2` matches, each naming its
+/// [`MatchKind`], a whole name or alias first whatever the case.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeMatchesV3 {
+    /// The search, its narrowing and its totals.
+    pub meta: MatchesMetaV3,
+    /// The matches, at most the limit.
+    pub matches: Vec<NodeMatchV3>,
+}
+
+/// An `ekr.node-matches/3` search, its narrowing and its totals.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MatchesMetaV3 {
+    /// `ekr.node-matches/3`.
+    pub format: String,
+    /// The revision read.
+    pub revision: u64,
+    /// The text searched for.
+    pub text: String,
+    /// The node types matched, by id; empty when the search named none.
+    pub types: Vec<TypeId>,
+    /// The window's first millisecond, when the search named one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<i64>,
+    /// The window's last millisecond, when the search named one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<i64>,
+    /// Every match, before the limit.
+    pub total: u64,
+    /// The matches whose name or an alias contains the text byte for byte, before the limit.
+    pub exact_total: u64,
+    /// The matches of kind [`MatchKind::WholeName`] or [`MatchKind::WholeAlias`], before the
+    /// limit.
+    pub whole_total: u64,
+}
+
+/// One `ekr.node-matches/3` match.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeMatchV3 {
+    /// The node.
+    pub id: NodeId,
+    /// Its type.
+    #[serde(rename = "type")]
+    pub type_id: TypeId,
+    /// Its type's name.
+    pub type_name: String,
+    /// Its canonical name.
+    pub name: String,
+    /// Its degree.
+    pub degree: u64,
+    /// Its time, in milliseconds since the epoch, when it has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<i64>,
+    /// How it matched.
+    pub kind: MatchKind,
+    /// Whether it matched only after lowercasing.
+    pub folded: bool,
+    /// What matched.
+    pub field: MatchField,
+    /// The alias that matched, when one did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+}
+
+/// How an `ekr.node-matches/3` match compared, in the order the kinds rank: `WholeName` first.
+/// A kind a newer `ekr` adds reads as [`MatchKind::Other`] and writes back as `Other`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum MatchKind {
+    /// The text is the whole canonical name.
+    WholeName,
+    /// The text is one whole alias.
+    WholeAlias,
+    /// The canonical name or an alias starts with the text.
+    Prefix,
+    /// The canonical name or an alias contains the text.
+    Substring,
+    /// Every word of a text of two or more words is in the canonical name, or in one alias.
+    Words,
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
+}
+
 // ---- ekr.node-detail/1 -------------------------------------------------------------------------
 
 /// `ekr.node-detail/1`: one node, every assertion about it or naming it, its edges and

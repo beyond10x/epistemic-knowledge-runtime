@@ -47,6 +47,7 @@ const FIXTURES: [Fixture; 23] = [
     Fixture::BoundedDetail,
     Fixture::DescribedType,
     Fixture::Search,
+    Fixture::MatchKinds,
     Fixture::Names,
 ];
 
@@ -76,6 +77,7 @@ fn every_fixture_is_listed() {
             | Fixture::BoundedDetail
             | Fixture::DescribedType
             | Fixture::Search
+            | Fixture::MatchKinds
             | Fixture::Names => {}
         }
     }

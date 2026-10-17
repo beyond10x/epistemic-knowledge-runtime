@@ -609,6 +609,7 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `overview(revision, limit)` | `overview --sections ontology,schema,roles,timeline` | `Overview`, `ekr.graph-overview/2` with every section |
 | `overview_sections(revision, limit, &[OverviewSection])` | `overview --sections <named>` | `Overview`, `ekr.graph-overview/2` with only the named sections; the others are `None` |
 | `search(text, limit, revision)` | `search` | `NodeMatches`, `ekr.node-matches/1` |
+| `search_v3(text, limit, revision)` | `search --format ekr.node-matches/3` | `NodeMatchesV3`, `ekr.node-matches/3`: each match names its `MatchKind` and whether it was case-folded, a whole name or alias first whatever the case; `meta.whole_total` counts the whole matches before the limit |
 | `describe(node, revision)` | `describe` | `NodeDetail`, `ekr.node-detail/1` |
 | `expand(query)`, `expand_page(&query, after)` | `expand` | `Slice` pages, `ekr.graph-slice/1` |
 | `timeline(&query)` | `timeline` | `Timeline`, `ekr.graph-timeline/1` |

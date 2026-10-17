@@ -27,7 +27,7 @@
 //! `ekr.graph-overview/1`),
 //! [`Index::expand`] (`ekr.graph-slice/1`, with [`Index::page`] for a host that streams the
 //! records), [`Index::describe`] (`ekr.node-detail/1`), [`Index::search`]
-//! (`ekr.node-matches/1`; `ekr.node-matches/2` is [`Index::search_v2`]) and
+//! (`ekr.node-matches/1`; /2 is [`Index::search_v2`], /3 [`Index::search_v3`]) and
 //! [`Index::timeline`] (`ekr.graph-timeline/1`) then answer from it,
 //! each costing its answer. [`OverviewRequest`], [`ExpandRequest`], [`SearchRequest`] and
 //! [`TimelineRequest`] hold each command's bounds, so a broken one is refused as
@@ -116,7 +116,7 @@ pub use sample::{
 };
 pub use search::{
     MatchesFormat, SearchError, SearchFilter, UnknownMatchesFormat, WindowBound, WindowMalformed,
-    MATCHES_V2_FORMAT,
+    MATCHES_V2_FORMAT, MATCHES_V3_FORMAT,
 };
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 

@@ -1587,6 +1587,26 @@ fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
             ],
             "/search?q=&format=ekr.node-matches%2F2&type=person".into(),
         ),
+        // story:search-match-kinds: ekr.node-matches/3 when the format is named, with a type
+        // and a window as /2 reads them.
+        (
+            vec!["search", "--format", "ekr.node-matches/3", "acme"],
+            "/search?q=acme&format=ekr.node-matches%2F3".into(),
+        ),
+        (
+            vec![
+                "search",
+                "--format",
+                "ekr.node-matches/3",
+                "--type",
+                "Person",
+                "--from",
+                "2020-01-01",
+                "--",
+                "",
+            ],
+            "/search?q=&format=ekr.node-matches%2F3&type=Person&from=2020-01-01".into(),
+        ),
         (vec!["describe", ALICE], format!("/node/{ALICE}")),
         (vec!["describe", NODE], format!("/node/{NODE}")),
         (

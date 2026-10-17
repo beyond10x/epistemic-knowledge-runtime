@@ -1237,7 +1237,7 @@ option retains the admitted store for serving and is used by SDK viewer startup.
 | `GET /overview[?revision=N&limit=L&sections=S&format=F]` | the `ekr.graph-overview/2` document, or `ekr.graph-overview/3` when `F` names it ([named formats](#named-formats)), of revision `N` (the head when absent): its counts, its node and edge type counts and the `L` highest-degree nodes (1 to 500, 300 when absent), and of the sections `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; a section not named is absent, never empty, and all four answer `ekr.graph-overview/1`'s content under the new format name), `application/json` |
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N][&format=F]` | the `ekr.graph-slice/1` page, or `ekr.graph-slice/2` when `F` names it, of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]` | the `ekr.node-detail/1` document of that node, every assertion about it or naming it and every edge at it; with `F` `ekr.node-detail/2`, the [bounded detail](#node-detail-2): at most `L` (1 to 500, 10 when absent) values per property, neighbours per relation group and same-name nodes, each relation group from neighbour `A` (0 when absent), and with `E` (an edge type's id or name) only that edge type's groups; `application/json` |
-| `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), or with `format=ekr.node-matches/2` the [`ekr.node-matches/2`](#search-v2) document, which `type`, `from` and `to` narrow; `application/json` |
+| `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), or with `format=ekr.node-matches/2` the [`ekr.node-matches/2`](#search-v2) document, or with `format=ekr.node-matches/3` the [`ekr.node-matches/3`](#search-v3) document, which `type`, `from` and `to` narrow; `application/json` |
 | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N][&format=F]` | the `ekr.graph-timeline/1` document, or `ekr.graph-timeline/2` when `F` names it: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) — nodes of an event type, by the one rule in § `ekr ocel` — counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A][&format=F]` | the `ekr.graph-changes/1` page, or `ekr.graph-changes/2` when `F` names it, of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
 
@@ -1371,9 +1371,9 @@ percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by comm
 `/changes`. A query that breaks this, a `/timeline` `type` or a `subject` that is not an id, a
 `bucket` other than `day` or `week`, a `sections` naming anything but `ontology`, `schema`,
 `roles` and `timeline`, an `at` that is not a revision number, a `/search` `format` other than
-`ekr.node-matches/1` and `ekr.node-matches/2`, a `from` or `to` that is neither milliseconds nor
-a `YYYY-MM-DD` date, or a `type`, `from` or `to` given to `/search` without
-`format=ekr.node-matches/2`, is 400 with `{"refusal": "invalid-query", …}`.
+`ekr.node-matches/1`, `ekr.node-matches/2` and `ekr.node-matches/3`, a `from` or `to` that is
+neither milliseconds nor a `YYYY-MM-DD` date, or a `type`, `from` or `to` given to `/search`
+without `format=ekr.node-matches/2` or `format=ekr.node-matches/3`, is 400 with `{"refusal": "invalid-query", …}`.
 An `ekr.node-detail/1` request (`format` absent or `ekr.node-detail/1`) that names `limit`,
 `edge_type` or `after`, or a `format` naming neither format, is 400 `invalid-query` too.
 A `since_revision` below 0 is 400 `ekr.views.SinceMalformed`, and a bound outside its range 400
@@ -1386,8 +1386,8 @@ type), a `/search` `type` that is neither the id nor the name of a node type of 
 store never seeded), each a whole JSON refusal decided before any byte of an answer is sent.
 
 <a id="search-v2"></a>`/search` answers `ekr.node-matches/1` unless the query names
-`format=ekr.node-matches/2` (the `search` tool of [`ekr mcp`](#ekr-mcp) answers /2 unless asked for
-/1). A /1 match is a node whose canonical name or an alias contains the text byte for byte
+`format=ekr.node-matches/2` or [`format=ekr.node-matches/3`](#search-v3) (the `search` tool of
+[`ekr mcp`](#ekr-mcp) answers /3 unless asked for /1 or /2). A /1 match is a node whose canonical name or an alias contains the text byte for byte
 (`Exact`) or after lowercasing both (`Folded`), ordered by tier, then degree, then id. /2 differs
 in five ways:
 
@@ -1411,6 +1411,19 @@ in five ways:
 $ curl -s 'http://127.0.0.1:<port>/search?q=&type=Person&format=ekr.node-matches%2F2'
 {"meta":{"format":"ekr.node-matches/2","revision":0,"text":"","types":["00000000-0000-4000-8000-000000000201"],"total":2,"exact_total":2},"matches":[…]}
 ```
+
+<a id="search-v3"></a>`format=ekr.node-matches/3` matches the nodes /2 matches, with the same
+`type`, `from` and `to`, and ranks them by how the text matches rather than by its case. Each
+match names its `kind` — `WholeName` (the text is the whole name), `WholeAlias` (one whole
+alias), `Prefix` (the name or an alias starts with the text), `Substring` (contains it) or
+`Words` (/2's every word) — and `folded`, true when it matched only after lowercasing both
+sides. A node's match is the first kind its name or one alias passes, case-exact before
+case-folded within each kind. The order is kind, then case-exact before case-folded, then with
+`from` or `to` time descending, then degree, then id: a node named `Gateway` ranks first for
+`gateway`, ahead of a node whose alias `infra/gateway/edge` holds the text case-exactly, which
+/2 ranks above it. `meta.whole_total` counts the `WholeName` and `WholeAlias` matches before
+`limit`, so a reader of the first page knows whether more whole matches exist; `meta.total` and
+`meta.exact_total` are /2's for the same request. Each match has no `tier`.
 
 <a id="node-detail-2"></a>`/node/<id>?format=ekr.node-detail/2` answers one node bounded for a
 reader with a budget, an agent's context above all. `ekr.node-detail/1` lists every assertion
@@ -1670,7 +1683,7 @@ the 3 revisions used most recently:
 | verb | arguments (required in bold) | answers | as |
 |---|---|---|---|
 | `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent), `--sections S` (`ontology`, `schema`, `roles`, `timeline`, joined by `,`; none when absent or empty), `--format ekr.graph-overview/3` | the `ekr.graph-overview/2` document, or `/3` with `--format` ([named formats](#named-formats)) | `GET /overview` |
-| `search` | **the text** (empty matches every node; put `--` before a text that starts with `-`), `--limit L` (1 to 100, 20 when absent), `--format F` (`ekr.node-matches/1`, the default, or `ekr.node-matches/2`), and with `--format ekr.node-matches/2` `--type T` (a node type id or name), `--from A` and `--to B` (milliseconds or `YYYY-MM-DD`); `--revision N` | the `ekr.node-matches/1` document, or the [`ekr.node-matches/2`](#search-v2) document `--format` names | `GET /search` |
+| `search` | **the text** (empty matches every node; put `--` before a text that starts with `-`), `--limit L` (1 to 100, 20 when absent), `--format F` (`ekr.node-matches/1`, the default, `ekr.node-matches/2` or `ekr.node-matches/3`), and with `--format ekr.node-matches/2` or `/3` `--type T` (a node type id or name), `--from A` and `--to B` (milliseconds or `YYYY-MM-DD`); `--revision N` | the `ekr.node-matches/1` document, or the [`ekr.node-matches/2`](#search-v2) or [`ekr.node-matches/3`](#search-v3) document `--format` names | `GET /search` |
 | `describe` | **the node id**, `--format F` (`ekr.node-detail/1`, the default, or `ekr.node-detail/2`), and for `ekr.node-detail/2` `--limit L` (1 to 500, 10 when absent), `--edge-type E` (an edge type's id or name), `--after A` (0 or more); `--revision N` | the `ekr.node-detail/1` document, or the [bounded `ekr.node-detail/2`](#node-detail-2) | `GET /node/<node id>` with `format`, `limit`, `edge_type` and `after` |
 | `expand` | the seed node ids (none answers an empty page), **`--depth D`** (0 to 2), **`--limit L`** (1 to 2,000 nodes), `--edges E` (1 to 5,000, 5,000 when absent), `--after A` (a cursor), `--revision N`, `--format ekr.graph-slice/2` | the whole `ekr.graph-slice/1` page as one document, or `/2` with `--format`, `next` naming the next page's `--after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `--type T` (a node type id), **`--hops H`** (1 to 3), **`--limit L`** (1 to 500), `--bucket day\|week`, `--subject S` (a node id), `--revision N`, `--format ekr.graph-timeline/2` | the `ekr.graph-timeline/1` document, or `/2` with `--format` | `GET /timeline` |
@@ -1697,7 +1710,7 @@ optional `-` and ASCII digits, a revision that is not ASCII digits (so `+5` is n
 `timeline --type` or `--subject` that is not an id, a `--bucket` other than `day` or `week`, no
 since or more than one, a `--format` the verb does not answer, a `--from` or `--to` that is
 neither milliseconds nor a date, or a `search --type`, `--from` or `--to` without
-`--format ekr.node-matches/2` — is an argv these verbs do not take: a usage message,
+`--format ekr.node-matches/2` or `/3` — is an argv these verbs do not take: a usage message,
 `"exit": 2`. On a path
 holding no store each answers `store-not-found`, as every store verb does; once another process
 has created a store there, the first views verb opens it and the session holds it from then on,
@@ -1828,7 +1841,7 @@ Ask for the next page with `after` set to the page's `next`.
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|
 | `overview` | `revision`, `limit` (1 to 500, 300 when absent), `sections` (a list of `ontology`, `schema`, `roles`, `timeline`; none when absent or empty), `format` (`ekr.graph-overview/3` when absent, or `ekr.graph-overview/2`) | the `ekr.graph-overview/3` document | `GET /overview?format=ekr.graph-overview/3` |
-| `search` | **`text`** (also taken as `query` or `q`; naming two of the three is -32602), `limit` (1 to 100, 20 when absent), `format` (`ekr.node-matches/2` when absent, or `ekr.node-matches/1`), and with /2 `type` (a node type id or name), `from` and `to` (milliseconds as a JSON integer or text, or `YYYY-MM-DD`); `revision` | the [`ekr.node-matches/2`](#search-v2) document, or `ekr.node-matches/1` when `format` names it | `GET /search` with `format` named: the tool's default is /2, the endpoint's /1 |
+| `search` | **`text`** (also taken as `query` or `q`; naming two of the three is -32602), `limit` (1 to 100, 20 when absent), `format` (`ekr.node-matches/3` when absent, `ekr.node-matches/2` or `ekr.node-matches/1`), and with /2 or /3 `type` (a node type id or name), `from` and `to` (milliseconds as a JSON integer or text, or `YYYY-MM-DD`); `revision` | the [`ekr.node-matches/3`](#search-v3) document, or `ekr.node-matches/1` or [`ekr.node-matches/2`](#search-v2) when `format` names it | `GET /search` with `format` named: the tool's default is /3, the endpoint's /1 |
 | `describe_node` | **`node`** (a node id), `limit` (1 to 500, 10 when absent), `edge_type` (an edge type's id or name), `after` (0 or more), `full` (`true` or `false`, `false` when absent; `true` takes none of `limit`, `edge_type` and `after`), `revision` | the [bounded `ekr.node-detail/2`](#node-detail-2) document; with `full: true` the whole `ekr.node-detail/1` | `GET /node/<node id>?format=ekr.node-detail/2` with `limit`, `edge_type` and `after`; with `full: true`, `?format=ekr.node-detail/1` |
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 200 when absent: a page ends at `limit` nodes or `edges` edges, whichever comes first), `after` (a cursor, 0 or more), `revision`, `format` (`ekr.graph-slice/2` when absent, or `ekr.graph-slice/1`) | the whole `ekr.graph-slice/2` page as one document, `next` naming the next page's `after` | `GET /expand?format=ekr.graph-slice/2`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision`, `format` (`ekr.graph-timeline/2` when absent, or `ekr.graph-timeline/1`) | the `ekr.graph-timeline/2` document | `GET /timeline?format=ekr.graph-timeline/2` |
