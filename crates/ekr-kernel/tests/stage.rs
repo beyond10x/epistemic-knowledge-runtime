@@ -2579,12 +2579,11 @@ fn adversary_a_begin_failing_after_its_write_ahead_is_abandoned_and_the_next_lan
     });
 }
 
-/// (b): a migration whose payloads were written ahead and whose seed group then fails answers
-/// that failure, not `migrate-destination-not-empty`; a retry into the same destination is then
-/// refused `migrate-destination-not-empty`, as `docs/cli.md` says.
+/// (b), under decision 1: a migration writes nothing ahead of its seed, so its first group is the
+/// seed's, carrying every payload; when that group fails the migration answers its failure, not
+/// `migrate-destination-not-empty`, the destination holds nothing, and a retry into it lands.
 #[test]
-fn adversary_a_migration_failing_after_its_write_ahead_answers_its_failure_and_a_retry_is_refused()
-{
+fn adversary_a_migration_whose_seed_group_fails_leaves_its_destination_empty() {
     let directory = tempfile::tempdir().unwrap();
     let open = |name: &str| {
         Runtime::sqlite(
@@ -2600,36 +2599,37 @@ fn adversary_a_migration_failing_after_its_write_ahead_answers_its_failure_and_a
         .seed(seed_carrying("seeded", 40), || SEEDED_AT)
         .unwrap();
     let destination = open("destination.db");
+    let first = std::rc::Rc::new(std::cell::Cell::new(None));
     let failed = {
-        let (mut wide, mut failed) = (false, false);
+        let first = first.clone();
         let _hook = ekr_store::on_stage_point(move |point| {
             if let StagePoint::Group { streams } = point {
-                if streams > 3 {
-                    wide = true;
-                } else if wide && !failed {
-                    failed = true;
-                    return Err(StoreError::Backend(
-                        "interrupted after the write-ahead".into(),
-                    ));
+                if first.get().is_none() {
+                    first.set(Some(streams));
+                    return Err(StoreError::Backend("interrupted at the seed group".into()));
                 }
             }
             Ok(())
         });
         source.migrate_into(&destination)
     };
+    assert_eq!(
+        first.get(),
+        Some(40 + 4),
+        "the migration's first group is its seed, carrying every payload (44 streams observed \
+         for 40 payloads on the round-two tree)"
+    );
     let error = failed
         .expect_err("the seed group was interrupted")
         .to_string();
     assert!(
-        error.contains("interrupted after the write-ahead")
+        error.contains("interrupted at the seed group")
             && !error.contains("migrate-destination-not-empty"),
         "{error}"
     );
-    let retried = source.migrate_into(&destination).unwrap_err().to_string();
-    assert!(
-        retried.contains("migrate-destination-not-empty"),
-        "{retried}"
-    );
+    source
+        .migrate_into(&destination)
+        .expect("the destination holds nothing, so a retry lands");
 }
 
 /// (c): two migrations into one destination, each past its emptiness check. The one whose seed
