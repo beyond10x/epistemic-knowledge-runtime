@@ -1,0 +1,70 @@
+# story:search-match-kinds: under ekr.node-matches/3 a node whose whole name is the text in
+# another case ranks above a node whose alias holds the text case-exactly inside a path
+# (ekr.views.MatchKind). Under ekr.node-matches/2 the tier comes first, so the case-exact partial
+# match ranks above it.
+#
+# The store `match-kinds` is a seed only: the node type Service and the edge type `links` from
+# Service to Service, and seven Services:
+#   - Gateway 00000000-0000-4000-8000-000000c60101, no alias (degree 0);
+#   - edge-proxy …c60102, alias `infra/gateway/edge` (degree 2);
+#   - core …c60103, alias `router` (degree 0);
+#   - router-east …c60104 (degree 2);
+#   - Router-West …c60105 (degree 1);
+#   - east-router …c60106 (degree 1);
+#   - uplink …c60107, alias `Gateway` (degree 0).
+# The edges link edge-proxy to router-east and to east-router, and router-east to Router-West.
+#
+# `gateway` is the whole name of Gateway after lowercasing (WholeName, folded), the whole alias of
+# uplink after lowercasing (WholeAlias, folded), and a case-exact substring of edge-proxy's alias
+# (Substring, not folded). Under /3 Gateway is first, uplink second, edge-proxy last although its
+# degree is the highest: 3 matches, 2 whole, 1 case-exact. Under /2 edge-proxy is the one Exact
+# match and comes first.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-v3-ranks-a-whole-name-above-case-exact-partial-matches
+summary: Under /3, "gateway" answers Gateway (its whole name in another case) first and edge-proxy (whose alias holds the text case-exactly in a path) last; under /2 edge-proxy is first.
+
+timeline:
+  - at: 2027-03-02T09:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: gateway
+      limit: 10
+      format: ekr.node-matches/3
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: gateway
+          format: ekr.node-matches/3
+          matches: 3
+          total: 3
+          exact_total: 1
+          whole_total: 2
+          first_match: 00000000-0000-4000-8000-000000c60101
+          first_kind: WholeName
+          first_folded: true
+
+  - at: 2027-03-02T09:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: match-kinds
+      at: null
+      text: gateway
+      limit: 10
+      format: ekr.node-matches/2
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          format: ekr.node-matches/2
+          matches: 3
+          total: 3
+          exact_total: 1
+          first_match: 00000000-0000-4000-8000-000000c60102
+          first_tier: Exact

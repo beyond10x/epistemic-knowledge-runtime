@@ -13,7 +13,7 @@ summary: >-
   (ProjectOverview, which answers only the sections a request names; its predecessor
   ekr.graph-overview/1 is every section, and stays specified below), ekr.graph-slice/1
   (ExpandNeighbourhood), ekr.node-detail/1 and its bounded successor ekr.node-detail/2 (DescribeNode, by
-  its `format`), ekr.node-matches/1 and /2 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
+  its `format`), ekr.node-matches/1, /2 and /3 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
   any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
   revisions up to one revision changed after a revision or a time. ekr.store-quality/1
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
@@ -84,6 +84,11 @@ summary: >-
   ekr.node-matches/2 — matches by tier (Exact, then Folded, then Words); then a whole match
   before one that is not (ekr.views.NodeMatchV2); then, when the request names `from` or `to`,
   time descending; then degree descending; then id. Never by a name. meta.types by id.
+  ekr.node-matches/3 — matches by kind in the order ekr.views.MatchKind declares its variants
+  (WholeName, WholeAlias, Prefix, Substring, Words), whatever the case; within one kind a
+  case-exact match before a case-folded one (ekr.views.NodeMatchV3 `folded`); then, when the
+  request names `from` or `to`, time descending; then degree descending; then id. Never by a
+  name. meta.types by id.
   ekr.graph-timeline/1 — row_types by weight / nodes descending, compared exactly as rationals,
   then type id; rows by total descending, then id; each row's cells and strip by start
   ascending, then type id; events by start ascending, then id; each event's path from the
@@ -110,7 +115,7 @@ summary: >-
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
   does not hold answers NodeNotFound — for an ekr.node-detail/2 request whose id no node holds
   and a node type or edge type of the revision's ontology does, NodeIsAType instead — and a
-  SearchNodes `type` under ekr.node-matches/2 that names no node type of the revision answers
+  SearchNodes `type` under ekr.node-matches/2 or /3 that names no node type of the revision answers
   NodeTypeNotFound. A DescribeNode edge_type that names no edge type of the revision is no
   refusal: it answers no relation group.
 
@@ -620,10 +625,14 @@ types:
     kind: enum
     variants: [ekr.node-matches/2]
 
+  - name: ekr.views.NodeMatchesFormatV3
+    kind: enum
+    variants: [ekr.node-matches/3]
+
   # Which format a SearchNodes request is answered in (ekr.views.SearchNodes `format`).
   - name: ekr.views.NodeMatchesFormat
     kind: enum
-    variants: [ekr.node-matches/1, ekr.node-matches/2]
+    variants: [ekr.node-matches/1, ekr.node-matches/2, ekr.node-matches/3]
 
   # The position in a neighbourhood's record sequence (ExpandNeighbourhood): the number of records
   # the earlier pages delivered. A page's `next` is its own `after` plus the records it delivered.
@@ -1605,6 +1614,91 @@ types:
         type: ekr.views.MatchesMetaV2
       - name: matches
         type: List<ekr.views.NodeMatchV2>
+
+  # How an ekr.node-matches/3 match compares the text with a field, the node's canonical_name or
+  # one of its aliases, in the order the kinds rank. WholeName: the text is the whole
+  # canonical_name. WholeAlias: the text is one whole alias. Prefix: the canonical_name or an alias
+  # starts with the text. Substring: the canonical_name or an alias contains the text. Words: the
+  # text holds two or more words and every word is in the canonical_name, or every word is in one
+  # alias, as ekr.views.MatchTier's Words reads words. Each kind is passed case-exactly, byte for
+  # byte (for Words: every word of the text as given, split on Unicode White_Space, is a byte-exact
+  # substring of that one field), or case-folded, after both sides are lowercased as
+  # ekr.views.MatchTier's Folded lowercases them. A node's match is the first that one of its
+  # fields passes of WholeName case-exact, WholeName case-folded, WholeAlias case-exact,
+  # WholeAlias case-folded, Prefix case-exact, and so on through Words case-folded; a node that
+  # passes none does not match. So a whole name in another case ranks above a case-exact
+  # substring, which ekr.node-matches/2 ranks below it (Exact before Folded). Empty text matches
+  # every node: an empty canonical_name as WholeName, any other as a case-exact Prefix.
+  - name: ekr.views.MatchKind
+    kind: enum
+    variants: [WholeName, WholeAlias, Prefix, Substring, Words]
+
+  # One ekr.node-matches/3 match: ekr.views.NodeMatchV2 with `kind` and `folded` in place of
+  # `tier`. `folded` is true when the node's match is case-folded: the text passed the match's
+  # kind only after lowercasing. `field` is Name when the canonical_name passed the match, else
+  # Alias, and then `alias` is the first alias in the node's alias order that passed it.
+  - name: ekr.views.NodeMatchV3
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: type_name
+        type: String
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: time
+        type: Optional<ekr.views.EpochMillis>
+      - name: kind
+        type: ekr.views.MatchKind
+      - name: folded
+        type: Boolean
+      - name: field
+        type: ekr.views.MatchField
+      - name: alias
+        type: Optional<String>
+
+  # ekr.node-matches/3's meta: ekr.views.MatchesMetaV2's fields, with whole_total. `total`
+  # counts every matching node of the request's types in its window and `exact_total` those whose
+  # canonical_name or an alias contains the text byte for byte, both before `limit`; each is
+  # ekr.node-matches/2's for the same request. `whole_total` counts the matches whose kind is
+  # WholeName or WholeAlias, before `limit`, so a reader of the first page knows whether more whole
+  # matches exist than it was given.
+  - name: ekr.views.MatchesMetaV3
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeMatchesFormatV3
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: text
+        type: String
+      - name: types
+        type: List<ekr.ontology.TypeId>
+      - name: from
+        type: Optional<ekr.views.EpochMillis>
+      - name: to
+        type: Optional<ekr.views.EpochMillis>
+      - name: total
+        type: Integer
+      - name: exact_total
+        type: Integer
+      - name: whole_total
+        type: Integer
+
+  # ekr.node-matches/3: the first `limit` matching nodes of the named types in the named window,
+  # ordered by kind as the determinism rule for ekr.node-matches/3 says. It matches the nodes
+  # ekr.node-matches/2 matches for the same request; only the order and each match's kind differ.
+  - name: ekr.views.NodeMatchesV3
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.MatchesMetaV3
+      - name: matches
+        type: List<ekr.views.NodeMatchV3>
 
   # ---------------------------------------------------------------------------------------------
   # ekr.graph-timeline/1: the subjects' timeline. One row per subject — a node of the row type —
@@ -2721,6 +2815,144 @@ types:
       - name: upper
         type: Decimal
 
+  # story:readers-emit-metrics-and-request-logs. The read servers `ekr view` and `ekr mcp-http`
+  # count each read they dispatch and log each request they answer. Both take the count at their
+  # own dispatch, under one registry and one set of names, so one read through either moves the
+  # same series for the same wire name. Nothing here is a command: these are the operational
+  # records of the two servers, which read and write no canonical state. The stdio `ekr mcp`
+  # emits neither.
+  #
+  # The wire name. Every counted read is labelled `tool` with its wire name, a value of
+  # ekr.views.ReadWireName and never request text: an MCP `tools/call` by the tool it names
+  # (a name outside the nine tools `ekr mcp-http` serves, `find`, `projection`, `roles` and
+  # `describe_evidence` included, is a -32602 and counted under no tool), and an `ekr view` GET of a
+  # route that reads the store by the read it answers: /head head, /overview overview, /search
+  # search, /node/<id> describe_node, /expand expand, /timeline timeline, /changes changes_since,
+  # /projection projection, /roles roles, /evidence/<id> describe_evidence and /find find. A
+  # request that is no read (`/healthz`, `/readyz`, `/metrics`, the page and its assets, an MCP
+  # message that is not `tools/call`), or that is refused before it reaches the dispatch (Host,
+  # Origin, framing, method, a body on a GET), is counted under no tool and still logged.
+  #
+  # The outcome, ekr.views.ReadOutcome: `ok` for a read that answered its document; one class per
+  # refusal, by the refusal's name: `not_seeded` for ekr.views.NotSeeded; `not_found` for
+  # ekr.views.RevisionNotFound, ekr.views.NodeNotFound, ekr.views.NodeIsAType,
+  # ekr.views.NodeTypeNotFound, ekr.kernel.RevisionNotFound, ekr.kernel.AssertionNotFound and
+  # `ekr view`'s 404 for evidence; `unavailable` for `store-replaced` and a store not admitted
+  # (503), and a read refused 503 because the request queue is full or its deadline passed, on
+  # either server; `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
+  # ekr.views.SinceMalformed, an MCP -32602 and the explain and resolve verbs' other named
+  # refusals. `store_error` is a read that failed on the store (`ekr view`'s 500, an MCP -32603),
+  # which is no refusal: it also moves ekr_store_query_errors_total.
+  #
+  # The metrics, ekr.views.ReaderMetricName, in the Prometheus text exposition format 0.0.4:
+  #
+  # - ekr_read_requests_total{tool,outcome}, counter: reads dispatched, one per read.
+  # - ekr_read_duration_seconds{tool}, histogram: from the connection's accept to the answer
+  #   ready, one observation per read; buckets 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+  #   1, 2.5, 5, 10, 30 and +Inf.
+  # - ekr_read_result_bytes{tool}, histogram: the bytes of the document the read answered — an
+  #   MCP tool result's text, an `ekr view` body, an /expand stream's NDJSON lines without their
+  #   chunk framing — one observation per read, 0 for one that answered no document; buckets 64,
+  #   256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216 and +Inf.
+  # - ekr_read_in_flight, gauge: requests handed to the store's thread and not yet answered.
+  # - ekr_store_head_revision, gauge: the head revision of the store the reader serves, read on
+  #   the store's thread after each request it answers; absent until a seeded store was read.
+  # - ekr_store_query_errors_total{tool}, counter: reads whose outcome is store_error.
+  #
+  # Every family is answered with its HELP and TYPE lines, and every series of a (tool, outcome)
+  # or tool that moved under it; a series that never moved is absent. ekr_read_in_flight is
+  # always answered. No metric carries an argument value, a result's
+  # text, document content, a prompt or a credential (invariant 9): the only label values are a
+  # wire name and an outcome.
+  #
+  # The endpoint. `GET /metrics` answers the exposition, `text/plain; version=0.0.4;
+  # charset=utf-8`, on the connection's own thread without the store's queue, only when the
+  # server runs with `--metrics`; without it the path answers 404 as any unknown path does. It is
+  # admitted as every route is: exactly one Host the server admits (421 otherwise), an Origin
+  # `ekr mcp-http` admits (403 otherwise); any method but GET is 405 and a body 400 or 413 as the
+  # server refuses one elsewhere. It has no authentication of its own.
+  #
+  # The request log, ekr.views.RequestLogV1: with `--request-log <path>` (`-` for standard error)
+  # each server writes one line per request it answers, the record as one JSON object. The
+  # incoming `X-Request-Id` is kept when it is 1 to 128 bytes of ASCII letters, digits and
+  # `-._:`; the incoming `traceparent` when it is a W3C trace context version 00 header (55
+  # bytes, lowercase hex, neither id all zeros). Absent, either is generated (`generated`);
+  # malformed, oversized or given twice, it is replaced by a generated one (`replaced`), and the
+  # incoming value is neither logged nor echoed. The line carries no path, query, header value
+  # beside these two, argument, result text or document content.
+  - name: ekr.views.ReadWireName
+    kind: enum
+    variants:
+      - head
+      - overview
+      - search
+      - describe_node
+      - expand
+      - timeline
+      - changes_since
+      - explain
+      - resolve
+      - describe_evidence
+      - projection
+      - roles
+      - find
+
+  - name: ekr.views.ReadOutcome
+    kind: enum
+    variants: [ok, invalid_input, not_seeded, not_found, unavailable, store_error]
+
+  - name: ekr.views.ReaderMetricName
+    kind: enum
+    variants:
+      - ekr_read_requests_total
+      - ekr_read_duration_seconds
+      - ekr_read_result_bytes
+      - ekr_read_in_flight
+      - ekr_store_head_revision
+      - ekr_store_query_errors_total
+
+  - name: ekr.views.ReaderServer
+    kind: enum
+    variants: [view, mcp-http]
+
+  - name: ekr.views.RequestIdSource
+    kind: enum
+    variants: [incoming, generated, replaced]
+
+  - name: ekr.views.RequestLogFormatV1
+    kind: enum
+    variants: [ekr.request-log/1]
+
+  # One request log line. `tool` and `outcome` are present exactly when the request was a counted
+  # read; `status` is the HTTP status answered; `duration_seconds` runs from the connection's
+  # accept to the answer ready; `result_bytes` is the read's ekr_read_result_bytes observation, 0
+  # for a request that is no read.
+  - name: ekr.views.RequestLogV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.RequestLogFormatV1
+      - name: server
+        type: ekr.views.ReaderServer
+      - name: request_id
+        type: String
+      - name: request_id_source
+        type: ekr.views.RequestIdSource
+      - name: traceparent
+        type: String
+      - name: traceparent_source
+        type: ekr.views.RequestIdSource
+      - name: tool
+        type: Optional<ekr.views.ReadWireName>
+      - name: outcome
+        type: Optional<ekr.views.ReadOutcome>
+      - name: status
+        type: Integer
+      - name: duration_seconds
+        type: Decimal
+      - name: result_bytes
+        type: Integer
+
 actors:
   - name: ekr.views.Reader
     may:
@@ -3165,18 +3397,19 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
-  # `text` is matched against canonical names and aliases (ekr.views.MatchTier); it has no length
-  # bound. `limit` is 1 to 100 matches. No match is an answer with no matches, not a refusal.
+  # `text` is matched against canonical names and aliases (ekr.views.MatchTier, and
+  # ekr.views.MatchKind under /3); it has no length bound. `limit` is 1 to 100 matches. No match
+  # is an answer with no matches, not a refusal.
   #
-  # `format` selects the answer: ekr.node-matches/1 (`matches`) or ekr.node-matches/2
-  # (`matches_v2`); exactly one of the two response fields is present. Absent, the command answers
-  # /1. Each surface has its own default, which it names to the command when the request names
-  # none: `ekr view`'s `/search` and the session verb `search` name /1, the MCP tool `search`
-  # names /2. So for one request with the format named, the MCP tool's answer is byte for byte
-  # `ekr view`'s. ekr.node-matches/1 is served unchanged: a /1 request answers what the command
-  # answered before /2 was declared.
+  # `format` selects the answer: ekr.node-matches/1 (`matches`), ekr.node-matches/2
+  # (`matches_v2`) or ekr.node-matches/3 (`matches_v3`); exactly one of the three response fields
+  # is present. Absent, the command answers /1. Each surface has its own default, which it names
+  # to the command when the request names none: `ekr view`'s `/search` and the session verb
+  # `search` name /1, the MCP tool `search` names /3. So for one request with the format named,
+  # the MCP tool's answer is byte for byte `ekr view`'s. ekr.node-matches/1 and /2 are served
+  # unchanged: a /1 or /2 request answers what the command answered before /3 was declared.
   #
-  # `type`, `from` and `to` are read under /2 only; under /1 the command reads none of them. A
+  # `type`, `from` and `to` are read under /2 and /3 only; under /1 the command reads none of them. A
   # surface refuses a request that names one of them with the format /1 as malformed input that
   # never reaches the command (`ekr view` answers invalid-query, the MCP tool -32602).
   # `type` is a node type's id, or a name the revision's ontology gives one or more node types,
@@ -3220,6 +3453,8 @@ commands:
         type: Optional<ekr.views.NodeMatchesV1>
       - name: matches_v2
         type: Optional<ekr.views.NodeMatchesV2>
+      - name: matches_v3
+        type: Optional<ekr.views.NodeMatchesV3>
     outcomes:
       - name: searched
         emits:
@@ -3235,7 +3470,10 @@ commands:
             first_match: {generated: true}
             first_tier: {generated: true}
             matches_hash: {generated: true}
-        summary: One ekr.node-matches/1 or ekr.node-matches/2 document, as `format` selects, byte-identical to every other answer to the same request.
+            whole_total: {generated: true}
+            first_kind: {generated: true}
+            first_folded: {generated: true}
+        summary: One ekr.node-matches/1, /2 or /3 document, as `format` selects, byte-identical to every other answer to the same request.
       - name: limit-exceeded
         when:
           any:
@@ -3934,7 +4172,9 @@ events:
   # What one search returned. `matches` is the length of the matches list, `total` and
   # `exact_total` meta's, `format` meta's, `first_match` the id of the first match and
   # `first_tier` its tier, each omitted when there is none; `matches_hash` the hex SHA-256 of the
-  # document's exact bytes.
+  # document's exact bytes. Under ekr.node-matches/3, which has no tier, `first_tier` is omitted,
+  # and `whole_total` is meta's and `first_kind` and `first_folded` the first match's `kind` and
+  # `folded`; under /1 and /2 those three are omitted.
   - name: ekr.views.NodesSearched
     fields:
       - name: revision
@@ -3955,6 +4195,12 @@ events:
         type: Optional<ekr.views.MatchTier>
       - name: matches_hash
         type: ekr.kernel.ContentHash
+      - name: whole_total
+        type: Optional<Integer>
+      - name: first_kind
+        type: Optional<ekr.views.MatchKind>
+      - name: first_folded
+        type: Optional<Boolean>
 
   # What one timeline returned. `row_type`, `hops`, `bucket_ms`, `subjects`, `active` and
   # `events` are meta's; `row_types`, `rows`, `strip` and `listed_events` the lengths of

@@ -381,6 +381,15 @@ fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError>
     if let Some(tier) = summary.first_tier {
         fields.push(("first_tier", Node::Text(tier.to_owned())));
     }
+    if let Some(whole_total) = summary.whole_total {
+        fields.extend(counts(&[("whole_total", whole_total)])?);
+    }
+    if let Some(kind) = summary.first_kind {
+        fields.push(("first_kind", Node::Text(kind.to_owned())));
+    }
+    if let Some(folded) = summary.first_folded {
+        fields.push(("first_folded", Node::Bool(folded)));
+    }
     fields.push(("matches_hash", Node::Text(summary.matches_hash.clone())));
     observed("ekr.views.NodesSearched", fields)
 }
@@ -798,9 +807,10 @@ fn optional_text(
     }
 }
 
-/// `SearchNodes`' `format`, `/1` when absent as the command's own default, and the filter /2 reads:
-/// `type` as given, `from` and `to` in milliseconds. Under /1 the command reads none of the
-/// three, so the filter is empty whatever the request names (`views.yaml`, `ekr.views.SearchNodes`).
+/// `SearchNodes`' `format`, `/1` when absent as the command's own default, and the filter /2
+/// and /3 read: `type` as given, `from` and `to` in milliseconds. Under /1 the command reads none
+/// of the three, so the filter is empty whatever the request names (`views.yaml`,
+/// `ekr.views.SearchNodes`).
 fn search_input(
     request: &SemanticCommandRequest,
 ) -> Result<(MatchesFormat, SearchFilter), TargetError> {
@@ -813,7 +823,7 @@ fn search_input(
         .unwrap_or_default();
     let filter = match format {
         MatchesFormat::V1 => SearchFilter::default(),
-        MatchesFormat::V2 => SearchFilter::new(
+        MatchesFormat::V2 | MatchesFormat::V3 => SearchFilter::new(
             optional_text(request, "type")?,
             optional_integer(request, "from")?,
             optional_integer(request, "to")?,

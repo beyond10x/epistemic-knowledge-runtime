@@ -30,24 +30,24 @@ use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::read::{
     Bucket, ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, ExpandPages, ExpandQuery,
     ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head,
-    ListedTransaction, MatchField, MatchTier, MatchesMeta, ModifiedProperty, NamedType, NodeDetail,
-    NodeMatch, NodeMatches, NodeSummary, OneShotReader, Ontology, OntologyCardinality,
-    OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType, Overview,
-    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewSection,
-    OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember,
-    SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
-    SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
-    SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
-    Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineQuery,
-    TimelineRow, TimelineRowType, TimelineStep, TransactionState, Transactions, TypeCount,
-    TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle,
-    ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
+    ListedTransaction, MatchField, MatchKind, MatchTier, MatchesMeta, MatchesMetaV3,
+    ModifiedProperty, NamedType, NodeDetail, NodeMatch, NodeMatchV3, NodeMatches, NodeMatchesV3,
+    NodeSummary, OneShotReader, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType,
+    OntologyProperty, OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles,
+    OverviewSchema, OverviewSection, OverviewTimeline, ReadError, Reader, RecordedTime,
+    ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge,
+    SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge,
+    SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode, SnapshotPredicate,
+    SnapshotRoot, SnapshotSubject, Timeline, TimelineBucket, TimelineCell, TimelineEvent,
+    TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState,
+    Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge,
+    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
 use ekr_views::{
-    BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, SearchRequest, SinceKind,
-    TimelineRequest,
+    BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, SearchFilter,
+    SearchRequest, SinceKind, TimelineRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -374,6 +374,23 @@ fn matches_hold(matches: &NodeMatches, limit: u64) {
     }
 }
 
+fn matches_v3_hold(matches: &NodeMatchesV3, limit: u64) {
+    let meta: &MatchesMetaV3 = &matches.meta;
+    assert_eq!(meta.format, "ekr.node-matches/3");
+    assert!(matches.matches.len() as u64 <= limit.min(meta.total));
+    assert!(meta.whole_total <= meta.total && meta.exact_total <= meta.total);
+    let mut previous: Option<(MatchKind, bool)> = None;
+    for found in &matches.matches {
+        let found: &NodeMatchV3 = found;
+        assert_eq!(found.alias.is_some(), found.field == MatchField::Alias);
+        assert!(!found.type_name.is_empty());
+        assert_ne!(found.kind, MatchKind::Other);
+        let rank = (found.kind, found.folded);
+        assert!(previous <= Some(rank), "{previous:?} before {rank:?}");
+        previous = Some(rank);
+    }
+}
+
 fn detail_holds(detail: &NodeDetail, node: NodeId) {
     let meta: &DetailMeta = &detail.meta;
     assert_eq!(meta.format, "ekr.node-detail/1");
@@ -524,6 +541,9 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
             let found = index.search(&search).unwrap();
             matches_hold(&exact::<NodeMatches>(&at, &found.bytes), 100);
             *read.entry("search").or_default() += 1;
+            let found = index.search_v3(&search, &SearchFilter::default()).unwrap();
+            matches_v3_hold(&exact::<NodeMatchesV3>(&at, &found.bytes), 100);
+            *read.entry("search v3").or_default() += 1;
 
             let mut nodes: Vec<NodeId> = index.loaded().graph.nodes.keys().copied().collect();
             nodes.sort_unstable();
@@ -624,6 +644,7 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
         ("widened", 6),
         ("modified", 3),
         ("search", 20),
+        ("search v3", 20),
         ("describe", 600),
         ("expand", 40),
         ("timeline", 40),
@@ -821,6 +842,7 @@ fn every_closed_read_enum_reads_a_kind_a_newer_ekr_adds_as_other() {
         );
     }
     other("a match tier", json!("Phonetic"), &MatchTier::Other, "");
+    other("a match kind", json!("Phonetic"), &MatchKind::Other, "");
     other("a match field", json!("Summary"), &MatchField::Other, "");
     other(
         "a transaction state",
@@ -1026,6 +1048,8 @@ fn every_views_read_of_a_real_session_is_the_document_it_printed() {
     );
     matches_hold(&reader.search("-", Some(5), None).unwrap(), 5);
     matches_hold(&reader.search("", Some(5), Some(0)).unwrap(), 5);
+    matches_v3_hold(&reader.search_v3("-", Some(5), None).unwrap(), 5);
+    matches_v3_hold(&reader.search_v3("", Some(5), Some(0)).unwrap(), 5);
     detail_holds(&reader.describe(alice, None).unwrap(), alice);
     let page = reader
         .expand_page(&ExpandQuery::new(vec![alice], 1, 10), 0)
@@ -1066,7 +1090,7 @@ fn every_views_read_of_a_real_session_is_the_document_it_printed() {
     );
 
     let recording = reader.into_inner().into_recording();
-    assert_eq!(recording.exchanges.len(), 13);
+    assert_eq!(recording.exchanges.len(), 15);
     for exchange in &recording.exchanges {
         let what = format!("{:?}", exchange.request.argv);
         let Some(document) = &exchange.reply.document else {
@@ -1075,6 +1099,15 @@ fn every_views_read_of_a_real_session_is_the_document_it_printed() {
         };
         let drift = match exchange.request.verb() {
             "overview" => exactly::<Overview>(document).map(drop),
+            "search"
+                if exchange
+                    .request
+                    .argv
+                    .iter()
+                    .any(|arg| arg == "ekr.node-matches/3") =>
+            {
+                exactly::<NodeMatchesV3>(document).map(drop)
+            }
             "search" => exactly::<NodeMatches>(document).map(drop),
             "describe" => exactly::<NodeDetail>(document).map(drop),
             "expand" => exactly::<Slice>(document).map(drop),

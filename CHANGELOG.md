@@ -4,6 +4,38 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.38] — 2026-10-17
+
+### Added
+
+- `ekr mcp-http` and `ekr view` take `--metrics`, which serves `GET /metrics` in the Prometheus
+  text exposition format, and `--request-log <path>` (`-` for standard error), which writes one
+  `ekr.request-log/1` JSON line per request. Both count each read at their dispatch by its wire
+  name and outcome under one set of names: `ekr_read_requests_total{tool,outcome}`,
+  `ekr_read_duration_seconds{tool}`, `ekr_read_result_bytes{tool}`, `ekr_read_in_flight`,
+  `ekr_store_head_revision` and `ekr_store_query_errors_total{tool}`, so one read through either
+  server moves the same series. A log line carries the request's `X-Request-Id` and
+  `traceparent` when they are well formed, generated ones otherwise, and never an argument, a
+  result, document content or a credential. `/metrics` is admitted as every other path is and
+  answers 404 without the option (`ekr.views.ReaderMetricName`, `ekr.views.RequestLogV1`,
+  `ekr.cli.ReaderTelemetryOptions`).
+- `ekr.node-matches/3`, a search that ranks a whole name or alias first whatever its case
+  (story:search-match-kinds). Under `ekr.node-matches/2` a case-exact match comes before a
+  case-folded one, so a node whose whole name is the text in another case ranked below every node
+  holding the text case-exactly inside a longer name or alias, and a reader of the first few
+  matches missed it. /3 matches the nodes /2 matches, with the same `type`, `from` and `to`, and
+  names each match's `kind` — `WholeName`, `WholeAlias`, `Prefix`, `Substring` or `Words` — and
+  `folded`, whether it matched only after lowercasing. Matches rank by kind, then case-exact
+  before case-folded, then (with a window) newest first, degree and id; `meta.whole_total`
+  counts the whole matches before `limit`. `ekr view`'s `/search` and the session verb `search`
+  answer it with `format=ekr.node-matches/3` (`--format`), and the SDK reads it as
+  `Reader::search_v3`, `NodeMatchesV3`. `ekr.node-matches/1` and `/2` answer the bytes they did.
+
+### Changed
+
+- The `search` tool of `ekr mcp` answers `ekr.node-matches/3` when no `format` is named (it
+  answered `/2`); name `ekr.node-matches/2` or `/1` for the earlier documents.
+
 ## [0.0.37] — 2026-10-17
 
 ### Fixed

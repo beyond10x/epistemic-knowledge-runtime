@@ -9,6 +9,7 @@
 //! | [`Reader::overview`] | `overview --sections ontology,schema,roles,timeline` | [`Overview`], `ekr.graph-overview/2` with every section |
 //! | [`Reader::overview_sections`] | `overview --sections <named>` | [`Overview`], `ekr.graph-overview/2` with the named sections |
 //! | [`Reader::search`] | `search` | [`NodeMatches`], `ekr.node-matches/1` |
+//! | [`Reader::search_v3`] | `search --format ekr.node-matches/3` | [`NodeMatchesV3`], `ekr.node-matches/3` |
 //! | [`Reader::describe`] | `describe` | [`NodeDetail`], `ekr.node-detail/1` |
 //! | [`Reader::expand`], [`Reader::expand_page`] | `expand` | [`Slice`] pages, `ekr.graph-slice/1` |
 //! | [`Reader::timeline`] | `timeline` | [`Timeline`], `ekr.graph-timeline/1` |
@@ -22,7 +23,7 @@
 //! | [`Reader::rejections`] | `rejections` | [`Rejections`], `ekr.rejections/1` |
 //! | [`Reader::code_names`] | `code-names` | [`CodeNames`], `ekr.code-names/1` |
 //!
-//! The first six are the `ekr.views` reads, which `ekr` serves in a session only. The last eight
+//! The first seven are the `ekr.views` reads, which `ekr` serves in a session only. The last eight
 //! are one-shot verbs too, and [`OneShotReader`] runs each as its own `ekr` process, with no
 //! session open. Every call is blocking and reads the store as it stands when `ekr` reads the
 //! request: a commit another process made is what the next call reads.
@@ -59,14 +60,14 @@ pub use ocel::{
     OcelTypeAttribute,
 };
 pub use views::{
-    ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,
-    MatchesMeta, ModifiedProperty, NodeDetail, NodeMatch, NodeMatches, NodeSummary, Overview,
-    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewSection,
-    OverviewTimeline, ReferencingAssertion, SchemaMember, SchemaVersionChange, Slice, SliceEdge,
-    SliceMeta, SliceNode, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta,
-    TimelineRow, TimelineRowType, TimelineStep, TypeCount, TypeTiming, ViewAssertion,
-    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
-    ViewProperty, ViewValue, WidenedEnd,
+    ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchKind,
+    MatchTier, MatchesMeta, MatchesMetaV3, ModifiedProperty, NodeDetail, NodeMatch, NodeMatchV3,
+    NodeMatches, NodeMatchesV3, NodeSummary, Overview, OverviewMeta, OverviewRevision,
+    OverviewRoles, OverviewSchema, OverviewSection, OverviewTimeline, ReferencingAssertion,
+    SchemaMember, SchemaVersionChange, Slice, SliceEdge, SliceMeta, SliceNode, Timeline,
+    TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineRow, TimelineRowType,
+    TimelineStep, TypeCount, TypeTiming, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType,
+    ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 
 /// Reads an enum whose unit `Other` is its catch-all. `derived` is the reader serde derives for
@@ -345,6 +346,30 @@ impl<T: Transport> Reader<T> {
     ) -> Result<NodeMatches, ReadError> {
         self.read(
             Argv::new("search")
+                .flag("limit", limit)
+                .flag("revision", revision)
+                .arg("--")
+                .arg(text),
+        )
+    }
+
+    /// `search --format ekr.node-matches/3`: the nodes [`Self::search`] matches, and those whose
+    /// name or an alias holds every word of a text of two or more words, each naming its
+    /// [`MatchKind`]: a whole name first, then a whole alias, a prefix, a substring and the words,
+    /// whatever the case, at most `limit` (1 to 100, 20 when `None`). `meta.whole_total` counts
+    /// the whole matches before the limit.
+    ///
+    /// # Errors
+    /// [`ReadError`].
+    pub fn search_v3(
+        &mut self,
+        text: &str,
+        limit: Option<u64>,
+        revision: Option<u64>,
+    ) -> Result<NodeMatchesV3, ReadError> {
+        self.read(
+            Argv::new("search")
+                .flag("format", Some("ekr.node-matches/3"))
                 .flag("limit", limit)
                 .flag("revision", revision)
                 .arg("--")

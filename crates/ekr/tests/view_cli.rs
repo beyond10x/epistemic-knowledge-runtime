@@ -972,6 +972,8 @@ fn ekr_view_binding_is_explicit_and_defaults_to_loopback() {
             "--require-ready",
             "--mcp-url",
             "--agent-guide-url",
+            "--metrics",
+            "--request-log",
         ],
         "{help}"
     );

@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-17T17:54:33Z",
+  "actor": "agent:claude-ekr-controller",
+  "artifact": "story:search-match-kinds",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Wave 2026-10-17a unit U1 on unit/20261017a-u1 91bea139: cargo test -p ekr-views --no-fail-fast every target ok (query 34, the four node-matches/3 conformance scenarios included), clippy -D warnings on ekr-views, ekr-sdk and ekr, ekr-sdk tests, spec-check and conform-fresh clean; on the integrated head fbc11afa with U2 merged, cargo test -p ekr --test session 14 passed; the separate adversary pass was not run under the usage limit, and the full task check runs on the wave's final head before its pull request"
+  }
+}

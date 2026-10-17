@@ -100,6 +100,26 @@ types:
       - name: categories
         type: List<ekr.cli.CategoryComparison>
 
+  # story:readers-emit-metrics-and-request-logs. Where a read server's request log goes, as
+  # `--request-log` names it: `-` is standard error, anything else a file path the server appends
+  # to, creating it when absent. Host configuration, never part of an answer.
+  - name: ekr.cli.RequestLogDestination
+    kind: newtype
+    of: String
+
+  # The options `ekr view` and `ekr mcp-http` both take for their operational records, as their
+  # flags give them: `metrics` is `--metrics`, which serves `GET /metrics` (ekr.views'
+  # ReaderMetricName exposition; absent, the path answers 404), and `request_log` is
+  # `--request-log <destination>`, one ekr.views.RequestLogV1 line per request answered (absent,
+  # no line is written). Both are off unless asked for. The stdio `ekr mcp` takes neither.
+  - name: ekr.cli.ReaderTelemetryOptions
+    kind: struct
+    fields:
+      - name: metrics
+        type: Boolean
+      - name: request_log
+        type: Optional<ekr.cli.RequestLogDestination>
+
 # Design § 107. Begin, seal, publish and abandon. `ekr stage begin` is BeginStage and `ekr stage
 # abandon` is AbandonStage. `ekr stage publish` reads the stage's record first: on a Begun stage it
 # runs SealStage then PublishStage (a publication first seals the stage); on any other state it

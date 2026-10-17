@@ -17,7 +17,7 @@
 //! | tool | document |
 //! |---|---|
 //! | `overview` | [`ekr_views::Index::overview_as`]'s bytes: `ekr.graph-overview/3` unless `format` names `ekr.graph-overview/2` |
-//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/2` unless `format` names `ekr.node-matches/1`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
+//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/3` unless `format` names `ekr.node-matches/1` or `ekr.node-matches/2`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
 //! | `describe_node` | [`ekr_views::Index::detail_v2`]'s `ekr.node-detail/2` bytes, bounded by `limit` and narrowed by `edge_type` and `after`; with `full: true`, [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes. Each is what `ekr view` serves at `/node/<id>` with that `format` named |
 //! | `expand` | [`ekr_views::Index::expand_as`]'s whole page: `ekr.graph-slice/2` unless `format` names `ekr.graph-slice/1` |
 //! | `timeline` | [`ekr_views::Index::timeline_as`]'s bytes: `ekr.graph-timeline/2` unless `format` names `ekr.graph-timeline/1` |
@@ -92,6 +92,7 @@ use serde_json::value::RawValue;
 use serde_json::{json, Map, Value};
 
 use super::session::{Checked, Held, STORE_REPLACED};
+use super::telemetry::{Call, Outcome, Telemetry, Wire};
 use super::view::{
     describe, head_document, node_detail, project_refusal, search_filter, since_not_one,
     DetailRefused, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, NODE_TYPE_NOT_FOUND,
@@ -189,6 +190,8 @@ pub fn serve_mcp(cli: Cli, input: &mut dyn BufRead, output: &mut dyn Write) -> R
 struct Server {
     store: Held,
     indexes: IndexCache,
+    /// The read the last `tools/call` dispatched, for `ekr mcp-http`'s telemetry.
+    last: Option<Call>,
 }
 
 impl Server {
@@ -196,6 +199,7 @@ impl Server {
         Self {
             store,
             indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
+            last: None,
         }
     }
 
@@ -203,7 +207,7 @@ impl Server {
     /// once per call that reads the store: a store replaced there is opened and every index of the
     /// replaced one dropped, and one that does not open is refused as [`STORE_REPLACED`].
     fn read(&mut self) -> Result<(&Runtime, &mut IndexCache), Unanswered> {
-        let Self { store, indexes } = self;
+        let Self { store, indexes, .. } = self;
         match store.current() {
             Ok(Checked::Same(runtime)) => Ok((runtime, indexes)),
             Ok(Checked::Reopened(runtime)) => {
@@ -450,6 +454,41 @@ impl Server {
             Some(Value::String(name)) => Ok(name),
             _ => Err(Unanswered::params("tools/call names its tool in \"name\"")),
         };
+        let wire = named.as_deref().ok().and_then(served);
+        let answered = self.answer(named, params);
+        // Counted under its wire name only: a tool the server does not have is no series.
+        self.last = wire.map(|wire| {
+            let (outcome, bytes) = match &answered {
+                Ok(result) => {
+                    let text = result["content"][0]["text"].as_str().unwrap_or_default();
+                    let outcome = match result["structuredContent"]["refusal"].as_str() {
+                        Some(name) if result["isError"] == true => Outcome::of_refusal(name),
+                        _ => Outcome::Ok,
+                    };
+                    (outcome, text.len() as u64)
+                }
+                Err(Unanswered::Error {
+                    code: INVALID_PARAMS,
+                    ..
+                }) => (Outcome::InvalidInput, 0),
+                Err(Unanswered::Refused { name, .. }) => (Outcome::of_refusal(name), 0),
+                Err(Unanswered::Error { .. }) => (Outcome::StoreError, 0),
+            };
+            Call {
+                wire,
+                outcome,
+                bytes,
+            }
+        });
+        answered
+    }
+
+    /// [`Self::call`]'s answer to the tool `named`, without its record.
+    fn answer(
+        &mut self,
+        named: Result<String, Unanswered>,
+        mut params: Map<String, Value>,
+    ) -> Result<Value, Unanswered> {
         let arguments = match params.remove("arguments") {
             None | Some(Value::Null) => Ok(Value::Object(Map::new())),
             Some(arguments @ Value::Object(_)) => Ok(arguments),
@@ -522,8 +561,9 @@ impl Server {
         text(self.index(revision)?.overview_as(format, &request)?.bytes)
     }
 
-    /// `ekr.node-matches/2` unless `format` names /1: `ekr view`'s `/search` with the format named
-    /// (`views.yaml`, `ekr.views.SearchNodes`), its inputs read and refused in the same order.
+    /// `ekr.node-matches/3` unless `format` names /1 or /2: `ekr view`'s `/search` with the format
+    /// named (`views.yaml`, `ekr.views.SearchNodes`), its inputs read and refused in the same
+    /// order.
     fn search(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let SearchArguments {
             text: searched,
@@ -538,7 +578,7 @@ impl Server {
             .map(|name| name.parse::<MatchesFormat>())
             .transpose()
             .map_err(|error| Unanswered::params(format!("arguments: {error}")))?
-            .unwrap_or(MatchesFormat::V2);
+            .unwrap_or(MatchesFormat::V3);
         let filter = search_filter(
             format,
             node_type,
@@ -1192,9 +1232,12 @@ fn tools() -> Vec<Value> {
         tool(
             "search",
             "Search nodes",
-            "The ekr.node-matches/2 document: the nodes whose name or an alias contains the \
-             text, or, for two or more words, every word in any order; exact matches first, a \
-             whole name first within each tier, each match with its type_name. With type, only \
+            "The ekr.node-matches/3 document: the nodes whose name or an alias contains the \
+             text, or, for two or more words, every word in any order. A whole name first, then \
+             a whole alias, a prefix, a substring and the words, whatever the case, a case-exact \
+             match before a case-folded one within each kind; each match with its kind, \
+             whether it was case-folded and its type_name, and meta.whole_total counting the \
+             whole matches before limit. With type, only \
              that node type's nodes (an empty text lists them); with from and to, only nodes \
              whose time falls in the window, newest first.",
             object(
@@ -1206,8 +1249,8 @@ fn tools() -> Vec<Value> {
                         "The most matches answered; 20 when absent."),
                     "format": {
                         "type": "string",
-                        "enum": [MatchesFormat::V1.name(), MatchesFormat::V2.name()],
-                        "description": "The format answered; ekr.node-matches/2 when absent. ekr.node-matches/1 takes no type, from or to.",
+                        "enum": [MatchesFormat::V1.name(), MatchesFormat::V2.name(), MatchesFormat::V3.name()],
+                        "description": "The format answered; ekr.node-matches/3 when absent. ekr.node-matches/1 takes no type, from or to.",
                     },
                     "type": {"type": "string", "description": "Only nodes of this node type, by id or by name."},
                     "from": {
@@ -1389,21 +1432,80 @@ pub(super) fn run_http(
     port: u16,
     hosts: Vec<String>,
     origins: Vec<String>,
+    telemetry: Telemetry,
 ) -> Result<String, Failure> {
     let mut server = None;
     let (listener, authorities) = super::http::bind(bind, port, hosts)?;
-    super::http::serve(listener, authorities, origins, direct, move |request| {
-        if let Err(reply) = http_request(&request) {
-            return reply;
-        }
-        if server.is_none() {
-            server = Held::open(store.clone()).ok().map(Server::new);
-        }
-        match server.as_mut() {
-            Some(server) => server.http(request),
-            None => super::http::Reply::refusal(503, "store is not admitted, seeded and available"),
-        }
-    })
+    let telemetry = std::sync::Arc::new(telemetry);
+    let recorder = telemetry.clone();
+    super::http::serve(
+        listener,
+        authorities,
+        origins,
+        direct,
+        |request| called(&request.body),
+        telemetry,
+        move |request| {
+            if let Err(reply) = http_request(&request) {
+                return reply;
+            }
+            if server.is_none() {
+                server = Held::open(store.clone()).ok().map(Server::new);
+            }
+            match server.as_mut() {
+                Some(server) => {
+                    let reply = server.http(request);
+                    if recorder.serves_metrics() {
+                        if let Some(head) = server.store.head() {
+                            recorder.head(head);
+                        }
+                    }
+                    reply
+                }
+                None => super::http::Reply {
+                    // A read the server could not reach a store for is unavailable.
+                    call: called(&request.body).map(|wire| Call {
+                        wire,
+                        outcome: Outcome::Unavailable,
+                        bytes: 0,
+                    }),
+                    ..super::http::Reply::refusal(
+                        503,
+                        "store is not admitted, seeded and available",
+                    )
+                },
+            }
+        },
+    )
+}
+
+/// The wire name a `tools/call` message `body` names, `None` for any other message or a tool
+/// the server does not have.
+fn called(body: &[u8]) -> Option<Wire> {
+    let message = serde_json::from_slice::<Value>(body).ok()?;
+    if message.get("method").and_then(Value::as_str) != Some("tools/call") {
+        return None;
+    }
+    served(message.get("params")?.get("name")?.as_str()?)
+}
+
+/// The nine tools this server serves, by wire name: `ekr view` has four more reads (`find`,
+/// `projection`, `roles`, `describe_evidence`) that `tools/call` does not.
+const SERVED: [&str; 9] = [
+    "overview",
+    "search",
+    "describe_node",
+    "expand",
+    "timeline",
+    "changes_since",
+    "explain",
+    "resolve",
+    "head",
+];
+
+/// The wire name of the tool `name`, `None` for a name this server does not serve.
+fn served(name: &str) -> Option<Wire> {
+    SERVED.contains(&name).then(|| Wire::named(name)).flatten()
 }
 
 /// What a connection's own thread answers, before the store's queue (ekr-mcp-fixes-20261015
@@ -1536,7 +1638,12 @@ impl Server {
                 _ => Reply::refusal(503, "store is not admitted, seeded and available"),
             };
         }
-        http_reply(self.message(&request.body))
+        self.last = None;
+        let reply = http_reply(self.message(&request.body));
+        Reply {
+            call: self.last.take(),
+            ..reply
+        }
     }
 }
 
@@ -1721,12 +1828,20 @@ mod tests {
             let events = events.clone();
             let handled = Arc::clone(&handled);
             std::thread::spawn(move || {
-                let _ = transport::serve(listener, authorities, Vec::new(), direct, move |_| {
-                    handled.fetch_add(1, Ordering::SeqCst);
-                    let _ = events.send(Event::Held);
-                    let _ = released.recv();
-                    Reply::json(200, b"{\"held\":true}".to_vec())
-                });
+                let _ = transport::serve(
+                    listener,
+                    authorities,
+                    Vec::new(),
+                    direct,
+                    |request| called(&request.body),
+                    std::sync::Arc::new(Telemetry::off("mcp-http")),
+                    move |_| {
+                        handled.fetch_add(1, Ordering::SeqCst);
+                        let _ = events.send(Event::Held);
+                        let _ = released.recv();
+                        Reply::json(200, b"{\"held\":true}".to_vec())
+                    },
+                );
             });
         }
         let call = std::thread::spawn(move || {
