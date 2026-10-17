@@ -8,14 +8,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
-- `ekr stage begin` and `ekr migrate` copy a store whose seed or commit carries thousands of
-  evidence payloads onto PostgreSQL (#93). The copy published each occurrence as one provider
-  group, and PostgreSQL takes one advisory lock per stream of a group, so a seed of 8,192
-  payloads was refused `stage-copy-failed`, "out of shared memory", on a stock-sized lock table.
-  A copied occurrence that would carry more than 32 streams now has its payloads stored ahead of
-  it in groups of at most 32 (`ekr.store.CopyGroupStreams`), with their class and `stored_at`, so
-  no transaction of a copy takes more than 32 of those locks. `ekr seed` and `ekr commit` are
-  unchanged; `docs/cli.md` names the lock-table setting that bounds them.
+- `ekr stage begin` stages a store whose seed or commit carries thousands of evidence payloads on
+  PostgreSQL (#93). The begin's copy published each occurrence as one provider group, and
+  PostgreSQL takes one advisory lock per stream of a group, so a seed of 8,192 payloads was
+  refused `stage-copy-failed`, "out of shared memory", on a stock-sized lock table. A copied
+  occurrence that would carry more than 32 streams now has its payloads stored ahead of it in
+  groups of at most 32 (`ekr.store.CopyGroupStreams`), with their class and `stored_at`, and its
+  own group binds only the objects it appends, so no transaction of the copy takes more than 34
+  advisory locks (32 streams, the publication gate and the group's own). `ekr seed`,
+  `ekr commit` and `ekr migrate` are unchanged: a migration still writes each copied seed or
+  commit as one transaction, into a destination another migration may also be writing, and
+  `docs/cli.md` names the lock-table setting that bounds all three.
 - `ekr stage list` on a PostgreSQL store answered `[]`, or left out a stage, while any other
   transaction on the server was open, although the stage's begin had committed and
   `ekr stage show` found it (#94). A begin now records the stage in the store's stage index,

@@ -335,6 +335,12 @@ pub enum StagePoint {
         /// The distinct streams the group appends to.
         streams: usize,
     },
+    /// Reached right after [`StagePoint::Group`] for the same group: the blobs it binds, each
+    /// one PostgreSQL inserts and reads back under a row lock in the group's transaction.
+    GroupBlobs {
+        /// The blobs the group binds.
+        blobs: usize,
+    },
 }
 
 type Hook = Box<dyn FnMut(StagePoint) -> Result<(), StoreError>>;
