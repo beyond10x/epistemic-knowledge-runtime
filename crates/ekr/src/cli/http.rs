@@ -425,8 +425,7 @@ pub(super) fn serve(
                             &jobs,
                             &authorities,
                             &origins,
-                            direct,
-                            wire_of,
+                            Hooks { direct, wire_of },
                             &telemetry,
                         );
                     });
@@ -442,14 +441,21 @@ pub(super) fn serve(
     Err(Failure::fault("HTTP accept loop stopped"))
 }
 
+/// The hooks `serve` takes, carried to each connection together: `direct` answers a request
+/// that reads no store, and `wire_of` names the tool a queued request asks for.
+#[derive(Clone, Copy)]
+struct Hooks {
+    direct: fn(&Request) -> Option<Reply>,
+    wire_of: fn(&Request) -> Option<Wire>,
+}
+
 fn connection(
     mut stream: TcpStream,
     started: Instant,
     jobs: &SyncSender<Job<Request, Reply>>,
     authorities: &Authorities,
     origins: &[String],
-    direct: fn(&Request) -> Option<Reply>,
-    wire_of: fn(&Request) -> Option<Wire>,
+    hooks: Hooks,
     telemetry: &Telemetry,
 ) {
     let mut incoming = Incoming::default();
@@ -494,11 +500,11 @@ fn connection(
         }
         // A request that reads no store is answered here: never queued behind another
         // request's store work (ekr-mcp-fixes-20261015 #12).
-        if let Some(reply) = direct(&request) {
+        if let Some(reply) = (hooks.direct)(&request) {
             return Ok(reply);
         }
         let deadline = started + READ_TIMEOUT + WAIT_TIMEOUT;
-        queued = wire_of(&request);
+        queued = (hooks.wire_of)(&request);
         let (reply, receiver) = sync_channel(1);
         let waiting = telemetry.waiting();
         jobs.try_send(Job {
@@ -521,7 +527,7 @@ fn connection(
 
 /// A 503 the queue answers, counted as an unavailable read of the tool `wire` when the request
 /// asked for one.
-fn unavailable(wire: Option<Wire>, message: &str) -> Reply {
+fn unavailable(wire: Option<Wire>, message: &'static str) -> Reply {
     Reply {
         call: wire.map(|wire| Call {
             wire,
@@ -621,8 +627,10 @@ mod tests {
                     &jobs,
                     &Authorities::loopback(address.port()),
                     &[],
-                    |_| None,
-                    |_| None,
+                    Hooks {
+                        direct: |_| None,
+                        wire_of: |_| None,
+                    },
                     &Telemetry::off("mcp-http"),
                 );
             });
@@ -674,8 +682,10 @@ mod tests {
                         &jobs,
                         &Authorities::loopback(address.port()),
                         &[],
-                        |_| None,
-                        |request| (request.body == b"head").then_some(Wire::Head),
+                        Hooks {
+                            direct: |_| None,
+                            wire_of: |request| (request.body == b"head").then_some(Wire::Head),
+                        },
                         telemetry,
                     );
                 });
