@@ -660,6 +660,38 @@ fn metrics_endpoint_off_by_default_and_host_checked() {
     }
 }
 
+/// `docs/cli.md` ("an unknown tool ... is counted under no tool") and `call`'s own comment ("a
+/// tool the server does not have is no series"): `ekr mcp-http` serves nine tools, so a
+/// `tools/call` naming a view-only wire name (`find`, `projection`, `roles`,
+/// `describe_evidence`) is a -32602 for a tool it does not have and moves no series.
+#[test]
+fn an_mcp_tool_the_server_lacks_is_counted_under_no_tool() {
+    let world = World::seeded("sqlite");
+    let served = world.observed("mcp-http");
+    for tool in ["find", "projection", "roles", "describe_evidence"] {
+        let refused = served.call_with(tool, &json!({}), "");
+        assert_eq!(
+            refused.json()["error"]["code"],
+            -32602,
+            "{tool}: {}",
+            refused.raw()
+        );
+    }
+    let metrics = served.metrics();
+    for tool in ["find", "projection", "roles", "describe_evidence"] {
+        assert!(
+            !metrics.contains(&format!("tool=\"{tool}\"")),
+            "mcp-http has no tool {tool:?}, yet a series is labelled with it:\n{metrics}"
+        );
+    }
+    for line in world.logged() {
+        assert!(
+            line.get("tool").is_none(),
+            "an unknown tool logged as a read: {line}"
+        );
+    }
+}
+
 #[test]
 fn view_and_mcp_count_alike() {
     for backend in BACKENDS {

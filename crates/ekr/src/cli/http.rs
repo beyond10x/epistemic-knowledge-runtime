@@ -10,7 +10,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::telemetry::{Call, Header, Incoming, Telemetry, EXPOSITION};
+use super::telemetry::{Call, Header, Incoming, Outcome, Telemetry, Wire, EXPOSITION};
 use crate::exit::Failure;
 
 pub(super) const HEAD_LIMIT: usize = 16 * 1024;
@@ -375,6 +375,7 @@ pub(super) fn serve(
     authorities: Authorities,
     origins: Vec<String>,
     direct: fn(&Request) -> Option<Reply>,
+    wire_of: fn(&Request) -> Option<Wire>,
     telemetry: Arc<Telemetry>,
     mut handler: impl FnMut(Request) -> Reply,
 ) -> Result<String, Failure> {
@@ -425,6 +426,7 @@ pub(super) fn serve(
                             &authorities,
                             &origins,
                             direct,
+                            wire_of,
                             &telemetry,
                         );
                     });
@@ -447,9 +449,13 @@ fn connection(
     authorities: &Authorities,
     origins: &[String],
     direct: fn(&Request) -> Option<Reply>,
+    wire_of: fn(&Request) -> Option<Wire>,
     telemetry: &Telemetry,
 ) {
     let mut incoming = Incoming::default();
+    // The read a request that reaches the store's queue asks for, kept for a 503 that is the
+    // queue's: such a read is unavailable, as `ekr view` counts it.
+    let mut queued = None;
     let result = (|| {
         let request = read(&stream, started + READ_TIMEOUT)?;
         if telemetry.records() {
@@ -492,6 +498,7 @@ fn connection(
             return Ok(reply);
         }
         let deadline = started + READ_TIMEOUT + WAIT_TIMEOUT;
+        queued = wire_of(&request);
         let (reply, receiver) = sync_channel(1);
         let waiting = telemetry.waiting();
         jobs.try_send(Job {
@@ -499,10 +506,10 @@ fn connection(
             reply,
             deadline,
         })
-        .map_err(|_| Reply::refusal(503, "request queue is full"))?;
+        .map_err(|_| unavailable(queued, "request queue is full"))?;
         let answer = receiver
             .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-            .map_err(|_| Reply::refusal(503, "request deadline exceeded"));
+            .map_err(|_| unavailable(queued, "request deadline exceeded"));
         drop(waiting);
         answer
     })();
@@ -510,6 +517,19 @@ fn connection(
     // Recorded before the answer is written, so a client that has read it sees it counted.
     telemetry.finish(&incoming, reply.call, reply.status, started.elapsed());
     let _ = reply.write(&mut stream);
+}
+
+/// A 503 the queue answers, counted as an unavailable read of the tool `wire` when the request
+/// asked for one.
+fn unavailable(wire: Option<Wire>, message: &str) -> Reply {
+    Reply {
+        call: wire.map(|wire| Call {
+            wire,
+            outcome: Outcome::Unavailable,
+            bytes: 0,
+        }),
+        ..Reply::refusal(503, message)
+    }
 }
 
 #[cfg(test)]
@@ -602,6 +622,7 @@ mod tests {
                     &Authorities::loopback(address.port()),
                     &[],
                     |_| None,
+                    |_| None,
                     &Telemetry::off("mcp-http"),
                 );
             });
@@ -618,6 +639,72 @@ mod tests {
                 "{answer}"
             );
         }
+        assert_eq!(pending.try_iter().count(), QUEUE_LIMIT);
+    }
+
+    /// A read refused 503 because the store's queue is full is counted `unavailable` under the
+    /// tool it asked for, with a duration; a request that asks for no tool is counted under none.
+    #[test]
+    fn a_read_refused_for_a_full_queue_is_counted_unavailable() {
+        let (jobs, pending) = queue(QUEUE_LIMIT);
+        for _ in 0..QUEUE_LIMIT {
+            let (reply, _) = sync_channel(1);
+            jobs.try_send(Job {
+                request: parse(b"GET /readyz HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    .unwrap()
+                    .unwrap()
+                    .request,
+                reply,
+                deadline: Instant::now() + WAIT_TIMEOUT,
+            })
+            .unwrap();
+        }
+        let telemetry = Telemetry::new("mcp-http", true, None);
+        for (body, tool) in [("head", true), ("none", false)] {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("loopback test listener");
+            let address = listener.local_addr().unwrap();
+            let jobs = jobs.clone();
+            let telemetry = &telemetry;
+            let answer = std::thread::scope(|scope| {
+                scope.spawn(move || {
+                    let (stream, _) = listener.accept().unwrap();
+                    connection(
+                        stream,
+                        Instant::now(),
+                        &jobs,
+                        &Authorities::loopback(address.port()),
+                        &[],
+                        |_| None,
+                        |request| (request.body == b"head").then_some(Wire::Head),
+                        telemetry,
+                    );
+                });
+                let mut client = TcpStream::connect(address).unwrap();
+                client
+                    .set_read_timeout(Some(Duration::from_secs(60)))
+                    .unwrap();
+                write!(
+                    client,
+                    "POST /mcp HTTP/1.1\r\nHost: {address}\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
+                let mut answer = String::new();
+                client.read_to_string(&mut answer).unwrap();
+                answer
+            });
+            assert!(answer.starts_with("HTTP/1.1 503 "), "{tool}: {answer}");
+        }
+        let exposition = telemetry.exposition();
+        assert!(
+            exposition.contains("ekr_read_requests_total{tool=\"head\",outcome=\"unavailable\"} 1"),
+            "{exposition}"
+        );
+        assert!(
+            exposition.contains("ekr_read_duration_seconds_count{tool=\"head\"} 1"),
+            "{exposition}"
+        );
+        assert_eq!(exposition.matches("ekr_read_requests_total{").count(), 1);
         assert_eq!(pending.try_iter().count(), QUEUE_LIMIT);
     }
 
@@ -664,6 +751,7 @@ mod tests {
                 listener,
                 authorities,
                 Vec::new(),
+                |_| None,
                 |_| None,
                 telemetry,
                 move |_| {

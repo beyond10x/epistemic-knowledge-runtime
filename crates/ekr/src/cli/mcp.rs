@@ -454,7 +454,7 @@ impl Server {
             Some(Value::String(name)) => Ok(name),
             _ => Err(Unanswered::params("tools/call names its tool in \"name\"")),
         };
-        let wire = named.as_deref().ok().and_then(Wire::named);
+        let wire = named.as_deref().ok().and_then(served);
         let answered = self.answer(named, params);
         // Counted under its wire name only: a tool the server does not have is no series.
         self.last = wire.map(|wire| {
@@ -1439,6 +1439,7 @@ pub(super) fn run_http(
         authorities,
         origins,
         direct,
+        |request| called(&request.body),
         telemetry,
         move |request| {
             if let Err(reply) = http_request(&request) {
@@ -1481,7 +1482,26 @@ fn called(body: &[u8]) -> Option<Wire> {
     if message.get("method").and_then(Value::as_str) != Some("tools/call") {
         return None;
     }
-    Wire::named(message.get("params")?.get("name")?.as_str()?)
+    served(message.get("params")?.get("name")?.as_str()?)
+}
+
+/// The nine tools this server serves, by wire name: `ekr view` has four more reads (`find`,
+/// `projection`, `roles`, `describe_evidence`) that `tools/call` does not.
+const SERVED: [&str; 9] = [
+    "overview",
+    "search",
+    "describe_node",
+    "expand",
+    "timeline",
+    "changes_since",
+    "explain",
+    "resolve",
+    "head",
+];
+
+/// The wire name of the tool `name`, `None` for a name this server does not serve.
+fn served(name: &str) -> Option<Wire> {
+    SERVED.contains(&name).then(|| Wire::named(name)).flatten()
 }
 
 /// What a connection's own thread answers, before the store's queue (ekr-mcp-fixes-20261015
@@ -1809,6 +1829,7 @@ mod tests {
                     authorities,
                     Vec::new(),
                     direct,
+                    |request| called(&request.body),
                     std::sync::Arc::new(Telemetry::off("mcp-http")),
                     move |_| {
                         handled.fetch_add(1, Ordering::SeqCst);

@@ -2730,7 +2730,8 @@ types:
   #
   # The wire name. Every counted read is labelled `tool` with its wire name, a value of
   # ekr.views.ReadWireName and never request text: an MCP `tools/call` by the tool it names
-  # (a name outside the set is a -32602 and counted under no tool), and an `ekr view` GET of a
+  # (a name outside the nine tools `ekr mcp-http` serves, `find`, `projection`, `roles` and
+  # `describe_evidence` included, is a -32602 and counted under no tool), and an `ekr view` GET of a
   # route that reads the store by the read it answers: /head head, /overview overview, /search
   # search, /node/<id> describe_node, /expand expand, /timeline timeline, /changes changes_since,
   # /projection projection, /roles roles, /evidence/<id> describe_evidence and /find find. A
@@ -2743,7 +2744,8 @@ types:
   # ekr.views.RevisionNotFound, ekr.views.NodeNotFound, ekr.views.NodeIsAType,
   # ekr.views.NodeTypeNotFound, ekr.kernel.RevisionNotFound, ekr.kernel.AssertionNotFound and
   # `ekr view`'s 404 for evidence; `unavailable` for `store-replaced` and a store not admitted
-  # (503); `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
+  # (503), and a read refused 503 because the request queue is full or its deadline passed, on
+  # either server; `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
   # ekr.views.SinceMalformed, an MCP -32602 and the explain and resolve verbs' other named
   # refusals. `store_error` is a read that failed on the store (`ekr view`'s 500, an MCP -32603),
   # which is no refusal: it also moves ekr_store_query_errors_total.

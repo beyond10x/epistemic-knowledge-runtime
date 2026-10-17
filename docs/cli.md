@@ -1805,7 +1805,7 @@ no authentication of its own. Without `--metrics` the path answers 404.
 through either server moves the same series. `outcome` is `ok`, `invalid_input` (`invalid-query`,
 `ekr.views.LimitExceeded`, `ekr.views.SinceMalformed`, a -32602 and other input refusals),
 `not_seeded`, `not_found` (every `…NotFound` refusal and `ekr.views.NodeIsAType`), `unavailable`
-(`store-replaced`, a store not admitted) or `store_error` (a 500 or a -32603). A request that is
+(`store-replaced`, a store not admitted, a full request queue, an exceeded deadline) or `store_error` (a 500 or a -32603). A request that is
 no read — health, readiness, `/metrics`, the page, an MCP message that is not `tools/call`, an
 unknown tool — or that is refused before its read (Host, Origin, framing, method) is counted
 under no tool. No label carries request text.
