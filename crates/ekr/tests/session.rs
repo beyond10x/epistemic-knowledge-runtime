@@ -1751,7 +1751,7 @@ fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
                 refusals += 1;
             }
         }
-        assert_eq!((documents, refusals), (19, 9), "{backend}");
+        assert_eq!((documents, refusals), (21, 9), "{backend}");
     }
 }
 
