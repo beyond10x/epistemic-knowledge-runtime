@@ -2,16 +2,17 @@
 format: aep.planning-md/3
 id: story:search-match-kinds
 kind: story
-status: active
+status: implemented
 title: 'search answers ekr.node-matches/3: each match names its kind, a whole name or alias first regardless of case'
 relations:
 - decomposes: epic:p4-operator-surface
 - serves: vision:o5
 - depends_on: story:search-words-type-and-time
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-17T10:05:36Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-17T10:05:36Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-17T17:54:33Z", actor: "agent:claude-ekr-controller", revision: 4, decided_on: {"recorded":{"test_result":1},"asserted":{"test_result":1}}}
 ---
 ## Context
 

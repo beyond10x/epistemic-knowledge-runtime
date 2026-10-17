@@ -2,7 +2,7 @@
 
 Skill: aep:implementing (wave mode). Coordinator: the repository's controlling Claude session of
 2026-10-17.
-Status: **integrating**: U2 merged into `wave/20261017a`; U1 runs its package tests.
+Status: **gating**: U1 and U2 merged into `wave/20261017a`; the full gate runs on its head in the U1 tree, whose build directory holds the units' package builds.
 
 Source: two consumer requests. A reader that reads only the first five matches per word misses a
 node whose whole name matches in another case (`story:search-match-kinds`). An operator scraping
@@ -25,10 +25,10 @@ Width: 2 units, every ready unit of this source. Both declare their change in `v
 
 | unit | branch | worktree id | build dir | state |
 |---|---|---|---|---|
-| integration | `wave/20261017a` | `ekr-w20261017a` | `<tree>/target` | U2 merged at `4ed86ce8` |
-| U1 | `unit/20261017a-u1` | `ekr-w17a-u1` | `<tree>/target` | at `91bea139`; package tests running |
+| integration | `wave/20261017a` | `ekr-w20261017a` | `<tree>/target` | U2 merged at `4ed86ce8`, U1 at `04fc1152`; suites regenerated from the merged specification; release 0.0.38 prepared |
+| U1 | `unit/20261017a-u1` | `ekr-w17a-u1` | `<tree>/target` | merged at `91bea139`; the separate adversary pass was not run under the usage limit; this tree runs the full gate on the integrated head |
 | U2 | `unit/20261017a-u2` | `ekr-w17a-u2` | `<tree>/target` | merged at `9eab295c`; adversary found two introduced defects, both fixed |
 
 ## Gate
 
-Not run.
+The full `task check` runs once on the integrated head, in tree `ekr-w17a-u1`.
