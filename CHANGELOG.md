@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.38] — 2026-10-17
+
 ### Added
 
 - `ekr mcp-http` and `ekr view` take `--metrics`, which serves `GET /metrics` in the Prometheus
