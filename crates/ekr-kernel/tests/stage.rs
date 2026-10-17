@@ -2242,3 +2242,126 @@ fn a_stage_hook_guard_restores_the_hook_it_replaced() {
     drop(outer);
     assert_eq!(ekr_store::stage::reached(StagePoint::Sealed), Ok(()));
 }
+
+/// Evidence payloads a copied seed and a copied commit each carry: three groups' worth of
+/// `ekr.store.CopyGroupStreams`, so a copy that published either occurrence as one group would
+/// carry more streams than the bound.
+const COPIED_PAYLOADS: u64 = 3 * ekr_store::COPY_GROUP_STREAMS as u64;
+
+/// A transaction adding one evidence entry for each of `payloads` and an assertion citing them.
+fn evidence_entries(payloads: &[Vec<u8>]) -> GraphTransaction {
+    let mut operations = Vec::new();
+    let mut cited = BTreeSet::new();
+    for payload in payloads {
+        let id = ekr_core::EvidenceId::mint();
+        cited.insert(id);
+        operations.push(GraphOperation::AddEvidence(Box::new(
+            ekr_kernel::EvidenceAddition {
+                evidence: ekr_graph::Evidence {
+                    id,
+                    source: ekr_graph::EvidenceSource::HumanStatement {
+                        identity: Some("operator".into()),
+                    },
+                    content_hash: ContentHash::of_bytes(payload),
+                    extracted_by: context().operator,
+                    observed_at: Timestamp::from_millis(5),
+                    confidence: ekr_graph::Confidence::CERTAIN,
+                },
+                payload: payload.clone(),
+            },
+        )));
+    }
+    operations.push(GraphOperation::AddAssertion(Box::new(
+        ekr_graph::Assertion {
+            id: ekr_core::AssertionId::mint(),
+            root_id: current_fixture::id(0x02),
+            subject: ekr_graph::Subject::Node(current_fixture::id(0x10)),
+            predicate: ekr_graph::Predicate::Property(current_fixture::id(0x06)),
+            object: ekr_graph::Object::Value(ekr_ontology::Value::String("copied".into())),
+            evidence: cited.clone(),
+            proposed_by: context().operator,
+            assessment: ekr_graph::Assessment::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            valid_time: ekr_graph::TemporalRange::UNBOUNDED,
+            transaction_time: ekr_graph::TransactionTime::since(Timestamp::EPOCH),
+        },
+    )));
+    GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations,
+        evidence: cited,
+        schema_version: None,
+    }
+}
+
+/// Issue #93, `ekr.store.CopyGroupStreams`: a begin copies a seed and a commit that each carry
+/// more evidence payloads than one group of a copy may carry, and no provider group of the copy
+/// appends to more than `COPY_GROUP_STREAMS` streams, so it takes no more than that many of
+/// PostgreSQL's advisory locks in one transaction. Counted through the store's group calls, not
+/// timed. The stage is the store at its head.
+#[test]
+fn a_copy_takes_a_bounded_number_of_streams_per_group() {
+    each(|fixture| {
+        let store = fixture.open();
+        let mut document = seed();
+        for n in 0..COPIED_PAYLOADS {
+            let bytes = format!("seeded statement {n}").into_bytes();
+            let evidence = ekr_graph::Evidence {
+                id: current_fixture::id(0x1_0000 + n),
+                source: ekr_graph::EvidenceSource::HumanStatement {
+                    identity: Some("operator".into()),
+                },
+                content_hash: ContentHash::of_bytes(&bytes),
+                extracted_by: context().operator,
+                observed_at: Timestamp::EPOCH,
+                confidence: ekr_graph::Confidence::CERTAIN,
+            };
+            document.graph.evidence.insert(evidence.id, evidence);
+            document
+                .evidence_payloads
+                .insert(ContentHash::of_bytes(&bytes), bytes.into());
+        }
+        store.seed(document, || SEEDED_AT).unwrap();
+        let payloads: Vec<Vec<u8>> = (0..COPIED_PAYLOADS)
+            .map(|n| format!("committed statement {n}").into_bytes())
+            .collect();
+        commit_transaction(&store, &evidence_entries(&payloads));
+        let before = store.head().unwrap().unwrap();
+
+        let groups = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let begun = {
+            let groups = groups.clone();
+            let _hook = ekr_store::on_stage_point(move |point| {
+                if let StagePoint::Group { streams } = point {
+                    groups.borrow_mut().push(streams);
+                }
+                Ok(())
+            });
+            store.begin_stage().unwrap()
+        };
+        let groups = groups.borrow();
+        let widest = groups.iter().copied().max().unwrap_or(0);
+        assert!(
+            groups.len() > 1,
+            "the begin's groups are counted: {groups:?}"
+        );
+        assert!(
+            widest <= ekr_store::COPY_GROUP_STREAMS,
+            "a group of the copy appended to {widest} streams, more than {}, of {} groups",
+            ekr_store::COPY_GROUP_STREAMS,
+            groups.len()
+        );
+        assert_eq!(begun.state, StageState::Begun);
+        let joined = store.join_stage(begun.stage_id).unwrap();
+        assert_eq!(
+            roots(&joined.head().unwrap().unwrap()),
+            roots(&before),
+            "the stage is the store at its head"
+        );
+        assert_eq!(
+            store.abandon_stage(begun.stage_id).unwrap().state,
+            StageState::Abandoned
+        );
+    });
+}

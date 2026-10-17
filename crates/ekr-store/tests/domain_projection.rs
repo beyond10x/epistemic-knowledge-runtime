@@ -623,6 +623,11 @@ const BINDINGS: &[(&str, Carrier)] = &[
         Carrier::Newtype("StoreTenant", "String"),
     ),
     ("ekr.store.ProviderKind", Carrier::Whole("ProviderKind")),
+    // Issue #93: the streams one group of a preserving copy carries.
+    (
+        "ekr.store.CopyGroupStreams",
+        Carrier::Newtype("CopyGroupStreams", "usize"),
+    ),
     ("ekr.store.StageResult", Carrier::Whole("StageResult")),
     ("ekr.store.Store", Carrier::Whole("Store")),
     ("ekr.store.Stage", Carrier::Whole("Stage")),

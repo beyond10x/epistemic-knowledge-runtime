@@ -315,6 +315,17 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     }
 }
 
+/// Whether no other initializer claimed `destination` after its seed was refused: it holds
+/// nothing, read through the provider's consistent capture. A copy that stored objects ahead of
+/// its seed (`ahead`) holds those of its own, so it was claimed only if it holds an occurrence.
+fn unclaimed<D: RevisionLog + Inventory>(destination: &D, ahead: bool) -> Result<bool, StoreError> {
+    if ahead {
+        Ok(destination.history()?.occurrences.is_empty())
+    } else {
+        destination.is_empty()
+    }
+}
+
 /// Refuses a destination that holds anything.
 fn empty<D: RevisionLog + ObjectStore + Inventory>(
     destination: &Commit<D>,
@@ -517,6 +528,28 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 destination_record_hash: publication.event.record_hash,
             });
             published_objects.extend(publication.objects.keys().copied());
+            // An occurrence whose group would append to more streams than one group of a copy
+            // carries (`ekr.store.CopyGroupStreams`, issue #93: PostgreSQL takes one advisory
+            // lock per stream) has its objects other than its record and its seed envelope
+            // stored ahead, with the class and `stored_at` it publishes them with, in groups of
+            // that bound. Its own group then finds them held and appends only its revision
+            // stream, its record and its envelope.
+            let ahead_of_it = publication.objects.len() + 1 > ekr_store::COPY_GROUP_STREAMS;
+            if ahead_of_it {
+                let envelope = match publication.event.payload {
+                    RevisionPayload::Seeded { seed_hash, .. } => Some(seed_hash),
+                    _ => None,
+                };
+                let ahead: Vec<_> = publication
+                    .objects
+                    .iter()
+                    .filter(|(hash, _)| {
+                        **hash != publication.event.record_hash && Some(**hash) != envelope
+                    })
+                    .map(|(_, object)| object)
+                    .collect();
+                destination.store.put_all(&ahead)?;
+            }
             let _published = if position == 0 {
                 // The migration claim is part of the atomic seed.
                 // A competing initializer cannot observe a seed without its claim, and a
@@ -525,7 +558,9 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 let initialized = destination.store.initialize(&publication);
                 match initialized {
                     Ok(ekr_store::Appended::Written) => ekr_store::Appended::Written,
-                    Err(error) if destination.store.is_empty()? => return Err(error.into()),
+                    Err(error) if unclaimed(&destination.store, ahead_of_it)? => {
+                        return Err(error.into())
+                    }
                     Ok(ekr_store::Appended::AlreadyRecorded) | Err(_) => {
                         return Err(migration(
                             "migrate-destination-not-empty",

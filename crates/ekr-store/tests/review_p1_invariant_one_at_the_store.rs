@@ -381,6 +381,14 @@ fn a_commit_lands_with_no_validated_transaction_anywhere_in_the_process() {
         .expect("an object write is not a commit");
     driven.insert("put");
     store
+        .put_all(&[&PublicationObject {
+            storage_class: StorageClass::Provenance,
+            stored_at: Timestamp::EPOCH,
+            bytes: b"objects stored ahead of an occurrence this test wrote".to_vec(),
+        }])
+        .expect("objects stored ahead are not a commit");
+    driven.insert("put_all");
+    store
         .store_graph(&graph, Timestamp::EPOCH)
         .expect("an archived document is not a commit");
     driven.insert("store_graph");

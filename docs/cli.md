@@ -1947,7 +1947,10 @@ at `--to` as it is, and that store is not the migrated one: the migration marks 
 in its copied seed and writes the matching completion receipt after its last write, the report included, and every verb refuses a
 store marked begun and not finished as `migrate-incomplete` (exit 1). A second `ekr migrate` to
 the same path refuses it as `migrate-destination-not-empty`: remove it, then migrate again.
-`ekr migrate` is not served in `ekr session`.
+The evidence payloads of a seed or commit carrying more than about thirty of them are written
+ahead of it, in groups of at most 32, so a migration interrupted before the copied seed lands may
+leave `--to` holding those objects and no store; it is refused the same way and removed the same
+way. `ekr migrate` is not served in `ekr session`.
 
 ### `ekr postgres-schema`
 
@@ -1986,7 +1989,10 @@ unset EKR_STAGE
   authority roots, and its `transaction` is the stage's own seed claim. A copy that does not
   land (on PostgreSQL, one whose group outlasts `pool.transaction_timeout_ms`) is refused
   `stage-copy-failed`, naming the stage: the begin abandons the stage and empties its tenant as
-  far as it can, and `ekr stage abandon <stage id>` finishes the rest.
+  far as it can, and `ekr stage abandon <stage id>` finishes the rest. No transaction of the copy
+  appends to more than 32 streams, so on PostgreSQL it takes at most 32 advisory locks at a time
+  however many evidence payloads one seed or commit of the store carries
+  ([Hosted PostgreSQL](#hosted-postgresql), lock table).
 - **Joining.** Every verb that opens an existing store joins the stage `--stage <id>` or
   `EKR_STAGE=<id>` names ([Configuration](#configuration)), `ekr session`, `ekr mcp` and
   `ekr view` included. Its reads see the store at the stage's base and the run's own commits,
@@ -3759,6 +3765,21 @@ store mutations, including checkpoint writes. A session retains ordinary proposa
 semantics and opens an application writer. Hosted readers follow database revisions, not configuration
 file inode changes; restart them to adopt changed configuration. Pool shutdown is bounded on normal
 runtime drop.
+
+**Lock table.** A write takes one transaction-scoped advisory lock for each stream it appends to:
+the revision stream, and one for each object it stores. The server's shared lock table holds about
+`max_locks_per_transaction × (max_connections + max_prepared_transactions + autovacuum_max_workers +
+max_worker_processes + max_wal_senders + 1)` entries for every session together (PostgreSQL may
+grow it into spare shared memory, so this is a floor), and a write that needs more than are free
+is refused with SQLSTATE 53200, "out of shared memory". A preserving copy (`ekr stage begin`,
+`ekr migrate`) stores the evidence payloads of a large seed or commit ahead of it in groups of at
+most 32 objects, so none of its transactions takes more than 32 of these locks, whatever the store
+holds. `ekr seed` and `ekr commit` do not: each takes one lock per evidence payload it carries,
+plus about three, in one transaction. The largest seed or commit a store takes therefore needs
+that many free entries, counted against the same table as every concurrent writer's locks; with
+the stock `max_locks_per_transaction=64` and `max_connections=100` that is a few thousand
+payloads. Raise `max_locks_per_transaction` (it takes a server restart) before seeding or
+committing more evidence payloads at once than that leaves.
 
 Initialize an empty hosted store from one captured SQLite image:
 

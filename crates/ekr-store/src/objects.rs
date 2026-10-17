@@ -6,7 +6,23 @@
 use ekr_core::{ContentHash, Timestamp};
 use serde::{Deserialize, Serialize};
 
-use crate::StoreError;
+use crate::{PublicationObject, StoreError};
+
+/// A number of streams one provider group of a preserving copy carries: `ekr.store.CopyGroupStreams`
+/// (issue #93). PostgreSQL takes one transaction-scoped advisory lock per stream of a group.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CopyGroupStreams(pub usize);
+
+impl CopyGroupStreams {
+    /// The most streams any one group of a preserving copy carries, 32, as `store.yaml` states it:
+    /// a copy needs at most this many lock-table entries per transaction, whatever the store it
+    /// copies holds.
+    pub const BOUND: Self = Self(32);
+}
+
+/// [`CopyGroupStreams::BOUND`] as a count: the most objects [`ObjectStore::put_all`] stores in one
+/// group.
+pub const COPY_GROUP_STREAMS: usize = CopyGroupStreams::BOUND.0;
 
 /// How long a payload is worth keeping: `ekr.store.StorageClass`, design § 37.
 ///
@@ -155,6 +171,22 @@ pub trait ObjectStore {
         bytes: &[u8],
         stored_at: Timestamp,
     ) -> Result<StoredObject, StoreError>;
+
+    /// Stores each of `objects` as [`Self::put`] would, with its class and `stored_at`, in
+    /// groups of at most [`COPY_GROUP_STREAMS`] objects.
+    ///
+    /// Not atomic as a whole: an error leaves the objects of the groups before it stored. The
+    /// default stores them one at a time; a provider that writes groups overrides it.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`Self::put`] answers for one of them.
+    fn put_all(&self, objects: &[&PublicationObject]) -> Result<(), StoreError> {
+        for object in objects {
+            let _ = self.put(object.storage_class, &object.bytes, object.stored_at)?;
+        }
+        Ok(())
+    }
 
     /// The bytes at `content_hash`, or `None` when this store does not hold them.
     ///
