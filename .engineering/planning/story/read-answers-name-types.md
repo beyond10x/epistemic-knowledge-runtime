@@ -24,7 +24,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 6
+revision: 7
 ---
 ## Outcome
 
@@ -32,7 +32,7 @@ Five reads that answer node type, edge type or property ids (`search`, `describe
 
 ## Why
 
-Found 2026-10-06 by the gap inventory for running a company brain entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
+Found 2026-10-06 by the gap inventory for running an organisation's knowledge store entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
 Every type, edge type and predicate was answered as a bare id, and names exist only inside `overview`'s schema history (`crates/ekr-views/src/query.rs:551-554` at 0.0.30), whose answer is very large on a big store. An agent cannot tell edge types apart. `story:resolve-by-type-name` covers names on input only. A read that answers one type id with its declaration is `story:describe-type-read`.
 
 ## Acceptance

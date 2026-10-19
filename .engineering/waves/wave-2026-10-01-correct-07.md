@@ -42,7 +42,7 @@ G merges first; V merges after G and carries G's change into its `answer` functi
   and the hosts reopen; withdrawing retained bytes appends an event to the object's stream.
 - M fixes the order of publication in `Migration::migrate_into` (objects an occurrence needs are in
   the destination before it is re-derived) after a failing test reproduces the consumer's minimal
-  case; the consumer's synthetic reproduction is `~/.cache/ekr-migrate-repro/cb3-store/`.
+  case; the consumer's synthetic reproduction is a store directory under `~/.cache/ekr-migrate-repro/`.
 - V's acceptance names all six adversary findings; it does not merge with any open.
 - 0.0.26 is cut when all six units merge and the gate is green.
 

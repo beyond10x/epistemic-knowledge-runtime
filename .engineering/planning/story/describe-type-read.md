@@ -21,7 +21,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 2
+revision: 3
 ---
 ## Outcome
 
@@ -29,7 +29,7 @@ A read, `describe_type`, answers a node type, edge type or property id with its 
 
 ## Why
 
-Found 2026-10-06 by the gap inventory for running a company brain entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
+Found 2026-10-06 by the gap inventory for running an organisation's knowledge store entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
 `describe_node` on a type id answers `NodeNotFound`, so an agent holding a type id has no way to learn what it is short of reading `overview`'s whole schema history. Split out of `story:read-answers-name-types` in plan-critic round 2.
 
 ## Acceptance
