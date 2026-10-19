@@ -8,71 +8,81 @@ relations:
 - decomposes: epic:p3-incubation-integration
 - serves: vision:o2
 - depends_on: story:supersede-node
-revision: 2
+revision: 3
 ---
 ## Context
 
-`MergeEntity { absorbed, into }` is declared (`systems/ekr/domains/kernel.yaml`, `ekr.kernel.EntityMerge`)
-and refused at commit as `unsupported-operation`. A consumer holds duplicate nodes, of the same type and
-of related types, and needs to repair them before it resumes two suspended ingestion sources.
+`MergeEntity { absorbed, into }` is declared (`systems/ekr/domains/kernel.yaml:632-638`) and refused
+as `unsupported-operation` (`crates/ekr-kernel/src/validate/structural.rs:1108-1121`,
+`apply.rs:486`). The design is `architecture-decision-record:0018-merge-and-split-identity`
+(proposed 2026-10-19), which carries the three rules the operator cleared on 2026-10-14 on
+`decision-blocker:merge-absorbed-node-fate`, `decision-blocker:merge-across-node-types` and
+`decision-blocker:split-reverting-merge-identity`.
 
-The rules were decided on 2026-10-14 and are recorded on three cleared decision-blockers:
-
-- `decision-blocker:merge-absorbed-node-fate`: after the merge, `absorbed` stays in canonical state in
-  a new `Absorbed` lifecycle state pointing at `into`; every edge and assertion naming it is rewritten
-  to `into` in the merging revision; a later merge of the survivor repoints earlier absorbed nodes to
-  the new survivor, so a reader never follows a chain.
-- `decision-blocker:merge-across-node-types`: a merge may join two nodes whose types are related
-  through `parents` (one conforms to the other); `into`'s type survives; the merge is refused while
-  `absorbed` holds a property the surviving type does not declare, and the proposer retracts it
-  first. Two unrelated types (siblings included: neither conforms to the other) are refused; they are
-  fixed first by an explicit retype or retraction.
-- `decision-blocker:split-reverting-merge-identity`: a split that reverts a recorded merge restores
-  the absorbed node's original id. This story records the merge lineage that rule needs; the split
-  itself is not in scope.
-
-The decision-blockers name "the merge and split architecture decision record"; none is in the store
-yet. This story writes it.
+Narrowed on 2026-10-19: it builds on `story:supersede-node`
+(`architecture-decision-record:0017-a-node-is-superseded-by-another`), which already gives removal
+from every head read, the supersession record, repointing with no chain, alias resolution through
+the record, the alias holders, `node-superseded` on reads, and views that skip assertions about a
+retired node or edge. This story adds what a supersession does not: the shaped `EntityMerge` and the
+gate on the bare shape; the parent-type and property rules; the in-place rewrite of edges and
+assertions, duplicate collapse, and endpoint and cardinality revalidation; the merge lineage on the
+record.
 
 ## Build (spec first)
 
-1. An architecture decision record, merge and split identity, carrying the three rules above.
-2. `systems/ekr/domains/graph.yaml` and `kernel.yaml` first, green under `ess specify validate --path
-   systems/ekr` (the pinned `ess` and the newest) before any code: the `Absorbed` lifecycle state of
-   `ekr.graph.Node` and its `merged_into` reference; the merge lineage record; `EntityMerge`'s
-   validation rules and named refusals (same node, absorbed node not present, types not related
-   through `parents`, a property the surviving type does not declare, `absorbed` already absorbed);
-   the rewrite of edges and assertions and the repoint of earlier absorbed nodes in the merging
-   revision; how reads answer an absorbed id.
-3. `ekr-kernel` validates and applies `MergeEntity`; replay applies it identically; both providers.
-4. Reads: a read of an absorbed id answers its survivor (or a refusal naming it), never stale edges.
-   Search and the views count only Present nodes.
-5. `docs/cli.md` (the operation, its refusals and a worked example), `CHANGELOG.md`.
+1. `kernel.yaml`, `graph.yaml` and `views.yaml` first, green under `ess specify validate --path
+   systems/ekr` (the pinned `ess` and the newest), with the conformance suites regenerated red:
+   - `kernel.yaml`: `ekr.kernel.EntityMerge` gains `reason` and `evidence`, encoded only when
+     present; the bare shape is documented as the P1 shape, refused `unsupported-operation` under
+     every profile; validation rules and named refusals as ADR 0018 decision 6.
+   - `graph.yaml`: the merge lineage (ADR 0018 decision 5) as an optional field of the
+     superseded-node record, encoded only when present, with its relations to `ekr.graph.Edge` and
+     `ekr.graph.Assertion`. No new `Node` lifecycle state.
+   - `views.yaml`: a merge appears in changes.
+2. `ekr-kernel` validation: the structural shape gate, keeping `structural.rs:1108-1121` byte-exact
+   for the bare shape; `reference.rs:171` plus `node-superseded` for either side; the `parents`
+   rule, undeclared properties and endpoint revalidation of rewritten edges and relation assertions
+   (`validate/types.rs:397`, `:466`, `:511`); cardinality counted after the collapse
+   (`validate/cardinality.rs:138`); property conflicts.
+3. `ekr-kernel` apply and replay, both providers: apply (`apply.rs:486`) builds the record through
+   `SupersedeNode`'s apply, then rewrites in place and fills the lineage; the asserted-edges lookup
+   is invalidated by a merge that rewrites edge-subject assertions (`replay.rs:158-182`).
+4. `ekr-views`: a `MergeEntity` arm in changes (`crates/ekr-views/src/changes.rs:487`).
+5. `ekr-sdk` `Operation` mirror and agent help list `MergeEntity` as applied
+   (`crates/ekr/src/cli/agent.rs:170-171` says it is not).
+6. `docs/cli.md` (the operation, its refusals, a worked example `crates/ekr/tests/docs_cli.rs` runs on
+   both providers), a dated design amendment to § 46, `CHANGELOG.md` under Unreleased.
 
 ## Acceptance
 
-Conformance scenarios and kernel tests, on both providers:
+Kernel tests and conformance scenarios, on both providers, fixtures in the runtime's own vocabulary:
 
-- `a-merge-of-same-type-duplicates-rewrites-every-reference`: edges and assertions naming `absorbed`
-  name `into` after the merging revision; `absorbed` reads as Absorbed, pointing at `into`.
+- `a-merge-of-same-type-duplicates-rewrites-every-reference`: no head edge or assertion names
+  `absorbed`; reading it refuses as `node-superseded` naming `into`.
+- `a-merge-keeps-assertion-ids-and-bytes`: a rewritten assertion keeps its id, evidence, assessment,
+  lifecycle and both times; at the prior revision its subject is `absorbed`.
+- `a-merge-collapses-a-duplicate-edge`, and `a-merge-refuses-conflicting-duplicate-edges`.
+- `a-merge-that-would-exceed-edge-cardinality-is-refused`, naming both edges.
 - `a-merge-into-a-parent-type-keeps-the-survivors-type`.
-- `a-merge-across-sibling-types-is-refused`: neither type conforms to the other.
-- `a-merge-is-refused-while-absorbed-holds-an-undeclared-property`; after the retraction it commits.
-- `a-merge-of-a-survivor-repoints-earlier-absorbed-nodes`: no chain is left to follow.
-- `a-merge-replays-to-identical-roots`: reopen and full replay give the same roots.
-- `a-merge-of-an-absorbed-node-is-refused`.
+- `a-merge-into-a-parent-type-revalidates-endpoints`: a child-only end refuses as
+  `edge-endpoint-type`.
+- `a-merge-across-sibling-types-is-refused`.
+- `a-merge-is-refused-while-absorbed-holds-an-undeclared-property`; after the property is cleared in
+  an earlier revision, it commits.
+- `a-merge-moves-absent-properties-and-refuses-conflicting-ones`.
+- `a-merge-records-its-lineage`: each rewritten edge end, collapsed edge, retired joining edge,
+  rewritten assertion field with its prior reference, and moved property.
+- `a-merge-of-a-survivor-repoints-earlier-records`.
+- `a-merge-of-an-absorbed-node-is-refused`, and a merge into one is refused too.
+- `a-merged-alias-resolves-to-the-survivor`.
+- `a-bare-merge-keeps-its-retained-verdict`: the base-era fixture reopens unedited
+  (`crates/ekr-kernel/tests/base_era_v1_replay.rs`), and the bare shape is refused with P1's message
+  under every profile.
+- `a-merge-is-refused-by-name`: one case per refusal.
+- `a-merge-replays-to-identical-roots`, with and without `--full-replay`; a store that never merges
+  keeps byte-identical roots.
 
 ## Out of scope
 
-`SplitEntity` (its identity rule is recorded here only as the lineage it needs); a retype operation;
-fuzzy duplicate detection.
-
-## Builds on SupersedeNode
-
-Added 2026-10-19 with `architecture-decision-record:0017-a-node-is-superseded-by-another`
-(accepted): this story depends on `story:supersede-node`, which removes a duplicate from every head
-read, records it with a pointer to the kept node and retires its edges with it. A merge builds on
-that record: it is a supersession whose edges and assertions are rewritten to `into` instead of
-retired, under the parent-type rule above. The `Absorbed` state named on
-`decision-blocker:merge-absorbed-node-fate` is that supersession record. Build steps 2–4 below are
-narrowed accordingly when this story is scoped.
+`SplitEntity`, its record and a read of the lineage (ADR 0018 decision 4 fixes only its identity
+rule); `RetypeNode`; more than one pair per operation; bulk or predicate merges; duplicate detection.
