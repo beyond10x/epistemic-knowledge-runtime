@@ -1098,7 +1098,9 @@ Each item carries the assertion as the projection renders it, its subject (`subj
 `subject_name` (a node's canonical name or a type's name), `predicate_name` (the property's or the
 relation's name), `object_name` (a node object's canonical name), each left out where there is
 none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
-else `base64`. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
+else `base64`. An assertion about a [superseded node](#a-node-superseded-by-another) is still
+sampled: its names are the node's as its record holds them, and `subject_superseded_by` names the
+node it is superseded by, left out for every other subject. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
 hold as `ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
 
 ### `ekr fact-quality`

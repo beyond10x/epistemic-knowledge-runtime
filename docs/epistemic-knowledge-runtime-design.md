@@ -6469,7 +6469,15 @@ a retired edge without a filter of its own, and a reader nobody updated fails cl
   `ChangesSince` lists a supersession as a `NodeSuperseded` change of the node, carrying its type,
   name and evidence and, in `target`, the node it is superseded by — `target` is an existing field
   of `ekr.graph-changes/1` typed as a node, so no format moves — and `ChangesListed` counts them in
-  `nodes_superseded`. A range holding no supersession answers exactly as before.
+  `nodes_superseded`. A range holding no supersession answers exactly as before. `DrawFactSample`
+  still samples an assertion about a superseded node: its type and names are read from the
+  record, and `subject_superseded_by` names the node it is superseded by, omitted for every other
+  subject.
+- **Extraction.** `ekr apply-extraction` decides whether a `replaces: true` fact has a value to
+  replace on the nodes `ekr resolve` answers, a superseded key's kept node included.
+- **In the same transaction.** A `NodeRef` value of any operation naming a node the transaction
+  supersedes is `superseded-node-named-in-transaction`, as an endpoint is; an operation naming an
+  edge the transaction retires is refused by that code alone, not also as `unresolved-edge`.
 - **The CLI and the SDK.** `ekr operations` lists `SupersedeNode` as applied; the SDK's
   transaction document builds it, its evidence in the manifest; `ekr snapshot` prints the records
   under `superseded`.

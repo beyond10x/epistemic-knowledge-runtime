@@ -22,7 +22,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `superseded-node-named-in-transaction`; a later operation naming a superseded node or a retired
   edge is `node-superseded`, naming `by`. Applied under every validation profile. The SDK builds
   it (`NodeSupersession`) and reads `SnapshotGraph::superseded` and `ChangeKind::NodeSuperseded`.
-  A store that never supersedes keeps its roots and checkpoint bytes.
+  A store that never supersedes keeps its roots and checkpoint bytes. `ekr sample` names a
+  superseded subject's `subject_superseded_by` (SDK `SampledFact::subject_superseded_by`), and
+  `ekr apply-extraction` replaces a value under a superseded key on the node kept.
 
 ## [0.0.38] — 2026-10-17
 

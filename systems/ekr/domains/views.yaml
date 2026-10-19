@@ -2718,6 +2718,13 @@ types:
   # `subject_type` conforms to and that does; for a Relation, the edge type's name; omitted where
   # the revision's ontology declares neither. `object_name` is a Node object's
   # canonical name, omitted for any other object. `evidence` is every record the assertion cites.
+  # An assertion about a node a supersession of the revision holds is kept and still sampled
+  # (story:supersede-node, ADR 0017 decision 3): its `subject_type`, `subject_name` and
+  # `predicate_name` are read from the supersession record, which holds the node as it was, as is
+  # an `object_name` naming such a node or a subject edge retired with one; and
+  # `subject_superseded_by` names the node the subject is superseded by, the pointer a reader
+  # follows. It is omitted for every other subject, so a sample of a revision without a
+  # supersession is the bytes it was.
   - name: ekr.views.SampledFact
     kind: struct
     fields:
@@ -2729,6 +2736,8 @@ types:
         type: ekr.ontology.TypeId
       - name: subject_name
         type: Optional<String>
+      - name: subject_superseded_by
+        type: Optional<ekr.graph.NodeId>
       - name: predicate_name
         type: Optional<String>
       - name: object_name

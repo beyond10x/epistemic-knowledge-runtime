@@ -12,7 +12,7 @@
 
 use std::collections::BTreeSet;
 
-use ekr_core::{AssertionId, RevisionNumber, TypeId};
+use ekr_core::{AssertionId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{AssertionLifecycle, CanonicalDependency, Object, Predicate, Subject};
 use ekr_kernel::{CommitError, Runtime, VerifiedRead};
 use ekr_ontology::Ontology;
@@ -137,6 +137,11 @@ struct SampledFact {
     subject_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     subject_name: Option<String>,
+    /// For a node subject a supersession of the revision holds, the node it is superseded by
+    /// (`story:supersede-node`); omitted otherwise, so a sample of a revision without one is the
+    /// bytes it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subject_superseded_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     predicate_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -194,10 +199,29 @@ pub fn draw_sample(
 /// The type a subject is of: a node's type, an edge's type, or a Type subject's own id.
 fn subject_type(read: &VerifiedRead, subject: &Subject) -> Option<TypeId> {
     match subject {
-        Subject::Node(node) => read.graph.nodes.get(&node.id()).map(|node| node.type_id),
-        Subject::Edge(edge) => read.graph.edges.get(&edge.id()).map(|edge| edge.type_id),
+        Subject::Node(node) => held_node(&read.graph, node.id()).map(|node| node.type_id),
+        Subject::Edge(edge) => read
+            .graph
+            .edges
+            .get(&edge.id())
+            .or_else(|| {
+                read.graph
+                    .superseded
+                    .values()
+                    .find_map(|record| record.edges.get(&edge.id()))
+            })
+            .map(|edge| edge.type_id),
         Subject::Type(type_id) => Some(*type_id),
     }
+}
+
+/// The node `node` names in `graph`: one it holds, or a superseded one as its supersession record
+/// holds it (`story:supersede-node`), so a fact about it still names its type and name.
+fn held_node(graph: &ekr_graph::CanonicalGraph, node: NodeId) -> Option<&ekr_graph::Node> {
+    graph
+        .nodes
+        .get(&node)
+        .or_else(|| graph.superseded.get(&node).map(|record| &record.node))
 }
 
 /// The name the ontology gives the type `type_id`, a node type's or an edge type's.
@@ -305,10 +329,7 @@ pub fn sample(
                 Subject::Node(node) => (
                     "Node",
                     node.id().to_string(),
-                    graph
-                        .nodes
-                        .get(&node.id())
-                        .map(|node| node.canonical_name.clone()),
+                    held_node(graph, node.id()).map(|node| node.canonical_name.clone()),
                 ),
                 Subject::Edge(edge) => ("Edge", edge.id().to_string(), None),
                 Subject::Type(type_id) => {
@@ -322,11 +343,14 @@ pub fn sample(
                 }
                 Predicate::Relation(edge_type) => type_name(ontology, edge_type),
             };
+            let subject_superseded_by = match &assertion.subject {
+                Subject::Node(node) => graph.superseded_by(node.id()).map(|by| by.to_string()),
+                Subject::Edge(_) | Subject::Type(_) => None,
+            };
             let object_name = match &assertion.object {
-                Object::Node(node) => graph
-                    .nodes
-                    .get(&node.id())
-                    .map(|node| node.canonical_name.clone()),
+                Object::Node(node) => {
+                    held_node(graph, node.id()).map(|node| node.canonical_name.clone())
+                }
                 Object::Value(_) | Object::Type(_) => None,
             };
             let mut evidence: Vec<SampledEvidence> = assertion
@@ -360,6 +384,7 @@ pub fn sample(
                     .map(|type_id| type_id.to_string())
                     .unwrap_or_default(),
                 subject_name,
+                subject_superseded_by,
                 predicate_name,
                 object_name,
                 assertion: document::assertion(assertion),

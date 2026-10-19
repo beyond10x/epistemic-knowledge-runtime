@@ -441,8 +441,12 @@ impl<'c, 'g> Known<'c, 'g> {
 
     /// Refuses `edge` if nothing will hold it: as `node-superseded` when it was retired with a
     /// superseded node, and as `unresolved-edge` otherwise.
+    ///
+    /// An edge a `SupersedeNode` of the same transaction retires is held by the head: an
+    /// operation naming it is refused once, by the structural check that owns that question
+    /// (`superseded-node-named-in-transaction`), not also here.
     fn edge(&self, tx: &GraphTransaction, edge: EdgeId, issues: &mut Vec<ValidationIssue>) {
-        if self.candidate.edges.contains_key(&edge) {
+        if self.candidate.edges.contains_key(&edge) || self.candidate.retires(&edge) {
             return;
         }
         if let Some((node, by)) = self.retired(edge) {

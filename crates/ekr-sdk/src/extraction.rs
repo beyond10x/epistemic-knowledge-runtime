@@ -815,21 +815,25 @@ pub fn apply_with<T: Transport + ?Sized>(
         }
     }
     // The nodes `ekr resolve` answers a typed reference with: of its type, holding one of its
-    // aliases.
+    // aliases; and for a superseded node that matches so, the node its record names
+    // (`story:supersede-node`), as `ekr_integrate::resolve` answers.
     let holds = |type_id: TypeId, aliases: &[String], property: PropertyId| {
-        graph
-            .nodes
+        let matches = |node: &&crate::read::SnapshotNode| {
+            node.root_id == graph.root.id
+                && node.type_id == type_id
+                && node.aliases.iter().any(|alias| aliases.contains(alias))
+        };
+        let held = graph.nodes.values().filter(matches).map(|node| node.id);
+        let kept = graph
+            .superseded
             .values()
-            .filter(|node| {
-                node.root_id == graph.root.id
-                    && node.type_id == type_id
-                    && node.aliases.iter().any(|alias| aliases.contains(alias))
-            })
-            .any(|node| {
-                active
-                    .get(&(node.id, property))
-                    .is_some_and(|held| !held.is_empty())
-            })
+            .filter(|record| matches(&&record.node))
+            .map(|record| record.by);
+        held.chain(kept).any(|node| {
+            active
+                .get(&(node, property))
+                .is_some_and(|held| !held.is_empty())
+        })
     };
     let plan = Plan::of(
         document,

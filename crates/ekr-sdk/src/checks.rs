@@ -3,7 +3,7 @@
 
 use std::num::NonZeroUsize;
 
-use ekr_core::{AssertionId, EvidenceId, TypeId};
+use ekr_core::{AssertionId, EvidenceId, NodeId, TypeId};
 use serde::{Deserialize, Serialize};
 
 use crate::read::{OneShotReader, ReadError, Reader, ViewAssertion};
@@ -50,6 +50,9 @@ pub struct SampledFact {
     /// The node or type name, absent for an edge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject_name: Option<String>,
+    /// For a superseded node subject, the node it is superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_superseded_by: Option<NodeId>,
     /// The predicate's declared name, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub predicate_name: Option<String>,

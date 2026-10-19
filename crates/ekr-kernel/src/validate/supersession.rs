@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{EdgeId, NodeId};
 use ekr_graph::{GraphSnapshot, Object, Subject};
+use ekr_ontology::Value;
 
 use super::issue;
 use crate::transaction::NodeSupersession;
@@ -39,11 +40,59 @@ pub(crate) fn supersessions(tx: &GraphTransaction) -> impl Iterator<Item = &Node
         })
 }
 
-/// The nodes and edges `operation` names, for an operation other than a `SupersedeNode`.
+/// Every node a `NodeRef` inside `value` names, at any depth, pushed onto `into`.
+fn referenced(value: &Value, into: &mut Vec<NodeId>) {
+    match value {
+        Value::NodeRef(node) => into.push(*node),
+        Value::List(items) => {
+            for item in items {
+                referenced(item, into);
+            }
+        }
+        Value::Record(fields) => {
+            for field in fields.values() {
+                referenced(field, into);
+            }
+        }
+        Value::String(_)
+        | Value::Boolean(_)
+        | Value::Integer(_)
+        | Value::Float(_)
+        | Value::Decimal(_)
+        | Value::Timestamp(_)
+        | Value::Duration(_)
+        | Value::Enum(_) => {}
+    }
+}
+
+/// Every node the `NodeRef`s of `values` name.
+fn referenced_in<'a>(values: impl IntoIterator<Item = &'a Value>) -> Vec<NodeId> {
+    let mut nodes = Vec::new();
+    for value in values {
+        referenced(value, &mut nodes);
+    }
+    nodes
+}
+
+/// The nodes and edges `operation` names, for an operation other than a `SupersedeNode`: as an
+/// endpoint, a target or a subject, and as a `NodeRef` inside any value it writes, which names a
+/// node as surely as an edge does (design § 110.3).
 fn named(operation: &GraphOperation) -> (Vec<NodeId>, Vec<EdgeId>) {
     match operation {
-        GraphOperation::UpdateProperty(mutation) => (vec![mutation.node], Vec::new()),
-        GraphOperation::CreateEdge(draft) => (vec![draft.source, draft.target], Vec::new()),
+        GraphOperation::CreateNode(draft) => (
+            referenced_in(draft.properties.values().flatten()),
+            Vec::new(),
+        ),
+        GraphOperation::UpdateProperty(mutation) => {
+            let mut nodes = vec![mutation.node];
+            nodes.extend(referenced_in(&mutation.values));
+            (nodes, Vec::new())
+        }
+        GraphOperation::CreateEdge(draft) => {
+            let mut nodes = vec![draft.source, draft.target];
+            nodes.extend(referenced_in(draft.properties.values().flatten()));
+            (nodes, Vec::new())
+        }
         GraphOperation::DeleteEdge(edge) => (Vec::new(), vec![*edge]),
         GraphOperation::AddAssertion(assertion) => {
             let mut nodes = Vec::new();
@@ -53,16 +102,23 @@ fn named(operation: &GraphOperation) -> (Vec<NodeId>, Vec<EdgeId>) {
                 Subject::Edge(edge) => edges.push(edge),
                 Subject::Type(_) => {}
             }
-            if let Object::Node(node) = assertion.object {
-                nodes.push(node);
+            match &assertion.object {
+                Object::Node(node) => nodes.push(*node),
+                Object::Value(value) => referenced(value, &mut nodes),
+                Object::Type(_) => {}
             }
             (nodes, edges)
         }
         GraphOperation::MergeEntity(merge) => (vec![merge.absorbed, merge.into], Vec::new()),
-        GraphOperation::Invoke { node, .. } => (vec![*node], Vec::new()),
+        GraphOperation::Invoke {
+            node, arguments, ..
+        } => {
+            let mut nodes = vec![*node];
+            nodes.extend(referenced_in(arguments.values()));
+            (nodes, Vec::new())
+        }
         GraphOperation::AddAlias(addition) => (vec![addition.node], Vec::new()),
-        GraphOperation::CreateNode(_)
-        | GraphOperation::RetractAssertion(_)
+        GraphOperation::RetractAssertion(_)
         | GraphOperation::SupersedeAssertion(_)
         | GraphOperation::DefineNodeType(_)
         | GraphOperation::DefineEdgeType(_)
