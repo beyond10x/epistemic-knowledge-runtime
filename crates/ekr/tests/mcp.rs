@@ -2664,3 +2664,70 @@ fn an_aliased_argument_answers_what_its_input_answers() {
         server.close();
     }
 }
+
+// a superseded node (story:supersede-node) ----------------------------------------------------
+
+/// `story:supersede-node`: once Acme is superseded by Globex, `describe_node` under both formats
+/// and `expand` of Acme are refused as `ekr.views.NodeSuperseded` naming Globex, body for body as
+/// `GET /node/<id>` and `GET /expand` refuse them; `/overview` and `/search` hold no Acme; and
+/// revision 1, before the supersession, still describes it. On both providers.
+#[test]
+fn a_superseded_node_is_refused_by_name_on_every_surface_and_left_out_of_head_reads() {
+    const SUPERSESSION: &str = "00000000-0000-4000-8000-000000000904";
+    let document = format!(
+        "format: ekr.transaction-document/2\ntransaction:\n  id: {SUPERSESSION}\n  proposer: \
+         {OPERATOR}\n  operations:\n  - !SupersedeNode\n    node: {ACME}\n    by: {GLOBEX}\n    \
+         reason: Acme and Globex are one organization\n    evidence:\n    - {ACME_EVIDENCE}\n  \
+         evidence:\n  - {ACME_EVIDENCE}\n"
+    );
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.commit("create.yaml");
+        world.file("supersede.yaml", &document);
+        world.commit("supersede.yaml");
+
+        let mut server = world.server();
+        let view = world.view();
+        for (tool, arguments, path) in [
+            ("describe_node", json!({"node": ACME}), detail_v2(ACME, "")),
+            (
+                "describe_node",
+                json!({"node": ACME, "full": true}),
+                format!("/node/{ACME}?format=ekr.node-detail/1"),
+            ),
+            (
+                "expand",
+                json!({"seeds": [ACME], "depth": 1, "limit": 10}),
+                format!("/expand?seeds={ACME}&depth=1&limit=10&edges=200&format=ekr.graph-slice/2"),
+            ),
+        ] {
+            let refusal = server.refusal(tool, arguments.clone());
+            let (status, body) = view.get(&path);
+            assert_eq!(status, 404, "{backend}: GET {path}");
+            assert_eq!(
+                refusal,
+                serde_json::from_slice::<Value>(&body).unwrap(),
+                "{backend}: {tool} {arguments} is GET {path}"
+            );
+            assert_eq!(
+                refusal["refusal"], "ekr.views.NodeSuperseded",
+                "{backend}: {refusal}"
+            );
+            assert!(
+                refusal["message"].as_str().unwrap().contains(GLOBEX),
+                "{backend}: the refusal names the node kept: {refusal}"
+            );
+        }
+        for path in ["/overview", "/search?q=Acme&format=ekr.node-matches/3"] {
+            let body = view.served(path);
+            assert!(
+                !body.contains(ACME),
+                "{backend}: GET {path} holds Acme: {body}"
+            );
+        }
+        let earlier = view.served(&format!("/node/{ACME}?revision=1&format=ekr.node-detail/1"));
+        assert!(earlier.contains(ACME), "{backend}: {earlier}");
+        drop(view);
+        server.close();
+    }
+}

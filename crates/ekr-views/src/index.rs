@@ -196,8 +196,18 @@ impl Index {
         let mut about_node: HashMap<u32, Vec<AssertionId>> = HashMap::new();
         let mut about_edge: HashMap<u32, Vec<AssertionId>> = HashMap::new();
         let mut referencing: HashMap<u32, Vec<AssertionId>> = HashMap::new();
+        // An assertion about a superseded node, or an edge retired with one, is kept by the
+        // kernel and listed under nothing here (`story:supersede-node`); any other subject the
+        // revision does not hold is still inconsistent.
+        let retired: std::collections::HashSet<EdgeId> = graph
+            .superseded
+            .values()
+            .flat_map(|record| record.edges.keys().copied())
+            .collect();
         for claim in graph.assertions.values() {
             match &claim.subject {
+                Subject::Node(node) if graph.superseded.contains_key(&node.id()) => {}
+                Subject::Edge(edge) if retired.contains(&edge.id()) => {}
                 Subject::Node(node) => about_node
                     .entry(held(node.id(), &format!("assertion {}", claim.id))?)
                     .or_default()

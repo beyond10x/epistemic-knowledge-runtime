@@ -481,6 +481,8 @@ const PROJECTIONS: &[(&str, &[&str])] = &[
     ("ekr.graph.EvidenceSourceProjection", &["EvidenceSource"]),
     ("ekr.graph.EvidenceRecord", &["Evidence"]),
     ("ekr.graph.GraphDocumentBodyProjection", &["CanonicalGraph"]),
+    ("ekr.graph.SupersededNodeRecord", &["SupersededNode"]),
+    ("ekr.graph.SupersededNode", &["SupersededNode", "Node"]),
     (
         "ekr.graph.GraphDocumentV2Projection",
         &["store::GraphEnvelope"],

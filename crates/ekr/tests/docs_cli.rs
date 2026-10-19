@@ -682,7 +682,7 @@ const KIND_PREFIXES: [&str; 12] = [
 fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
     let page = page();
     let binary = binary_kinds();
-    assert_eq!(binary.len(), 17, "ekr operations: {binary:?}");
+    assert_eq!(binary.len(), 18, "ekr operations: {binary:?}");
 
     let table: BTreeMap<String, &'static str> = rows(section(&page, "### Operation kinds"))
         .iter()

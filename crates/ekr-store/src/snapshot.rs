@@ -10,7 +10,7 @@ use ekr_core::{
 };
 use ekr_graph::{
     Assertion, AttachedEvidence, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence,
-    GraphRoot, InadmissibleValue, Node, Object, Space, Subject,
+    GraphRoot, InadmissibleValue, Node, Object, Space, Subject, Superseded, SupersededNode,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -43,6 +43,11 @@ pub struct GraphDocument {
     /// a graph without attachments is written as the bytes it was written as before the field
     /// existed. An attachment carries no value, so it has no transient instantiation either.
     pub attachments: Attachments,
+    /// The nodes superseded by another, by the superseded node's id (`story:supersede-node`),
+    /// each with the edges retired with it, in the transient instantiation as nodes and edges
+    /// are. Omitted from the document when empty, so a graph without a supersession is written as
+    /// the bytes it was written as before the field existed.
+    pub superseded: BTreeMap<NodeId, SupersededNode<Value>>,
 }
 
 // The remote derive preserves the useful in-memory graph shape while requiring a complete,
@@ -66,6 +71,12 @@ struct GraphFields {
         deserialize_with = "unique_attachments"
     )]
     attachments: Attachments,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "ekr_core::decode::unique_map"
+    )]
+    superseded: BTreeMap<NodeId, SupersededNode<Value>>,
 }
 
 // Keep the map and each nested set strict without changing their serialized shape.
@@ -117,6 +128,8 @@ struct BorrowedGraphFields<'a> {
     evidence: &'a BTreeMap<EvidenceId, Evidence>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     attachments: &'a Attachments,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    superseded: &'a Superseded,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +181,7 @@ impl GraphDocument {
             assertions,
             evidence,
             attachments,
+            superseded,
         } = graph;
         BorrowedGraphEnvelope {
             format: GraphFormat::Current,
@@ -179,6 +193,7 @@ impl GraphDocument {
                 assertions,
                 evidence,
                 attachments,
+                superseded,
             },
         }
         .serialize(serializer)
@@ -211,6 +226,11 @@ impl GraphDocument {
                 .collect(),
             evidence: graph.evidence.clone(),
             attachments: graph.attachments.clone(),
+            superseded: graph
+                .superseded
+                .iter()
+                .map(|(id, record)| (*id, widen_superseded(record)))
+                .collect(),
         }
     }
 
@@ -394,6 +414,23 @@ fn widen_edge(edge: &Edge<CanonicalValue>) -> Edge<Value> {
             .iter()
             .map(|(id, value)| (*id, value.iter().cloned().map(Value::from).collect()))
             .collect(),
+    }
+}
+
+/// A supersession record, as a candidate's shape: its node and edges widened as any are, and its
+/// two references losing their type on the way out, as an edge's ends do.
+fn widen_superseded(record: &SupersededNode<CanonicalValue>) -> SupersededNode<Value> {
+    SupersededNode {
+        node: widen_node(&record.node),
+        edges: record
+            .edges
+            .iter()
+            .map(|(id, edge)| (*id, widen_edge(edge)))
+            .collect(),
+        by: record.by.node(),
+        revision: record.revision,
+        reason: record.reason.clone(),
+        evidence: record.evidence.iter().map(|held| held.id()).collect(),
     }
 }
 

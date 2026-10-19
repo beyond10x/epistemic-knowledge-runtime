@@ -406,7 +406,19 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
     let mut by_edge: BTreeMap<EdgeId, Vec<&Assertion>> = BTreeMap::new();
     let mut by_type: BTreeMap<TypeId, Vec<&Assertion>> = BTreeMap::new();
     let mut listed = 0_u64;
+    // An assertion about a superseded node, or an edge retired with one, is listed under nothing
+    // (`story:supersede-node`); any other subject the revision does not hold is inconsistent.
+    let retired: BTreeSet<EdgeId> = graph
+        .superseded
+        .values()
+        .flat_map(|record| record.edges.keys().copied())
+        .collect();
     for claim in graph.assertions.values() {
+        match claim.subject {
+            Subject::Node(node) if graph.superseded.contains_key(&node.id()) => continue,
+            Subject::Edge(edge) if retired.contains(&edge.id()) => continue,
+            _ => {}
+        }
         let held = match claim.subject {
             Subject::Node(node) if graph.nodes.contains_key(&node.id()) => {
                 by_node.entry(node.id()).or_default().push(claim);

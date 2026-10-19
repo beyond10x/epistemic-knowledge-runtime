@@ -89,6 +89,27 @@ pub struct SnapshotGraph {
     /// in evidence-id order. Empty, and absent from the document, when there is none.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub attachments: BTreeMap<AssertionId, Vec<SnapshotAttachment>>,
+    /// The nodes superseded by another, by the superseded node's id: each with the edges retired
+    /// with it. Empty, and absent from the document, when there is none.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub superseded: BTreeMap<NodeId, SnapshotSupersededNode>,
+}
+
+/// A node a `SupersedeNode` retired, as its supersession record holds it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotSupersededNode {
+    /// The node, as the head held it before.
+    pub node: SnapshotNode,
+    /// The edges retired with it, by id.
+    pub edges: BTreeMap<EdgeId, SnapshotEdge>,
+    /// The node it is superseded by, which the revision holds.
+    pub by: NodeId,
+    /// The revision that superseded it.
+    pub revision: u64,
+    /// Why.
+    pub reason: String,
+    /// The evidence the supersession rests on, in id order.
+    pub evidence: Vec<EvidenceId>,
 }
 
 /// One piece of evidence attached to an assertion after it was added.

@@ -22,6 +22,7 @@ fn empty_document() -> GraphDocument {
         assertions: BTreeMap::new(),
         evidence: BTreeMap::new(),
         attachments: BTreeMap::new(),
+        superseded: BTreeMap::new(),
     }
 }
 

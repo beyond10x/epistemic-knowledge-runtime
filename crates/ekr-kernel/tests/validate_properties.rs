@@ -394,6 +394,7 @@ fn empty_graph() -> CanonicalGraph {
     );
     CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: POOL.roots[0],
             space: Space::Canonical,
@@ -551,7 +552,8 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_)
         | GraphOperation::AttachEvidence(_)
-        | GraphOperation::CiteEvidence(_) => false,
+        | GraphOperation::CiteEvidence(_)
+        | GraphOperation::SupersedeNode(_) => false,
     }
 }
 
@@ -633,6 +635,7 @@ fn counted_graph(nodes: &[HeldNode], edges: &[HeldEdge]) -> CanonicalGraph {
     };
     let mut graph = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: c.root,
             space: Space::Canonical,

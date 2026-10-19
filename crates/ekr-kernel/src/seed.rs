@@ -7,7 +7,7 @@ use ekr_core::{
 };
 use ekr_graph::{
     Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Edge, EvidenceSource,
-    GraphSnapshot, Node, Object, Space, Subject,
+    GraphSnapshot, Node, Object, Space, Subject, SupersededNode,
 };
 use ekr_ontology::{Ontology, OntologyDocument, Value};
 use ekr_store::{Entity, GraphDocument, MembraneError, RetainedHistory, StorageClass, StoreError};
@@ -784,6 +784,10 @@ fn admitted(
     if !document.attachments.is_empty() {
         return invalid("seed-attachments");
     }
+    // A supersession is made by a commit, at a revision after the seed (design § 110.4).
+    if !document.superseded.is_empty() {
+        return invalid("seed-superseded");
+    }
     if context.operator == context.validator {
         return invalid("proposer-is-validator");
     }
@@ -862,6 +866,7 @@ fn admitted(
     // invariant validators. No ValidatedTransaction is sealed and no against-revision exists.
     let mut initial = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: document.root,
         revision: RevisionNumber::SEED,
         ontology: ontology.clone(),
@@ -957,6 +962,7 @@ fn admitted(
         .map_err(narrow_error)?;
     Ok(CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: document.root,
         revision: RevisionNumber::SEED,
         ontology,
@@ -1036,6 +1042,27 @@ pub(crate) fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, Mem
         source: CanonicalRef::new(edge.source),
         target: CanonicalRef::new(edge.target),
         properties,
+    })
+}
+
+/// A candidate's supersession record, as canonical state — or the refusal that says why it is
+/// not: its node and edges narrowed as any are, and its references minted. Only a replay
+/// checkpoint's head graph carries one, and the caller holds that graph to the revision's
+/// knowledge root.
+pub(crate) fn narrow_superseded(
+    record: SupersededNode<Value>,
+) -> Result<SupersededNode<CanonicalValue>, MembraneError> {
+    Ok(SupersededNode {
+        node: narrow_node(record.node)?,
+        edges: record
+            .edges
+            .into_iter()
+            .map(|(id, edge)| Ok((id, narrow_edge(edge)?)))
+            .collect::<Result<_, MembraneError>>()?,
+        by: CanonicalRef::new(record.by),
+        revision: record.revision,
+        reason: record.reason,
+        evidence: record.evidence.into_iter().map(CanonicalRef::new).collect(),
     })
 }
 

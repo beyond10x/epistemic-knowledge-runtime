@@ -38,7 +38,13 @@ types:
         type: List<String>
 
   # The one canonical node a reference resolved to: many references to one node, a reference, no
-  # ownership (`ekr.graph.Node` identity `node_id`).
+  # ownership (`ekr.graph.Node` identity `node_id`). A candidate is a node of the snapshot's
+  # canonical root whose type is exactly the reference's and one of whose aliases is one of the
+  # reference's, byte for byte; or, for a superseded node of that root matching the same way
+  # (ekr.graph.SupersededNode, story:supersede-node), the node its record names (`by`), whatever
+  # that node's own type, so a reference to the old key resolves to the kept node. Candidates are
+  # deduplicated: a node reached both ways, or through two superseded nodes, is one candidate, and
+  # a superseded node is never one.
   - name: ekr.integrate.ResolvedReference
     kind: struct
     fields:

@@ -64,6 +64,28 @@ const UNRESOLVED_EVIDENCE: &str = "unresolved-evidence";
 /// A graph root that is not the one the snapshot reads.
 const UNRESOLVED_GRAPH_ROOT: &str = "unresolved-graph-root";
 
+/// A node a committed supersession retired, or an edge retired with one, named by an operation
+/// (`story:supersede-node`, design § 110.3). It is not `unresolved-node`: the node exists, in
+/// its record, and the message names the node to use instead.
+const NODE_SUPERSEDED: &str = "node-superseded";
+
+/// A `SupersedeNode` of a node canonical state does not hold.
+const SUPERSEDE_UNKNOWN_NODE: &str = "supersede-unknown-node";
+
+/// A `SupersedeNode` of a node a committed supersession already retired.
+const NODE_ALREADY_SUPERSEDED: &str = "node-already-superseded";
+
+/// A `SupersedeNode` whose `by` canonical state does not hold and the transaction does not
+/// create.
+const SUPERSEDE_BY_UNKNOWN_NODE: &str = "supersede-by-unknown-node";
+
+/// A `SupersedeNode` whose `by` a committed supersession already retired.
+const SUPERSEDE_BY_SUPERSEDED_NODE: &str = "supersede-by-superseded-node";
+
+/// A `SupersedeNode` resting on evidence canonical state does not retain and no `AddEvidence` of
+/// the transaction adds.
+const SUPERSESSION_EVIDENCE_UNKNOWN: &str = "supersession-evidence-unknown";
+
 /// Validator 2: reference existence.
 pub struct Reference;
 
@@ -232,16 +254,81 @@ impl Check for Reference {
                 | GraphOperation::DefineEdgeType(_)
                 | GraphOperation::ModifyProperty(_)
                 | GraphOperation::WidenEdgeType(_) => {}
+                // The node retired is one the head holds, looked up in canonical state alone: a
+                // node the same transaction creates is not held yet (design § 110.3). The node
+                // kept is held or created.
+                GraphOperation::SupersedeNode(supersession) => {
+                    let (node, by) = (supersession.node, supersession.by);
+                    if let Some(kept) = known.state.superseded_by(node) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            NODE_ALREADY_SUPERSEDED,
+                            format!(
+                                "node {node} is already superseded by node {kept}; a superseded \
+                                 node is superseded once"
+                            ),
+                        ));
+                    } else if !known.state.nodes.contains_key(&node) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            SUPERSEDE_UNKNOWN_NODE,
+                            format!(
+                                "node {node} is not in the graph; a supersession retires a node a \
+                                 committed revision holds"
+                            ),
+                        ));
+                    }
+                    if let Some(kept) = known.state.superseded_by(by) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            SUPERSEDE_BY_SUPERSEDED_NODE,
+                            format!(
+                                "node {node} is superseded by node {by}, which is itself \
+                                 superseded by node {kept}; supersede node {node} by node {kept}"
+                            ),
+                        ));
+                    } else if !known.candidate.nodes.contains_key(&by) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            SUPERSEDE_BY_UNKNOWN_NODE,
+                            format!(
+                                "node {node} is superseded by node {by}, which is not in the \
+                                 graph and which the transaction does not create"
+                            ),
+                        ));
+                    }
+                    for evidence in &supersession.evidence {
+                        if !known.holds_evidence(evidence) {
+                            issues.push(issue(
+                                tx,
+                                ValidatorName::Reference,
+                                SUPERSESSION_EVIDENCE_UNKNOWN,
+                                format!(
+                                    "the supersession of node {node} rests on evidence \
+                                     {evidence}, which canonical state does not retain and no \
+                                     AddEvidence of the transaction adds"
+                                ),
+                            ));
+                        }
+                    }
+                }
             }
         }
 
         // Retraction retains an assertion and its provenance; it does not erase its references.
         // Only an assertion about an edge the candidate does not hold is refused, so only those
         // edges' assertions are read, and they are refused in the order canonical state holds them.
+        // An edge a supersession retires — of this transaction, or held in a record of canonical
+        // state — is kept with its node, and so are the assertions about it (design § 110.2).
         let mut unresolved: Vec<(AssertionId, EdgeId)> = candidate
             .asserted_edges()
             .iter()
             .filter(|(edge, _)| !candidate.edges.contains_key(edge))
+            .filter(|(edge, _)| !candidate.retires(edge) && known.retired(**edge).is_none())
             .flat_map(|(edge, assertions)| assertions.iter().map(|assertion| (*assertion, *edge)))
             .collect();
         unresolved.sort_unstable();
@@ -328,28 +415,63 @@ impl<'c, 'g> Known<'c, 'g> {
         }
     }
 
-    /// Refuses `node` if nothing will hold it.
+    /// Refuses `node` if nothing will hold it: as `node-superseded`, naming the node it is
+    /// superseded by, when a supersession of canonical state holds it (design § 110.3), and as
+    /// `unresolved-node` otherwise.
     fn node(&self, tx: &GraphTransaction, node: NodeId, issues: &mut Vec<ValidationIssue>) {
-        if !self.candidate.nodes.contains_key(&node) {
+        if self.candidate.nodes.contains_key(&node) {
+            return;
+        }
+        if let Some(by) = self.state.superseded_by(node) {
             issues.push(issue(
                 tx,
                 ValidatorName::Reference,
-                UNRESOLVED_NODE,
-                format!("node {node} is not in the graph"),
+                NODE_SUPERSEDED,
+                format!("node {node} is superseded by node {by}; name node {by} instead"),
             ));
+            return;
         }
+        issues.push(issue(
+            tx,
+            ValidatorName::Reference,
+            UNRESOLVED_NODE,
+            format!("node {node} is not in the graph"),
+        ));
     }
 
-    /// Refuses `edge` if nothing will hold it.
+    /// Refuses `edge` if nothing will hold it: as `node-superseded` when it was retired with a
+    /// superseded node, and as `unresolved-edge` otherwise.
     fn edge(&self, tx: &GraphTransaction, edge: EdgeId, issues: &mut Vec<ValidationIssue>) {
-        if !self.candidate.edges.contains_key(&edge) {
+        if self.candidate.edges.contains_key(&edge) {
+            return;
+        }
+        if let Some((node, by)) = self.retired(edge) {
             issues.push(issue(
                 tx,
                 ValidatorName::Reference,
-                UNRESOLVED_EDGE,
-                format!("edge {edge} is not in the graph"),
+                NODE_SUPERSEDED,
+                format!(
+                    "edge {edge} was retired with node {node}, which is superseded by node {by}; \
+                     name an edge of node {by} instead"
+                ),
             ));
+            return;
         }
+        issues.push(issue(
+            tx,
+            ValidatorName::Reference,
+            UNRESOLVED_EDGE,
+            format!("edge {edge} is not in the graph"),
+        ));
+    }
+
+    /// The superseded node `edge` was retired with, and the node that one is superseded by, if a
+    /// supersession record of canonical state holds the edge.
+    fn retired(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
+        if self.state.superseded.is_empty() {
+            return None;
+        }
+        self.state.retired_with(edge)
     }
 
     /// Refuses every `NodeRef` inside `value` that nothing will hold.

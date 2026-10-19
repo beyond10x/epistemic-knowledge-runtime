@@ -1027,6 +1027,8 @@ pub enum ChangeKind {
     AssertionRetracted,
     /// An evidence entry was added after the seed, by an `AddEvidence`.
     EvidenceAdded,
+    /// A node was superseded by another, by a `SupersedeNode`: `target` names the node kept.
+    NodeSuperseded,
     /// A kind this SDK does not know, added by a newer `ekr`.
     #[serde(other)]
     Other,

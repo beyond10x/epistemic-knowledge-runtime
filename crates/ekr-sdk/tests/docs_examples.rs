@@ -433,10 +433,10 @@ fn names_the_prose_uses(
 ) -> Result<(), Box<dyn Error>> {
     use ekr_sdk::document::{
         Assertion, Confidence, DocumentError, DocumentLimit, EdgeDraft, EdgeId, Evidence,
-        EvidenceAddition, EvidenceAttachment, EvidenceSource, NodeDraft, NodeId, Object, Ontology,
-        OntologySpec, Operation, Predicate, PropertyId, SchemaChange, SchemaVersionId, SeedBuilder,
-        SeedDocument, Subject, Timestamp, TransactionBuilder, TransactionDocument, TransactionId,
-        TypeId, TypedReference, ValidationProfile,
+        EvidenceAddition, EvidenceAttachment, EvidenceSource, NodeDraft, NodeId, NodeSupersession,
+        Object, Ontology, OntologySpec, Operation, Predicate, PropertyId, SchemaChange,
+        SchemaVersionId, SeedBuilder, SeedDocument, Subject, Timestamp, TransactionBuilder,
+        TransactionDocument, TransactionId, TypeId, TypedReference, ValidationProfile,
     };
     use ekr_sdk::session::ProcessSession;
 
@@ -469,6 +469,8 @@ fn names_the_prose_uses(
     )
     .citing(entry.id);
     let _: Operation = EvidenceAttachment::new(claim.id, entry.id).into();
+    let _: Operation =
+        NodeSupersession::new(node.id, NodeId::mint(), "a duplicate", [entry.id]).into();
     let seed = SeedBuilder::node(seed, node, None);
     let seed = SeedBuilder::edge(seed, edge);
     let seed = SeedBuilder::assertion(seed, claim);

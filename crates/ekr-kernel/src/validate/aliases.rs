@@ -44,7 +44,9 @@ impl AliasCache {
     ) -> &AliasHolders {
         if self.at != Some((id, root)) {
             let mut holders = AliasHolders::default();
-            for node in graph.nodes.values() {
+            // A superseded node keeps holding its aliases (design § 110.3).
+            let superseded = graph.superseded.values().map(|record| &record.node);
+            for node in graph.nodes.values().chain(superseded) {
                 #[cfg(test)]
                 super::ALIAS_NODES_VISITED.with(|count| count.set(count.get() + 1));
                 if node.root_id == graph.root.id {
@@ -57,8 +59,9 @@ impl AliasCache {
         &self.holders
     }
 
-    /// Advance only from the exact indexed basis of a verified commit. No operation removes a
-    /// node or alias; creations and additions are the only changes to this lookup. Enumerating
+    /// Advance only from the exact indexed basis of a verified commit. No operation removes an
+    /// alias holder — a superseded node leaves the head and keeps holding its aliases — so
+    /// creations and additions are the only changes to this lookup. Enumerating
     /// every operation makes a future alias-changing operation require an explicit decision.
     pub(crate) fn advance(
         &mut self,
@@ -89,6 +92,9 @@ impl AliasCache {
                 | GraphOperation::AttachEvidence(_)
                 | GraphOperation::CiteEvidence(_)
                 | GraphOperation::WidenEdgeType(_) => None,
+                // A superseded node keeps its type and aliases in its record and keeps holding
+                // them (design § 110.3), so the lookup is unchanged: it already holds the node.
+                GraphOperation::SupersedeNode(_) => None,
             };
             if let Some(node) = changed.and_then(|id| graph.nodes.get(&id)) {
                 if node.root_id == graph.root.id {

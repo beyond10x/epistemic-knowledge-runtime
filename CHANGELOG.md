@@ -4,6 +4,26 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `!SupersedeNode {node, by, reason, evidence}` retires a duplicate node in favour of the node
+  that replaces it, in a revision of its own (story:supersede-node, design § 110). The node and
+  every edge at it leave the head and are kept in a supersession record — the node and its edges
+  as they were, `by`, the revision, the reason and the evidence — which `ekr snapshot` lists under
+  `superseded`; assertions about it are not changed, and every earlier revision still reads it.
+  Every head read omits it. `ekr resolve` of its type and one of its aliases answers `by`, even when
+  `by` is of another type, and those aliases stay taken (`alias-already-exists`). A read of its id
+  at the head — `/node/<id>` in either format, `/expand`, the MCP `describe_node` and `expand`, the
+  session's — is refused as `ekr.views.NodeSuperseded`, naming `by`; `/changes` lists the
+  supersession as a `NodeSuperseded` change, with the node kept in `target`. Refused by name:
+  `supersede-unknown-node`, `node-already-superseded`, `supersede-into-itself`,
+  `supersede-by-unknown-node`, `supersede-by-superseded-node`, `supersession-without-reason`,
+  `supersession-without-evidence`, `supersession-evidence-unknown` and
+  `superseded-node-named-in-transaction`; a later operation naming a superseded node or a retired
+  edge is `node-superseded`, naming `by`. Applied under every validation profile. The SDK builds
+  it (`NodeSupersession`) and reads `SnapshotGraph::superseded` and `ChangeKind::NodeSuperseded`.
+  A store that never supersedes keeps its roots and checkpoint bytes.
+
 ## [0.0.38] — 2026-10-17
 
 ### Added

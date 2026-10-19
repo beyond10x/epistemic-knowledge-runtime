@@ -89,6 +89,19 @@ pub enum QueryError {
         /// The revision that was read.
         revision: RevisionNumber,
     },
+    /// `ekr.views.NodeSuperseded` (`story:supersede-node`): the revision holds no node with the
+    /// requested id — for an expansion, the first seed in the order the request gave them that it
+    /// does not hold — and a supersession of that revision holds it, naming the node it is
+    /// superseded by.
+    #[error("revision {revision} holds no node {node}: it is superseded by node {by}")]
+    NodeSuperseded {
+        /// The node asked for.
+        node: NodeId,
+        /// The node it is superseded by, which the revision holds.
+        by: NodeId,
+        /// The revision that was read.
+        revision: RevisionNumber,
+    },
     /// `ekr.views.NotSeeded`, `ekr.views.RevisionNotFound`, or a store or revision that could
     /// not be read.
     #[error(transparent)]
@@ -968,6 +981,25 @@ fn subject_id(subject: &Subject) -> String {
 // ---- the four reads -----------------------------------------------------------------------------
 
 impl Index {
+    /// Why a read of `node`, which this revision's nodes do not hold, answers nothing:
+    /// [`QueryError::NodeSuperseded`] naming the node it is superseded by when a supersession of
+    /// this revision holds it (`story:supersede-node`), and [`QueryError::NodeNotFound`]
+    /// otherwise.
+    pub(crate) fn not_held(&self, node: NodeId) -> QueryError {
+        let graph = &self.loaded.graph;
+        match graph.superseded_by(node) {
+            Some(by) => QueryError::NodeSuperseded {
+                node,
+                by,
+                revision: graph.revision,
+            },
+            None => QueryError::NodeNotFound {
+                node,
+                revision: graph.revision,
+            },
+        }
+    }
+
     /// `ekr.graph-overview/1`: this revision's every section, whatever `request` names but its
     /// limit. It is [`Self::overview_sections`] with all four sections named, under its own
     /// format name: every section but `top` was built with the index; `top` is the first `limit`
@@ -1177,7 +1209,8 @@ impl Index {
     ///
     /// # Errors
     ///
-    /// [`QueryError::NodeNotFound`] for the first seed, in the request's order, the revision
+    /// [`QueryError::NodeNotFound`], or [`QueryError::NodeSuperseded`] for a superseded one, for
+    /// the first seed, in the request's order, the revision
     /// does not hold.
     pub fn page(&self, request: &ExpandRequest) -> Result<SlicePage, QueryError> {
         self.page_as(SliceFormat::V1, request)
@@ -1200,10 +1233,7 @@ impl Index {
         let mut seeds = Vec::with_capacity(request.seeds().len());
         for seed in request.seeds() {
             let Some(node) = self.node_index.get(seed) else {
-                return Err(QueryError::NodeNotFound {
-                    node: *seed,
-                    revision: graph.revision,
-                });
+                return Err(self.not_held(*seed));
             };
             seeds.push(*node);
         }
@@ -1329,14 +1359,13 @@ impl Index {
     ///
     /// # Errors
     ///
-    /// [`QueryError::NodeNotFound`] for a node the revision does not hold.
+    /// [`QueryError::NodeSuperseded`] for a node a supersession of the revision holds, naming the
+    /// node it is superseded by; [`QueryError::NodeNotFound`] for any other node the revision does
+    /// not hold.
     pub fn describe(&self, node: NodeId) -> Result<Answer<NodeDescribed>, QueryError> {
         let graph = &self.loaded.graph;
         let (Some(index), Some(held)) = (self.node_index.get(&node), graph.nodes.get(&node)) else {
-            return Err(QueryError::NodeNotFound {
-                node,
-                revision: graph.revision,
-            });
+            return Err(self.not_held(node));
         };
         let index = *index;
         let claims = |ids: Option<&Vec<AssertionId>>| -> Vec<&Assertion> {

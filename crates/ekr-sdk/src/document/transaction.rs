@@ -57,8 +57,8 @@ pub struct Transaction {
     pub proposer: AgentId,
     /// One or more operations, applied all or nothing.
     pub operations: Vec<Operation>,
-    /// Exactly the evidence ids its `!AddAssertion`s cite, its `!AttachEvidence`s attach and its
-    /// `!CiteEvidence`s cite.
+    /// Exactly the evidence ids its `!AddAssertion`s cite, its `!AttachEvidence`s attach, its
+    /// `!CiteEvidence`s cite and its `!SupersedeNode`s rest on.
     pub evidence: BTreeSet<EvidenceId>,
     /// The schema version a schema change produces; absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -66,7 +66,7 @@ pub struct Transaction {
 }
 
 /// Builds a [`TransactionDocument`] whose bookkeeping cannot disagree with its operations: the
-/// evidence manifest is the set its assertions cite and its attachments attach, and a schema
+/// evidence manifest is the set its operations rest on ([`Operation::rests_on`]), and a schema
 /// change names a freshly minted schema version.
 #[derive(Clone, Debug)]
 pub struct TransactionBuilder {
@@ -213,6 +213,9 @@ pub enum Operation {
     /// `!CiteEvidence <evidence id>`: evidence the schema version a schema change makes rests on,
     /// beside schema changes only (design § 109).
     CiteEvidence(EvidenceId),
+    /// `!SupersedeNode`: a duplicate node retired in favour of the node that replaces it, its
+    /// evidence in the transaction's `evidence` (design § 110).
+    SupersedeNode(NodeSupersession),
 }
 
 impl Operation {
@@ -237,11 +240,13 @@ impl Operation {
             Self::AddAlias(_) => OperationKind::AddAlias,
             Self::AttachEvidence(_) => OperationKind::AttachEvidence,
             Self::CiteEvidence(_) => OperationKind::CiteEvidence,
+            Self::SupersedeNode(_) => OperationKind::SupersedeNode,
         }
     }
 
     /// The evidence ids it rests on: those an `!AddAssertion` cites, the one an
-    /// `!AttachEvidence` attaches, the one a `!CiteEvidence` cites, and none for any other kind.
+    /// `!AttachEvidence` attaches, the one a `!CiteEvidence` cites, those a `!SupersedeNode` rests
+    /// on, and none for any other kind.
     /// A transaction's `evidence` is exactly the union of these over its operations.
     #[must_use]
     pub fn rests_on(&self) -> Vec<EvidenceId> {
@@ -249,6 +254,7 @@ impl Operation {
             Self::AddAssertion(assertion) => assertion.evidence.iter().copied().collect(),
             Self::AttachEvidence(attachment) => vec![attachment.evidence],
             Self::CiteEvidence(evidence) => vec![*evidence],
+            Self::SupersedeNode(supersession) => supersession.evidence.iter().copied().collect(),
             _ => Vec::new(),
         }
     }
@@ -297,11 +303,13 @@ pub enum OperationKind {
     AttachEvidence,
     /// `!CiteEvidence`.
     CiteEvidence,
+    /// `!SupersedeNode`.
+    SupersedeNode,
 }
 
 impl OperationKind {
     /// Every kind, in the order `ekr operations` lists them.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::CreateNode,
         Self::UpdateProperty,
         Self::CreateEdge,
@@ -319,6 +327,7 @@ impl OperationKind {
         Self::AddAlias,
         Self::AttachEvidence,
         Self::CiteEvidence,
+        Self::SupersedeNode,
     ];
 
     /// Its tag without `!`, as `ekr operations` prints it.
@@ -342,6 +351,7 @@ impl OperationKind {
             Self::AddAlias => "AddAlias",
             Self::AttachEvidence => "AttachEvidence",
             Self::CiteEvidence => "CiteEvidence",
+            Self::SupersedeNode => "SupersedeNode",
         }
     }
 
@@ -528,6 +538,42 @@ impl EvidenceAttachment {
     }
 }
 
+/// `!SupersedeNode`: a duplicate node retired in favour of the node that replaces it (design
+/// § 110). The node and every edge at it leave the head and are kept in a supersession record
+/// naming `by`, which `ekr snapshot` lists under `superseded`; its aliases resolve to `by`. The
+/// evidence is in the transaction's `evidence`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeSupersession {
+    /// The node retired: one the store holds and has not superseded.
+    pub node: NodeId,
+    /// The node kept: one the store holds, or one a `!CreateNode` of the same transaction
+    /// creates; not `node`, and not superseded.
+    pub by: NodeId,
+    /// Why: not empty, and not only whitespace.
+    pub reason: String,
+    /// At least one evidence id: retained, or added by an `!AddEvidence` of the same transaction.
+    pub evidence: BTreeSet<EvidenceId>,
+}
+
+impl NodeSupersession {
+    /// Supersede `node` by `by`, for `reason`, on `evidence`.
+    #[must_use]
+    pub fn new(
+        node: NodeId,
+        by: NodeId,
+        reason: impl Into<String>,
+        evidence: impl IntoIterator<Item = EvidenceId>,
+    ) -> Self {
+        Self {
+            node,
+            by,
+            reason: reason.into(),
+            evidence: evidence.into_iter().collect(),
+        }
+    }
+}
+
 /// `!WidenEdgeType`: an edge type's ends written whole, as they are to be.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -633,4 +679,5 @@ operation_from! {
     EdgeWidening => WidenEdgeType(std::convert::identity),
     AliasAddition => AddAlias(std::convert::identity),
     EvidenceAttachment => AttachEvidence(std::convert::identity),
+    NodeSupersession => SupersedeNode(std::convert::identity),
 }

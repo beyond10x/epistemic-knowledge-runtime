@@ -21,6 +21,9 @@ const UNDECLARED: &str = "00000000-0000-4000-8000-000000000299";
 const ALICE: &str = "00000000-0000-4000-8000-000000000301";
 const BOB: &str = "00000000-0000-4000-8000-000000000302";
 const ACME: &str = "00000000-0000-4000-8000-000000000303";
+const ROOT: &str = "00000000-0000-4000-8000-000000000002";
+/// The example seed's evidence entry "Alice is CEO of Acme."
+const STATEMENT: &str = "00000000-0000-4000-8000-000000000401";
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -750,5 +753,97 @@ fn a_node_that_gains_an_alias_is_what_resolve_answers_for_it_at_the_next_head() 
             head,
             "{backend}: a full replay reproduces the head's roots"
         );
+    }
+}
+
+// 10 -------------------------------------------------------------------------------------------
+
+/// `story:supersede-node`, `a-superseded-alias-resolves-to-the-kept-node`: Acme, an organization
+/// known as `acme`, is superseded by Alice, a person; `ekr resolve` of the organization `acme`
+/// then answers Alice, though Alice is of another type, where the revision before still answers
+/// Acme; a later node of the organization type taking `acme` is `alias-already-exists`; a full
+/// replay prints the same head and the same answer. On both providers, each step a fresh process.
+#[test]
+fn a_superseded_alias_resolves_to_the_kept_node_of_another_type() {
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    let transaction = |operations: &str, evidence: &str| {
+        let minted: Value = serde_json::from_str(&text(&["mint", "transaction"])).unwrap();
+        format!(
+            "format: ekr.transaction-document/2\ntransaction:\n  id: {}\n  proposer: \
+             {operator}\n  operations:\n{operations}  evidence: {evidence}\n",
+            minted["id"].as_str().unwrap()
+        )
+    };
+    for backend in BACKENDS {
+        let world = World::seeded(backend, &aliased_seed());
+        let key = world.file("key.yaml", &reference(ORGANIZATION, &["acme"]));
+        assert_eq!(
+            world.ok(&["resolve", &key]),
+            json!({"kind": "Resolved", "node_id": ACME}),
+            "{backend}"
+        );
+        let document = world.file(
+            "supersede.yaml",
+            &transaction(
+                &format!(
+                    "  - !SupersedeNode\n    node: {ACME}\n    by: {ALICE}\n    reason: Acme was \
+                     recorded for its founder\n    evidence:\n    - {STATEMENT}\n"
+                ),
+                &format!("\n  - {STATEMENT}"),
+            ),
+        );
+        let id = world.ok(&["propose", &document])["transaction_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let validated = world.ok(&["validate", &id]);
+        assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
+        let committed = world.ok(&["commit", &id]);
+        assert_eq!(committed["result"]["revision"], 1, "{backend}: {committed}");
+        let snapshot = world.ok(&["snapshot"]);
+        let graph = &snapshot["graph"]["graph"];
+        assert!(graph["nodes"].get(ACME).is_none(), "{backend}: {graph}");
+        assert_eq!(graph["superseded"][ACME]["by"], ALICE, "{backend}: {graph}");
+
+        let kept = json!({"kind": "Resolved", "node_id": ALICE});
+        assert_eq!(world.ok(&["resolve", &key]), kept, "{backend}");
+        assert_eq!(
+            world.ok(&["resolve", &key, "--at", "0"]),
+            json!({"kind": "Resolved", "node_id": ACME}),
+            "{backend}: the seed revision still holds Acme"
+        );
+
+        let minted: Value = serde_json::from_str(&text(&["mint", "node"])).unwrap();
+        let again = world.file(
+            "again.yaml",
+            &transaction(
+                &format!(
+                    "  - !CreateNode\n    id: {}\n    root_id: {ROOT}\n    type_id: \
+                     {ORGANIZATION}\n    canonical_name: Acme\n    properties: {{}}\n    \
+                     aliases: [acme]\n",
+                    minted["id"].as_str().unwrap()
+                ),
+                "[]",
+            ),
+        );
+        let id = world.ok(&["propose", &again])["transaction_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let refused = world.ok(&["validate", &id]);
+        assert_eq!(refused["kind"], "Rejected", "{backend}: {refused}");
+        assert_eq!(
+            refused["issues"][0]["code"], "alias-already-exists",
+            "{backend}: {refused}"
+        );
+
+        let head = world.ok(&["head"]);
+        assert_eq!(
+            world.ok(&["resolve", &key, "--full-replay"]),
+            kept,
+            "{backend}: full replay"
+        );
+        assert_eq!(world.ok(&["head", "--full-replay"]), head, "{backend}");
     }
 }

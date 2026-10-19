@@ -270,6 +270,8 @@ pub struct ChangesListed {
     pub assertions_retracted: u64,
     /// This page's EvidenceAdded changes.
     pub evidence_added: u64,
+    /// This page's NodeSuperseded changes.
+    pub nodes_superseded: u64,
     /// The revision of the page's first change; `None` for an empty page.
     pub first_revision: Option<u64>,
     /// The revision of the page's last change; `None` for an empty page.
@@ -291,6 +293,7 @@ enum ChangeKind {
     AssertionSuperseded,
     AssertionRetracted,
     EvidenceAdded,
+    NodeSuperseded,
 }
 
 impl ChangeKind {
@@ -543,6 +546,26 @@ fn transaction_changes(
                 change.content_hash = Some(added.content_hash);
                 change
             }
+            // The node as its record holds it, which nothing removes; `target` the node the
+            // supersession named (`views.yaml`, `ekr.views.GraphChange`).
+            GraphOperation::SupersedeNode(supersession) => {
+                let record = graph.superseded.get(&supersession.node).ok_or_else(|| {
+                    inconsistent(format!(
+                        "revision {} supersedes node {}, which revision {} holds no record of",
+                        entry.number, supersession.node, graph.revision
+                    ))
+                })?;
+                let mut change = GraphChange::new(
+                    entry,
+                    ChangeKind::NodeSuperseded,
+                    supersession.node.to_string(),
+                );
+                change.type_id = Some(record.node.type_id);
+                change.name = Some(record.node.canonical_name.clone());
+                change.target = Some(supersession.by);
+                change.evidence = listed(supersession.evidence.iter().map(EvidenceId::to_string));
+                change
+            }
             _ => continue,
         };
         into.push(change);
@@ -747,6 +770,7 @@ impl Index {
             assertions_superseded: count(ChangeKind::AssertionSuperseded),
             assertions_retracted: count(ChangeKind::AssertionRetracted),
             evidence_added: count(ChangeKind::EvidenceAdded),
+            nodes_superseded: count(ChangeKind::NodeSuperseded),
             first_revision: page.first().map(|change| change.revision),
             last_revision: page.last().map(|change| change.revision),
             format: document.meta.format,

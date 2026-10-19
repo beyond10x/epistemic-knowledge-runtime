@@ -168,6 +168,7 @@ impl World {
         Self {
             graph: CanonicalGraph {
                 attachments: Default::default(),
+                superseded: Default::default(),
                 root: GraphRoot {
                     id: root_id,
                     space: Space::Canonical,
@@ -2057,9 +2058,10 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
     );
 }
 
-/// The seventeen `GraphOperation` numbers are the domain's list, the declaration order and the
+/// The eighteen `GraphOperation` numbers are the domain's list, the declaration order and the
 /// encoding's, all three. There were eleven; `SupersedeAssertion` took 11, `AddEvidence` 12,
-/// `WidenEdgeType` 13, `AddAlias` 14, `AttachEvidence` 15 and `CiteEvidence` 16.
+/// `WidenEdgeType` 13, `AddAlias` 14, `AttachEvidence` 15, `CiteEvidence` 16 and `SupersedeNode`
+/// 17.
 ///
 /// `Encoder::variant`'s own doc puts the obligation here and names the precedent:
 ///
@@ -2087,12 +2089,13 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
 ///
 /// The name still says twelve: design § 95 cites the case by it, and an amendment adds rather
 /// than rewrites. It holds thirteen since `AddEvidence`, fourteen since `WidenEdgeType`, fifteen
-/// since `AddAlias`, sixteen since `AttachEvidence` and seventeen since `CiteEvidence`.
+/// since `AddAlias`, sixteen since `AttachEvidence`, seventeen since `CiteEvidence` and eighteen
+/// since `SupersedeNode`.
 #[test]
 fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     /// The names in the order their numbers count in, transcribed from
     /// `ekr.kernel.OperationKind`.
-    const NAMES: [&str; 17] = [
+    const NAMES: [&str; 18] = [
         "CreateNode",
         "UpdateProperty",
         "CreateEdge",
@@ -2110,6 +2113,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "AddAlias",
         "AttachEvidence",
         "CiteEvidence",
+        "SupersedeNode",
     ];
 
     let domain = read_workspace_file("systems/ekr/domains/kernel.yaml");
@@ -2209,7 +2213,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "the encode scan found {numbered:?}, which is not one arm per name"
     );
     for (position, (index, name)) in numbered.iter().enumerate() {
-        let expected = u32::try_from(position).expect("seventeen variants fit in a u32");
+        let expected = u32::try_from(position).expect("eighteen variants fit in a u32");
         assert_eq!(
             (*index, name.as_str()),
             (expected, NAMES[position]),
@@ -2222,7 +2226,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     // tag byte and the index, big-endian, and it opens the encoding.
     let world = World::new();
     for (position, operation) in one_of_each_operation(&world).iter().enumerate() {
-        let index = u32::try_from(position).expect("seventeen variants fit in a u32");
+        let index = u32::try_from(position).expect("eighteen variants fit in a u32");
         let mut expected = vec![0x0f_u8];
         expected.extend_from_slice(&index.to_be_bytes());
         assert_eq!(
@@ -2234,7 +2238,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     }
 }
 
-/// One operation of each variant, in the order the seventeen numbers count in.
+/// One operation of each variant, in the order the eighteen numbers count in.
 fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
     let node = NodeId::mint();
     vec![
@@ -2322,6 +2326,12 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
             evidence: world.retained_evidence,
         }),
         GraphOperation::CiteEvidence(world.retained_evidence),
+        GraphOperation::SupersedeNode(ekr_kernel::NodeSupersession {
+            node,
+            by: world.open,
+            reason: "fixture duplicate".to_owned(),
+            evidence: BTreeSet::from([world.retained_evidence]),
+        }),
     ]
 }
 

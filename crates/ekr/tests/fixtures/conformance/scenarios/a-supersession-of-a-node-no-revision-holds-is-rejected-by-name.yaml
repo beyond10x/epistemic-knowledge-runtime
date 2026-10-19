@@ -1,0 +1,44 @@
+# story:supersede-node, acceptance a-supersession-is-refused-by-name, the unknown node.
+#
+# The target has committed revision 1 before the first act. The fixture
+# `supersede-node-unknown.yaml` supersedes node 0399, which no revision holds, by Alice (0301).
+# A supersession retires a node the head holds, so validation rejects it with exactly one issue,
+# which the Reference validator raises under the name supersede-unknown-node.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-supersession-of-a-node-no-revision-holds-is-rejected-by-name
+summary: A supersession of a node no revision holds is rejected with one issue, supersede-unknown-node, raised by Reference.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: supersession
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Reference
+      code: supersede-unknown-node

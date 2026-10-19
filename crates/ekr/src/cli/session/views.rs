@@ -35,7 +35,7 @@ use serde_json::Value;
 use super::super::view::{
     describe, node_detail, overview_sections, project_refusal, search_filter, since_not_one,
     DetailRefused, OverviewSections, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND,
-    NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
+    NODE_SUPERSEDED, NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::super::Backend;
 use crate::exit::Failure;
@@ -444,6 +444,7 @@ fn query(error: QueryError) -> Failure {
         QueryError::LimitExceeded(error) => limit_exceeded(error),
         error @ QueryError::NodeNotFound { .. } => Failure::refused(NODE_NOT_FOUND, error),
         error @ QueryError::NodeIsAType { .. } => Failure::refused(NODE_IS_A_TYPE, error),
+        error @ QueryError::NodeSuperseded { .. } => Failure::refused(NODE_SUPERSEDED, error),
         QueryError::Project(error) => project(error),
     }
 }

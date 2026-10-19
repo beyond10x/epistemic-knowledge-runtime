@@ -113,8 +113,10 @@ summary: >-
   answers invalid-query, the MCP tool -32602);
   then an unseeded store answers NotSeeded; then a revision beyond the head answers
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
-  does not hold answers NodeNotFound — for an ekr.node-detail/2 request whose id no node holds
-  and a node type or edge type of the revision's ontology does, NodeIsAType instead — and a
+  does not hold answers NodeNotFound — for an id a supersession of the revision holds,
+  NodeSuperseded naming the node it is superseded by, in either node-detail format and for an
+  expansion seed; for an ekr.node-detail/2 request whose id no node holds and a node type or edge
+  type of the revision's ontology does, NodeIsAType instead — and a
   SearchNodes `type` under ekr.node-matches/2 or /3 that names no node type of the revision answers
   NodeTypeNotFound. A DescribeNode edge_type that names no edge type of the revision is no
   refusal: it answers no relation group.
@@ -156,6 +158,16 @@ summary: >-
   itself"). So `retained` is true for every evidence record a projection can be rendered from, and
   `retained: false` is unreachable. The flag is kept so the format does not change if a later
   decision admits evidence without bytes.
+
+  A superseded node is in no read of a revision that holds its supersession (story:supersede-node,
+  design § 110). Every document here is built from the revision's nodes and edges, which a
+  supersession leaves without the node and every edge at it, so no format changes: an overview,
+  a search, an expansion, a timeline, a projection and every export omit it, and a node or type
+  count is the count of the nodes the revision holds. An assertion whose subject is a superseded
+  node, or an edge retired with one, is kept by the kernel and listed by no document's nodes and
+  edges, so it is not listed under any; an assertion whose subject the revision holds in no way is
+  still Inconsistent. A DescribeNode or ExpandNeighbourhood naming a superseded id answers
+  NodeSuperseded. ChangesSince lists the supersession itself as a NodeSuperseded change.
 
   The store's quality, ekr.store-quality/1 (ReportStoreQuality), is a function of one revision
   and nothing else: it counts that revision's canonical state, and no refusal, rejected
@@ -1925,9 +1937,12 @@ types:
   # (AssertionSuperseded) or retracted (AssertionRetracted), and every evidence entry an
   # ekr.kernel AddEvidence operation of its transaction added (EvidenceAdded). The seed's evidence
   # came with the seed and not through an AddEvidence, so it is no change of this format, and a
-  # range holding no AddEvidence answers exactly as it did before EvidenceAdded was declared. An
-  # edge a later revision deletes stays the change its creating revision made. A property update,
-  # a named operation, an edge deletion and a schema change are not changes of this format.
+  # range holding no AddEvidence answers exactly as it did before EvidenceAdded was declared. Every
+  # node an ekr.kernel SupersedeNode of its transaction superseded is a NodeSuperseded
+  # (story:supersede-node); a range holding no supersession answers exactly as it did before
+  # NodeSuperseded was declared. An edge a later revision deletes, or retires with a superseded
+  # node, stays the change its creating revision made. A property update, a named operation, an
+  # edge deletion and a schema change are not changes of this format.
   #
   # `since` is one revision, valid time or transaction time, and it chooses the changes:
   #   - a revision N (since_revision): every change of the revisions after N, up to and including
@@ -1939,8 +1954,8 @@ types:
   #   - a valid time T (since_valid): every assertion change, of every revision from the seed up
   #     to and including `at`, whose valid time is after T (valid_time > T, below). A node or an
   #     edge has no valid time of its own (ekr.views.ProjectedEdge), and neither has an evidence
-  #     entry, so NodeCreated, EdgeCreated and EvidenceAdded are never chosen by a valid time, and
-  #     an assertion with no valid_from is not either.
+  #     entry, so NodeCreated, EdgeCreated, EvidenceAdded and NodeSuperseded are never chosen by
+  #     a valid time, and an assertion with no valid_from is not either.
   # ---------------------------------------------------------------------------------------------
 
   - name: ekr.views.GraphChangesFormatV1
@@ -1961,7 +1976,7 @@ types:
 
   - name: ekr.views.ChangeKind
     kind: enum
-    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded]
+    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded, NodeSuperseded]
 
   # The position in the change sequence: the number of changes the earlier pages delivered. A
   # page's `next` is its own `after` plus the changes it delivered. Like ekr.views.SliceCursor it
@@ -1980,7 +1995,11 @@ types:
   #   - EvidenceAdded: `locator`, the entry's source identity as ekr.graph.Evidence's locator
   #     (an AddEvidence admits only a HumanStatement, so it is the statement's identity, empty
   #     when the statement records none), and `content_hash`, the address of the payload bytes
-  #     the AddEvidence brought and its commit retained.
+  #     the AddEvidence brought and its commit retained;
+  #   - NodeSuperseded: `type` and `name`, the superseded node's type and canonical_name as its
+  #     supersession record holds them, and `target`, the node it is superseded by as the
+  #     supersession named it (a later supersession of that node repoints the record, not this
+  #     change).
   # `valid_time` is the valid time an assertion change is chosen by under since_valid: the
   # assertion's valid_from for AssertionAdded and AssertionRetracted, and the supersession's
   # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from and for a
@@ -1988,7 +2007,7 @@ types:
   # `evidence` is, for an assertion change, the ids of the evidence the assertion cites; for a
   # NodeCreated or EdgeCreated, the ids of the evidence cited by the assertions the same revision
   # added whose subject is that node or edge — empty when it added none; for an EvidenceAdded,
-  # empty.
+  # empty; for a NodeSuperseded, the ids of the evidence the supersession rests on.
   - name: ekr.views.GraphChange
     kind: struct
     fields:
@@ -2836,7 +2855,8 @@ types:
   # The outcome, ekr.views.ReadOutcome: `ok` for a read that answered its document; one class per
   # refusal, by the refusal's name: `not_seeded` for ekr.views.NotSeeded; `not_found` for
   # ekr.views.RevisionNotFound, ekr.views.NodeNotFound, ekr.views.NodeIsAType,
-  # ekr.views.NodeTypeNotFound, ekr.kernel.RevisionNotFound, ekr.kernel.AssertionNotFound and
+  # ekr.views.NodeSuperseded, ekr.views.NodeTypeNotFound, ekr.kernel.RevisionNotFound,
+  # ekr.kernel.AssertionNotFound and
   # `ekr view`'s 404 for evidence; `unavailable` for `store-replaced` and a store not admitted
   # (503), and a read refused 503 because the request queue is full or its deadline passed, on
   # either server; `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
@@ -3013,6 +3033,24 @@ errors:
         type: ekr.views.TypeKind
       - name: type_name
         type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  # story:supersede-node, design § 110. `node` is the requested id — for ExpandNeighbourhood, the
+  # first seed in the order the request gave them that the revision does not hold — which no node
+  # of the revision holds and a supersession of it does (ekr.graph.SupersededNode); `by` is the
+  # node that record names, which the revision holds; `revision` is the revision that was read. A
+  # surface's message for it reads "revision <revision> holds no node <node>: it is superseded by
+  # node <by>". Both node-detail formats are refused so, and a revision before the supersession
+  # describes the node as it was. Every head read that lists nodes omits a superseded node without
+  # a refusal of its own.
+  - name: ekr.views.NodeSuperseded
+    summary: The requested node is superseded at the revision read; nothing was answered, and the refusal names the node it is superseded by.
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: by
+        type: ekr.graph.NodeId
       - name: revision
         type: ekr.kernel.RevisionNumber
 
@@ -3293,6 +3331,10 @@ commands:
         external: a seed names a node the requested revision does not hold
         error: ekr.views.NodeNotFound
         summary: Nothing was answered; the refusal names the first such seed in the order the request gave them.
+      - name: node-superseded
+        external: the first seed, in the order the request gave them, that the requested revision does not hold is a node a supersession of that revision holds
+        error: ekr.views.NodeSuperseded
+        summary: Nothing was answered; the refusal names the seed and the node it is superseded by, which a reader expands instead.
       - name: not-found
         external: the store holds no committed revision with the requested number
         error: ekr.views.RevisionNotFound
@@ -3388,6 +3430,10 @@ commands:
         external: the requested revision holds no node with the requested id
         error: ekr.views.NodeNotFound
         summary: Nothing was answered; a node created after the requested revision is not found at it.
+      - name: node-superseded
+        external: the requested revision holds no node with the requested id, and a supersession of that revision holds it
+        error: ekr.views.NodeSuperseded
+        summary: Nothing was answered; the refusal names the node it is superseded by, which a reader describes instead, and a revision before the supersession describes the node as it was.
       - name: not-found
         external: the store holds no committed revision with the requested number
         error: ekr.views.RevisionNotFound
@@ -3629,6 +3675,7 @@ commands:
             assertions_superseded: {generated: true}
             assertions_retracted: {generated: true}
             evidence_added: {generated: true}
+            nodes_superseded: {generated: true}
             first_revision: {generated: true}
             last_revision: {generated: true}
             format: {generated: true}
@@ -4246,7 +4293,7 @@ events:
         type: ekr.kernel.ContentHash
 
   # What one page of changes returned. `revision`, `after` and `total` are meta's; `changes` the
-  # length of changes and `remaining` the document's; the six kind counts count this page's
+  # length of changes and `remaining` the document's; the seven kind counts count this page's
   # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
   # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
   # SHA-256 of the document's exact bytes. `format` is meta's; `names` the page's names map under
@@ -4274,6 +4321,8 @@ events:
       - name: assertions_retracted
         type: Integer
       - name: evidence_added
+        type: Integer
+      - name: nodes_superseded
         type: Integer
       - name: first_revision
         type: Optional<ekr.kernel.RevisionNumber>
