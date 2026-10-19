@@ -7,7 +7,8 @@ title: MergeEntity joins duplicate nodes of one type or of related types, and re
 relations:
 - decomposes: epic:p3-incubation-integration
 - serves: vision:o2
-revision: 1
+- depends_on: story:supersede-node
+revision: 2
 ---
 ## Context
 
@@ -65,3 +66,13 @@ Conformance scenarios and kernel tests, on both providers:
 
 `SplitEntity` (its identity rule is recorded here only as the lineage it needs); a retype operation;
 fuzzy duplicate detection.
+
+## Builds on SupersedeNode
+
+Added 2026-10-19 with `architecture-decision-record:0017-a-node-is-superseded-by-another`
+(accepted): this story depends on `story:supersede-node`, which removes a duplicate from every head
+read, records it with a pointer to the kept node and retires its edges with it. A merge builds on
+that record: it is a supersession whose edges and assertions are rewritten to `into` instead of
+retired, under the parent-type rule above. The `Absorbed` state named on
+`decision-blocker:merge-absorbed-node-fate` is that supersession record. Build steps 2–4 below are
+narrowed accordingly when this story is scoped.
