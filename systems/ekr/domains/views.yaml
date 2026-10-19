@@ -114,8 +114,9 @@ summary: >-
   then an unseeded store answers NotSeeded; then a revision beyond the head answers
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
   does not hold answers NodeNotFound — for an id a supersession of the revision holds,
-  NodeSuperseded naming the node it is superseded by, in either node-detail format and for an
-  expansion seed; for an ekr.node-detail/2 request whose id no node holds and a node type or edge
+  NodeSuperseded naming the node it is superseded by, in either node-detail format, for an
+  expansion seed and for a timeline subject; for an ekr.node-detail/2 request whose id no node
+  holds and a node type or edge
   type of the revision's ontology does, NodeIsAType instead — and a
   SearchNodes `type` under ekr.node-matches/2 or /3 that names no node type of the revision answers
   NodeTypeNotFound. A DescribeNode edge_type that names no edge type of the revision is no
@@ -335,6 +336,10 @@ types:
   # One assertion as the store holds it at the projected revision. It is listed under the node,
   # edge or type that is its subject, so the subject is not repeated. Exactly the object payload
   # its object_kind names is present: object_value for Value, object_ref for Node and Type.
+  # `object_superseded_by` is, for a Node object a supersession of the revision holds, the node it
+  # is superseded by (story:supersede-node, ADR 0017 decision 3: a read that reaches the retired
+  # id names its pointer); it is omitted for every other object, so a document of a revision
+  # without a supersession is the bytes it was.
   # `evidence` is the ids of the evidence its supports reference.
   - name: ekr.views.ProjectedAssertion
     kind: struct
@@ -351,6 +356,8 @@ types:
         type: Optional<ekr.views.ProjectedValue>
       - name: object_ref
         type: Optional<Uuid>
+      - name: object_superseded_by
+        type: Optional<ekr.graph.NodeId>
       - name: assessment
         type: ekr.graph.AssessmentProjection
       - name: lifecycle
@@ -2721,10 +2728,11 @@ types:
   # An assertion about a node a supersession of the revision holds is kept and still sampled
   # (story:supersede-node, ADR 0017 decision 3): its `subject_type`, `subject_name` and
   # `predicate_name` are read from the supersession record, which holds the node as it was, as is
-  # an `object_name` naming such a node or a subject edge retired with one; and
-  # `subject_superseded_by` names the node the subject is superseded by, the pointer a reader
-  # follows. It is omitted for every other subject, so a sample of a revision without a
-  # supersession is the bytes it was.
+  # an `object_name` naming such a node or a subject edge retired with one.
+  # `subject_superseded_by` names the node the subject is superseded by — for a subject edge
+  # retired with a superseded node, the node that record names — and `object_superseded_by` the
+  # node a superseded Node object is superseded by: the pointers a reader follows. Each is omitted
+  # where there is none, so a sample of a revision without a supersession is the bytes it was.
   - name: ekr.views.SampledFact
     kind: struct
     fields:
@@ -2742,6 +2750,8 @@ types:
         type: Optional<String>
       - name: object_name
         type: Optional<String>
+      - name: object_superseded_by
+        type: Optional<ekr.graph.NodeId>
       - name: assertion
         type: ekr.views.ProjectedAssertion
       - name: evidence
@@ -3046,7 +3056,8 @@ errors:
         type: ekr.kernel.RevisionNumber
 
   # story:supersede-node, design § 110. `node` is the requested id — for ExpandNeighbourhood, the
-  # first seed in the order the request gave them that the revision does not hold — which no node
+  # first seed in the order the request gave them that the revision does not hold; for
+  # ProjectTimeline, its `subject` — which no node
   # of the revision holds and a supersession of it does (ekr.graph.SupersededNode); `by` is the
   # node that record names, which the revision holds; `revision` is the revision that was read. A
   # surface's message for it reads "revision <revision> holds no node <node>: it is superseded by
@@ -3555,7 +3566,9 @@ commands:
   # span's when absent. `subject`, when given, asks for that node's row alone with its events
   # listed, and
   # then the row type is its type whatever `row_type` names; a subject the revision does not hold
-  # is no refusal, and answers no row and no event.
+  # is no refusal, and answers no row and no event — except a subject a supersession of the
+  # revision holds (story:supersede-node), which is refused as NodeSuperseded naming the node it
+  # is superseded by, as DescribeNode refuses it.
   # `format` selects the answer: ekr.graph-timeline/1 (`timeline`) or ekr.graph-timeline/2
   # (`timeline_v2`); exactly one of the two response fields is present, and absent the command
   # answers /1. `ekr view`'s `/timeline` and the session verb `timeline` name /1 when the request
@@ -3627,6 +3640,10 @@ commands:
         external: the store has never been seeded
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
+      - name: node-superseded
+        external: the request names a `subject` the requested revision does not hold and a supersession of that revision holds
+        error: ekr.views.NodeSuperseded
+        summary: Nothing was answered; the refusal names the subject and the node it is superseded by, which a reader asks for instead.
 
   # What changed (ekr.views.GraphChangesV1). `since` is one revision, valid time or transaction
   # time: `since_kind` says which and `since` is its value, a revision number or an EpochMillis.

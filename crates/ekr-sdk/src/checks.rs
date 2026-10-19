@@ -50,7 +50,8 @@ pub struct SampledFact {
     /// The node or type name, absent for an edge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject_name: Option<String>,
-    /// For a superseded node subject, the node it is superseded by.
+    /// For a superseded node subject, or an edge subject retired with one, the node it is
+    /// superseded by.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject_superseded_by: Option<NodeId>,
     /// The predicate's declared name, when known.
@@ -59,6 +60,9 @@ pub struct SampledFact {
     /// The node object's canonical name, when applicable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object_name: Option<String>,
+    /// For a superseded node object, the node it is superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_superseded_by: Option<NodeId>,
     /// The sampled assertion.
     pub assertion: ViewAssertion,
     /// Its retained evidence records, in identifier order.

@@ -153,6 +153,9 @@ pub struct ViewAssertion {
     /// The node's or type's id, for any other object.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object_ref: Option<String>,
+    /// For a `Node` object a supersession of the revision holds, the node it is superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_superseded_by: Option<NodeId>,
     /// Its assessment.
     pub assessment: ViewAssessment,
     /// Its lifecycle.

@@ -182,6 +182,14 @@ pub struct SnapshotAssertion {
     pub valid_time: ValidTime,
     /// When it was recorded.
     pub transaction_time: RecordedTime,
+    /// In an explanation's Assertion link only: the node a superseded subject node, or the node
+    /// a retired subject edge was retired with, is superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_superseded_by: Option<NodeId>,
+    /// In an explanation's Assertion link only: the node a superseded Node object is
+    /// superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_superseded_by: Option<NodeId>,
 }
 
 /// A canonical evidence entry.

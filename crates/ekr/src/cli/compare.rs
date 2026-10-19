@@ -115,11 +115,17 @@ pub(super) fn read(
 /// Compares two verified reads.
 pub(super) fn run(left: &VerifiedRead, right: &VerifiedRead) -> Result<Comparison, Failure> {
     let (left_entries, right_entries) = (entries(left)?, entries(right)?);
-    let categories: Vec<Category> = left_entries
+    let mut categories: Vec<Category> = left_entries
         .into_iter()
         .zip(right_entries)
         .map(|((category, left), (_, right))| compare(category, &left, &right))
         .collect();
+    // The seventh category is listed only where either store holds a supersession record, so a
+    // pair that never superseded compares, and prints, exactly as before it existed.
+    let (left_superseded, right_superseded) = (superseded(left)?, superseded(right)?);
+    if !(left_superseded.is_empty() && right_superseded.is_empty()) {
+        categories.push(compare("superseded", &left_superseded, &right_superseded));
+    }
     Ok(Comparison {
         format: "ekr.store-comparison/1",
         equal: categories.iter().all(|category| category.equal),
@@ -198,6 +204,41 @@ fn fields(record: &impl Serialize, excluded: &[&str]) -> Result<Map<String, Valu
             "compare: a record serialised as {other} rather than an object"
         ))),
     }
+}
+
+/// The supersession records of one read, keyed by the superseded node's id
+/// (`story:supersede-node`): the node and the edges retired with it as `nodes` and `edges` compare
+/// them, `by`, `revision`, `reason` and `evidence`. Two stores that superseded one duplicate by
+/// different nodes resolve its key to different nodes, so they differ here.
+fn superseded(read: &VerifiedRead) -> Result<Entries, Failure> {
+    let mut records = Entries::new();
+    for (id, record) in &read.graph.superseded {
+        let mut edges = Map::new();
+        for (edge_id, edge) in &record.edges {
+            edges.insert(
+                key(edge_id)?,
+                Value::Object(fields(edge, &["id", "root_id"])?),
+            );
+        }
+        let mut entry = Map::new();
+        entry.insert(
+            "node".to_owned(),
+            Value::Object(fields(&record.node, &["id", "root_id"])?),
+        );
+        entry.insert("edges".to_owned(), Value::Object(edges));
+        entry.insert(
+            "by".to_owned(),
+            serde_json::to_value(record.by).map_err(Failure::fault)?,
+        );
+        entry.insert("revision".to_owned(), Value::from(record.revision.get()));
+        entry.insert("reason".to_owned(), Value::String(record.reason.clone()));
+        entry.insert(
+            "evidence".to_owned(),
+            serde_json::to_value(&record.evidence).map_err(Failure::fault)?,
+        );
+        records.insert(key(id)?, entry);
+    }
+    Ok(records)
 }
 
 /// The six categories of one read, in `ekr.cli.ComparisonCategory`'s order.

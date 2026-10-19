@@ -20,7 +20,8 @@
 //!   revision does not exist; `not-seeded` opens the named store's provider without seeding it;
 //!   `node-is-a-type` builds it as `Fixture::DescribedType`, whose ontology declares a node type
 //!   with the id the generated scenario names (ekr-mcp-fixes-20261015 #10); `node-superseded`
-//!   builds it as `Fixture::DescribedSuperseded`, whose revision 1 supersedes that node
+//!   builds it as `Fixture::DescribedSuperseded`, whose revision 1 supersedes that node, and a
+//!   timeline asks for that node as its subject
 //!   (`story:supersede-node`);
 //!   `node-not-found` and `event-type-not-found` build it as `schema-evolution` — revision 1
 //!   exists, and [`fixtures::DESCRIBED`], the node the generated scenarios name, does not, nor
@@ -1397,6 +1398,22 @@ impl ConformanceTarget for ViewsTarget {
                 }
             }
         }
+        if control == Some(Control::NodeSuperseded) {
+            // The branch's state is a subject the revision supersedes: the store's superseded
+            // node, [`fixtures::DESCRIBED`], as the request's subject.
+            if let Read::Timeline(Ok(timeline), format) = &read {
+                read = Read::Timeline(
+                    TimelineRequest::new(
+                        timeline.row_type(),
+                        i64::try_from(timeline.hops()).unwrap_or(i64::MAX),
+                        i64::try_from(timeline.limit()).unwrap_or(i64::MAX),
+                        timeline.bucket(),
+                        Some(fixtures::id(fixtures::DESCRIBED)),
+                    ),
+                    *format,
+                );
+            }
+        }
         if control == Some(Control::NodeTypeAbsent) {
             // The branch's state is a `type` naming no node type, which only /2 reads: the
             // request's `type` (the undeclared type name when it names none) under /2, against
@@ -1502,7 +1519,9 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
             (DESCRIBE_NODE, "node-is-a-type") => Control::NodeIsAType,
-            (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-superseded") => Control::NodeSuperseded,
+            (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE | PROJECT_TIMELINE, "node-superseded") => {
+                Control::NodeSuperseded
+            }
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-type-not-found") => Control::EventTypeAbsent,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-time-invalid") => Control::EventTimeInvalid,
             (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,

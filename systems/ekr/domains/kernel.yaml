@@ -1097,6 +1097,13 @@ types:
       - name: commit
         type: ekr.kernel.ExplainedCommit
 
+  # An Assertion link is the assertion as the captured revision holds it. Where that revision
+  # holds a supersession (story:supersede-node, ADR 0017 decision 3) the link also names, beside
+  # the record, `subject_superseded_by` — the node a superseded subject node, or the node a
+  # retired subject edge was retired with, is superseded by — and `object_superseded_by` for a
+  # superseded Node object, each an ekr.graph.NodeId and each omitted where there is none, so an
+  # explanation of a revision without a supersession is the bytes it was. Added to
+  # ekr.explanation/2 and /3 without a version bump, as the Attachment link was.
   - name: ekr.kernel.ExplanationLink
     kind: union
     tag: kind

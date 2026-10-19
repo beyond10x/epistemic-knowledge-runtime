@@ -1688,7 +1688,7 @@ fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
         .map_err(|error| refused("timeline", error))?;
     let answer = index
         .timeline_as(format, &request)
-        .map_err(|error| refused("timeline", error))?;
+        .map_err(|error| query_refused("timeline", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
 

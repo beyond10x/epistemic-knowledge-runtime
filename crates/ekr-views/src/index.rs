@@ -354,7 +354,11 @@ impl Index {
                     }
                     by_type
                 });
-        let ontology = Ok(document::project_ontology(&graph.ontology, &by_type));
+        let ontology = Ok(document::project_ontology(
+            &graph.ontology,
+            &by_type,
+            &graph.superseded,
+        ));
 
         let declared = graph.ontology.to_document();
         let mut node_types: Vec<TypeId> = declared.node_types.iter().map(|t| t.id).collect();

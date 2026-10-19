@@ -5,7 +5,7 @@
     "counts": {
       "authored": 0,
       "generated": 2,
-      "outside": 134,
+      "outside": 135,
       "refused": 0
     },
     "generated": [
@@ -2267,6 +2267,17 @@
         ],
         "origin": "generated",
         "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/node-superseded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
         "scenario": "ekr.views.ProjectTimeline/outcome/not-found"
       },
       {
@@ -2443,8 +2454,8 @@
   },
   "provenance": {
     "component": "ekr-integrate",
-    "contract_digest": "69100ae4c45ff123231046a48bd53bcde6c7d61503f934c79c1d93a68d4357bd",
-    "spec_digest": "8cc23a1c3f834b0ae13e1323f9091d89e92867bc542b2169fe9de2121f7e9085",
+    "contract_digest": "de679a1ec382ce5578744c0f8bbf12b225c3fca2bd386e28207540d5e795a08e",
+    "spec_digest": "0848f5fbe070a7a7f756fce62d76479ef0724619a74b2ada3ce9df270fba243a",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"

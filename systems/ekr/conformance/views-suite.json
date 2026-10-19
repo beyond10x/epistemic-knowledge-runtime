@@ -306,7 +306,7 @@
     },
     "counts": {
       "authored": 50,
-      "generated": 58,
+      "generated": 59,
       "outside": 78,
       "refused": 0
     },
@@ -355,6 +355,7 @@
       "ekr.views.ProjectProcessMap/outcome/not-found",
       "ekr.views.ProjectProcessMap/outcome/not-seeded",
       "ekr.views.ProjectTimeline/outcome/limit-exceeded",
+      "ekr.views.ProjectTimeline/outcome/node-superseded",
       "ekr.views.ProjectTimeline/outcome/not-found",
       "ekr.views.ProjectTimeline/outcome/not-seeded",
       "ekr.views.ProjectTimeline/outcome/timelined",
@@ -2133,8 +2134,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "69100ae4c45ff123231046a48bd53bcde6c7d61503f934c79c1d93a68d4357bd",
-    "spec_digest": "8cc23a1c3f834b0ae13e1323f9091d89e92867bc542b2169fe9de2121f7e9085",
+    "contract_digest": "de679a1ec382ce5578744c0f8bbf12b225c3fca2bd386e28207540d5e795a08e",
+    "spec_digest": "0848f5fbe070a7a7f756fce62d76479ef0724619a74b2ada3ce9df270fba243a",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -18005,6 +18006,377 @@
         },
         {
           "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.cli.StoresCompared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageAbandoned",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageBegun",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageIndexed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StagePublished",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.StageSealed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDetailed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ProcessMapped",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectTimeline/outcome/node-superseded": {
+      "purpose": "`ekr.views.ProjectTimeline` answers `node-superseded` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphTimelineFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "node-superseded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.cli.StoresCompared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageAbandoned"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageBegun"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageIndexed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StagePublished"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.StageSealed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDetailed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ProcessMapped"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeSuperseded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "node-superseded"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": "Day"
+            },
+            "format": {
+              "kind": "literal",
+              "value": "ekr.graph-timeline/1"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-dcf9e2322dc4"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-735281e90c0f"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "node-superseded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeSuperseded",
           "step": "expect_error"
         },
         {

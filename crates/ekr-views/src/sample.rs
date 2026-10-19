@@ -137,15 +137,20 @@ struct SampledFact {
     subject_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     subject_name: Option<String>,
-    /// For a node subject a supersession of the revision holds, the node it is superseded by
-    /// (`story:supersede-node`); omitted otherwise, so a sample of a revision without one is the
-    /// bytes it was.
+    /// For a node subject a supersession of the revision holds, the node it is superseded by,
+    /// and for an edge subject retired with a superseded node, the node that one is superseded
+    /// by (`story:supersede-node`); omitted otherwise, so a sample of a revision without one is
+    /// the bytes it was.
     #[serde(skip_serializing_if = "Option::is_none")]
     subject_superseded_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     predicate_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     object_name: Option<String>,
+    /// For a Node object a supersession of the revision holds, the node it is superseded by;
+    /// omitted otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    object_superseded_by: Option<String>,
     assertion: ProjectedAssertion,
     evidence: Vec<SampledEvidence>,
 }
@@ -343,15 +348,22 @@ pub fn sample(
                 }
                 Predicate::Relation(edge_type) => type_name(ontology, edge_type),
             };
+            // The pointer of a superseded subject node, or of the node a retired subject edge was
+            // retired with; and of a superseded object node (ADR 0017 decision 3).
             let subject_superseded_by = match &assertion.subject {
-                Subject::Node(node) => graph.superseded_by(node.id()).map(|by| by.to_string()),
-                Subject::Edge(_) | Subject::Type(_) => None,
-            };
-            let object_name = match &assertion.object {
-                Object::Node(node) => {
-                    held_node(graph, node.id()).map(|node| node.canonical_name.clone())
+                Subject::Node(node) => graph.superseded_by(node.id()),
+                Subject::Edge(edge) if !graph.superseded.is_empty() => {
+                    graph.retired_with(edge.id()).map(|(_, by)| by)
                 }
-                Object::Value(_) | Object::Type(_) => None,
+                Subject::Edge(_) | Subject::Type(_) => None,
+            }
+            .map(|by| by.to_string());
+            let (object_name, object_superseded_by) = match &assertion.object {
+                Object::Node(node) => (
+                    held_node(graph, node.id()).map(|node| node.canonical_name.clone()),
+                    graph.superseded_by(node.id()).map(|by| by.to_string()),
+                ),
+                Object::Value(_) | Object::Type(_) => (None, None),
             };
             let mut evidence: Vec<SampledEvidence> = assertion
                 .evidence
@@ -387,7 +399,8 @@ pub fn sample(
                 subject_superseded_by,
                 predicate_name,
                 object_name,
-                assertion: document::assertion(assertion),
+                object_superseded_by,
+                assertion: document::assertion(assertion, &graph.superseded),
                 evidence,
             }
         })

@@ -1404,7 +1404,11 @@ impl Index {
                 ProjectError::Inconsistent(format!("the index lists edge {id} the graph lacks"))
             })?;
             let about = claims(self.about_edge.get(&edge));
-            edges.push(ProjectedEdge::of(held_edge, Some(&about)));
+            edges.push(ProjectedEdge::of(
+                held_edge,
+                Some(&about),
+                &graph.superseded,
+            ));
         }
         let document = NodeDetailV1 {
             meta: DetailMeta {
@@ -1420,13 +1424,13 @@ impl Index {
                 props: document::props(&held.properties),
                 degree: self.degree[index as usize],
             },
-            assertions: document::listed_under(Some(&own)),
+            assertions: document::listed_under(Some(&own), &graph.superseded),
             referencing: incoming
                 .iter()
                 .map(|claim| ReferencingAssertion {
                     subject_kind: subject_kind(&claim.subject),
                     subject: subject_id(&claim.subject),
-                    assertion: document::assertion(claim),
+                    assertion: document::assertion(claim, &graph.superseded),
                 })
                 .collect(),
             edges,

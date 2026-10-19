@@ -706,7 +706,8 @@ It prints the `ekr.store-comparison/1` document (`ekr.cli.CompareStores` in
 ```
 
 `categories` lists six, in this order (one is shown above): `types`, `properties`, `nodes`,
-`edges`, `assertions` and `evidence`. `left` and `right` count the ids each store holds there;
+`edges`, `assertions` and `evidence`, then `superseded` where either store holds a
+[supersession record](#a-node-superseded-by-another). `left` and `right` count the ids each store holds there;
 `differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
 `presence` is `left` or `right` for an id only one store holds, and `both` for one both hold
 differently, with `fields` naming the fields that differ. `equal` is `true` exactly when every
@@ -720,6 +721,7 @@ category's is.
 | `edges` | edge id | `type_id`, `source`, `target`, `properties` |
 | `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
 | `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
+| `superseded` | superseded node id | `node` and `edges` (as `nodes` and `edges` compare them), `by`, `revision`, `reason`, `evidence`; listed only where either store holds a record |
 
 Nothing a commit's clock or its transaction decides is compared: not an assertion's
 `transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
@@ -1100,7 +1102,9 @@ relation's name), `object_name` (a node object's canonical name), each left out 
 none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
 else `base64`. An assertion about a [superseded node](#a-node-superseded-by-another) is still
 sampled: its names are the node's as its record holds them, and `subject_superseded_by` names the
-node it is superseded by, left out for every other subject. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
+node it is superseded by (for an edge subject retired with a superseded node, that node's), and
+`object_superseded_by` the node a superseded `!Node` object is superseded by, each left out where
+there is none. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
 hold as `ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
 
 ### `ekr fact-quality`
@@ -2612,9 +2616,15 @@ record of its own under the node's id: the node as it was, its edges, `by`, the 
 reason and the evidence. [`ekr snapshot`](#ekr-snapshot) lists the record under `superseded`;
 every other head read — `ekr view`, the session and MCP reads, [`/changes`](#changes-since) aside —
 reads the head's nodes and edges and so no longer shows it. A read of its id at the head
-(`/node/<id>` in either format, `/expand`, the MCP `describe_node` and `expand`, the session's
-`describe` and `expand`) is refused as `ekr.views.NodeSuperseded`, 404, naming `by`; at a revision
-before the supersession it reads as it was. `/changes` lists the supersession as a
+(`/node/<id>` in either format, `/expand`, `/timeline` with that `subject`, the MCP `describe_node`,
+`expand` and `timeline`, the session's
+`describe`, `expand` and `timeline`) is refused as `ekr.views.NodeSuperseded`, 404, naming `by`; at a revision
+before the supersession it reads as it was. A read that reaches an assertion naming it — the
+assertion is kept — names the pointer too: a rendered assertion whose `!Node` object is
+superseded carries `object_superseded_by` (`/node/<id>`, the projection, `ekr sample`), an
+`ekr explain` Assertion link carries `subject_superseded_by` and `object_superseded_by`, and a
+sampled fact about it, or about an edge retired with it, `subject_superseded_by`; each is left out
+where nothing is superseded. [`ekr compare`](#ekr-compare) compares the records. `/changes` lists the supersession as a
 `NodeSuperseded` change of the node, with its `type` and `name` and, in `target`, the node kept.
 Its aliases stay its own under its type: [`ekr resolve`](#ekr-resolve) of that type and one of them
 answers `by`, even when `by` is of another type, and a later `!CreateNode` or `!AddAlias` that would

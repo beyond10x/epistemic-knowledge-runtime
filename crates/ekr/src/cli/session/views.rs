@@ -398,7 +398,7 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
             index
                 .timeline_as(format.unwrap_or(TimelineFormat::V1), &request)
-                .map_err(project)?
+                .map_err(query)?
                 .bytes
         }
         Verb::Changes {

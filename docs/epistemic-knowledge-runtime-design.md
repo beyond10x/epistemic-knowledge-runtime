@@ -6471,10 +6471,18 @@ a retired edge without a filter of its own, and a reader nobody updated fails cl
   of `ekr.graph-changes/1` typed as a node, so no format moves — and `ChangesListed` counts them in
   `nodes_superseded`. A range holding no supersession answers exactly as before. `DrawFactSample`
   still samples an assertion about a superseded node: its type and names are read from the
-  record, and `subject_superseded_by` names the node it is superseded by, omitted for every other
-  subject.
+  record, and `subject_superseded_by` names the node it is superseded by — for a subject edge
+  retired with a superseded node, the node that record names. Every rendered assertion whose Node
+  object is superseded carries `object_superseded_by` (`ekr.views.ProjectedAssertion`, so the
+  projection, both node-detail formats and the sample), and an `ekr explain` Assertion link both
+  pointers; each is omitted where nothing is superseded, so no document of a revision without a
+  supersession moves (ADR 0017 decision 3). `ProjectTimeline` of a superseded `subject` is
+  `NodeSuperseded`, as `DescribeNode` is. `ekr compare` lists a seventh category, `superseded`,
+  only where either store holds a record.
 - **Extraction.** `ekr apply-extraction` decides whether a `replaces: true` fact has a value to
-  replace on the nodes `ekr resolve` answers, a superseded key's kept node included.
+  replace on the nodes `ekr resolve` answers, a superseded key's kept node included. A fact refused
+  after its key resolved through a record to a kept node of another type names the superseded
+  node, its type and the kept node in its refusal.
 - **In the same transaction.** A `NodeRef` value of any operation naming a node the transaction
   supersedes is `superseded-node-named-in-transaction`, as an endpoint is; an operation naming an
   edge the transaction retires is refused by that code alone, not also as `unresolved-edge`.

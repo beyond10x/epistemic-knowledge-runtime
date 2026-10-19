@@ -913,7 +913,83 @@ pub fn apply_with<T: Transport + ?Sized>(
         }
         report.stopped = Some(error.to_string());
     }
+    name_supersessions(document, graph, &store, &mut report.rejected);
     Ok(report)
+}
+
+/// Where a refused fact's subject or object resolved through a supersession record to a kept
+/// node of another type (`story:supersede-node`), its refusal says so: the reason a property
+/// the key's own type declares is refused on the node it lands on is otherwise invisible. Each
+/// such rejection's `refusal`, or each of its issues' `message`, gains the superseded node, its
+/// type and the kept node; nothing else changes.
+fn name_supersessions(
+    document: &ExtractionDocument,
+    graph: &crate::read::SnapshotGraph,
+    store: &Ontology,
+    rejected: &mut [RejectedExtraction],
+) {
+    if graph.superseded.is_empty() {
+        return;
+    }
+    let note = |reference: &ExtractedReference| -> Option<String> {
+        let type_id = store.node_type(&reference.node_type)?;
+        graph.superseded.values().find_map(|record| {
+            let matches = record.node.root_id == graph.root.id
+                && record.node.type_id == type_id
+                && record
+                    .node
+                    .aliases
+                    .iter()
+                    .any(|alias| reference.aliases.contains(alias));
+            let kept = graph.nodes.get(&record.by)?.type_id;
+            (matches && kept != type_id).then(|| {
+                format!(
+                    "the {} known as {:?} resolved through the supersession of node {} (type {} \
+                     {type_id}) by node {} (type {kept}), which is of another type",
+                    reference.node_type,
+                    reference.aliases,
+                    record.node.id,
+                    reference.node_type,
+                    record.by
+                )
+            })
+        })
+    };
+    for rejection in rejected {
+        let Some(rest) = rejection.item.strip_prefix("facts[") else {
+            continue;
+        };
+        let Some((index, place)) = rest.split_once(']') else {
+            continue;
+        };
+        let Some(fact) = index
+            .parse::<usize>()
+            .ok()
+            .and_then(|at| document.facts.get(at))
+        else {
+            continue;
+        };
+        let (subject, object) = match fact {
+            ExtractedFact::Property(fact) => (&fact.subject, None),
+            ExtractedFact::Relation(fact) => (&fact.subject, Some(&fact.object)),
+        };
+        let references: Vec<&ExtractedReference> = match place {
+            ".subject" => vec![subject],
+            ".object" => object.into_iter().collect(),
+            _ => std::iter::once(subject).chain(object).collect(),
+        };
+        let notes: Vec<String> = references.into_iter().filter_map(note).collect();
+        if notes.is_empty() {
+            continue;
+        }
+        let notes = notes.join("; ");
+        if let Some(refusal) = &mut rejection.refusal {
+            refusal.push_str(&format!("; {notes}"));
+        }
+        for issue in &mut rejection.issues {
+            issue.message.push_str(&format!("; {notes}"));
+        }
+    }
 }
 
 /// One application, once its plan is made.

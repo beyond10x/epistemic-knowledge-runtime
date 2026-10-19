@@ -230,3 +230,33 @@ fn the_changes_list_a_supersession() {
         assert_eq!(page.summary.nodes_superseded, 1, "{provider}");
     });
 }
+
+/// A timeline whose `subject` is beta is refused at the head as `NodeSuperseded` naming
+/// `beta, kept`, as `DescribeNode` refuses it, in both formats; at revision 1 it answers beta's
+/// row; a subject no revision holds still answers no row.
+#[test]
+fn a_timeline_of_a_superseded_subject_names_its_successor() {
+    each(|provider, _, head, before| {
+        let request = |subject: u64| {
+            TimelineRequest::new(None, 1, 10, None, Some(id(subject))).expect("bounds")
+        };
+        for format in [ekr_views::TimelineFormat::V1, ekr_views::TimelineFormat::V2] {
+            match head.timeline_as(format, &request(BETA_NODE)) {
+                Err(QueryError::NodeSuperseded { node, by, revision }) => {
+                    assert_eq!(node, id::<NodeId>(BETA_NODE), "{provider} {format:?}");
+                    assert_eq!(by, id::<NodeId>(SUPERSEDED_KEPT), "{provider} {format:?}");
+                    assert_eq!(revision, RevisionNumber::new(2), "{provider} {format:?}");
+                }
+                other => panic!("{provider} {format:?}: {:?}", other.map(|a| a.summary)),
+            }
+        }
+        let earlier = before
+            .timeline(&request(BETA_NODE))
+            .expect("revision 1 answers beta's row");
+        assert_eq!(earlier.summary.rows, 1, "{provider}: {:?}", earlier.summary);
+        let unknown = head
+            .timeline(&request(0xdead_beef))
+            .expect("an unheld subject is no refusal");
+        assert_eq!(unknown.summary.rows, 0, "{provider}");
+    });
+}
