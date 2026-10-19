@@ -2,7 +2,8 @@
 
 Skill: aep:implementing 0.23.2 (wave mode). Coordinator: a Claude session the operator started on
 2026-10-19 for this one change.
-Status: **dispatching** U1.
+Status: **gated**: U1 merged into `wave/20261019a` at `a3d90018`; the full gate is green on it;
+`story:supersede-node` is implemented. Pull request from `wave/20261019a`; no merge into `main`.
 
 Source: a consumer's ingestion wrote duplicate nodes and needs one released write that retires a
 node in favour of another (`story:supersede-node`). The decision between finishing `MergeEntity`
@@ -46,7 +47,7 @@ and `CHANGELOG.md`; whichever pull request lands second resolves those files.
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261019a` | `ekr-w20261019a` | none: this tree does not build | none | store writes |
-| U1 | `unit/20261019a-u1` | `ekr-w19a-u1` | `<tree>/target` | `<home>/.cache/ekr-w19a-u1-scratch` | implementor green at `7f0deb56` (13 new tests, 14 red before; lane 1 1413→1426 listed; kernel suite 65→72, views 105→108); adversary pass 1 dispatched, scratch `<home>/.cache/ekr-w19a-u1-adversary` |
+| U1 | `unit/20261019a-u1` | `ekr-w19a-u1` | `<tree>/target` | `<home>/.cache/ekr-w19a-u1-scratch` | merged at `a3d90018`: implementor `7f0deb56`, correction 1 `35fe0874`, correction 2 `1a716c1a`; adversary scratch `<home>/.cache/ekr-w19a-u1-adversary`; this tree ran the full gate |
 
 Worktree paths: `<worktrees>/b10x/epistemic-knowledge-runtime/<worktree id>`.
 
@@ -66,6 +67,36 @@ Worktree paths: `<worktrees>/b10x/epistemic-knowledge-runtime/<worktree id>`.
   stopped its run. Free space later read 110G (`df -h /`). `<tree>/target` read 43G at one point
   (`du -sh`). The base before-counts therefore come from `cargo test -- --list`, not from a run.
 
+## Reviews
+
+| pass | record | findings | outcome |
+|---|---|---|---|
+| adversary 1 on `7f0deb56` | `review-result:adversary-w20261019a-u1-pass-1` | 5: 4 introduced, 1 undecided | F1–F4 fixed in `35fe0874`; J1 filed into `story:merge-entity-applies` (no-op) |
+| adversary 2 on `35fe0874` | `review-result:adversary-w20261019a-u1-pass-2` | 4 introduced; carried 0, new 4, resolved 5 (`aep plan artifact findings`) | F5, F6, N1, N2 fixed in `1a716c1a` |
+
+The coordinator read the correction-2 diff against `35fe0874`: no assertion removed, no `#[ignore]`
+added, the only removed test lines raise a count (views generated scenarios 58 → 59, views baseline
+total and floor 108 → 109). No third attack.
+
 ## Gate
 
-Not run yet.
+The full gate ran once on the integrated head `a3d90018`, in the U1 tree's own `target/`, with the
+pinned `ess` 0.36.0 and `aep` 0.64.0 first on the path, one exit status per step
+(`<home>/.cache/ekr-w19a-u1-scratch/gate-a3d90018/status.txt`): `fmt-check`, `search-web-check`,
+`clippy`, `test`, `doc-check`, `vendor-check`, `spec-check`, `conform-fresh`, `plan-check` and
+`site-check` each `EXIT=0`. `test`: 2526 passed, 0 failed, 13 ignored, summed over its
+`test result:` lines. `cargo test --workspace -- --list` in the same tree lists 2537 tests, 63 of
+them adversary cases. The cross-crate checks of `COORDINATOR.md` check 9 (`cargo fmt --all --
+--check`; `cargo test -p ekr --test story_contract --test public_surface --test docs_cli --test
+agent_cli`) each `EXIT=0`; workspace clippy is the `clippy` step.
+
+## Cost
+
+| agent | tokens | tool uses | wall |
+|---|---|---|---|
+| read-surface survey (`Explore`) | 117,716 | 56 | 4.4 min |
+| `aep:story-scoper` | 97,436 (after a 429 resume) | 10 | 2.1 min (final leg) |
+| `aep:implementor` (dispatch and two corrections) | 831,461 + 478,992 + 605,780 | 542 + 61 + 130 | 190 + 47 + 81 min |
+| `aep:adversary` pass 1 | 274,266 | 109 | 49 min |
+| `aep:adversary` pass 2 | 270,792 | 106 | 67 min |
+| ADR 0018 draft (`Plan`) | 100,354 | 44 | 6.8 min |

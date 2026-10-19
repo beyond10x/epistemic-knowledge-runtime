@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:supersede-node
 kind: story
-status: active
+status: implemented
 title: SupersedeNode retires a duplicate node in favour of the node that replaces it, and its aliases resolve there
 relations:
 - decomposes: epic:p3-incubation-integration
@@ -16,6 +16,8 @@ scope:
   path: crates/ekr-graph/src/canonical.rs
 - confidence: cited
   path: crates/ekr-graph/src/lib.rs
+- confidence: cited
+  path: crates/ekr-graph/src/supersession.rs
 - confidence: cited
   path: crates/ekr-graph/tests
 - confidence: cited
@@ -37,9 +39,17 @@ scope:
 - confidence: cited
   path: crates/ekr-kernel/src/validate
 - confidence: cited
+  path: crates/ekr-kernel/src/validate/supersession.rs
+- confidence: cited
   path: crates/ekr-kernel/tests
 - confidence: cited
+  path: crates/ekr-sdk/src/checks.rs
+- confidence: cited
   path: crates/ekr-sdk/src/document/transaction.rs
+- confidence: cited
+  path: crates/ekr-sdk/src/extraction.rs
+- confidence: cited
+  path: crates/ekr-sdk/src/read
 - confidence: inferred
   path: crates/ekr-sdk/tests/document_drift.rs
 - confidence: cited
@@ -59,6 +69,10 @@ scope:
 - confidence: cited
   path: crates/ekr-views/src/query.rs
 - confidence: cited
+  path: crates/ekr-views/src/sample.rs
+- confidence: cited
+  path: crates/ekr-views/src/timeline.rs
+- confidence: cited
   path: crates/ekr-views/tests/conformance.rs
 - confidence: cited
   path: crates/ekr-views/tests/fixtures/conformance
@@ -69,9 +83,15 @@ scope:
 - confidence: cited
   path: crates/ekr/src/cli/agent.rs
 - confidence: cited
+  path: crates/ekr/src/cli/compare.rs
+- confidence: cited
+  path: crates/ekr/src/cli/explain.rs
+- confidence: cited
   path: crates/ekr/src/cli/mcp.rs
 - confidence: cited
   path: crates/ekr/src/cli/session/views.rs
+- confidence: cited
+  path: crates/ekr/src/cli/telemetry.rs
 - confidence: cited
   path: crates/ekr/src/cli/view.rs
 - confidence: inferred
@@ -95,6 +115,8 @@ scope:
 - confidence: cited
   path: systems/ekr/conformance
 - confidence: cited
+  path: systems/ekr/domains/cli.yaml
+- confidence: cited
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/integrate.yaml
@@ -102,10 +124,11 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 13
+revision: 16
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-19T11:23:55Z", actor: "agent:claude-ekr-session", revision: 12}
 - {from: "proposed", to: "active", at: "2026-10-19T11:23:55Z", actor: "agent:claude-ekr-session", revision: 13}
+- {from: "active", to: "implemented", at: "2026-10-19T20:00:00Z", actor: "agent:claude-ekr-session", revision: 14, decided_on: {"recorded":{"test_result":1,"review_outcome":3,"verification":1}}}
 ---
 ## Context
 
@@ -251,3 +274,21 @@ story or the tree) or **inferred**.
 - **Not established:** whether the views and integrate conformance runners need new fixture shapes;
   whether `quality.rs`, `code_names.rs` and `process_map.rs` look subjects up themselves; whether
   `ekr-sdk`'s `SnapshotGraph` (`crates/ekr-sdk/src/read/kernel.rs:75`) must carry the field.
+
+## Scope as built
+
+Confirmed by the implementor on 2026-10-19 (wave 2026-10-19a U1, merged at `a3d900185`). The
+derived scope below stands; corrections are listed here rather than deleted from it.
+
+- Every `inferred` line held: `crates/ekr-sdk/tests/document_drift.rs` (two exhaustive arms),
+  `crates/ekr-views/tests/support/fixtures.rs` (fixtures `Superseded`, `DescribedSuperseded`),
+  `crates/ekr/tests/agent_cli.rs`, `docs_cli.rs`, `schema_cli.rs` (kind count 17 → 18), `docs/sdk.md`.
+- Open questions settled: the views conformance target needed `Control::NodeSuperseded` and a seed
+  substitution; the integrate runner needed nothing; the SDK's `SnapshotGraph` carries `superseded`.
+- Surfaces the scope did not name, touched by the change: `crates/ekr-graph/src/supersession.rs` and
+  `crates/ekr-kernel/src/validate/supersession.rs` (new); `ekr-kernel/tests/{validation,
+  base_era_v1_replay, validate_properties}.rs`; `ekr-views/src/{sample,timeline}.rs`;
+  `ekr-views/tests/{changes, one_event_type_rule, conformance, supersession}.rs`;
+  `ekr-sdk/src/{extraction,checks}.rs`, `ekr-sdk/src/read/*`, `ekr-sdk/tests/{read,docs_examples}.rs`;
+  `crates/ekr/src/cli/{telemetry,compare,explain}.rs`; `crates/ekr/tests/{view_page,resolve_cli,mcp}.rs`;
+  `systems/ekr/domains/cli.yaml`.
