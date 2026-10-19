@@ -2,21 +2,24 @@
 format: aep.planning-md/3
 id: architecture-decision-record:0018-merge-and-split-identity
 kind: architecture-decision-record
-status: proposed
+status: accepted
 title: ADR 0018 — A merge is a supersession whose references are rewritten in place, with the lineage a split needs
 relations:
 - decides: story:merge-entity-applies
-revision: 1
+revision: 3
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-10-19T14:19:13Z", actor: "agent:claude-ekr-session", revision: 3}
 ---
 ## Status
 
-Proposed on 2026-10-19 with `story:merge-entity-applies`. It records the three rules the operator
-decided on 2026-10-14 (`decision-blocker:merge-absorbed-node-fate`,
+Accepted by the operator on 2026-10-19 with option A and the default of each of the six open
+questions below. Proposed the same day with `story:merge-entity-applies`. It records the three rules
+the operator decided on 2026-10-14 (`decision-blocker:merge-absorbed-node-fate`,
 `decision-blocker:merge-across-node-types`, `decision-blocker:split-reverting-merge-identity`) and
-builds them on `architecture-decision-record:0017-a-node-is-superseded-by-another` (accepted). No
-implementing wave starts on the story until this record is accepted. Drafted read-only at
-`5b358cfaa`, while `story:supersede-node` was being implemented; the record field and refusal names
-below are aligned with that story's once it merges.
+builds them on `architecture-decision-record:0017-a-node-is-superseded-by-another` (accepted).
+`story:merge-entity-applies` builds it, spec first, after `story:supersede-node`. Drafted read-only
+at `5b358cfaa`, while `story:supersede-node` was being implemented; the record field and refusal
+names below are aligned with that story's once it merges.
 
 ## Context
 
