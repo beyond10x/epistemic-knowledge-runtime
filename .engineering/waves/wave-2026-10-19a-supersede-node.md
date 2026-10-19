@@ -46,7 +46,7 @@ and `CHANGELOG.md`; whichever pull request lands second resolves those files.
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261019a` | `ekr-w20261019a` | none: this tree does not build | none | store writes |
-| U1 | `unit/20261019a-u1` | `ekr-w19a-u1` | `<tree>/target` | `<home>/.cache/ekr-w19a-u1-scratch` | dispatched |
+| U1 | `unit/20261019a-u1` | `ekr-w19a-u1` | `<tree>/target` | `<home>/.cache/ekr-w19a-u1-scratch` | implementor green at `7f0deb56` (13 new tests, 14 red before; lane 1 1413→1426 listed; kernel suite 65→72, views 105→108); adversary pass 1 dispatched, scratch `<home>/.cache/ekr-w19a-u1-adversary` |
 
 Worktree paths: `<worktrees>/b10x/epistemic-knowledge-runtime/<worktree id>`.
 
@@ -58,6 +58,13 @@ Worktree paths: `<worktrees>/b10x/epistemic-knowledge-runtime/<worktree id>`.
 | build cache | `RUSTC_WRAPPER=sccache`, `SCCACHE_DIR=<home>/.cache/sccache/epistemic-knowledge-runtime`, port 4302, 2G cap (AGENTS.md); the directory did not exist before this wave |
 | pinned tools | `ess` 0.36.0 and `aep` 0.64.0 from `<home>/.cache/epistemic-knowledge-runtime-tools/*/bin`, first on the path for `spec-check`, `conform-fresh`, `plan-check` |
 | one build | not measured before dispatch; only one tree builds, and the full gate runs in the U1 tree on the integrated head |
+
+## Incidents
+
+- During the implementor's base run free space on `/` fell to 65M and once to 0 B (ENOSPC), as the
+  implementor reported; its build directory was 26G, other sessions the rest; it deleted nothing and
+  stopped its run. Free space later read 110G (`df -h /`). `<tree>/target` read 43G at one point
+  (`du -sh`). The base before-counts therefore come from `cargo test -- --list`, not from a run.
 
 ## Gate
 

@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p3-incubation-integration
 - serves: vision:o2
 - depends_on: story:supersede-node
-revision: 3
+revision: 4
 ---
 ## Context
 
@@ -86,3 +86,12 @@ Kernel tests and conformance scenarios, on both providers, fixtures in the runti
 
 `SplitEntity`, its record and a read of the lineage (ADR 0018 decision 4 fixes only its identity
 rule); `RetypeNode`; more than one pair per operation; bulk or predicate merges; duplicate detection.
+
+## NodeRef property values
+
+Added 2026-10-19 from `review-result:adversary-w20261019a-u1-pass-1` (J1): after `SupersedeNode`,
+a NodeRef property value written before the supersession keeps naming the superseded node, as
+assertions do (ADR 0017 decision 3; `crates/ekr-kernel/src/apply.rs:333` at `7f0deb561`). A merge
+rewrites every reference to `absorbed`, so its rewrite includes NodeRef values in node and edge
+properties, recorded in the lineage beside the rewritten assertion fields, with an acceptance case
+`a-merge-rewrites-node-ref-values`.
