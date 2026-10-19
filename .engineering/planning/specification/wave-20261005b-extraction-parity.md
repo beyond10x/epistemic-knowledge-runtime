@@ -6,7 +6,7 @@ status: implemented
 title: 'Wave 20261005b: extraction parity'
 relations:
 - decides: story:extraction-partial-apply
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "in_review", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 2}
 - {from: "in_review", to: "approved", at: "2026-10-05T11:51:15Z", actor: "agent:claude", revision: 3}
@@ -14,7 +14,7 @@ transitions:
 ---
 ## Wave 20261005b: extraction parity
 
-Opened 2026-10-05 by the coordinating session, `aep:implementing` 0.19.2 wave mode. It clears the cb3 upstream blocker `ekr-extraction-parity` (valid time, supersession, partial apply, relations as graph edges) and adds `ocel-process-map`.
+Opened 2026-10-05 by the coordinating session, `aep:implementing` 0.19.2 wave mode. It clears the downstream consumer's upstream blocker `ekr-extraction-parity` (valid time, supersession, partial apply, relations as graph edges) and adds `ocel-process-map`.
 
 **Approval:** the operator approved every wave up front on 2026-10-05: "I approve all waves upfront and now. do not ask for permission, you orchestrate this". Option A of the proposal: one wave, with unit A running the four extraction stories in order.
 

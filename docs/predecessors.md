@@ -3,7 +3,7 @@
 **Status:** survey, 2026-09-21. Every count below was read from a command or a file on that date;
 the source is named beside it. Where a claim is inferred rather than read, it says so.
 **Purpose:** answer two questions before the first crate exists. (1) Which capabilities of
-`company-brain` (v1) and `org-brain` (v2) does `docs/epistemic-knowledge-runtime-design.md` not cover,
+v1 (an earlier organisation-memory prototype) and `org-brain` (v2) does `docs/epistemic-knowledge-runtime-design.md` not cover,
 or cover weaker? (2) Would their stored data and schemas conflict with the design if this runtime
 imports or coexists with them?
 **Result:** 15 capabilities to carry (§ 2), 6 v1 conflicts (§ 5), 13 v2 conflicts (§ 6), all
@@ -18,7 +18,7 @@ Design references are `§ n` (section) or `design:L` (line) in `docs/epistemic-k
 
 | | v1 | v2 instance | v2 engine |
 |---|---|---|---|
-| checkout | the `company-brain` tree | the `org-brain` instance tree | the `org-brain` engine tree (`beyond10x/org-brain`, 0.5.0) |
+| checkout | the v1 tree | the `org-brain` instance tree | the `org-brain` engine tree (`beyond10x/org-brain`, 0.5.0) |
 | language | Python (`pyproject.toml`), 130+ scripts in `bin/` | Rust, 9,969 LOC in `src/` | Rust, ≈80k LOC across 7 crates (`brain`, `brain-core`, `brain-ledger`, `brain-rules`, `brain-views`, `brain-check`, `brain-round`) |
 | kernel | none; JSON Schema `knowledge/state/ontology.schema.json` + 13 entity YAMLs | entity-runtime 0.17.7 (`org-brain-successor/Cargo.toml:24-28`) | same |
 | store | 537 curated `.md`, 2,296 raw `.jsonl`, 121 MB under `knowledge/` | `store/` in `entity.file-store/2`: 5,304 subject files, 3.6 GB; `raw/` 26 GB / 619,487 files | none (engine is ontology-agnostic) |
@@ -47,7 +47,7 @@ specifies weaker. "Action" names the design amendment or roadmap phase that carr
 | A8 | Coverage denominators and poll health: `checked_through`, `attempt | complete | partial | failed`; a successful poll proves only its window | partial (`knowledge/state/cursor.json`, `bin/check-channels.py`) | engine design § 8; `src/coverage_audit.rs`; `raw/.audit/coverage-latest.json` | § 55 checkpoints (design:2266-2287) | P2 requirement |
 | A9 | Self-improvement ledgers: lessons, gates, recurrence | `knowledge/meta/{lessons,gates}.jsonl`, `bin/improve.py` | `lesson` (443 records), `gate` (35) | § 61 agent metrics (design:2418-2423) | P6; lessons are ordinary canonical nodes |
 | A10 | Identity: source id as identity, typed person references with a name-loss gate, prefix-collision rule | `bin/entity_ids.py:5-25` documents the longest-prefix collision rule | `src/person_refs/` (1,532 LOC); "Identity beats fuzz … no string-matched resolver exists" (engine design § 7.4) | § 45 concept only (design:1996-2026) | P3 resolver: explicit merge transactions, no string matching |
-| A11 | Scheduled and continuous operation with independent per-source collectors | `config/systemd/company-brain-sweep.{timer,service}` | `systemd/` (continuous, dashboard, round, coverage-audit, health-notify, connectors); collectors run while the model waits | § 33 `loop { }` (design:1599-1627) | P5: both modes; loop steps ordered by an AEP driver map |
+| A11 | Scheduled and continuous operation with independent per-source collectors | a sweep timer and service under `config/systemd/` | `systemd/` (continuous, dashboard, round, coverage-audit, health-notify, connectors); collectors run while the model waits | § 33 `loop { }` (design:1599-1627) | P5: both modes; loop steps ordered by an AEP driver map |
 | A12 | Binary attachments as evidence | 12 PDF, 18 PNG, 3 `.m4a` under `knowledge/` | — | `ObservationContent` has no blob variant (design:827-835) | add `Blob(ContentHash)`; P2 |
 | A13 | Per-type lifecycles and named operations with transitions and emitted events | 13 entity YAMLs under `knowledge/state/entities/` | every `definitions/*.yaml`: `lifecycle.{initial,states}`, `operations.<name>.{arguments,transitions,set,emits}` | § 11 types and properties (design:591-613); § 19 generic operations (design:995-1010) | add `lifecycle` and `operations` to `NodeType`; ontology-constraint validator enforces; P1 |
 | A14 | MCP read surface for agents with the doctrine that record text is untrusted evidence | — | `src/mcp.rs:66-83`: 8 tools, 418 LOC, no SDK, no async runtime | § 70 internal trait only (design:2770-2796) | P4 `ekr-mcp`, lifted |
@@ -64,8 +64,8 @@ evolution from incubation evidence (§ 25–26).
 
 | item | where | why |
 |---|---|---|
-| story backlog and CHANGELOG for building v1 | `company-brain/docs/stories/` (≈200 files) | development process; this repository has its own AEP store |
-| telephony and platform probes | `bin/acd-health.py`, `acd-queue-rows.py`, `ghost-calls.py`, `call-timeline.py`, `can-login.py` | instance concern, not runtime |
+| story backlog and CHANGELOG for building v1 | v1 `docs/stories/` (≈200 files) | development process; this repository has its own AEP store |
+| downstream-system and platform probes | five scripts under `bin/`: a queue-health probe, a queue-rows probe, a stale-session probe, a timeline probe and a login probe | instance concern, not runtime |
 | adoption screen over a foreign system | `org-brain/src/screen.rs` (355 LOC) | organisation-specific projection |
 
 ## 5. v1 data and schema against the design
@@ -95,7 +95,7 @@ confluence-space/cluster 5 each, aws-account 3.
 
 | # | v2 | design | severity | import policy |
 |---|---|---|---|---|
-| 1 | ids are human-readable and domain-meaningful: `<first.last>` for a person, `dec-0020`, `DEV-520` (Jira native), sha256 hex for a workload | § 6.4 names are attributes (design:374-380) | hard | mint `NodeId`s; the v2 id becomes `canonical_name` plus an alias; `views/attention.index.json` item refs and `annex/*` filenames are re-pointed |
+| 1 | ids are human-readable and domain-meaningful: `<first.last>` for a person, `dec-0020`, `EX-1` (the tracker's native key), sha256 hex for a workload | § 6.4 names are attributes (design:374-380) | hard | mint `NodeId`s; the v2 id becomes `canonical_name` plus an alias; `views/attention.index.json` item refs and `annex/*` filenames are re-pointed |
 | 2 | field `provenance` is an enum `observed | asserted | derived | inherited` (`definitions/person.yaml:20`) | `provenance: Vec<EvidenceId>` on edges (design:708); § 6.5 | hard name clash, different semantics | v2 `provenance` imports as a property `origin`; `inherited` means no evidence and is never `Accepted` |
 | 3 | `revision` is per subject, +1 per operation | `revision: u64` is the global root revision (design:1637-1647) | hard | v2 revision → property `source_revision`; no global order is reconstructed |
 | 4 | `lifecycle_state` describes the world (`active | departed | unknown`, `open | answered`, `mirrored`) | `KnowledgeState` describes knowing (design:1400-1410); `GraphRoot.lifecycle` (design:2752) | hard, same slot name, orthogonal axis | keep both: v2 lifecycle becomes the per-type lifecycle of A13; `KnowledgeState` stays separate |
@@ -135,7 +135,7 @@ records carry `origin: inherited` with no evidence and stay transient.
 | interpretation stopped on 2026-09-07; "historical coverage and interpretation remain incomplete" | `org-brain/README.md:12-17`, `annex/incident/2026-09-07-brain-knowledge-gap.md` | P5: a stalled interpreter is a visible status, never a silent gap; collectors continue |
 | thread replies missed despite successful polls | same incident | P2 (A8): a completed poll establishes only its own window; replies are their own units |
 | `unlimited_budget = true` set by hand for repair | `org-brain/brain.toml:38-39` | P5 (A7): the stop condition cannot be removed without an approval record |
-| four of eighteen v1 gates "wallpaper", four "cannot fire on the thing they name"; 10 of 12 lessons recurred, 7 within 24 h | `company-brain/README.md:14-24`, `docs/reviews/2026-08-20-defect-register-and-plan.md` | P6 (A9): recurrence is a metric; a gate that never fires is reported |
+| four of eighteen v1 gates "wallpaper", four "cannot fire on the thing they name"; 10 of 12 lessons recurred, 7 within 24 h | v1 `README.md:14-24`, `docs/reviews/2026-08-20-defect-register-and-plan.md` | P6 (A9): recurrence is a metric; a gate that never fires is reported |
 
 ## 9. Import policy, in five rules
 

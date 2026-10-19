@@ -30,7 +30,7 @@ The runtime described in `docs/epistemic-knowledge-runtime-design.md`, built as 
 in the order `docs/roadmap.md` gives. One crate per domain; the crate map and what each owns is
 roadmap § 3, and is not repeated here.
 
-The runtime supersedes `company-brain` (v1) and `org-brain` (v2). Their code is a lift source, never
+The runtime supersedes v1 (an earlier organisation-memory prototype) and `org-brain` (v2). Their code is a lift source, never
 a dependency; their data enters through the import policy in `docs/predecessors.md` § 9.
 
 ## Agents that use the `ekr` binary

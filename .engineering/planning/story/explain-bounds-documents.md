@@ -18,7 +18,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-06T10:18:11Z", actor: "agent:claude", revision: 6, decided_on: {"recorded":{"review_outcome":5}}}
 - {from: "proposed", to: "active", at: "2026-10-06T10:18:11Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":5}}}
@@ -30,7 +30,7 @@ transitions:
 
 ## Why
 
-Found 2026-10-06 by the gap inventory for running a company brain entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
+Found 2026-10-06 by the gap inventory for running an organisation's knowledge store entirely on cortex and EKR, from a review of a live deployment on 0.0.30.
 One `explain` with documents returned 4.9 MB for an assertion whose evidence is one very large record; the cited fact appears in it once. `ekr explain --documents` returns the whole retained record per link (`crates/ekr/src/cli/explain.rs:12-13` at 0.0.30) and the MCP tool passes it through (`crates/ekr/src/cli/mcp.rs:553-565`).
 
 ## Acceptance

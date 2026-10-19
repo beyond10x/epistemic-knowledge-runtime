@@ -4,12 +4,12 @@ id: initiative:epistemic-knowledge-runtime
 kind: initiative
 status: active
 title: Build the Epistemic Knowledge Runtime
-summary: The design document as a multi-crate Rust workspace, in phases P0–P7, superseding company-brain and org-brain.
+summary: The design document as a multi-crate Rust workspace, in phases P0–P7, superseding the predecessor knowledge store and org-brain.
 relations:
 - serves: vision:o2
 - serves: vision:o5
 - serves: vision:o6
-revision: 4
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T01:48:05Z", actor: "agent:claude", revision: 2, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T01:48:32Z", actor: "agent:claude", revision: 3, imported: true}
@@ -19,7 +19,7 @@ transitions:
 `docs/epistemic-knowledge-runtime-design.md` specifies a self-maintaining epistemic knowledge
 runtime: observations become typed, provenance-aware, validated, revisable knowledge through a
 governed loop, with a canonical core surrounded by an incubation forest. It is the third
-generation after `company-brain` (v1) and `org-brain` (v2). `docs/predecessors.md` lists the fifteen
+generation after an earlier organisation-memory prototype (v1) and `org-brain` (v2). `docs/predecessors.md` lists the fifteen
 capabilities those two proved necessary and the design does not yet say, and the import policy for
 their data. `docs/roadmap.md` orders the work into phases P0–P7 and records decisions D1–D3.
 

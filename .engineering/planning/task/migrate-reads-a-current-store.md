@@ -7,7 +7,7 @@ title: ekr migrate reads a store that took evidence after its seed
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 5}
 - {from: "proposed", to: "active", at: "2026-10-01T19:15:30Z", actor: "human:timo", revision: 6}
@@ -24,7 +24,7 @@ not cause it; it dates from the `AddEvidence` operation or earlier.
   It fails on both 0.0.24 and 0.0.25.
 - Passing cases: a seed only; a seed plus `CreateNode`s; a seed plus an assertion that cites seed
   evidence, with no `!AddEvidence`.
-- The reproduction is synthetic data at `~/.cache/ekr-migrate-repro/cb3-store/`. `run.sh <ekr>
+- The reproduction is synthetic data in a store directory under `~/.cache/ekr-migrate-repro/`. `run.sh <ekr>
   <list>` rebuilds the store with `ekr seed`, `propose`, `validate` and `commit`, then runs
   `migrate`. `case/minimal.txt` is the smallest case, `case/tx-order.txt` the full one (a seed plus
   11 transactions), and `minimal-<version>.out` the outputs.
