@@ -1,0 +1,13 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-0000000007b2
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !SupersedeNode
+    node: 00000000-0000-4000-8000-000000000399
+    by: 00000000-0000-4000-8000-000000000301
+    reason: a node no revision holds
+    evidence:
+    - 00000000-0000-4000-8000-000000000401
+  evidence:
+  - 00000000-0000-4000-8000-000000000401

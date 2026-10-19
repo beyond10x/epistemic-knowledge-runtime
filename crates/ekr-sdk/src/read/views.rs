@@ -153,6 +153,9 @@ pub struct ViewAssertion {
     /// The node's or type's id, for any other object.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object_ref: Option<String>,
+    /// For a `Node` object a supersession of the revision holds, the node it is superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_superseded_by: Option<NodeId>,
     /// Its assessment.
     pub assessment: ViewAssessment,
     /// Its lifecycle.
@@ -1027,6 +1030,8 @@ pub enum ChangeKind {
     AssertionRetracted,
     /// An evidence entry was added after the seed, by an `AddEvidence`.
     EvidenceAdded,
+    /// A node was superseded by another, by a `SupersedeNode`: `target` names the node kept.
+    NodeSuperseded,
     /// A kind this SDK does not know, added by a newer `ekr`.
     #[serde(other)]
     Other,

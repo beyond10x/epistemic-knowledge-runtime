@@ -179,6 +179,10 @@ impl Revision {
             | GraphOperation::AttachEvidence(_)
             | GraphOperation::CiteEvidence(_)
             | GraphOperation::WidenEdgeType(_) => false,
+            // Retires edges and leaves every assertion as it was, so the lookup holds the same
+            // assertion identities; the reference validator reads a retired edge's assertions as
+            // kept with its supersession record.
+            GraphOperation::SupersedeNode(_) => false,
         });
         if changes {
             AssertedEdgesCell::default()

@@ -1240,6 +1240,9 @@ pub(super) const NODE_NOT_FOUND: &str = "ekr.views.NodeNotFound";
 /// `ekr.views.NodeIsAType`: an `ekr.node-detail/2` request whose id is a type of the revision's
 /// ontology, not a node (ekr-mcp-fixes-20261015 #10).
 pub(super) const NODE_IS_A_TYPE: &str = "ekr.views.NodeIsAType";
+/// `ekr.views.NodeSuperseded`: a node or seed a supersession of the revision holds, naming the
+/// node it is superseded by (`story:supersede-node`).
+pub(super) const NODE_SUPERSEDED: &str = "ekr.views.NodeSuperseded";
 
 /// A `DescribeNode` request as a surface reads it: the format, and for `ekr.node-detail/2` its
 /// bounds and narrowing, built before the store is read.
@@ -1323,6 +1326,7 @@ fn query_refused(what: &str, error: QueryError) -> Reply {
         QueryError::LimitExceeded(error) => limit_exceeded(&error),
         error @ QueryError::NodeNotFound { .. } => Reply::refusal(404, NODE_NOT_FOUND, error),
         error @ QueryError::NodeIsAType { .. } => Reply::refusal(404, NODE_IS_A_TYPE, error),
+        error @ QueryError::NodeSuperseded { .. } => Reply::refusal(404, NODE_SUPERSEDED, error),
         QueryError::Project(error) => refused(what, error),
     }
 }
@@ -1684,7 +1688,7 @@ fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
         .map_err(|error| refused("timeline", error))?;
     let answer = index
         .timeline_as(format, &request)
-        .map_err(|error| refused("timeline", error))?;
+        .map_err(|error| query_refused("timeline", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
 

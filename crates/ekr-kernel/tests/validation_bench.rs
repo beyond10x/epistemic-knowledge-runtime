@@ -301,6 +301,7 @@ fn held_assertion(
 fn graph(scale: u64) -> CanonicalGraph {
     let mut graph = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: root(),
             space: Space::Canonical,

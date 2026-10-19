@@ -402,6 +402,7 @@ impl Check for Types {
                 | GraphOperation::AddAlias(_)
                 | GraphOperation::AttachEvidence(_)
                 | GraphOperation::CiteEvidence(_)
+                | GraphOperation::SupersedeNode(_)
                 | GraphOperation::AddEvidence(_) => {}
             }
         }
@@ -463,6 +464,7 @@ fn values_of(operation: &GraphOperation) -> Vec<(String, &Value)> {
         | GraphOperation::AddAlias(_)
         | GraphOperation::AttachEvidence(_)
         | GraphOperation::CiteEvidence(_)
+        | GraphOperation::SupersedeNode(_)
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_) => Vec::new(),
     }

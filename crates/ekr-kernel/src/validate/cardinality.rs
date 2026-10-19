@@ -144,6 +144,7 @@ impl Check for Cardinality {
                 | GraphOperation::AddAlias(_)
                 | GraphOperation::AttachEvidence(_)
                 | GraphOperation::CiteEvidence(_)
+                | GraphOperation::SupersedeNode(_)
                 | GraphOperation::AddEvidence(_) => {}
             }
         }

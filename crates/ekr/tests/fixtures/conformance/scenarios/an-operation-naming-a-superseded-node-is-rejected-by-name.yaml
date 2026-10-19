@@ -1,0 +1,80 @@
+# story:supersede-node, acceptance a-supersession-is-refused-by-name, a later use of the node.
+#
+# The target has committed revision 1 before the first act. The fixture `supersede-node.yaml`
+# supersedes Bob (0302) by Alice (0301) and commits revision 2. A second transaction (fixture
+# `add-alias-superseded.yaml`) gives Bob an alias. Bob is superseded at revision 2, so validation
+# against it rejects the second with exactly one issue, which the Reference validator raises under
+# the name node-superseded; its message names Alice.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-operation-naming-a-superseded-node-is-rejected-by-name
+summary: An operation naming a node a committed supersession retired is rejected with one issue, node-superseded, raised by Reference.
+
+arrange:
+  - instance: supersession
+    entity: ekr.kernel.GraphTransaction
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: supersession
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: supersession, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: supersession}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: supersession}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+  - at: 2027-01-15T08:00:03Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: addition
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:04Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 2
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Reference
+      code: node-superseded

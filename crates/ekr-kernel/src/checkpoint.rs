@@ -42,7 +42,7 @@
 //! new coverage. A proposal, a validation or a stale decision appends nothing: an open replays what
 //! follows the checkpoint, and it answers the same wherever the checkpoint lies.
 use crate::replay::{prefix_digests, refuse, require, ReplayState, Revision};
-use crate::seed::{narrow_assertion, narrow_edge, narrow_node, SeedOutline};
+use crate::seed::{narrow_assertion, narrow_edge, narrow_node, narrow_superseded, SeedOutline};
 use crate::validate::HeldIdentities;
 use crate::{
     CommitReceiptV1, KernelAuthority, ProposalRecordV1, RejectionRecordV1, SeedResultV1,
@@ -689,6 +689,12 @@ fn checkpoint_graph(
     let narrowed = |error: ekr_store::MembraneError| refuse(&format!("checkpoint-graph: {error}"));
     Ok(CanonicalGraph {
         attachments: document.attachments,
+        superseded: document
+            .superseded
+            .into_iter()
+            .map(|(id, record)| Ok((id, narrow_superseded(record)?)))
+            .collect::<Result<_, _>>()
+            .map_err(narrowed)?,
         root: document.root,
         revision: document.revision,
         ontology,

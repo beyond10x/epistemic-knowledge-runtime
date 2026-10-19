@@ -40,6 +40,7 @@ pub mod provenance;
 pub mod reference;
 pub(crate) mod schema;
 pub mod structural;
+mod supersession;
 pub mod types;
 
 use std::collections::BTreeSet;

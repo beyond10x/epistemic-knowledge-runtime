@@ -17,8 +17,7 @@ use serde::Serialize;
 
 use crate::index::{bucket_start, bucket_width, Index, RowTypeRank, WEEKLY_SPAN_MS};
 use crate::names::{names_of, TimelineFormat};
-use crate::query::{bounded, encode, hash, Answer, LimitExceeded};
-use crate::ProjectError;
+use crate::query::{bounded, encode, hash, Answer, LimitExceeded, QueryError};
 
 /// The format literal of [`Index::timeline`]'s documents.
 pub const TIMELINE_FORMAT: &str = "ekr.graph-timeline/1";
@@ -410,11 +409,14 @@ impl Index {
     ///
     /// # Errors
     ///
-    /// [`ProjectError::Inconsistent`] if the document cannot be encoded.
+    /// [`QueryError::NodeSuperseded`], naming the node it is superseded by, for a `subject` a
+    /// supersession of the revision holds (`story:supersede-node`);
+    /// [`ProjectError::Inconsistent`](crate::ProjectError::Inconsistent)
+    /// (as [`QueryError::Project`]) if the document cannot be encoded.
     pub fn timeline(
         &self,
         request: &TimelineRequest,
-    ) -> Result<Answer<SubjectsTimelined>, ProjectError> {
+    ) -> Result<Answer<SubjectsTimelined>, QueryError> {
         self.timeline_as(TimelineFormat::V1, request)
     }
 
@@ -429,12 +431,20 @@ impl Index {
         &self,
         format: TimelineFormat,
         request: &TimelineRequest,
-    ) -> Result<Answer<SubjectsTimelined>, ProjectError> {
+    ) -> Result<Answer<SubjectsTimelined>, QueryError> {
         let graph = &self.loaded.graph;
         let ranks = self.row_type_ranks();
         let held = request
             .subject()
             .and_then(|subject| self.node_index.get(&subject).copied());
+        // A subject a supersession of the revision holds is refused naming the node it is
+        // superseded by, as `DescribeNode` refuses it; any other subject the revision does not
+        // hold still answers no row.
+        if let (Some(subject), None) = (request.subject(), held) {
+            if graph.superseded.contains_key(&subject) {
+                return Err(self.not_held(subject));
+            }
+        }
         let row_type = held
             .map(|subject| self.node_type[subject as usize])
             .or(request.row_type())

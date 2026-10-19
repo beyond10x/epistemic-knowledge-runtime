@@ -23,6 +23,9 @@ pub(super) struct Candidate<'g> {
     pub(super) edges: BTreeMap<EdgeId, Edge>,
     /// The edges the operation set creates; see [`Candidate::available`].
     created_edges: BTreeSet<EdgeId>,
+    /// The edges of canonical state a `SupersedeNode` of the operation set retires with its
+    /// node; see [`Candidate::retires`].
+    retired_edges: BTreeSet<EdgeId>,
     /// The value count of each property of each node the operation set creates or updates.
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
     /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
@@ -114,6 +117,7 @@ impl<'g> Candidate<'g> {
                 })
                 .collect(),
             created_edges: BTreeSet::new(),
+            retired_edges: BTreeSet::new(),
             // Only a created node's counts are ever read, and creating a node replaces whatever
             // canonical state held under its id, so canonical state's counts are not copied.
             property_counts: BTreeMap::new(),
@@ -161,7 +165,33 @@ impl<'g> Candidate<'g> {
                 _ => {}
             }
         }
+        // A supersession retires every edge of canonical state at its node (design § 110.2):
+        // one pass over the edges, and only for a transaction that supersedes. The node itself
+        // stays, so that an operation naming it is refused once, by the structural check that
+        // owns that question (`superseded-node-named-in-transaction`).
+        let retiring: BTreeSet<NodeId> = proposal
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                GraphOperation::SupersedeNode(supersession) => Some(supersession.node),
+                _ => None,
+            })
+            .collect();
+        if !retiring.is_empty() {
+            for edge in graph.edges.values() {
+                if retiring.contains(&edge.source.node()) || retiring.contains(&edge.target.node())
+                {
+                    result.retired_edges.insert(edge.id);
+                    result.edges.remove(&edge.id);
+                }
+            }
+        }
         result
+    }
+
+    /// Whether a `SupersedeNode` of the operation set retires `edge`, an edge of canonical state.
+    pub(super) fn retires(&self, edge: &EdgeId) -> bool {
+        self.retired_edges.contains(edge)
     }
 
     /// [`Candidate::of`], reading the [`AssertedEdges`] kept with the snapshot's graph, `kept`,
@@ -254,6 +284,7 @@ mod tests {
                 edges: BTreeMap::new(),
                 assertions: BTreeMap::new(),
                 attachments: BTreeMap::new(),
+                superseded: BTreeMap::new(),
                 evidence: BTreeMap::new(),
             };
             for at in 0..size {

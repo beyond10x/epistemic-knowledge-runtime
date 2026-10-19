@@ -221,6 +221,43 @@ impl Canonical for EvidenceAttachment {
     }
 }
 
+/// A node retired in favour of the node that replaces it: the payload of
+/// [`GraphOperation::SupersedeNode`], and `ekr.kernel.NodeSupersession` (`story:supersede-node`,
+/// design § 110, `architecture-decision-record:0017-a-node-is-superseded-by-another`).
+///
+/// Commit moves `node`, and every edge with it at either end, out of the head and into an
+/// [`ekr_graph::SupersededNode`] under its id in the graph's
+/// [`superseded`](ekr_graph::CanonicalGraph::superseded), naming `by`, at the revision the commit
+/// produces, and repoints every record whose `by` is `node`. Assertions are not changed. The
+/// evidence is part of what the transaction rests on, so each id is in the transaction's
+/// [`evidence`](GraphTransaction::evidence).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct NodeSupersession {
+    /// The node retired: one the head holds, not one already superseded.
+    pub node: NodeId,
+    /// The node kept: one the head holds or a `CreateNode` of the same transaction creates, and
+    /// not `node`.
+    pub by: NodeId,
+    /// Why, retained with the record: not empty, and not only whitespace.
+    pub reason: String,
+    /// What the supersession rests on: at least one evidence id canonical state retains or an
+    /// `AddEvidence` of the same transaction adds.
+    #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
+    pub evidence: BTreeSet<EvidenceId>,
+}
+
+impl Canonical for NodeSupersession {
+    /// The four fields in declaration order, the evidence as a set.
+    fn encode(&self, out: &mut Encoder) {
+        self.node.encode(out);
+        self.by.encode(out);
+        self.reason.encode(out);
+        out.set(self.evidence.iter());
+    }
+}
+
 /// A property added to, or redeclared on, a type the ontology declares: the payload of
 /// [`GraphOperation::ModifyProperty`], and `ekr.ontology.PropertyModification`.
 ///
@@ -475,10 +512,10 @@ impl Canonical for Supersession {
 
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
 /// `SupersedeAssertion` from amendment 88, `AddEvidence`, `WidenEdgeType` (amendment 101),
-/// `AddAlias` (`story:node-gains-an-alias`), `AttachEvidence` (amendment 103) and `CiteEvidence`
-/// (amendment 109).
+/// `AddAlias` (`story:node-gains-an-alias`), `AttachEvidence` (amendment 103), `CiteEvidence`
+/// (amendment 109) and `SupersedeNode` (amendment 110).
 ///
-/// Seventeen variants, which are the seventeen `ekr.kernel.OperationKind` names of
+/// Eighteen variants, which are the eighteen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
@@ -563,6 +600,11 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// transaction.
     #[cfg_attr(feature = "schema", schemars(rename = "!CiteEvidence"))]
     CiteEvidence(EvidenceId),
+    /// Retire a node in favour of the node that replaces it, with a reason and the evidence it
+    /// rests on (design § 110): the node and its edges leave the head and are held in a
+    /// supersession record naming the node kept.
+    #[cfg_attr(feature = "schema", schemars(rename = "!SupersedeNode"))]
+    SupersedeNode(NodeSupersession),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -606,8 +648,8 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// stored transaction can say what it rested on without re-reading every operation. A declared
     /// value nothing compares to the operations is an address over a number the proposer chose, so
     /// [`Structural`](crate::Structural) holds it equal to the evidence the transaction's
-    /// assertions cite, its `AttachEvidence` operations attach and its `CiteEvidence` operations
-    /// cite. The domain's `operation_count`
+    /// assertions cite, its `AttachEvidence` operations attach, its `CiteEvidence` operations cite
+    /// and its `SupersedeNode` operations rest on. The domain's `operation_count`
     /// is the same shape: equally derivable from the operations, equally declared, and equally
     /// checked.
     #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
@@ -804,6 +846,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 out.variant(16);
                 evidence.encode(out);
             }
+            Self::SupersedeNode(supersession) => {
+                out.variant(17);
+                supersession.encode(out);
+            }
         }
     }
 }
@@ -933,6 +979,7 @@ fn canonical_operation(
         GraphOperation::AddAlias(addition) => GraphOperation::AddAlias(addition),
         GraphOperation::AttachEvidence(attachment) => GraphOperation::AttachEvidence(attachment),
         GraphOperation::CiteEvidence(evidence) => GraphOperation::CiteEvidence(evidence),
+        GraphOperation::SupersedeNode(supersession) => GraphOperation::SupersedeNode(supersession),
         GraphOperation::MergeEntity(merge) => GraphOperation::MergeEntity(merge),
         GraphOperation::Invoke {
             node,

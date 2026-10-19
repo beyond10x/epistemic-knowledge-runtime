@@ -95,8 +95,8 @@ use super::session::{Checked, Held, STORE_REPLACED};
 use super::telemetry::{Call, Outcome, Telemetry, Wire};
 use super::view::{
     describe, head_document, node_detail, project_refusal, search_filter, since_not_one,
-    DetailRefused, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, NODE_TYPE_NOT_FOUND,
-    SEARCH_LIMIT, SINCE_MALFORMED,
+    DetailRefused, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, NODE_SUPERSEDED,
+    NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::{Cli, Configured};
 use crate::exit::Failure;
@@ -323,6 +323,10 @@ impl From<QueryError> for Unanswered {
             },
             error @ QueryError::NodeIsAType { .. } => Self::Refused {
                 name: NODE_IS_A_TYPE,
+                message: error.to_string(),
+            },
+            error @ QueryError::NodeSuperseded { .. } => Self::Refused {
+                name: NODE_SUPERSEDED,
                 message: error.to_string(),
             },
             QueryError::Project(error) => error.into(),

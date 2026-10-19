@@ -75,6 +75,7 @@ impl World {
         };
         let before = CanonicalGraph {
             attachments: Default::default(),
+            superseded: Default::default(),
             root: GraphRoot {
                 id: root_id,
                 space: Space::Canonical,

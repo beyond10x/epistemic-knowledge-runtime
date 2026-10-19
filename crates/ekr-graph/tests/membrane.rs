@@ -56,6 +56,7 @@ fn canonical_state_resolves_a_canonical_reference() {
     let alice = NodeId::mint();
     let graph = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: canonical_root,
         revision: RevisionNumber::SEED,
         ontology: empty_ontology(),
@@ -89,6 +90,7 @@ fn transient_state_may_depend_on_canonical_state_and_on_its_own() {
     let alice = NodeId::mint();
     let canonical = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: canonical_root,
         revision: RevisionNumber::SEED,
         ontology: empty_ontology(),
@@ -155,6 +157,7 @@ fn a_candidate_and_a_canonical_node_that_share_an_id_do_not_resolve_alike() {
 
     let canonical = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: canonical_root,
         revision: RevisionNumber::SEED,
         ontology: empty_ontology(),

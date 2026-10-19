@@ -19,7 +19,10 @@
 //!   the reported outcome: `not-found` builds the named store as the seed alone, so the requested
 //!   revision does not exist; `not-seeded` opens the named store's provider without seeding it;
 //!   `node-is-a-type` builds it as `Fixture::DescribedType`, whose ontology declares a node type
-//!   with the id the generated scenario names (ekr-mcp-fixes-20261015 #10);
+//!   with the id the generated scenario names (ekr-mcp-fixes-20261015 #10); `node-superseded`
+//!   builds it as `Fixture::DescribedSuperseded`, whose revision 1 supersedes that node, and a
+//!   timeline asks for that node as its subject
+//!   (`story:supersede-node`);
 //!   `node-not-found` and `event-type-not-found` build it as `schema-evolution` — revision 1
 //!   exists, and [`fixtures::DESCRIBED`], the node the generated scenarios name, does not, nor
 //!   does a node type named [`fixtures::UNDECLARED_TYPE_NAME`]. An expansion that names no seed is
@@ -106,6 +109,9 @@ enum Control {
     NodeAbsent,
     /// `DescribeNode`'s node-is-a-type: the requested id is a node type's.
     NodeIsAType,
+    /// `DescribeNode`'s and `ExpandNeighbourhood`'s node-superseded: the requested node is
+    /// superseded at the requested revision.
+    NodeSuperseded,
     EventTypeAbsent,
     EventTimeInvalid,
     JudgedTwice,
@@ -436,6 +442,7 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
         ("assertions_superseded", summary.assertions_superseded),
         ("assertions_retracted", summary.assertions_retracted),
         ("evidence_added", summary.evidence_added),
+        ("nodes_superseded", summary.nodes_superseded),
     ])?;
     if let Some(first) = summary.first_revision {
         fields.push(("first_revision", integer(first)?));
@@ -1058,6 +1065,15 @@ fn refused(command: &str, refusal: QueryError) -> Result<SemanticCommandResult, 
                     .with("revision", integer(revision.get())?),
             ),
         ),
+        QueryError::NodeSuperseded { node, by, revision } => Ok(SemanticCommandResult::took(
+            outcome_ref(command, "node-superseded")?,
+        )
+        .with_error(
+            error("ekr.views.NodeSuperseded")?
+                .with("node", Node::Text(node.to_string()))
+                .with("by", Node::Text(by.to_string()))
+                .with("revision", integer(revision.get())?),
+        )),
         QueryError::Project(ProjectError::RevisionNotFound { requested, head }) => Ok(
             SemanticCommandResult::took(outcome_ref(command, "not-found")?).with_error(
                 error("ekr.views.RevisionNotFound")?
@@ -1366,7 +1382,7 @@ impl ConformanceTarget for ViewsTarget {
                 map: command == PROJECT_PROCESS_MAP,
             };
         }
-        if control == Some(Control::NodeAbsent) {
+        if matches!(control, Some(Control::NodeAbsent | Control::NodeSuperseded)) {
             if let Read::Expand(Ok(expansion), format) = &read {
                 if expansion.seeds().is_empty() {
                     read = Read::Expand(
@@ -1380,6 +1396,22 @@ impl ConformanceTarget for ViewsTarget {
                         *format,
                     );
                 }
+            }
+        }
+        if control == Some(Control::NodeSuperseded) {
+            // The branch's state is a subject the revision supersedes: the store's superseded
+            // node, [`fixtures::DESCRIBED`], as the request's subject.
+            if let Read::Timeline(Ok(timeline), format) = &read {
+                read = Read::Timeline(
+                    TimelineRequest::new(
+                        timeline.row_type(),
+                        i64::try_from(timeline.hops()).unwrap_or(i64::MAX),
+                        i64::try_from(timeline.limit()).unwrap_or(i64::MAX),
+                        timeline.bucket(),
+                        Some(fixtures::id(fixtures::DESCRIBED)),
+                    ),
+                    *format,
+                );
             }
         }
         if control == Some(Control::NodeTypeAbsent) {
@@ -1419,6 +1451,9 @@ impl ConformanceTarget for ViewsTarget {
                 // The generated scenario names [`fixtures::DESCRIBED`] at revision 1: a store whose
                 // ontology declares a node type of that id, and no node of it.
                 Some(Control::NodeIsAType) => Fixture::DescribedType.build(&runtime),
+                // The generated scenarios name [`fixtures::DESCRIBED`] at revision 1: a store whose
+                // revision 1 supersedes that node.
+                Some(Control::NodeSuperseded) => Fixture::DescribedSuperseded.build(&runtime),
                 // Judged-twice is ReportFactQuality's, which names no store: no store's state.
                 None | Some(Control::JudgedTwice) => fixture.build(&runtime),
             }
@@ -1484,6 +1519,9 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
             (DESCRIBE_NODE, "node-is-a-type") => Control::NodeIsAType,
+            (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE | PROJECT_TIMELINE, "node-superseded") => {
+                Control::NodeSuperseded
+            }
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-type-not-found") => Control::EventTypeAbsent,
             (EXPORT_OCEL | PROJECT_PROCESS_MAP, "event-time-invalid") => Control::EventTimeInvalid,
             (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,

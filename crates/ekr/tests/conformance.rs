@@ -680,6 +680,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
                 "ekr.kernel/authored/a-schema-transaction-citing-retained-evidence-commits-as-a-new-version",
                 "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version",
+                "ekr.kernel/authored/a-duplicate-node-superseded-by-the-node-it-duplicates-commits",
             ],
         ),
         (
@@ -702,6 +703,12 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name",
                 "ekr.kernel/authored/evidence-already-attached-is-rejected-by-name",
                 "ekr.kernel/authored/a-schema-transaction-carrying-another-data-operation-is-still-mixed",
+                "ekr.kernel/authored/a-supersession-of-a-node-no-revision-holds-is-rejected-by-name",
+                "ekr.kernel/authored/a-node-superseded-by-itself-is-rejected-by-name",
+                "ekr.kernel/authored/a-supersession-without-a-reason-is-rejected-by-name",
+                "ekr.kernel/authored/a-supersession-without-evidence-is-rejected-by-name",
+                "ekr.kernel/authored/a-superseded-node-named-in-its-transaction-is-rejected-by-name",
+                "ekr.kernel/authored/an-operation-naming-a-superseded-node-is-rejected-by-name",
             ],
         ),
         (

@@ -44,10 +44,10 @@ fn names<E: ValueEnum>() -> Vec<String> {
         .collect()
 }
 
-/// `GraphOperation` has seventeen variants (the eleven of design § 19 and amendment 87, plus
-/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias`, `AttachEvidence` and
-/// `CiteEvidence`).
-const KIND_COUNT: usize = 17;
+/// `GraphOperation` has eighteen variants (the eleven of design § 19 and amendment 87, plus
+/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias`, `AttachEvidence`,
+/// `CiteEvidence` and `SupersedeNode`).
+const KIND_COUNT: usize = 18;
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -1302,6 +1302,11 @@ fn cited(example: &str) -> Vec<String> {
         }
         GraphOperation::AttachEvidence(attachment) => vec![attachment.evidence.to_string()],
         GraphOperation::CiteEvidence(evidence) => vec![evidence.to_string()],
+        GraphOperation::SupersedeNode(supersession) => supersession
+            .evidence
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         _ => Vec::new(),
     }
 }

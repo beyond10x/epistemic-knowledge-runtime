@@ -76,6 +76,7 @@ fn graph() -> CanonicalGraph {
     };
     CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: root,
             space: Space::Canonical,
@@ -368,6 +369,7 @@ fn the_two_roots_are_distinct_value_addresses() {
     assert_eq!(evidence_root(&base), ContentHash::of(&base.evidence));
     let empty = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         nodes: BTreeMap::new(),
         edges: BTreeMap::new(),
         assertions: BTreeMap::new(),
