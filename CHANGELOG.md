@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.39] — 2026-10-19
+
 ### Added
 
 - `!SupersedeNode {node, by, reason, evidence}` retires a duplicate node in favour of the node
