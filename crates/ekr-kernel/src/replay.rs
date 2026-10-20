@@ -172,7 +172,6 @@ impl Revision {
             | GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
             | GraphOperation::ModifyProperty(_)
-            | GraphOperation::MergeEntity(_)
             | GraphOperation::Invoke { .. }
             | GraphOperation::SupersedeAssertion(_)
             | GraphOperation::AddEvidence(_)
@@ -183,6 +182,10 @@ impl Revision {
             // assertion identities; the reference validator reads a retired edge's assertions as
             // kept with its supersession record.
             GraphOperation::SupersedeNode(_) => false,
+            // A merge rewrites the assertions about an edge that collapses onto another to that
+            // edge (design § 111.2), which moves them in the lookup. The bare P1 shape never
+            // commits.
+            GraphOperation::MergeEntity(merge) => !merge.is_bare(),
         });
         if changes {
             AssertedEdgesCell::default()

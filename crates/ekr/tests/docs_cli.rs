@@ -2300,8 +2300,8 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
 
 /// `README.md` separates available capabilities from unsupported work and lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
-/// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
-/// called a later phase or unreleased. A stale header is matched with its closing ` |`, so
+/// keeps the bare `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no
+/// longer called a later phase or unreleased. A stale header is matched with its closing ` |`, so
 /// `0.0.2` does not match `0.0.20`.
 #[test]
 fn readme_says_the_schema_evolves_under_profile_v2() {
@@ -2340,7 +2340,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     for needle in [
         "validation profile v2",
         "docs/cli.md#evolve-the-schema",
-        "`MergeEntity`, refused as `unsupported-operation`",
+        "a `MergeEntity` without a `reason` and `evidence`, refused as `unsupported-operation`",
         "profile v1",
         "10,000 operations in one `ekr.transaction-document/2`",
         "the ESS specifications of `ekr.views`",

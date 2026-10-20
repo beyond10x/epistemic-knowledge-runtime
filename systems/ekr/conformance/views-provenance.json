@@ -30,6 +30,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-lineage-lists-widened-ends-and-modified-properties.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-merge-is-listed-as-a-node-merged-change.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-detail-v2-cuts-a-long-string-and-marks-it.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-detail-v2-lists-same-name-nodes.yaml",

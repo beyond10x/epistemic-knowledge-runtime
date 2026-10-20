@@ -55,7 +55,10 @@ types:
   # index 17 (story:supersede-node, design § 110,
   # architecture-decision-record:0017-a-node-is-superseded-by-another): data, applied under every
   # validation profile; it retires a node canonical state holds in favour of another, as an
-  # ekr.graph.SupersededNode (ekr.kernel.NodeSupersession).
+  # ekr.graph.SupersededNode (ekr.kernel.NodeSupersession). MergeEntity keeps index 9: in the shape
+  # that writes a reason and evidence it is applied under every validation profile
+  # (story:merge-entity-applies, design § 111), absorbing a node into an ekr.graph.SupersededNode
+  # and rewriting every reference to it (ekr.kernel.EntityMerge); its bare P1 shape stays refused.
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -634,6 +637,54 @@ types:
       - name: effective_from
         type: Timestamp
 
+  # `MergeEntity` in the canonical operation (story:merge-entity-applies, design § 111,
+  # architecture-decision-record:0018-merge-and-split-identity): `absorbed`, the node that stops
+  # being its own entity, `into`, the node that keeps its id, its type and its name, then `reason`
+  # and `evidence`, each encoded after `into` only when present, as an option, the evidence as a
+  # set. The bare shape, neither written, is P1's: it parses, encodes as the two ids it always
+  # encoded as, and is refused as unsupported-operation ("MergeEntity is not supported in P1",
+  # Structural) under every validation profile, by that issue alone, so every retained rejection of
+  # it replays. With either written it applies under every profile, as SupersedeNode does. Commit,
+  # after every other operation of the transaction, does what SupersedeNode {node: absorbed, by:
+  # into} does — `absorbed` leaves the head's nodes into an ekr.graph.SupersededNode naming `into`,
+  # and every record whose `by` is `absorbed` is repointed to `into` — except that every reference
+  # to `absorbed` is rewritten in place instead of retired: an edge joining `absorbed` and `into`
+  # is retired into the record; an edge of `absorbed` with the type, direction and other end of an
+  # edge `into` holds, and equal properties, collapses onto it, retired into the record and mapped
+  # to it, and every assertion about it is rewritten to it; every other edge keeps its id, its end
+  # or ends naming `into`; every assertion subject or object naming `absorbed`, and every NodeRef
+  # naming it in a node's or an edge's properties or in an assertion's value object, at any depth,
+  # names `into`, every other byte of the assertion unchanged; a property `absorbed` holds and
+  # `into` does not moves to `into`. The record's `merge` lineage (ekr.graph.MergeLineageRecord)
+  # says what moved. The evidence is part of what the transaction rests on, so each id is in the
+  # transaction's evidence set (evidence-set-mismatch, Structural, otherwise). Validation refuses,
+  # as named issues of a Rejected transaction: `absorbed` equal to `into` (merge-into-itself,
+  # Structural); a node canonical state does not hold and the transaction does not create, or an
+  # `absorbed` the transaction creates (unresolved-node, Reference); a node already superseded or
+  # merged, naming its `by` (node-superseded, Reference); no reason, or one only whitespace
+  # (merge-without-reason, Structural); no evidence (merge-without-evidence, Structural);
+  # evidence canonical state does not retain and no AddEvidence of the transaction adds
+  # (merge-evidence-unknown, Reference); types neither of which conforms to the other through
+  # parents, siblings included, naming SupersedeNode as the fix (merge-types-unrelated, Type); a
+  # property `absorbed` holds, or an active assertion gives it, that `into`'s type does not declare
+  # (merge-undeclared-property, Type); a property both hold with different values
+  # (merge-property-conflict, Structural); an edge of `absorbed` duplicating one of `into` with
+  # different properties, naming both (merge-duplicate-edge-conflict, Structural); an active
+  # relation assertion joining `absorbed` and `into`, either way, which the merge would make a
+  # relation of `into` to itself, naming the assertion (merge-self-relation, Structural; a
+  # retracted or superseded one does not block, and is rewritten as any other); a rewritten edge
+  # end, or a rewritten end of an active relation assertion, of a type its edge type does not allow
+  # (edge-endpoint-type, Type); a rewritten or moved value its declaration does not admit
+  # (wrong-type, Type); an edge type of cardinality One that `into` would hold twice once the
+  # duplicates collapse, naming the edges, or a moved property past its cardinality
+  # (edge-cardinality, property-cardinality, Cardinality); and another operation of the
+  # transaction naming `absorbed` or an edge at it, `absorbed` or `into` retired by another
+  # operation, a SupersedeNode by `absorbed`, an edge at `absorbed` joining a node the transaction
+  # supersedes, or a second MergeEntity (superseded-node-named-in-transaction, Structural).
+  # Preparation — clearing a property, deleting an edge, retracting an assertion — goes in an
+  # earlier revision. A transaction without a MergeEntity in this shape is validated exactly as
+  # before the shape existed, so no retained rejection replays differently and no retained address
+  # moves.
   - name: ekr.kernel.EntityMerge
     kind: struct
     fields:
@@ -641,6 +692,10 @@ types:
         type: ekr.graph.NodeId
       - name: into
         type: ekr.graph.NodeId
+      - name: reason
+        type: Optional<String>
+      - name: evidence
+        type: Optional<List<ekr.graph.EvidenceId>>
 
   # `ModifyProperty` in the canonical operation. `owner` is absent only in the P1 shape, the bare
   # declaration P1 refused and v1 stores retain; it then encodes as P1 encoded it, and profile v2

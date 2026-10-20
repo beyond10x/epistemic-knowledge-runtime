@@ -233,7 +233,7 @@ flowchart TB
 | evidence in the seed, pasted as byte lists or read from files with `ekr seed --evidence` | § 16 | yes | P1 (done); files since 0.0.6 |
 | evidence added after seeding or attached to an existing assertion | § 16, § 103 | `AddEvidence` admits retained human statements; `AttachEvidence` adds evidence to an accepted, active assertion without rewriting it | other observation sources in P2 |
 | property constraints, operation preconditions, emitted events | § 11, § 87 | declared, but a write touching one is refused (`unsupported-constraint`) | not scheduled in the roadmap |
-| `MergeEntity` | § 46 | parses, refused as `unsupported-operation` | P3, merge and split with lineage |
+| `MergeEntity` | § 46, § 111 | yes: a duplicate merged into the node it duplicates, every reference rewritten to it, with the lineage a split reads; the bare P1 shape is refused as `unsupported-operation` | `SplitEntity` in P3, with that lineage |
 | observations, source adapters, checkpoints, credential redaction | § 15–16, § 54–57 | no | P2 |
 | incubation forest, transient roots, interpretation sessions, entity resolution | § 22–28 | no; the one graph root is `Canonical` | P3 |
 | attention queue, answers as evidence, approvals for outward writes, rendered views, read-only MCP tools | § 81–84, § 62 | a read-only graph viewer, `ekr view`, since 0.0.11, and read-only MCP tools, `ekr mcp`, since 0.0.13, and what changed since a revision or a time (`GET /changes`, the MCP tool `changes_since`) since 0.0.15; the rest no, and `ekr explain` gives the commit-level chain only | P4 |

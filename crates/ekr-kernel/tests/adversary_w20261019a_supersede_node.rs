@@ -539,6 +539,8 @@ fn adv_merge_invoke_and_an_object_naming_a_superseded_node_are_node_superseded()
                     vec![GraphOperation::MergeEntity(EntityMerge {
                         absorbed: id(DUPLICATE),
                         into: id(KEPT),
+                        reason: None,
+                        evidence: None,
                     })],
                     &[],
                 ),
@@ -814,6 +816,7 @@ fn adv_a_seed_holding_a_supersession_record_is_refused() {
                 revision: RevisionNumber::SEED,
                 reason: REASON.to_owned(),
                 evidence: BTreeSet::from([id::<EvidenceId>(STATEMENT)]),
+                merge: None,
             },
         );
         let refused = kernel

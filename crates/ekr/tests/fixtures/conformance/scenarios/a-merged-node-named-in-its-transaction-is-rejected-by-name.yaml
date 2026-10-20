@@ -1,0 +1,46 @@
+# story:merge-entity-applies, acceptance a-merge-is-refused-by-name, the absorbed node named in its
+# transaction.
+#
+# The target has committed revision 1 before the first act. The fixture `merge-node-named.yaml`
+# merges Bob (0302) into Alice (0301) and, in the same transaction, gives Bob an alias. A merged
+# node is named by no other operation of its transaction, so validation rejects it with exactly
+# one issue, which the Structural validator raises under the name
+# superseded-node-named-in-transaction.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-merged-node-named-in-its-transaction-is-rejected-by-name
+summary: A transaction that merges a node and names it in another operation is rejected with one issue, superseded-node-named-in-transaction, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T09:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: merge
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T09:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: superseded-node-named-in-transaction

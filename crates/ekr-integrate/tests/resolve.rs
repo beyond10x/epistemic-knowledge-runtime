@@ -486,6 +486,7 @@ fn superseding(mut state: CanonicalGraph, superseded: &[(u64, u64)]) -> Canonica
                 revision: RevisionNumber::new(2),
                 reason: "a duplicate".to_owned(),
                 evidence: BTreeSet::new(),
+                merge: None,
             },
         );
     }

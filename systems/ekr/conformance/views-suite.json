@@ -6,6 +6,7 @@
       "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample",
       "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
       "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
+      "ekr.views/authored/a-merge-is-listed-as-a-node-merged-change",
       "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it",
       "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group",
       "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes",
@@ -77,6 +78,11 @@
         "digest": "sha256:df4cd290bd3dbd5439915b05c7dc9b26c13545bf3eac2110f93cb3f1621fd8bd",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties"
+      },
+      "a-merge-is-listed-as-a-node-merged-change.yaml": {
+        "digest": "sha256:0ada496444e6c864050c045d490a934076ea24d1de2225aa3c75fb97ab0ec4ab",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-merge-is-listed-as-a-node-merged-change"
       },
       "a-node-detail-v2-cuts-a-long-string-and-marks-it.yaml": {
         "digest": "sha256:8fec4a7754e7bed6e0b3e88688fa9ad6c0e0586a03712299187357914b735ff2",
@@ -305,7 +311,7 @@
       }
     },
     "counts": {
-      "authored": 50,
+      "authored": 51,
       "generated": 59,
       "outside": 78,
       "refused": 0
@@ -2134,8 +2140,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "ccc66a65f8c81f38d62885a802668c3c8c1797002bc10e4d35b4e7862e8a321b",
-    "spec_digest": "a04da48cab37ef332018d1368a1567e5b0adeb33ba224d7835ca3d0999f85cd3",
+    "contract_digest": "c4b965f414920616f85f15eb8d217027d202c0de8f3d50cb20060116a215e687",
+    "spec_digest": "483354442a3a9a5b763aa31208783664c237714312ac2aaff270a5ae8f607c4d",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -2776,6 +2782,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -24347,6 +24357,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -24469,6 +24483,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -24597,6 +24615,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -24717,6 +24739,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -26826,6 +26852,367 @@
               "holds": "primitive",
               "kind": "integer",
               "optional": true
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-merge-is-listed-as-a-node-merged-change": {
+      "purpose": "A merge is listed once as a NodeMerged change; the absorbed node is refused as NodeSuperseded naming the node it was merged into, and the revision before describes it.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.GraphChangesFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.NodeDetailFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.OntologyNames"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.DescribeNode"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "described"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-superseded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NodeSuperseded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "merged"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 0.0,
+            "changes": 1.0,
+            "edges_created": 0.0,
+            "first_revision": 2.0,
+            "last_revision": 2.0,
+            "nodes_created": 0.0,
+            "nodes_merged": 1.0,
+            "nodes_superseded": 0.0,
+            "revision": 2.0,
+            "total": 1.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "format": {
+              "holds": "enum",
+              "variants": [
+                "ekr.graph-changes/1",
+                "ekr.graph-changes/2"
+              ]
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "names": {
+              "holds": "map",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000000111"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "merged"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "node-superseded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NodeSuperseded",
+          "fields": {
+            "by": "00000000-0000-4000-8000-000000f20001",
+            "node": "00000000-0000-4000-8000-000000000111",
+            "revision": 2.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.DescribeNode",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "format": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "node": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000000111"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "merged"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.DescribeNode",
+            "outcome": "described"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "payload": {
+            "edges": 1.0,
+            "node": "00000000-0000-4000-8000-000000000111",
+            "revision": 1.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "detail_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "neighbours": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "referencing": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -31112,6 +31499,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -31241,6 +31632,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -31361,6 +31756,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -31490,6 +31889,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -40279,6 +40682,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -40405,6 +40812,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -40595,6 +41006,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -40721,6 +41136,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -40914,6 +41333,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -41044,6 +41467,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -41167,6 +41594,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -41297,6 +41728,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -46179,6 +46614,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -46297,6 +46736,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -46541,6 +46984,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -46666,6 +47113,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "nodes_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "nodes_superseded": {
               "holds": "primitive",
               "kind": "integer"
@@ -46788,6 +47239,10 @@
               "optional": true
             },
             "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes_merged": {
               "holds": "primitive",
               "kind": "integer"
             },

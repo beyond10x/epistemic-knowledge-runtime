@@ -329,6 +329,8 @@ where
             EntityMerge {
                 absorbed: POOL.nodes[absorbed],
                 into: POOL.nodes[(absorbed + step) % 3],
+                reason: None,
+                evidence: None,
             }
         )),
         (0usize..3, "(decide|reopen)", {

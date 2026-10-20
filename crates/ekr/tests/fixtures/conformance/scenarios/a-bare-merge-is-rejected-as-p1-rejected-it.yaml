@@ -1,0 +1,45 @@
+# story:merge-entity-applies, acceptance a-bare-merge-keeps-its-retained-verdict.
+#
+# The target has committed revision 1 before the first act. The fixture `merge-node-bare.yaml`
+# merges Bob (0302) into Alice (0301) in the bare P1 shape, {absorbed, into}, without a reason or
+# evidence. Stores retain rejections of that shape, so it is refused as P1 refused it, under every
+# profile: exactly one issue, which the Structural validator raises under the name
+# unsupported-operation, with P1's message.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-bare-merge-is-rejected-as-p1-rejected-it
+summary: A merge in the bare P1 shape, without a reason or evidence, is rejected with one issue, unsupported-operation, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T09:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: merge
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T09:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: unsupported-operation

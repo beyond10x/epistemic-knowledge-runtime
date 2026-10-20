@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 109,
-  "answered_floor": 109,
+  "total": 110,
+  "answered_floor": 110,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -76,6 +76,7 @@
     "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample",
     "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision",
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
+    "ekr.views/authored/a-merge-is-listed-as-a-node-merged-change",
     "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it",
     "ekr.views/authored/a-node-detail-v2-groups-neighbours-by-edge-type-and-pages-a-group",
     "ekr.views/authored/a-node-detail-v2-lists-same-name-nodes",
@@ -142,6 +143,10 @@
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
       "file": "a-lineage-lists-widened-ends-and-modified-properties.yaml",
       "digest": "sha256:df4cd290bd3dbd5439915b05c7dc9b26c13545bf3eac2110f93cb3f1621fd8bd"
+    },
+    "ekr.views/authored/a-merge-is-listed-as-a-node-merged-change": {
+      "file": "a-merge-is-listed-as-a-node-merged-change.yaml",
+      "digest": "sha256:0ada496444e6c864050c045d490a934076ea24d1de2225aa3c75fb97ab0ec4ab"
     },
     "ekr.views/authored/a-node-detail-v2-cuts-a-long-string-and-marks-it": {
       "file": "a-node-detail-v2-cuts-a-long-string-and-marks-it.yaml",
@@ -993,6 +998,13 @@
     "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time": {
       "execute_command": 3,
       "expect_event": 3,
+      "expect_outcome": 3
+    },
+    "ekr.views/authored/a-merge-is-listed-as-a-node-merged-change": {
+      "execute_command": 3,
+      "expect_error": 1,
+      "expect_event": 2,
+      "expect_no_event": 1,
       "expect_outcome": 3
     }
   }

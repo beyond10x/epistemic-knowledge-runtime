@@ -1,0 +1,44 @@
+# story:merge-entity-applies, acceptance a-merge-is-refused-by-name, a node merged into itself.
+#
+# The target has committed revision 1 before the first act. The fixture `merge-node-itself.yaml`
+# merges Alice (0301) into Alice, for a reason and on evidence. A merge joins two nodes, so
+# validation rejects it with exactly one issue, which the Structural validator raises under the
+# name merge-into-itself.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-node-merged-into-itself-is-rejected-by-name
+summary: A merge whose absorbed node and node kept are one node is rejected with one issue, merge-into-itself, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T09:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: merge
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T09:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: merge-into-itself

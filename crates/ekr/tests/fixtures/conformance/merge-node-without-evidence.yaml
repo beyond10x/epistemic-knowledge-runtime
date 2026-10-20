@@ -1,0 +1,11 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-0000000007c4
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !MergeEntity
+    absorbed: 00000000-0000-4000-8000-000000000302
+    into: 00000000-0000-4000-8000-000000000301
+    reason: Bob was recorded twice; Alice is the person recorded
+    evidence: []
+  evidence: []

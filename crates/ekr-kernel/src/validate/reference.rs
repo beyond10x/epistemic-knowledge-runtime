@@ -86,6 +86,10 @@ const SUPERSEDE_BY_SUPERSEDED_NODE: &str = "supersede-by-superseded-node";
 /// the transaction adds.
 const SUPERSESSION_EVIDENCE_UNKNOWN: &str = "supersession-evidence-unknown";
 
+/// A `MergeEntity` resting on evidence canonical state does not retain and no `AddEvidence` of
+/// the transaction adds.
+const MERGE_EVIDENCE_UNKNOWN: &str = "merge-evidence-unknown";
+
 /// Validator 2: reference existence.
 pub struct Reference;
 
@@ -193,6 +197,42 @@ impl Check for Reference {
                 GraphOperation::MergeEntity(merge) => {
                     known.node(tx, merge.absorbed, &mut issues);
                     known.node(tx, merge.into, &mut issues);
+                    // The shape that applies absorbs a node the head holds: one the same
+                    // transaction creates is not held yet, as for a supersession (design § 111.3).
+                    // Its evidence resolves as a supersession's does. The bare P1 shape is
+                    // resolved as it always was, and by nothing more.
+                    if !merge.is_bare() {
+                        let absorbed = merge.absorbed;
+                        if !known.state.nodes.contains_key(&absorbed)
+                            && known.candidate.nodes.contains_key(&absorbed)
+                        {
+                            issues.push(issue(
+                                tx,
+                                ValidatorName::Reference,
+                                UNRESOLVED_NODE,
+                                format!(
+                                    "node {absorbed} is created by this transaction; a merge \
+                                     absorbs a node a committed revision holds, so merge it in a \
+                                     later transaction"
+                                ),
+                            ));
+                        }
+                        for evidence in merge.evidence.iter().flatten() {
+                            if !known.holds_evidence(evidence) {
+                                issues.push(issue(
+                                    tx,
+                                    ValidatorName::Reference,
+                                    MERGE_EVIDENCE_UNKNOWN,
+                                    format!(
+                                        "the merge of node {absorbed} into node {} rests on \
+                                         evidence {evidence}, which canonical state does not \
+                                         retain and no AddEvidence of the transaction adds",
+                                        merge.into
+                                    ),
+                                ));
+                            }
+                        }
+                    }
                 }
                 GraphOperation::Invoke {
                     node, arguments, ..

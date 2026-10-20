@@ -82,6 +82,12 @@ fn document(operation: &str) -> String {
             assertion.evidence.iter().map(ToString::to_string).collect()
         }
         Some(GraphOperation::AttachEvidence(attachment)) => vec![attachment.evidence.to_string()],
+        Some(GraphOperation::MergeEntity(merge)) => merge
+            .evidence
+            .iter()
+            .flatten()
+            .map(ToString::to_string)
+            .collect(),
         _ => Vec::new(),
     };
     text.push_str(&format!("  evidence: [{}]\n", evidence.join(", ")));
@@ -252,9 +258,24 @@ fn every_example_operation_names_only_what_its_documented_preparations_hold() {
             assert_eq!(world.ok(&["validate", id])["kind"], "Validated");
             assert_eq!(world.ok(&["commit", id])["kind"], "Committed");
         }
+        // `story:merge-entity-applies`: the MergeEntity example merges the organization the
+        // CreateNode example creates, and its page names that prerequisite as AttachEvidence's
+        // names its own.
+        if kind == "MergeEntity" {
+            assert!(page.contains("First commit the"), "{page}");
+            assert!(page.contains("after committing the CreateNode example"));
+            let preparation = world.file(
+                "prepare-node.yaml",
+                &document(&example_operation("CreateNode")),
+            );
+            let proposed = world.ok(&["propose", &preparation]);
+            let id = proposed["transaction_id"].as_str().unwrap();
+            assert_eq!(world.ok(&["validate", id])["kind"], "Validated");
+            assert_eq!(world.ok(&["commit", id])["kind"], "Committed");
+        }
         let validated = world.validate(&format!("{kind}.yaml"), &example_operation(&kind));
-        if kind == "AttachEvidence" {
-            assert_eq!(validated["kind"], "Validated", "{validated}");
+        if kind == "AttachEvidence" || kind == "MergeEntity" {
+            assert_eq!(validated["kind"], "Validated", "{kind}: {validated}");
         }
         let missing: Vec<String> = issue_codes(&validated)
             .into_iter()

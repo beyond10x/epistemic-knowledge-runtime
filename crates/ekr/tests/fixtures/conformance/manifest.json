@@ -136,6 +136,31 @@
     "ekr.kernel/authored/an-operation-naming-a-superseded-node-is-rejected-by-name": {
       "supersession": "supersede-node.yaml",
       "addition": "add-alias-superseded.yaml"
+    },
+    "ekr.kernel/authored/a-duplicate-node-merged-into-the-node-it-duplicates-commits": {
+      "merge": "merge-node.yaml"
+    },
+    "ekr.kernel/authored/a-node-merged-into-itself-is-rejected-by-name": {
+      "merge": "merge-node-itself.yaml"
+    },
+    "ekr.kernel/authored/a-merge-without-a-reason-is-rejected-by-name": {
+      "merge": "merge-node-without-reason.yaml"
+    },
+    "ekr.kernel/authored/a-merge-without-evidence-is-rejected-by-name": {
+      "merge": "merge-node-without-evidence.yaml"
+    },
+    "ekr.kernel/authored/a-merge-across-unrelated-types-is-rejected-by-name": {
+      "merge": "merge-node-unrelated.yaml"
+    },
+    "ekr.kernel/authored/a-merged-node-named-in-its-transaction-is-rejected-by-name": {
+      "merge": "merge-node-named.yaml"
+    },
+    "ekr.kernel/authored/a-bare-merge-is-rejected-as-p1-rejected-it": {
+      "merge": "merge-node-bare.yaml"
+    },
+    "ekr.kernel/authored/an-operation-naming-a-merged-node-is-rejected-by-name": {
+      "merge": "merge-node.yaml",
+      "addition": "add-alias-superseded.yaml"
     }
   },
   "setups": {

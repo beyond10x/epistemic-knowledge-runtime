@@ -77,7 +77,12 @@ fn referenced_in<'a>(values: impl IntoIterator<Item = &'a Value>) -> Vec<NodeId>
 /// The nodes and edges `operation` names, for an operation other than a `SupersedeNode`: as an
 /// endpoint, a target or a subject, and as a `NodeRef` inside any value it writes, which names a
 /// node as surely as an edge does (design § 110.3).
-fn named(operation: &GraphOperation) -> (Vec<NodeId>, Vec<EdgeId>) {
+///
+/// A `MergeEntity` in the shape that applies names none here: it retires the node it absorbs as a
+/// `SupersedeNode` retires one, and what it may share a transaction with is
+/// [`super::merge`]'s question (design § 111.3). The bare P1 shape names its two nodes, as it did
+/// before the other shape existed, so a transaction carrying one is refused in the words it was.
+pub(super) fn named(operation: &GraphOperation) -> (Vec<NodeId>, Vec<EdgeId>) {
     match operation {
         GraphOperation::CreateNode(draft) => (
             referenced_in(draft.properties.values().flatten()),
@@ -109,7 +114,10 @@ fn named(operation: &GraphOperation) -> (Vec<NodeId>, Vec<EdgeId>) {
             }
             (nodes, edges)
         }
-        GraphOperation::MergeEntity(merge) => (vec![merge.absorbed, merge.into], Vec::new()),
+        GraphOperation::MergeEntity(merge) if merge.is_bare() => {
+            (vec![merge.absorbed, merge.into], Vec::new())
+        }
+        GraphOperation::MergeEntity(_) => (Vec::new(), Vec::new()),
         GraphOperation::Invoke {
             node, arguments, ..
         } => {
@@ -233,7 +241,7 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
 }
 
 /// The operation's kind, as its YAML tag names it.
-const fn kind(operation: &GraphOperation) -> &'static str {
+pub(super) const fn kind(operation: &GraphOperation) -> &'static str {
     match operation {
         GraphOperation::CreateNode(_) => "CreateNode",
         GraphOperation::UpdateProperty(_) => "UpdateProperty",
@@ -256,7 +264,7 @@ const fn kind(operation: &GraphOperation) -> &'static str {
     }
 }
 
-fn named_in_transaction(tx: &GraphTransaction, message: String) -> ValidationIssue {
+pub(super) fn named_in_transaction(tx: &GraphTransaction, message: String) -> ValidationIssue {
     issue(
         tx,
         ValidatorName::Structural,
