@@ -728,7 +728,7 @@ category's is.
 | `edges` | edge id | `type_id`, `source`, `target`, `properties` |
 | `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
 | `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
-| `superseded` | superseded node id | `node` and `edges` (as `nodes` and `edges` compare them), `by`, `revision`, `reason`, `evidence`; listed only where either store holds a record |
+| `superseded` | superseded node id | `node` and `edges` (as `nodes` and `edges` compare them), `by`, `revision`, `reason`, `evidence`, and a merged node's `merge` lineage; listed only where either store holds a record |
 
 Nothing a commit's clock or its transaction decides is compared: not an assertion's
 `transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
@@ -2716,7 +2716,8 @@ lists the merge as a `NodeMerged` change of the absorbed node, with its `type` a
 Preparation goes in an earlier revision: clear a property the node kept's type does not declare or
 whose value differs (`!UpdateProperty` with `values: []`), delete an edge whose duplicate differs or
 whose end the node kept's type may not take (`!DeleteEdge`), retract an assertion the node kept's
-type cannot carry. A retracted assertion is rewritten but never blocks a merge.
+type cannot carry, or a relation joining the two nodes (`merge-self-relation`). A retracted assertion
+is rewritten but never blocks a merge.
 
 The bare shape `{absorbed, into}`, without `reason` and `evidence`, is the one the first releases
 parsed and refused; it is refused as it was, with `unsupported-operation`, under every profile.
@@ -2735,6 +2736,7 @@ Validation refuses, as named issues:
 | `merge-undeclared-property` | Type | the absorbed node holds, or an active assertion gives it, a property the node kept's type does not declare |
 | `merge-property-conflict` | Structural | both nodes hold a property with different values |
 | `merge-duplicate-edge-conflict` | Structural | an edge of the absorbed node duplicates one of the node kept with different properties; the message names both |
+| `merge-self-relation` | Structural | an active relation assertion joins the absorbed node and the node kept, either way, so the merge would relate the node kept to itself; the message names the assertion |
 | `edge-endpoint-type` | Type | a rewritten edge end, or a rewritten end of an active relation assertion, is of a type the edge type does not allow |
 | `wrong-type` | Type | a rewritten or moved value its property's `value_type` does not admit, such as a `NodeRef` allowed only to the absorbed node's type |
 | `edge-cardinality` | Cardinality | the node kept would hold two edges of a `cardinality: One` edge type once duplicates collapse; the message names them |
@@ -4083,6 +4085,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `merge-undeclared-property` | validation issue | 0 | the node a `!MergeEntity` absorbs holds, or an active assertion gives it, a property the type of `into` does not declare | clear the property with an `!UpdateProperty` of no values, or retract the assertion, in an earlier revision |
 | `merge-property-conflict` | validation issue | 0 | both nodes of a `!MergeEntity` hold a property with different values | make them equal, or clear it on one node, in an earlier revision |
 | `merge-duplicate-edge-conflict` | validation issue | 0 | an edge at the absorbed node has the type, direction and other end of an edge `into` holds, with different properties | make their properties equal, or delete one, in an earlier revision |
+| `merge-self-relation` | validation issue | 0 | an active relation assertion joins the two nodes of a `!MergeEntity`, either way, so the merge would relate the node kept to itself; the message names it | retract the assertion in an earlier revision; a retracted one does not block |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, moves one node's lifecycle twice, declares one property of one type in two `ModifyProperty`, or widens one edge type in two `WidenEdgeType` | one write per property, one state move per node, one declaration per property and one widening per edge type per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |

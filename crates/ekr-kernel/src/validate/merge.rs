@@ -4,9 +4,10 @@
 //! edge at it; the two nodes' types are one or related through `parents`; and the graph the merge
 //! makes is one a transaction could have written — every property the absorbed node holds declared
 //! by the node kept's type and free of conflict with it, every duplicate edge equal to the one it
-//! collapses onto, every rewritten edge end and active relation assertion of an allowed type,
-//! every rewritten `NodeRef` value admitted by its declaration, and every count within its
-//! cardinality once the duplicates have collapsed.
+//! collapses onto, every rewritten edge end and active relation assertion of an allowed type, no
+//! active relation assertion made a relation of the node kept to itself, every rewritten
+//! `NodeRef` value admitted by its declaration, and every count within its cardinality once the
+//! duplicates have collapsed.
 //!
 //! Each check is raised by the validator whose question it is, and reads one [`MergeCheck`]
 //! built once per validation by [`checks`], from the snapshot and the transaction's other
@@ -52,6 +53,10 @@ const MERGE_PROPERTY_CONFLICT: &str = "merge-property-conflict";
 
 /// An edge of the absorbed node duplicating one the node kept holds, with different properties.
 const MERGE_DUPLICATE_EDGE_CONFLICT: &str = "merge-duplicate-edge-conflict";
+
+/// An active relation assertion joining the absorbed node and the node kept, either way, which the
+/// merge would make a relation of the node kept to itself.
+const MERGE_SELF_RELATION: &str = "merge-self-relation";
 
 /// A rewritten edge end or relation assertion end of a type the edge type does not allow: the
 /// code `Type` raises for a `CreateEdge`.
@@ -106,7 +111,9 @@ pub(super) struct MergeCheck {
     node_values: Vec<(NodeId, TypeId, PropertyId, Vec<CanonicalValue>)>,
     /// The same for the head's edges, with the edge's type.
     edge_values: Vec<(EdgeId, TypeId, PropertyId, Vec<CanonicalValue>)>,
-    /// The active assertions the merge rewrites.
+    /// The active relation assertions joining the absorbed node and the node kept, either way.
+    self_relations: Vec<AssertionId>,
+    /// The other active assertions the merge rewrites.
     assertions: Vec<Rewritten>,
 }
 
@@ -167,6 +174,7 @@ fn check_one(
         moved: BTreeMap::new(),
         node_values: Vec::new(),
         edge_values: Vec::new(),
+        self_relations: Vec::new(),
         assertions: Vec::new(),
     };
     if !check.related {
@@ -352,6 +360,17 @@ fn check_one(
         if !(subject_moved || object_moved) {
             continue;
         }
+        // A relation joining the two, either way, would relate the node kept to itself: refused
+        // by name, and held to nothing else here, so the one defect draws one issue.
+        if let (Predicate::Relation(_), Subject::Node(from), Object::Node(to)) =
+            (assertion.predicate, assertion.subject, &assertion.object)
+        {
+            let (from, to) = (from.node(), to.node());
+            if (from == absorbed && to == into) || (from == into && to == absorbed) {
+                check.self_relations.push(assertion.id);
+                continue;
+            }
+        }
         check.assertions.push(Rewritten {
             id: assertion.id,
             predicate: assertion.predicate,
@@ -376,7 +395,8 @@ fn check_one(
 
 /// `Structural`'s checks of a merge in the shape that applies: its reason and evidence; nothing
 /// else in its transaction naming the absorbed node or an edge at it; one merge per transaction;
-/// and the conflicts the merge would have to choose between.
+/// the conflicts the merge would have to choose between; and the active relation assertions it
+/// would make relate the node kept to itself.
 pub(super) fn structural(
     snapshot: &GraphSnapshot<'_>,
     tx: &GraphTransaction,
@@ -449,6 +469,18 @@ pub(super) fn structural(
                     ),
                 ));
             }
+        }
+        for assertion in &check.self_relations {
+            issues.push(issue(
+                tx,
+                ValidatorName::Structural,
+                MERGE_SELF_RELATION,
+                format!(
+                    "assertion {assertion} relates node {absorbed} and node {into}, which the \
+                     merge makes one node, so it would relate node {into} to itself; retract the \
+                     assertion in an earlier revision, then merge"
+                ),
+            ));
         }
     }
     issues

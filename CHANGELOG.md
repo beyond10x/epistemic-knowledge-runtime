@@ -21,13 +21,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `merge-into-itself`, `unresolved-node`, `node-superseded`, `merge-without-reason`,
   `merge-without-evidence`, `merge-evidence-unknown`, `merge-types-unrelated`,
   `merge-undeclared-property`, `merge-property-conflict`, `merge-duplicate-edge-conflict`,
-  `edge-endpoint-type`, `wrong-type`, `edge-cardinality`, `property-cardinality` and
+  `merge-self-relation` (an active relation assertion joining the two nodes, either way: retract
+  it first), `edge-endpoint-type`, `wrong-type`, `edge-cardinality`, `property-cardinality` and
   `superseded-node-named-in-transaction`. The bare `{absorbed, into}` shape is refused as before,
   `unsupported-operation`, under every profile, so retained rejections replay; a store that never
-  merges keeps its roots and checkpoint bytes. The SDK's `EntityMerge::new` now takes the reason and
-  the evidence and builds the shape that applies (`EntityMerge::bare` builds the P1 shape); the SDK
-  reads `SnapshotSupersededNode::merge` and `ChangeKind::NodeMerged`, and `Resolver::observe` drops
-  every cached answer naming a node a committed merge absorbs.
+  merges keeps its roots and checkpoint bytes. `ekr compare` compares a merged node's lineage in
+  its `superseded` category. The SDK builds the bare shape with `EntityMerge::bare`, reads
+  `SnapshotSupersededNode::merge` and `ChangeKind::NodeMerged`, and `Resolver::observe` drops every
+  cached answer naming a node a committed merge absorbs.
+
+### Changed
+
+- **Breaking: the SDK's `EntityMerge::new(absorbed, into, reason, evidence)`** takes the reason
+  and the evidence, no longer only the two nodes, and builds the shape that applies; a caller that
+  wrote `EntityMerge::new(absorbed, into)` for the bare P1 shape writes `EntityMerge::bare(absorbed,
+  into)`, which every profile still refuses.
+- **Breaking: `EntityMerge` is no longer `Copy`**, in the SDK (`ekr_sdk`) and in the kernel
+  (`ekr_kernel`): each gained `reason: Option<String>` and `evidence: Option<BTreeSet<EvidenceId>>`.
+  A caller that copied one clones it.
 
 ## [0.0.40] — 2026-10-20
 

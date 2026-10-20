@@ -6604,6 +6604,7 @@ Refused, as named issues of a Rejected transaction:
 | a property `absorbed` holds, or an active assertion gives it, that `into`'s type does not declare | Type | `merge-undeclared-property` |
 | a property both hold with different values | Structural | `merge-property-conflict` |
 | an edge of `absorbed` duplicating one of `into` with different properties, naming both | Structural | `merge-duplicate-edge-conflict` |
+| an active relation assertion joining `absorbed` and `into`, either way, which would relate `into` to itself; a retracted or superseded one does not block | Structural | `merge-self-relation` |
 | a rewritten edge end, or the rewritten end of an active relation assertion, of a type the edge type does not allow | Type | `edge-endpoint-type` |
 | a rewritten or moved value its declaration does not admit | Type | `wrong-type` |
 | an edge type of cardinality `One` that `into` would hold twice once duplicates collapse, naming the edges; a moved property past its cardinality | Cardinality | `edge-cardinality`, `property-cardinality` |

@@ -338,7 +338,9 @@ pub(crate) fn apply(
         }
     }
 
-    // Assertions, in place: every byte but the reference rewritten.
+    // Assertions, in place: every byte but the reference rewritten. An active relation joining
+    // the two nodes was refused by validation (`merge-self-relation`); a retracted or superseded
+    // one is rewritten as any other is, and relates the node kept to itself.
     for assertion in graph.assertions.values_mut() {
         let mut change = RewrittenAssertion {
             subject: None,

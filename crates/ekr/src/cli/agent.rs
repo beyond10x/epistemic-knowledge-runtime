@@ -597,12 +597,12 @@ impl OperationKind {
   declare (merge-undeclared-property) or that both hold differently (merge-property-conflict),
   a duplicate edge with different properties (merge-duplicate-edge-conflict), a rewritten edge
   end or value into's type does not satisfy (edge-endpoint-type, wrong-type), a count past its
-  cardinality (edge-cardinality, property-cardinality); clear, delete or retract those in an
-  earlier revision. No other operation of the transaction may name absorbed or an edge at it,
-  and a transaction carries one merge (superseded-node-named-in-transaction). Without reason
-  and evidence it is the bare shape P1 parsed, which every profile refuses (ekr guide, SCHEMA
-  CHANGES). First commit the CreateNode example; this example merges the organization it
-  creates into Acme.",
+  cardinality (edge-cardinality, property-cardinality), an active relation joining the two
+  (merge-self-relation); clear, delete or retract those in an earlier revision. No other
+  operation of the transaction may name absorbed or an edge at it, and a transaction carries
+  one merge (superseded-node-named-in-transaction). Without reason and evidence it is the bare
+  shape P1 parsed, which every profile refuses (ekr guide, SCHEMA CHANGES). First commit the
+  CreateNode example; this example merges the organization it creates into Acme.",
                 "- !MergeEntity
   absorbed: 00000000-0000-4000-8000-000000000304
   into: 00000000-0000-4000-8000-000000000303

@@ -669,7 +669,10 @@ types:
   # property `absorbed` holds, or an active assertion gives it, that `into`'s type does not declare
   # (merge-undeclared-property, Type); a property both hold with different values
   # (merge-property-conflict, Structural); an edge of `absorbed` duplicating one of `into` with
-  # different properties, naming both (merge-duplicate-edge-conflict, Structural); a rewritten edge
+  # different properties, naming both (merge-duplicate-edge-conflict, Structural); an active
+  # relation assertion joining `absorbed` and `into`, either way, which the merge would make a
+  # relation of `into` to itself, naming the assertion (merge-self-relation, Structural; a
+  # retracted or superseded one does not block, and is rewritten as any other); a rewritten edge
   # end, or a rewritten end of an active relation assertion, of a type its edge type does not allow
   # (edge-endpoint-type, Type); a rewritten or moved value its declaration does not admit
   # (wrong-type, Type); an edge type of cardinality One that `into` would hold twice once the

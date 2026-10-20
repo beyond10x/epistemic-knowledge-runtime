@@ -14,8 +14,10 @@
 //!   [`Runtime::transactions`] is one verified capture of the retained records, and only the
 //!   chosen revisions' documents are parsed — and the seed's off its canonical state,
 //!   [`Runtime::replay`] of revision 0, read only when the seed is chosen;
-//! * a superseded or retracted assertion's subject, valid time and evidence are the index's
-//!   graph's, which holds every assertion ever added, whatever its lifecycle.
+//! * a superseded or retracted assertion's valid time and evidence are the index's graph's, which
+//!   holds every assertion ever added, whatever its lifecycle, and so is its subject unless a
+//!   merge after the change rewrote it, when the earliest such merge's lineage holds the subject
+//!   of the change's own revision (design § 111.2).
 //!
 //! So the parsing and the records built cost the chosen revisions and their changes, not the
 //! whole history; what does not narrow is the kernel's capture of the retained transaction
@@ -32,9 +34,10 @@
 //! replay when every chosen revision is held. An [`crate::IndexCache`] shares one
 //! `ChangeLists` among the indexes it holds, so a request after a later commit, read from the
 //! new head's index, derives only the revisions that commit added. A list's superseded or
-//! retracted assertion is read from the read revision's graph, but only its subject, evidence and
-//! valid-time start, which no later revision changes, so a list derived at one revision is the
-//! list derived at any later one. [`Index::transaction_documents_parsed`] counts the documents
+//! retracted assertion is read from the read revision's graph, but only its evidence and
+//! valid-time start, which no later revision changes, and its subject as the change's own revision
+//! held it — a later merge rewrites a subject in place, and its record's lineage keeps the one it
+//! rewrote — so a list derived at one revision is the list derived at any later one. [`Index::transaction_documents_parsed`] counts the documents
 //! parsed, the measure the cost clause is held by.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,7 +45,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use ekr_core::{AssertionId, ContentHash, EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
-use ekr_graph::{CanonicalGraph, Subject};
+use ekr_graph::{Assertion, CanonicalGraph, Subject};
 use ekr_kernel::{GraphOperation, Runtime, TransactionDocument};
 use serde::Serialize;
 
@@ -415,6 +418,23 @@ fn held(subject: &Subject) -> (&'static str, String) {
     }
 }
 
+/// The subject `claim`, as `graph` holds it, held at `revision`: a merge committed after
+/// `revision` rewrote the subject in place (design § 111.2), and the earliest such merge's lineage
+/// holds what it was before; with none, the subject `graph` holds. So a change is listed about the
+/// subject of its own revision, whichever later revision reads it.
+fn subject_at(graph: &CanonicalGraph, claim: &Assertion, revision: RevisionNumber) -> Subject {
+    graph
+        .superseded
+        .values()
+        .filter(|record| record.revision > revision)
+        .filter_map(|record| {
+            let prior = record.merge.as_ref()?.assertions.get(&claim.id)?.subject?;
+            Some((record.revision, prior))
+        })
+        .min_by_key(|(merged_at, _)| *merged_at)
+        .map_or(claim.subject, |(_, prior)| prior)
+}
+
 /// Ids as the format lists them: their text, ascending.
 fn listed(ids: impl IntoIterator<Item = String>) -> Vec<String> {
     ids.into_iter()
@@ -462,7 +482,8 @@ fn seed_changes(graph: &CanonicalGraph, entry: &LoadedRevisionEntry, into: &mut 
 
 /// The changes one committed transaction made, read off its operations. An assertion it
 /// superseded or retracted is read from `graph`, the state at the read revision, which holds
-/// every assertion ever added. An `AddEvidence` is an EvidenceAdded carrying the entry's source
+/// every assertion ever added, its subject as `entry`'s revision held it ([`subject_at`]). An
+/// `AddEvidence` is an EvidenceAdded carrying the entry's source
 /// identity (its locator) and the address of the payload it brought.
 fn transaction_changes(
     graph: &CanonicalGraph,
@@ -523,7 +544,7 @@ fn transaction_changes(
                     ChangeKind::AssertionSuperseded,
                     supersession.assertion.to_string(),
                 )
-                .about(held(&claim.subject));
+                .about(held(&subject_at(graph, claim, entry.number)));
                 change.by = Some(supersession.by);
                 change.valid_time = Some(supersession.effective_from.millis());
                 change.evidence = listed(claim.evidence.iter().map(|e| e.id().to_string()));
@@ -536,7 +557,7 @@ fn transaction_changes(
                     ChangeKind::AssertionRetracted,
                     retraction.assertion.to_string(),
                 )
-                .about(held(&claim.subject));
+                .about(held(&subject_at(graph, claim, entry.number)));
                 change.valid_time = claim.valid_time.from.map(|from| from.millis());
                 change.evidence = listed(claim.evidence.iter().map(|e| e.id().to_string()));
                 change

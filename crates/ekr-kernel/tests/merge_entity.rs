@@ -56,6 +56,12 @@ const FOLLOWS: &str = "00000000-0000-4000-8000-000000000215";
 const LINK: &str = "00000000-0000-4000-8000-000000000216";
 /// `via` of a TAGGED edge: a NodeRef to a work item.
 const VIA: &str = "00000000-0000-4000-8000-000000000217";
+/// `estimate`: an Integer on a WorkItem, which a MergeRequest redeclares as a String.
+const ESTIMATE: &str = "00000000-0000-4000-8000-000000000218";
+/// `reviewer`: One on a WorkItem, which a MergeRequest redeclares as Many.
+const REVIEWER: &str = "00000000-0000-4000-8000-000000000219";
+/// `request` of a TAGGED edge: a NodeRef to a merge request only.
+const REQUESTED: &str = "00000000-0000-4000-8000-000000000220";
 /// The WorkItem the store held first: the node kept, alias `group/app!18`.
 const KEPT: &str = "00000000-0000-4000-8000-000000000301";
 /// A WorkItem an import wrote beside it: the duplicate, alias `import/18`.
@@ -1190,6 +1196,152 @@ fn a_merged_alias_resolves_to_the_survivor() {
             vec![(ValidatorName::Structural, "alias-already-exists".to_owned())],
             "{at}: {verdict:?}"
         );
+    });
+}
+
+/// Correction round 1, J2 (`merge-self-relation`): an active relation assertion joining the
+/// absorbed node and the node kept, either way, would relate the node kept to itself, so it
+/// refuses the merge by name, naming the assertion; retracted in an earlier revision, it does not
+/// block, and the merge rewrites it as any other.
+#[test]
+fn a_merge_is_refused_while_an_active_relation_joins_the_two_nodes() {
+    each_store(|at, _, _, _, kernel| {
+        let (forward, add_forward) = assertion(
+            &format!("!Node {DUPLICATE}"),
+            &format!("!Relation {BLOCKS}"),
+            &format!("!Node {KEPT}"),
+        );
+        let (backward, add_backward) = assertion(
+            &format!("!Node {KEPT}"),
+            &format!("!Relation {BLOCKS}"),
+            &format!("!Node {DUPLICATE}"),
+        );
+        committed(
+            kernel,
+            &transaction(vec![add_forward, add_backward], &[id(STATEMENT)]),
+            20,
+        );
+        let head = kernel.head().unwrap().unwrap();
+        let verdict = submit(kernel, &merging(DUPLICATE, KEPT), 30);
+        let issues = refused(&verdict);
+        assert_eq!(
+            codes(&verdict),
+            vec![
+                (ValidatorName::Structural, "merge-self-relation".to_owned()),
+                (ValidatorName::Structural, "merge-self-relation".to_owned()),
+            ],
+            "{at}: {verdict:?}"
+        );
+        let named: BTreeSet<AssertionId> = issues
+            .iter()
+            .map(|(_, _, message)| {
+                *[forward, backward]
+                    .iter()
+                    .find(|claim| message.contains(&claim.to_string()))
+                    .unwrap_or_else(|| panic!("{at}: the refusal names its assertion: {message}"))
+            })
+            .collect();
+        assert_eq!(named, BTreeSet::from([forward, backward]), "{at}");
+        assert_eq!(kernel.head().unwrap().unwrap(), head, "{at}: nothing moved");
+
+        let retract = |assertion: AssertionId| {
+            GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+                assertion,
+                reason: ekr_graph::RetractionReason::new("one item does not block itself"),
+            })
+        };
+        committed(
+            kernel,
+            &transaction(vec![retract(forward), retract(backward)], &[]),
+            40,
+        );
+        committed(kernel, &merging(DUPLICATE, KEPT), 50);
+        let head = kernel.snapshot().unwrap();
+        let kept = CanonicalRef::new(id::<NodeId>(KEPT));
+        for claim in [forward, backward] {
+            assert_eq!(head.assertions[&claim].subject, Subject::Node(kept), "{at}");
+            assert_eq!(head.assertions[&claim].object, Object::Node(kept), "{at}");
+        }
+    });
+}
+
+/// Correction round 1, J3: a value a merge moves or rewrites is held to the declaration that holds
+/// it afterwards. A MergeRequest redeclares `estimate` as a String and `reviewer` as Many, which a
+/// WorkItem declares as an Integer and as One, and a TAGGED edge's `request` admits only merge
+/// requests: merged into a WorkItem, each refuses the merge — `wrong-type` for the moved value and
+/// for the edge value, `property-cardinality` for the moved values — and nothing moves.
+#[test]
+fn a_merge_holds_moved_and_rewritten_values_to_their_declarations() {
+    each_store(|at, _, _, _, kernel| {
+        let head = kernel.head().unwrap().unwrap();
+        let tagged = EdgeId::mint();
+        let cases: Vec<(&str, Vec<GraphOperation>, &str, &str)> = vec![
+            (
+                "a moved value the kept node's type does not admit",
+                vec![update(REQUEST, ESTIMATE, vec![text("three days")])],
+                "wrong-type",
+                ESTIMATE,
+            ),
+            (
+                "moved values past the kept node's cardinality",
+                vec![update(
+                    REQUEST,
+                    REVIEWER,
+                    vec![text("reviewer one"), text("reviewer two")],
+                )],
+                "property-cardinality",
+                REVIEWER,
+            ),
+            (
+                "an edge value the kept node's type does not satisfy",
+                vec![edge(
+                    tagged,
+                    TAGGED,
+                    LATER,
+                    PARSER,
+                    &[(REQUESTED, Value::NodeRef(id(REQUEST)))],
+                )],
+                "wrong-type",
+                REQUESTED,
+            ),
+        ];
+        for (offset, (what, preparation, code, named)) in cases.into_iter().enumerate() {
+            let at_time = 100 + 100 * i64::try_from(offset).unwrap();
+            committed(kernel, &transaction(preparation, &[]), at_time);
+            let prepared = kernel.head().unwrap().unwrap();
+            let verdict = submit(kernel, &merging(REQUEST, KEPT), at_time + 10);
+            let validator = if code == "property-cardinality" {
+                ValidatorName::Cardinality
+            } else {
+                ValidatorName::Type
+            };
+            assert_eq!(
+                codes(&verdict),
+                vec![(validator, code.to_owned())],
+                "{at}: {what}: {verdict:?}"
+            );
+            assert!(
+                refused(&verdict)[0].2.contains(named),
+                "{at}: {what}: the refusal names {named}: {verdict:?}"
+            );
+            assert_eq!(
+                kernel.head().unwrap().unwrap(),
+                prepared,
+                "{at}: {what}: nothing moved"
+            );
+            // Undone before the next case, so each case holds one defect.
+            let undo = match offset {
+                0 => update(REQUEST, ESTIMATE, vec![]),
+                1 => update(REQUEST, REVIEWER, vec![]),
+                _ => GraphOperation::DeleteEdge(tagged),
+            };
+            committed(kernel, &transaction(vec![undo], &[]), at_time + 20);
+        }
+        assert!(
+            kernel.head().unwrap().unwrap().revision > head.revision,
+            "{at}"
+        );
+        committed(kernel, &merging(REQUEST, KEPT), 1_000);
     });
 }
 
