@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.40] — 2026-10-20
+
 ### Fixed
 
 - `SupersedeNode` review fixes (story:supersede-node-review-fixes). `describe_node` /1 of a live
