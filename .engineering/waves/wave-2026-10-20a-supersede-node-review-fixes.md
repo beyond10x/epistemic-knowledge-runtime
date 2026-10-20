@@ -28,7 +28,14 @@ inferred); no `aep:story-scoper` ran, because every surface is a reviewer's cita
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261020a` | `ekr-w20261019a` (reused) | none | none | store writes |
-| U1 | `unit/20261020a-u1` | `ekr-w20a-u1` | `<tree>/target` | `<home>/.cache/ekr-w20a-u1-scratch` | dispatched |
+| U1 | `unit/20261020a-u1` | `ekr-w20a-u1` | `<tree>/target` | `<home>/.cache/ekr-w20a-u1-scratch` | implementor green at `5127539c` after correction 1 (lane 3 1429→1445, lane 4 138→143); D7, D8, D10, Q7 held back as `<scratch>/verdict-changes.patch`; adversary pass 1 dispatched |
+
+## Incidents
+
+- The implementor stopped once on HTTP 429 and was resumed with its context.
+- `target/` reached 47G (the `adr-changes` monitor session's `du`); `cargo clean -p` of the 11
+  workspace members brought it to 3.7G and `/` to 77G free; later builds run with
+  `CARGO_INCREMENTAL=0`, one at a time. The disk watch logged no stop.
 
 ## Pre-flight
 
