@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:supersede-node-review-fixes
 kind: story
-status: active
+status: implemented
 title: The 0.0.39 review's defects in SupersedeNode are fixed, its test gaps closed and its documents corrected
 relations:
 - decomposes: epic:p3-incubation-integration
@@ -63,10 +63,11 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-20T01:30:35Z", actor: "agent:claude-ekr-session", revision: 5}
 - {from: "proposed", to: "active", at: "2026-10-20T01:30:36Z", actor: "agent:claude-ekr-session", revision: 6}
+- {from: "active", to: "implemented", at: "2026-10-20T09:05:05Z", actor: "agent:claude-ekr-session", revision: 9, decided_on: {"recorded":{"test_result":1,"review_outcome":2,"verification":1}}}
 ---
 ## Context
 

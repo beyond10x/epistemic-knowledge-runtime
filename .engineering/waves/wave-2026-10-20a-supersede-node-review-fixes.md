@@ -1,7 +1,8 @@
 # Wave 2026-10-20a — the 0.0.39 review's SupersedeNode defects fixed
 
 Skill: aep:implementing 0.23.2 (wave mode). Coordinator: the Claude session of wave 2026-10-19a.
-Status: **dispatching** U1.
+Status: **gated**: CI `Repository correctness` green on `f982c340` (PR 100); the story is
+implemented; U1's tree `ekr-w20a-u1` is finished and removed (archive kept).
 
 Source: `review-result:haiku-panel-0-0-39-supersede-node`, 20 read-only reviewers on release 0.0.39,
 54 findings. Story: `story:supersede-node-review-fixes`.

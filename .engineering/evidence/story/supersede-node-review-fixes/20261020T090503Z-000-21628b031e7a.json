@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-20T09:05:03Z",
+  "actor": "agent:claude-ekr-session",
+  "artifact": "story:supersede-node-review-fixes",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "CI Repository correctness (task check) on f982c3404 for PR 100: success; local gate on 478807e5: 8 steps exit 0, test 2076 passed 1 failed (fixed in 52dcc3cc) before the disk watch stopped it",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/39392867418/job/118528363907"
+  }
+}
