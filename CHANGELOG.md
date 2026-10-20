@@ -4,6 +4,31 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `!MergeEntity {absorbed, into, reason, evidence}` applies (story:merge-entity-applies, design
+  § 111, ADR 0018): it joins a duplicate node to the node it duplicates — of one type, or of types
+  related through `parents` — in a revision of its own. The absorbed node leaves the head into a
+  supersession record naming `into`, as a `SupersedeNode` retires a node, and every reference to it
+  is rewritten in place: each edge at it keeps its id and runs to `into`, an edge joining the two is
+  retired into the record, and one duplicating an edge `into` holds, with equal properties,
+  collapses onto it; each assertion about it, naming it as its object or in a `NodeRef` inside its
+  value, names `into`, every other byte unchanged; each `NodeRef` naming it in a node's or an edge's
+  properties names `into`; and a property only it holds moves to `into`. The record's `merge`
+  lineage — under `superseded` in `ekr snapshot` — says what moved. The absorbed node reads as a
+  superseded node does; `/changes` lists the merge as a `NodeMerged` change, counted in
+  `nodes_merged`, with `into` in `target`. Applied under every validation profile. Refused by name:
+  `merge-into-itself`, `unresolved-node`, `node-superseded`, `merge-without-reason`,
+  `merge-without-evidence`, `merge-evidence-unknown`, `merge-types-unrelated`,
+  `merge-undeclared-property`, `merge-property-conflict`, `merge-duplicate-edge-conflict`,
+  `edge-endpoint-type`, `wrong-type`, `edge-cardinality`, `property-cardinality` and
+  `superseded-node-named-in-transaction`. The bare `{absorbed, into}` shape is refused as before,
+  `unsupported-operation`, under every profile, so retained rejections replay; a store that never
+  merges keeps its roots and checkpoint bytes. The SDK's `EntityMerge::new` now takes the reason and
+  the evidence and builds the shape that applies (`EntityMerge::bare` builds the P1 shape); the SDK
+  reads `SnapshotSupersededNode::merge` and `ChangeKind::NodeMerged`, and `Resolver::observe` drops
+  every cached answer naming a node a committed merge absorbs.
+
 ## [0.0.40] — 2026-10-20
 
 ### Fixed

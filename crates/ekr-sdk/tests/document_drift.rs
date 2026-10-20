@@ -203,7 +203,13 @@ fn example(kind: OperationKind, operator: AgentId) -> Operation {
             .as_required(),
         )
         .into(),
-        OperationKind::MergeEntity => EntityMerge::new(NodeId::mint(), NodeId::mint()).into(),
+        OperationKind::MergeEntity => EntityMerge::new(
+            NodeId::mint(),
+            NodeId::mint(),
+            "catalogued twice",
+            [EvidenceId::mint()],
+        )
+        .into(),
         OperationKind::Invoke => Invocation::new(NodeId::mint(), "publish")
             .with_argument("imprint", Value::String("Riverside Nature Press".into()))
             .into(),
@@ -292,6 +298,41 @@ fn every_operation_kind_ekr_lists_has_a_builder() {
     }
     for kind in OperationKind::ALL {
         assert_eq!(example(kind, AgentId::mint()).kind(), kind);
+    }
+}
+
+/// `story:merge-entity-applies`: `EntityMerge::new` writes the shape that applies, its evidence in
+/// the manifest, and `EntityMerge::bare` the bare P1 shape, which the kernel reads as bare — two
+/// ids and no other key — so an SDK document carrying one round-trips as written.
+#[test]
+fn the_two_merge_shapes_read_as_the_kernel_reads_them() {
+    let operator = AgentId::mint();
+    let (absorbed, into, evidence) = (NodeId::mint(), NodeId::mint(), EvidenceId::mint());
+    for (merge, bare) in [
+        (
+            EntityMerge::new(absorbed, into, "catalogued twice", [evidence]),
+            false,
+        ),
+        (EntityMerge::bare(absorbed, into), true),
+    ] {
+        let document = TransactionBuilder::new(operator)
+            .push(merge.clone().into())
+            .build()
+            .unwrap_or_else(|e| panic!("{merge:?}: {e}"));
+        let yaml = document.to_yaml().expect("an SDK document writes");
+        assert_eq!(yaml.contains("reason:"), !bare, "{yaml}");
+        let read = kernel_reads(&yaml);
+        let ekr_kernel::GraphOperation::MergeEntity(read_merge) = &read.transaction().operations[0]
+        else {
+            panic!("a MergeEntity: {yaml}");
+        };
+        assert_eq!(read_merge.is_bare(), bare, "{yaml}");
+        assert_eq!((read_merge.absorbed, read_merge.into), (absorbed, into));
+        assert_eq!(
+            read.transaction().evidence.contains(&evidence),
+            !bare,
+            "the manifest holds what the merge rests on: {yaml}"
+        );
     }
 }
 

@@ -407,6 +407,11 @@ impl Check for Types {
             }
         }
 
+        // A merge in the shape that applies writes no value of its own, and rewrites and moves
+        // values, edge ends and assertion subjects and objects, each held here to what the type
+        // validator holds a written one to (design § 111.3).
+        issues.extend(super::merge::types(graph, tx, candidate));
+
         finish(issues)
     }
 }

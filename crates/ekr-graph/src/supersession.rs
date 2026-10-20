@@ -9,13 +9,19 @@
 //! reader that builds from [`CanonicalGraph::nodes`](crate::CanonicalGraph::nodes) and
 //! [`edges`](crate::CanonicalGraph::edges) omits it without a filter of its own; every earlier
 //! revision still holds it as it was.
+//!
+//! A `MergeEntity` absorbs a node the same way, into the same record, and rewrites every reference
+//! to it to the node kept instead of retiring its edges (`story:merge-entity-applies`, design
+//! § 111, `architecture-decision-record:0018-merge-and-split-identity`): the record then carries
+//! the [`MergeLineage`] a split that reverts the merge reads.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::canonical::{Canonical, Encoder};
-use ekr_core::{EdgeId, NodeId, RevisionNumber};
+use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, RevisionNumber};
 use serde::{Deserialize, Serialize};
 
+use crate::assertion::{Object, Subject};
 use crate::canonical::ValueSpace;
 use crate::edge::Edge;
 use crate::node::Node;
@@ -36,9 +42,9 @@ use crate::value::CanonicalValue;
 #[cfg_attr(
     feature = "schema",
     schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema, \
-        V::EvidenceRef: schemars::JsonSchema")
+        V::EdgeRef: schemars::JsonSchema, V::EvidenceRef: schemars::JsonSchema")
 )]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, bound(deserialize = "V: Deserialize<'de>"))]
 pub struct SupersededNode<V: ValueSpace = CanonicalValue> {
     /// The node, exactly as the head held it before the supersession: its root, type, name,
     /// aliases, lifecycle state and properties.
@@ -47,7 +53,9 @@ pub struct SupersededNode<V: ValueSpace = CanonicalValue> {
     /// The edges retired with the node, by id, as the head held them: every edge that had it at
     /// either end, except that an edge between two nodes one transaction supersedes is retired
     /// once, into the record of its source, and the record of its target does not hold it
-    /// (design § 110.2).
+    /// (design § 110.2). For a merge, only the edges it retired: each joining the absorbed node
+    /// and the node kept, and each that collapsed onto an edge of the node kept (design § 111.2);
+    /// every other edge at the absorbed node stayed in the head, rewritten.
     #[serde(
         deserialize_with = "ekr_core::decode::unique_map",
         bound(deserialize = "V: Deserialize<'de>")
@@ -63,6 +71,15 @@ pub struct SupersededNode<V: ValueSpace = CanonicalValue> {
     #[cfg_attr(feature = "schema", schemars(with = "Vec<V::EvidenceRef>"))]
     #[serde(deserialize_with = "ekr_core::decode::unique_set")]
     pub evidence: BTreeSet<V::EvidenceRef>,
+    /// What a merge moved, rewrote and retired, when a `MergeEntity` absorbed the node: `None` for
+    /// a node a `SupersedeNode` retired. Absent from the document and from the encoding when
+    /// `None`, so a supersession record reads and hashes as it did before the field existed.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
+    pub merge: Option<MergeLineage<V>>,
 }
 
 impl SupersededNode {
@@ -71,10 +88,36 @@ impl SupersededNode {
     pub const fn id(&self) -> NodeId {
         self.node.id
     }
+
+    /// The edges of the head a merge of the node touched: each rewritten in place, and each an edge
+    /// of the node collapsed onto, in id order. None for a node a `SupersedeNode` retired.
+    #[must_use]
+    pub fn merged_edges(&self) -> BTreeSet<EdgeId> {
+        self.merge.as_ref().map_or_else(BTreeSet::new, |lineage| {
+            lineage
+                .edges
+                .keys()
+                .chain(lineage.collapsed.values())
+                .copied()
+                .collect()
+        })
+    }
+
+    /// The assertions a merge of the node rewrote, in id order. None for a node a `SupersedeNode`
+    /// retired.
+    #[must_use]
+    pub fn merged_assertions(&self) -> BTreeSet<AssertionId> {
+        self.merge.as_ref().map_or_else(BTreeSet::new, |lineage| {
+            lineage.assertions.keys().copied().collect()
+        })
+    }
 }
 
 impl Canonical for SupersededNode {
-    /// The six fields in declaration order, the edges as a map and the evidence as a set.
+    /// The six fields in declaration order, the edges as a map and the evidence as a set; then,
+    /// only for a merge, its lineage as a tagged `Some`. A record without one encodes to exactly
+    /// the bytes it encoded to before the lineage existed, so no root of a store that never merges
+    /// moves, and the `Some` tag cannot be read as the next record's key or what follows the map.
     fn encode(&self, out: &mut Encoder) {
         self.node.encode(out);
         out.map(self.edges.iter());
@@ -82,6 +125,138 @@ impl Canonical for SupersededNode {
         self.revision.encode(out);
         self.reason.encode(out);
         out.set(self.evidence.iter());
+        if let Some(lineage) = &self.merge {
+            out.option(Some(lineage));
+        }
+    }
+}
+
+/// Which end of an edge named the node a merge absorbed: `ekr.graph.MergedEnds`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum MergedEnds {
+    /// Its source.
+    Source,
+    /// Its target.
+    Target,
+    /// Both: an edge from the absorbed node to itself.
+    Both,
+}
+
+impl Canonical for MergedEnds {
+    /// The variant marker: a sum type, tagged.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Source => out.variant(0),
+            Self::Target => out.variant(1),
+            Self::Both => out.variant(2),
+        }
+    }
+}
+
+/// What a merge rewrote in one assertion: each field it rewrote, with what that field held before
+/// (`ekr.graph.RewrittenAssertionRecord`). A field the merge left alone is `None`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schema",
+    schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema, \
+        V::EdgeRef: schemars::JsonSchema")
+)]
+#[serde(deny_unknown_fields, bound(deserialize = "V: Deserialize<'de>"))]
+pub struct RewrittenAssertion<V: ValueSpace = CanonicalValue> {
+    /// The subject before: the absorbed node, or an edge of it that collapsed onto an edge of the
+    /// node kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<Subject<V::NodeRef, V::EdgeRef>>,
+    /// The object before: the absorbed node, or a value holding a `NodeRef` to it at any depth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object: Option<Object<V, V::NodeRef>>,
+}
+
+impl Canonical for RewrittenAssertion {
+    /// The two fields in declaration order, each as an option.
+    fn encode(&self, out: &mut Encoder) {
+        out.option(self.subject.as_ref());
+        out.option(self.object.as_ref());
+    }
+}
+
+/// What a merge moved, rewrote and retired: the lineage a split that reverts the merge reads
+/// (`architecture-decision-record:0018-merge-and-split-identity`, decision 5, and
+/// `ekr.graph.MergeLineageRecord`). Held in the absorbed node's record, which holds the node and
+/// the edges the merge retired, whole.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schema",
+    schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema, \
+        V::EdgeRef: schemars::JsonSchema")
+)]
+#[serde(deny_unknown_fields)]
+pub struct MergeLineage<V: ValueSpace = CanonicalValue> {
+    /// (a) Each edge rewritten in place, by id, with the end or ends that named the absorbed node.
+    /// It keeps its id, and the head holds it, its ends naming the node kept.
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    pub edges: BTreeMap<EdgeId, MergedEnds>,
+    /// (b) Each edge of the absorbed node that collapsed onto an edge the node kept already held,
+    /// by id, with that edge's id: same type, direction and other end, and equal properties. The
+    /// collapsed edge is held whole in the record's `edges`.
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    pub collapsed: BTreeMap<EdgeId, EdgeId>,
+    /// (c) Each edge joining the absorbed node and the node kept, retired: held whole in the
+    /// record's `edges`, as a supersession retires an edge.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    pub retired: BTreeSet<EdgeId>,
+    /// (d) Each assertion rewritten, by id, with each field rewritten and what it held before.
+    #[serde(
+        deserialize_with = "ekr_core::decode::unique_map",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
+    pub assertions: BTreeMap<AssertionId, RewrittenAssertion<V>>,
+    /// (e) Each property the absorbed node held and the node kept did not, which moved to the
+    /// node kept. The absorbed node keeps every value in the record.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    pub moved_properties: BTreeSet<PropertyId>,
+    /// Each property of a node of the head that held a `NodeRef` to the absorbed node, at any
+    /// depth, by node and property, with its values before the merge rewrote them.
+    #[serde(
+        deserialize_with = "ekr_core::decode::unique_map",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
+    pub node_values: BTreeMap<NodeId, BTreeMap<PropertyId, Vec<V>>>,
+    /// The same for each property of an edge of the head, by edge and property.
+    #[serde(
+        deserialize_with = "ekr_core::decode::unique_map",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
+    pub edge_values: BTreeMap<EdgeId, BTreeMap<PropertyId, Vec<V>>>,
+}
+
+impl<V: ValueSpace> Default for MergeLineage<V> {
+    fn default() -> Self {
+        Self {
+            edges: BTreeMap::new(),
+            collapsed: BTreeMap::new(),
+            retired: BTreeSet::new(),
+            assertions: BTreeMap::new(),
+            moved_properties: BTreeSet::new(),
+            node_values: BTreeMap::new(),
+            edge_values: BTreeMap::new(),
+        }
+    }
+}
+
+impl Canonical for MergeLineage {
+    /// The seven fields in declaration order: each map in key order, each set in element order.
+    fn encode(&self, out: &mut Encoder) {
+        out.map(self.edges.iter());
+        out.map(self.collapsed.iter());
+        out.set(self.retired.iter());
+        out.map(self.assertions.iter());
+        out.set(self.moved_properties.iter());
+        out.map(self.node_values.iter());
+        out.map(self.edge_values.iter());
     }
 }
 

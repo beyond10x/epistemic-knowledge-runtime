@@ -7,7 +7,7 @@ use ekr_core::{
 };
 use ekr_graph::{
     Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Edge, EvidenceSource,
-    GraphSnapshot, Node, Object, Space, Subject, SupersededNode,
+    GraphSnapshot, MergeLineage, Node, Object, RewrittenAssertion, Space, Subject, SupersededNode,
 };
 use ekr_ontology::{Ontology, OntologyDocument, Value};
 use ekr_store::{Entity, GraphDocument, MembraneError, RetainedHistory, StorageClass, StoreError};
@@ -1063,6 +1063,83 @@ pub(crate) fn narrow_superseded(
         revision: record.revision,
         reason: record.reason,
         evidence: record.evidence.into_iter().map(CanonicalRef::new).collect(),
+        merge: record.merge.map(narrow_lineage).transpose()?,
+    })
+}
+
+/// A candidate record's merge lineage, as canonical state: its values narrowed as a node's, an
+/// edge's or an assertion's are, each refusal naming the record it is held for, and its references
+/// minted.
+fn narrow_lineage(lineage: MergeLineage<Value>) -> Result<MergeLineage, MembraneError> {
+    let mut node_values = BTreeMap::new();
+    for (node_id, held) in lineage.node_values {
+        let mut properties = BTreeMap::new();
+        for (property, values) in held {
+            let values = values
+                .into_iter()
+                .map(|value| {
+                    CanonicalValue::try_from(value).map_err(|cause| MembraneError::Node {
+                        node_id,
+                        property,
+                        cause,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            properties.insert(property, values);
+        }
+        node_values.insert(node_id, properties);
+    }
+    let mut edge_values = BTreeMap::new();
+    for (edge_id, held) in lineage.edge_values {
+        let mut properties = BTreeMap::new();
+        for (property, values) in held {
+            let values = values
+                .into_iter()
+                .map(|value| {
+                    CanonicalValue::try_from(value).map_err(|cause| MembraneError::Edge {
+                        edge_id,
+                        property,
+                        cause,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            properties.insert(property, values);
+        }
+        edge_values.insert(edge_id, properties);
+    }
+    let mut assertions = BTreeMap::new();
+    for (assertion_id, rewritten) in lineage.assertions {
+        let object = match rewritten.object {
+            Some(Object::Value(value)) => Some(Object::Value(
+                CanonicalValue::try_from(value).map_err(|cause| MembraneError::Assertion {
+                    assertion_id,
+                    cause,
+                })?,
+            )),
+            Some(Object::Node(node)) => Some(Object::Node(CanonicalRef::new(node))),
+            Some(Object::Type(type_id)) => Some(Object::Type(type_id)),
+            None => None,
+        };
+        assertions.insert(
+            assertion_id,
+            RewrittenAssertion {
+                subject: rewritten.subject.map(|subject| match subject {
+                    Subject::Node(node) => Subject::Node(CanonicalRef::new(node)),
+                    Subject::Edge(edge) => Subject::Edge(CanonicalRef::new(edge)),
+                    Subject::Type(type_id) => Subject::Type(type_id),
+                }),
+                object,
+            },
+        );
+    }
+    Ok(MergeLineage {
+        edges: lineage.edges,
+        collapsed: lineage.collapsed,
+        retired: lineage.retired,
+        assertions,
+        moved_properties: lineage.moved_properties,
+        node_values,
+        edge_values,
     })
 }
 

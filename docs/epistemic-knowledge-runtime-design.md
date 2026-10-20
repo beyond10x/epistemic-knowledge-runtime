@@ -6531,3 +6531,114 @@ pinned root and store fixtures are unedited. Not changed:
 assertions about a superseded node are not rewritten to `by`, edges are not moved, a node is not
 retyped, no predicate supersedes many nodes at once, duplicates are not detected, and nothing undoes
 a supersession — `story:merge-entity-applies` and `story:retype-node` build on this.
+
+# 111. Merge Applies (2026-10-20)
+
+`story:merge-entity-applies`, under `architecture-decision-record:0018-merge-and-split-identity`
+(option A and the default of each of its six open questions, accepted 2026-10-19), amending § 46.
+§ 46 asks a merge to preserve alias and historical lineage rather than rewriting identity blindly.
+§ 110 retires a duplicate node in favour of another and keeps it in a supersession record; this
+amendment makes `MergeEntity` (§ 19) a supersession whose references are rewritten in place, with
+the lineage a later split needs.
+
+## 111.1 The operation
+
+`MergeEntity { absorbed, into, reason, evidence }` is `ekr.kernel.OperationKind` index 9, as it
+always was, and `ekr.kernel.EntityMerge` in the domain. `reason` and `evidence` are new and
+optional: a merge that writes neither is the **bare shape**, which is P1's. It parses, encodes as
+the two ids it always encoded as, and is refused as it was — `unsupported-operation`, "MergeEntity is
+not supported in P1" — under every validation profile and by that issue alone, so every retained
+rejection of one replays (the base-era store of `crates/ekr-kernel/tests/base_era_v1_replay.rs`
+holds one). A merge that writes either is the shape that applies, under every profile, as
+`SupersedeNode` is. It is encoded as variant 9, the two ids, then `reason` and `evidence` each as an
+option, the evidence as a set: a tagged `Some` or `None` that no operation's variant tag and no
+transaction's evidence set opens with. The evidence is part of what the transaction rests on, so
+each id is in `GraphTransaction.evidence`; the message of `evidence-set-mismatch` names merges only
+for a transaction that carries one.
+
+## 111.2 What commit does
+
+Applying it (`ekr.p1-apply/1` and `ekr.p2-apply/1` alike), after every other operation of the
+transaction, supersessions included:
+
+1. `absorbed` leaves `CanonicalGraph.nodes` into a supersession record under its id, whole, as
+   § 110.2 retires a node: the record names `into` as `by`, the revision, the reason and the
+   evidence, and every record whose `by` is `absorbed` is repointed to `into`, so a reader follows
+   one pointer. Its aliases stay its own under its type and resolve to `into`. No lifecycle state is
+   added to a node: an absorbed node is a node held in a record that carries merge lineage.
+2. Each edge with `absorbed` at an end: one joining `absorbed` and `into` is retired into the
+   record, whole; one with the type, direction and other end of an edge `into` holds, and equal
+   properties — compared once every `NodeRef` to `absorbed` names `into` — collapses onto the
+   lowest such id, retired into the record and mapped to it, and the assertions about it are
+   rewritten to it; every other keeps its id, the end or ends that named `absorbed` naming `into`.
+3. Every `NodeRef` naming `absorbed`, at any depth, in a property of a node or an edge of the head
+   names `into`.
+4. A property `absorbed` holds and `into` does not moves to `into`; one both hold equally stays.
+5. Every assertion whose subject or object names `absorbed` — a `!Node` object, or a `NodeRef`
+   inside a `!Value` object at any depth — names `into`, and every assertion about a collapsed edge
+   names the edge it collapsed onto. Its id, evidence, proposer, assessment, lifecycle, valid time
+   and transaction time are unchanged; at every earlier revision it reads as it was.
+6. `into` keeps its id, its type and its name.
+
+The record's `merge` lineage (`ekr.graph.MergeLineageRecord`) holds (a) each rewritten edge with
+the end or ends that named `absorbed`, (b) each collapsed edge's id with the edge it collapsed onto,
+(c) each retired joining edge, (d) each rewritten assertion with each rewritten field and what it
+held before, (e) each moved property, and each rewritten property of a node or an edge with its
+values before. The record's `edges` hold the collapsed and the joining edges whole, so
+`retired_with` answers for each as for an edge a supersession retired. `SplitEntity`, its record and
+its read of the lineage are a later story (ADR 0018, decision 4).
+
+## 111.3 What validation decides
+
+Refused, as named issues of a Rejected transaction:
+
+| case | validator | code |
+|---|---|---|
+| `absorbed` and `into` are one node | Structural | `merge-into-itself` |
+| a node neither held nor created by the transaction, or an `absorbed` the transaction creates | Reference | `unresolved-node` |
+| `absorbed` or `into` already superseded or absorbed; the message names its `by` | Reference | `node-superseded` |
+| no reason, or one only whitespace | Structural | `merge-without-reason` |
+| no evidence | Structural | `merge-without-evidence` |
+| evidence neither retained nor added by an `AddEvidence` of the transaction | Reference | `merge-evidence-unknown` |
+| the two types are unrelated: neither conforms to the other through `parents`, siblings included; the message names `SupersedeNode` | Type | `merge-types-unrelated` |
+| a property `absorbed` holds, or an active assertion gives it, that `into`'s type does not declare | Type | `merge-undeclared-property` |
+| a property both hold with different values | Structural | `merge-property-conflict` |
+| an edge of `absorbed` duplicating one of `into` with different properties, naming both | Structural | `merge-duplicate-edge-conflict` |
+| a rewritten edge end, or the rewritten end of an active relation assertion, of a type the edge type does not allow | Type | `edge-endpoint-type` |
+| a rewritten or moved value its declaration does not admit | Type | `wrong-type` |
+| an edge type of cardinality `One` that `into` would hold twice once duplicates collapse, naming the edges; a moved property past its cardinality | Cardinality | `edge-cardinality`, `property-cardinality` |
+| another operation naming `absorbed` or an edge at it, `absorbed` or `into` retired by another operation, a supersession by `absorbed`, an edge at `absorbed` joining a node the transaction supersedes, or a second `MergeEntity` | Structural | `superseded-node-named-in-transaction` |
+| `transaction.evidence` leaves a merge's evidence out | Structural | `evidence-set-mismatch` |
+
+Preparation — clearing a property, deleting an edge, retracting an assertion — goes in an earlier
+revision. Only active assertions are held to the node kept's type, so a retracted one never blocks
+a merge. A transaction without a merge in the shape that applies reads none of this and is
+validated exactly as before, so no rejection a store retains replays differently.
+
+## 111.4 Roots, checkpoints and the graph document
+
+A supersession record encodes its `merge` lineage only when it has one, after its six fields, as a
+tagged `Some`: a record without one encodes as § 110.4 wrote it, so a store that never merges keeps
+every root and checkpoint byte. `ekr.graph-document/2` gains `merge` on a record, an optional key
+omitted when absent. Replay applies a merge exactly as commit does, so a reopen from a checkpoint, a
+`--full-replay` and a migrated store give every revision the same roots.
+
+## 111.5 What reads it
+
+An absorbed node reads as a superseded node does (§ 110.5): every head read omits it, a read of its
+id at the head is `ekr.views.NodeSuperseded` naming `into`, `ekr resolve` of its type and one of its
+aliases answers `into`, and at an earlier revision it reads as it was. The references the merge
+rewrote read as `into`'s. `ChangesSince` lists a merge as a `NodeMerged` change of the absorbed
+node, after `NodeSuperseded` in the declared order, carrying its type, name and evidence and, in
+`target`, the node it was merged into; `ChangesListed` counts them in `nodes_merged`, and a range
+holding no merge answers exactly as before. `ekr operations` lists `MergeEntity` as applied; the
+SDK's `EntityMerge::new` builds the shape that applies and reads a record's `merge`.
+
+## 111.6 Result, and what is not changed
+
+`crates/ekr-kernel/tests/merge_entity.rs` holds the story's acceptance on both providers under every
+profile; `crates/ekr-views/tests/merge.rs` the reads and the change; eight authored `ekr-kernel`
+scenarios and one `ekr-views` scenario the same through the conformance suites; and the worked
+example of `docs/cli.md` merges a duplicate author on both providers. Not changed: `SplitEntity`,
+`RetypeNode`, more than one pair per operation, bulk or predicate merges, duplicate detection, and
+`ekr.integrate.Merge`.

@@ -28,7 +28,7 @@
 use std::collections::BTreeMap;
 
 use ekr_core::canonical::{Canonical, Encoder};
-use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
+use ekr_core::{EdgeId, EvidenceId, GraphRootId, NodeId, PropertyId, TypeId};
 use ekr_graph::CanonicalValue;
 use ekr_kernel::{
     AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, GraphOperation, NodeDraft,
@@ -262,6 +262,8 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
         &GraphOperation::<CanonicalValue>::MergeEntity(EntityMerge {
             absorbed: node,
             into: source,
+            reason: None,
+            evidence: None,
         }),
         vec![
             (
@@ -270,6 +272,8 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                     GraphOperation::<CanonicalValue>::MergeEntity(EntityMerge {
                         absorbed: other_node,
                         into: source,
+                        reason: None,
+                        evidence: None,
                     })
                 }) as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,
             ),
@@ -279,8 +283,42 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                     GraphOperation::<CanonicalValue>::MergeEntity(EntityMerge {
                         absorbed: node,
                         into: target,
+                        reason: None,
+                        evidence: None,
                     })
                 }),
+            ),
+        ],
+    );
+
+    // The shape that applies (design § 111.1): the two ids, then `reason` and `evidence`, each
+    // after the field before it.
+    let shaped = move |absorbed, into, reason: &str, evidence: EvidenceId| {
+        GraphOperation::<CanonicalValue>::MergeEntity(EntityMerge {
+            absorbed,
+            into,
+            reason: Some(reason.to_owned()),
+            evidence: Some(std::iter::once(evidence).collect()),
+        })
+    };
+    let (cited, other_cited) = (EvidenceId::mint(), EvidenceId::mint());
+    fields_ascend(
+        "EntityMerge: absorbed, into, reason, evidence",
+        &shaped(node, source, "one", cited),
+        vec![
+            (
+                "absorbed",
+                Box::new(move || shaped(other_node, source, "one", cited))
+                    as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,
+            ),
+            ("into", Box::new(move || shaped(node, target, "one", cited))),
+            (
+                "reason",
+                Box::new(move || shaped(node, source, "two", cited)),
+            ),
+            (
+                "evidence",
+                Box::new(move || shaped(node, source, "one", other_cited)),
             ),
         ],
     );

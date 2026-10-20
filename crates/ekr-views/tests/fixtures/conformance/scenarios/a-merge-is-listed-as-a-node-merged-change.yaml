@@ -1,0 +1,85 @@
+# story:merge-entity-applies, acceptance a-merge-of-same-type-duplicates-rewrites-every-reference,
+# through the reads.
+#
+# The store `merged`: the seed holds alpha (…0110) and beta (…0111), an edge from alpha to beta and
+# an assertion about it; revision 1 creates `beta, kept` (…f20001) and an assertion about beta;
+# revision 2 merges beta into `beta, kept`, rewriting the edge and the assertion to it.
+#
+# What is held:
+#   - the changes since revision 1, at 2: one change, a NodeMerged, and nothing superseded;
+#   - at the head, DescribeNode of beta is refused as NodeSuperseded naming `beta, kept` and
+#     revision 2;
+#   - at revision 1, DescribeNode of beta describes it with its one edge.
+# That the change names beta, its type and name, the merge's evidence and `beta, kept` as its
+# target, and that the rewritten edge reaches `beta, kept`, is held in
+# crates/ekr-views/tests/merge.rs.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-merge-is-listed-as-a-node-merged-change
+summary: A merge is listed once as a NodeMerged change; the absorbed node is refused as NodeSuperseded naming the node it was merged into, and the revision before describes it.
+
+timeline:
+  - at: 2027-01-16T13:00:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: merged
+      since_kind: Revision
+      since: 1
+      at: 2
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 2
+          changes: 1
+          total: 1
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 0
+          nodes_superseded: 0
+          nodes_merged: 1
+          first_revision: 2
+          last_revision: 2
+
+  - at: 2027-01-16T13:01:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: merged
+      at: null
+      node: 00000000-0000-4000-8000-000000000111
+      format: null
+      limit: null
+      edge_type: null
+      after: null
+    outcome: node-superseded
+    error:
+      name: ekr.views.NodeSuperseded
+      fields:
+        node: 00000000-0000-4000-8000-000000000111
+        by: 00000000-0000-4000-8000-000000f20001
+        revision: 2
+    no_events:
+      - ekr.views.NodeDescribed
+
+  - at: 2027-01-16T13:02:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: merged
+      at: 1
+      node: 00000000-0000-4000-8000-000000000111
+      format: null
+      limit: null
+      edge_type: null
+      after: null
+    outcome: described
+    events:
+      - event: ekr.views.NodeDescribed
+        payload:
+          revision: 1
+          node: 00000000-0000-4000-8000-000000000111
+          edges: 1

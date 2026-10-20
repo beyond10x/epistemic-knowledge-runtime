@@ -113,6 +113,7 @@ fn graph(rng: &mut Rng) -> CanonicalGraph {
                 revision: RevisionNumber::new(1 + rng.below(4)),
                 reason: "recorded twice".into(),
                 evidence: BTreeSet::new(),
+                merge: None,
             },
         );
     }

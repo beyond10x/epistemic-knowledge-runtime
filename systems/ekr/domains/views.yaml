@@ -177,6 +177,16 @@ summary: >-
   still Inconsistent. A DescribeNode or ExpandNeighbourhood naming a superseded id answers
   NodeSuperseded. ChangesSince lists the supersession itself as a NodeSuperseded change.
 
+  A node an ekr.kernel MergeEntity absorbed (story:merge-entity-applies) is held in a supersession
+  record as well, and reads as a superseded node does: every read above omits it, and a
+  DescribeNode, an ExpandNeighbourhood or a timeline naming it answers NodeSuperseded naming the
+  node it was merged into. A merge rewrites the edges and assertions that named it to that node,
+  keeping their ids, so they are listed under the node kept. An edge joining the two is retired
+  with it, and an assertion about that edge is kept and listed under nothing, as one about a
+  retired edge is; an edge that collapsed onto an edge of the node kept is retired too, and the
+  assertions about it are rewritten to that edge. ChangesSince lists the merge as a NodeMerged
+  change.
+
   The store's quality, ekr.store-quality/1 (ReportStoreQuality), is a function of one revision
   and nothing else: it counts that revision's canonical state, and no refusal, rejected
   transaction or open ambiguity, none of which one revision holds. Rules (2) key order, (3)
@@ -1954,9 +1964,11 @@ types:
   # range holding no AddEvidence answers exactly as it did before EvidenceAdded was declared. Every
   # node an ekr.kernel SupersedeNode of its transaction superseded is a NodeSuperseded
   # (story:supersede-node); a range holding no supersession answers exactly as it did before
-  # NodeSuperseded was declared. An edge a later revision deletes, or retires with a superseded
-  # node, stays the change its creating revision made. A property update, a named operation, an
-  # edge deletion and a schema change are not changes of this format.
+  # NodeSuperseded was declared. Every node an ekr.kernel MergeEntity of its transaction absorbed
+  # is a NodeMerged (story:merge-entity-applies); a range holding no merge answers exactly as it
+  # did before NodeMerged was declared. An edge a later revision deletes, retires with a superseded
+  # node or rewrites in a merge stays the change its creating revision made. A property update, a
+  # named operation, an edge deletion and a schema change are not changes of this format.
   #
   # `since` is one revision, valid time or transaction time, and it chooses the changes:
   #   - a revision N (since_revision): every change of the revisions after N, up to and including
@@ -1968,8 +1980,8 @@ types:
   #   - a valid time T (since_valid): every assertion change, of every revision from the seed up
   #     to and including `at`, whose valid time is after T (valid_time > T, below). A node or an
   #     edge has no valid time of its own (ekr.views.ProjectedEdge), and neither has an evidence
-  #     entry, so NodeCreated, EdgeCreated, EvidenceAdded and NodeSuperseded are never chosen by
-  #     a valid time, and an assertion with no valid_from is not either.
+  #     entry, so NodeCreated, EdgeCreated, EvidenceAdded, NodeSuperseded and NodeMerged are never
+  #     chosen by a valid time, and an assertion with no valid_from is not either.
   # ---------------------------------------------------------------------------------------------
 
   - name: ekr.views.GraphChangesFormatV1
@@ -1990,7 +2002,7 @@ types:
 
   - name: ekr.views.ChangeKind
     kind: enum
-    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded, NodeSuperseded]
+    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded, NodeSuperseded, NodeMerged]
 
   # The position in the change sequence: the number of changes the earlier pages delivered. A
   # page's `next` is its own `after` plus the changes it delivered. Like ekr.views.SliceCursor it
@@ -2013,7 +2025,10 @@ types:
   #   - NodeSuperseded: `type` and `name`, the superseded node's type and canonical_name as its
   #     supersession record holds them, and `target`, the node it is superseded by as the
   #     supersession named it (a later supersession of that node repoints the record, not this
-  #     change).
+  #     change);
+  #   - NodeMerged: `type` and `name`, the absorbed node's type and canonical_name as its record
+  #     holds them, and `target`, the node it was merged into as the merge named it (a later merge
+  #     or supersession of that node repoints the record, not this change).
   # `valid_time` is the valid time an assertion change is chosen by under since_valid: the
   # assertion's valid_from for AssertionAdded and AssertionRetracted, and the supersession's
   # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from and for a
@@ -2021,7 +2036,8 @@ types:
   # `evidence` is, for an assertion change, the ids of the evidence the assertion cites; for a
   # NodeCreated or EdgeCreated, the ids of the evidence cited by the assertions the same revision
   # added whose subject is that node or edge — empty when it added none; for an EvidenceAdded,
-  # empty; for a NodeSuperseded, the ids of the evidence the supersession rests on.
+  # empty; for a NodeSuperseded, the ids of the evidence the supersession rests on; for a
+  # NodeMerged, the ids of the evidence the merge rests on.
   - name: ekr.views.GraphChange
     kind: struct
     fields:
@@ -3709,6 +3725,7 @@ commands:
             assertions_retracted: {generated: true}
             evidence_added: {generated: true}
             nodes_superseded: {generated: true}
+            nodes_merged: {generated: true}
             first_revision: {generated: true}
             last_revision: {generated: true}
             format: {generated: true}
@@ -4326,7 +4343,7 @@ events:
         type: ekr.kernel.ContentHash
 
   # What one page of changes returned. `revision`, `after` and `total` are meta's; `changes` the
-  # length of changes and `remaining` the document's; the seven kind counts count this page's
+  # length of changes and `remaining` the document's; the eight kind counts count this page's
   # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
   # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
   # SHA-256 of the document's exact bytes. `format` is meta's; `names` the page's names map under
@@ -4356,6 +4373,8 @@ events:
       - name: evidence_added
         type: Integer
       - name: nodes_superseded
+        type: Integer
+      - name: nodes_merged
         type: Integer
       - name: first_revision
         type: Optional<ekr.kernel.RevisionNumber>

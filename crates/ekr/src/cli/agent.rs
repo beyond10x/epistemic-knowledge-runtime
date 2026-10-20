@@ -167,8 +167,9 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty, WidenEdgeType
   source_types and target_types whole, each keeping every type it has, and existing edges stay
   valid. `ekr example schema-change` prints a complete schema change; `ekr ontology --at
   <revision>` prints the schema, with its version, as of a revision.
-  MergeEntity is not applied under either profile: validation rejects it with the issue code
-  unsupported-operation. `ekr operations` marks all six.
+  MergeEntity is applied under every profile. In the bare shape P1 parsed, {absorbed, into}
+  without reason and evidence, validation rejects it with the issue code unsupported-operation.
+  `ekr operations` marks all five schema kinds.
 
 WHERE VALUES COME FROM
   new ids          ekr mint <kind>; ids are never derived from names
@@ -206,7 +207,10 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   A duplicate node already created is retired with SupersedeNode (`ekr operations
   SupersedeNode`): it leaves every head read, its aliases resolve to the node kept, even one of
   another type, and they stay taken, so a later run that resolves the old key lands on the
-  node kept.
+  node kept. A duplicate of the node kept's type, or of a type related to it through parents,
+  is merged into it with MergeEntity (`ekr operations MergeEntity`) instead: it leaves every head
+  read as a superseded node does, and every edge, assertion and NodeRef naming it is rewritten
+  to the node kept rather than retired.
 
 EXTRACTION DOCUMENTS
   An agent that extracts knowledge from sources writes it as one ekr.extraction-document/1
@@ -395,13 +399,13 @@ impl OperationKind {
             | Self::AddEvidence
             | Self::AddAlias
             | Self::AttachEvidence
-            | Self::SupersedeNode => Applied::Always,
+            | Self::SupersedeNode
+            | Self::MergeEntity => Applied::Always,
             Self::DefineNodeType
             | Self::DefineEdgeType
             | Self::ModifyProperty
             | Self::WidenEdgeType => Applied::SchemaChange,
             Self::CiteEvidence => Applied::SchemaCitation,
-            Self::MergeEntity => Applied::Never,
         }
     }
 
@@ -572,12 +576,39 @@ impl OperationKind {
     constraints: []",
             ),
             Self::MergeEntity => (
-                "hold two nodes to be one; `into` keeps its id",
-                "  absorbed  NodeId  the node that stops being its own entity
-  into      NodeId  the node that remains",
+                "merge a duplicate node into the node it duplicates; `into` keeps its id",
+                "  absorbed  NodeId        the duplicate: ekr snapshot (unresolved-node if the head
+                          holds none, one the same transaction creates included;
+                          node-superseded if it is superseded or merged)
+  into      NodeId        the node kept: ekr snapshot, or one a CreateNode of the same
+                          transaction creates (merge-into-itself if it is absorbed;
+                          node-superseded if it is superseded or merged), of absorbed's type
+                          or one related to it through parents (merge-types-unrelated)
+  reason    String        why; not empty or only whitespace (merge-without-reason)
+  evidence  [EvidenceId]  at least one (merge-without-evidence), each retained or added by an
+                          AddEvidence of the same transaction (merge-evidence-unknown)
+  List the evidence ids in transaction.evidence. Absorbed leaves the head into a supersession
+  record naming into, as SupersedeNode retires a node, and every reference to it names into
+  instead, keeping its id: each edge at it (one joining the two is retired; one duplicating an
+  edge into holds, with equal properties, collapses onto it), each assertion about or naming
+  it, and each NodeRef to it in a property. A property only absorbed holds moves to into; into
+  keeps its type and name. The record (ekr snapshot graph.graph.superseded) keeps absorbed whole
+  and, under merge, what moved. Refused: a property absorbed holds that into's type does not
+  declare (merge-undeclared-property) or that both hold differently (merge-property-conflict),
+  a duplicate edge with different properties (merge-duplicate-edge-conflict), a rewritten edge
+  end or value into's type does not satisfy (edge-endpoint-type, wrong-type), a count past its
+  cardinality (edge-cardinality, property-cardinality); clear, delete or retract those in an
+  earlier revision. No other operation of the transaction may name absorbed or an edge at it,
+  and a transaction carries one merge (superseded-node-named-in-transaction). Without reason
+  and evidence it is the bare shape P1 parsed, which every profile refuses (ekr guide, SCHEMA
+  CHANGES). First commit the CreateNode example; this example merges the organization it
+  creates into Acme.",
                 "- !MergeEntity
-  absorbed: 00000000-0000-4000-8000-000000000302
-  into: 00000000-0000-4000-8000-000000000301",
+  absorbed: 00000000-0000-4000-8000-000000000304
+  into: 00000000-0000-4000-8000-000000000303
+  reason: one organization recorded twice
+  evidence:
+  - 00000000-0000-4000-8000-000000000401",
             ),
             Self::Invoke => (
                 "invoke a named operation the node's type declares",
@@ -736,8 +767,6 @@ enum Applied {
     /// Beside schema changes only, under the profiles that apply them: it cites evidence for the
     /// version they make (design § 109); profile v1 rejects it as `unsupported-operation`.
     SchemaCitation,
-    /// Under neither: validation rejects it as `unsupported-operation`.
-    Never,
 }
 
 /// `ekr operations`: every kind, one line each.
@@ -758,9 +787,6 @@ pub(super) fn operation_list() -> String {
                  changes in a transaction with schema_version; profile v1 rejects it as \
                  unsupported-operation]",
             ),
-            Applied::Never => {
-                out.push_str(" [not applied: validation rejects it as unsupported-operation]");
-            }
         }
         out.push('\n');
     }
@@ -784,11 +810,6 @@ schema changes a transaction may carry CiteEvidence and the AddEvidence of an en
 other operation is still mixed-schema-transaction. Under profile v1 validation rejects it with \
 the issue code unsupported-operation. `ekr guide` says more under SCHEMA CHANGES.";
 
-/// What a page says about a kind the kernel applies under no profile.
-const NOT_APPLIED: &str = "This kind is not applied under any validation profile: validation \
-rejects every proposal of this kind with the issue code unsupported-operation. The example shows \
-the shape only and is not accepted today.";
-
 /// `ekr operations <Kind>`: summary, fields and one example operation, last.
 pub(super) fn operation(kind: OperationKind) -> String {
     let (summary, fields, example) = kind.text();
@@ -797,6 +818,11 @@ pub(super) fn operation(kind: OperationKind) -> String {
             String::new(),
             "Example (assertion ids from ekr example ekr-seed/2; validates against a store seeded \
              from it after committing the AddEvidence example):",
+        ),
+        Applied::Always if matches!(kind, OperationKind::MergeEntity) => (
+            String::new(),
+            "Example (ids from ekr example ekr-seed/2 and the CreateNode example; validates \
+             against a store seeded from it after committing the CreateNode example):",
         ),
         Applied::Always => (
             String::new(),
@@ -812,10 +838,6 @@ pub(super) fn operation(kind: OperationKind) -> String {
             "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it \
              under profile v2, beside a schema change in a transaction with schema_version and \
              the evidence id in transaction.evidence):",
-        ),
-        Applied::Never => (
-            format!("{NOT_APPLIED}\n\n"),
-            "Example (ids from ekr example ekr-seed/2; not accepted today):",
         ),
     };
     format!(

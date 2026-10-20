@@ -272,6 +272,8 @@ pub struct ChangesListed {
     pub evidence_added: u64,
     /// This page's NodeSuperseded changes.
     pub nodes_superseded: u64,
+    /// This page's NodeMerged changes.
+    pub nodes_merged: u64,
     /// The revision of the page's first change; `None` for an empty page.
     pub first_revision: Option<u64>,
     /// The revision of the page's last change; `None` for an empty page.
@@ -294,6 +296,7 @@ enum ChangeKind {
     AssertionRetracted,
     EvidenceAdded,
     NodeSuperseded,
+    NodeMerged,
 }
 
 impl ChangeKind {
@@ -566,6 +569,25 @@ fn transaction_changes(
                 change.evidence = listed(supersession.evidence.iter().map(EvidenceId::to_string));
                 change
             }
+            // The absorbed node as its record holds it; `target` the node it was merged into, as
+            // the merge named it (`views.yaml`, `ekr.views.GraphChange`). The bare P1 shape never
+            // commits.
+            GraphOperation::MergeEntity(merge) if !merge.is_bare() => {
+                let record = graph.superseded.get(&merge.absorbed).ok_or_else(|| {
+                    inconsistent(format!(
+                        "revision {} merges node {}, which revision {} holds no record of",
+                        entry.number, merge.absorbed, graph.revision
+                    ))
+                })?;
+                let mut change =
+                    GraphChange::new(entry, ChangeKind::NodeMerged, merge.absorbed.to_string());
+                change.type_id = Some(record.node.type_id);
+                change.name = Some(record.node.canonical_name.clone());
+                change.target = Some(merge.into);
+                change.evidence =
+                    listed(merge.evidence.iter().flatten().map(EvidenceId::to_string));
+                change
+            }
             _ => continue,
         };
         into.push(change);
@@ -771,6 +793,7 @@ impl Index {
             assertions_retracted: count(ChangeKind::AssertionRetracted),
             evidence_added: count(ChangeKind::EvidenceAdded),
             nodes_superseded: count(ChangeKind::NodeSuperseded),
+            nodes_merged: count(ChangeKind::NodeMerged),
             first_revision: page.first().map(|change| change.revision),
             last_revision: page.last().map(|change| change.revision),
             format: document.meta.format,

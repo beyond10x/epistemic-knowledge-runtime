@@ -58,7 +58,7 @@ pub struct Transaction {
     /// One or more operations, applied all or nothing.
     pub operations: Vec<Operation>,
     /// Exactly the evidence ids its `!AddAssertion`s cite, its `!AttachEvidence`s attach, its
-    /// `!CiteEvidence`s cite and its `!SupersedeNode`s rest on.
+    /// `!CiteEvidence`s cite and its `!SupersedeNode`s and `!MergeEntity`s rest on.
     pub evidence: BTreeSet<EvidenceId>,
     /// The schema version a schema change produces; absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -196,7 +196,8 @@ pub enum Operation {
     DefineEdgeType(Box<EdgeType>),
     /// `!ModifyProperty`, a schema change.
     ModifyProperty(PropertyModification),
-    /// `!MergeEntity`: parses, and validation refuses it under every profile.
+    /// `!MergeEntity`: a duplicate node absorbed into the node it duplicates, every reference to
+    /// it rewritten to that node, its evidence in the transaction's `evidence` (design § 111).
     MergeEntity(EntityMerge),
     /// `!Invoke`.
     Invoke(Invocation),
@@ -245,8 +246,8 @@ impl Operation {
     }
 
     /// The evidence ids it rests on: those an `!AddAssertion` cites, the one an
-    /// `!AttachEvidence` attaches, the one a `!CiteEvidence` cites, those a `!SupersedeNode` rests
-    /// on, and none for any other kind.
+    /// `!AttachEvidence` attaches, the one a `!CiteEvidence` cites, those a `!SupersedeNode` or a
+    /// `!MergeEntity` rests on, and none for any other kind.
     /// A transaction's `evidence` is exactly the union of these over its operations.
     #[must_use]
     pub fn rests_on(&self) -> Vec<EvidenceId> {
@@ -255,6 +256,7 @@ impl Operation {
             Self::AttachEvidence(attachment) => vec![attachment.evidence],
             Self::CiteEvidence(evidence) => vec![*evidence],
             Self::SupersedeNode(supersession) => supersession.evidence.iter().copied().collect(),
+            Self::MergeEntity(merge) => merge.evidence.iter().flatten().copied().collect(),
             _ => Vec::new(),
         }
     }
@@ -473,21 +475,58 @@ impl EvidenceAddition {
     }
 }
 
-/// `!MergeEntity`, which the kernel parses and refuses under every profile.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// `!MergeEntity`: a duplicate node absorbed into the node it duplicates, in a revision of its own
+/// (design § 111). The absorbed node leaves the head into a supersession record naming `into`, as a
+/// `!SupersedeNode` retires a node, and every edge, assertion and `NodeRef` naming it names `into`
+/// instead, keeping its id; `ekr snapshot` lists the record, with the lineage of what moved, under
+/// `superseded`. The evidence is in the transaction's `evidence`.
+///
+/// Written without `reason` and `evidence`, it is the bare P1 shape, which the kernel parses and
+/// refuses under every profile as `unsupported-operation`: [`EntityMerge::bare`] builds it, so a
+/// document carrying one round-trips; [`EntityMerge::new`] builds the shape that applies.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EntityMerge {
-    /// The node that would stop being its own entity.
+    /// The node that stops being its own entity: one the store holds and has not superseded.
     pub absorbed: NodeId,
-    /// The node that would keep its id.
+    /// The node that keeps its id and its type: one the store holds, or one a `!CreateNode` of
+    /// the same transaction creates, of `absorbed`'s type or one related to it through `parents`.
     pub into: NodeId,
+    /// Why: not empty, and not only whitespace. Absent only in the bare P1 shape.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// At least one evidence id: retained, or added by an `!AddEvidence` of the same transaction.
+    /// Absent only in the bare P1 shape.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<BTreeSet<EvidenceId>>,
 }
 
 impl EntityMerge {
-    /// Merge `absorbed` into `into`.
+    /// Merge `absorbed` into `into`, for `reason`, on `evidence`.
     #[must_use]
-    pub const fn new(absorbed: NodeId, into: NodeId) -> Self {
-        Self { absorbed, into }
+    pub fn new(
+        absorbed: NodeId,
+        into: NodeId,
+        reason: impl Into<String>,
+        evidence: impl IntoIterator<Item = EvidenceId>,
+    ) -> Self {
+        Self {
+            absorbed,
+            into,
+            reason: Some(reason.into()),
+            evidence: Some(evidence.into_iter().collect()),
+        }
+    }
+
+    /// The bare P1 shape `{absorbed, into}`, which every profile refuses.
+    #[must_use]
+    pub const fn bare(absorbed: NodeId, into: NodeId) -> Self {
+        Self {
+            absorbed,
+            into,
+            reason: None,
+            evidence: None,
+        }
     }
 }
 

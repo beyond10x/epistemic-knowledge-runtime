@@ -111,6 +111,7 @@ pub mod commit;
 pub mod document;
 mod explain;
 pub mod issue;
+mod merge;
 pub mod migrate;
 mod read;
 pub mod records;

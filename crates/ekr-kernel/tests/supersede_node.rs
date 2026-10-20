@@ -373,6 +373,7 @@ fn a_supersession_is_its_own_revision() {
             revision: RevisionNumber::new(2),
             reason: REASON.to_owned(),
             evidence: BTreeSet::from([CanonicalRef::new(id(STATEMENT))]),
+            merge: None,
         };
         assert_eq!(*record, expected, "{at}");
         assert_eq!(head.superseded.len(), 1, "{at}");

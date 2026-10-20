@@ -186,6 +186,7 @@ fn borrowed_graph_matches_owned_bytes_with_a_supersession_record() {
             revision: RevisionNumber::new(7),
             reason: "recorded \"twice\"\n".into(),
             evidence: BTreeSet::from([CanonicalRef::new(id(9)), CanonicalRef::new(id(22))]),
+            merge: None,
         },
     );
     for attached in [false, true] {

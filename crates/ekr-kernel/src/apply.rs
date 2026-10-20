@@ -389,6 +389,7 @@ fn supersede(
                     .copied()
                     .map(CanonicalRef::new)
                     .collect(),
+                merge: None,
             },
         );
     }
@@ -556,9 +557,12 @@ fn apply_to_graph(
                     effective_from: change.effective_from,
                 };
             }
-            GraphOperation::MergeEntity(_) => {
+            // The bare P1 shape is refused under every profile, so admitting one is unreachable.
+            GraphOperation::MergeEntity(merge) if merge.is_bare() => {
                 return Err(StoreError::Document("unsupported-operation".into()));
             }
+            // Applied below, after every other change, supersessions included (design § 111.2).
+            GraphOperation::MergeEntity(_) => {}
             // Applied together below: a schema change is one new version, not three.
             GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
@@ -576,6 +580,7 @@ fn apply_to_graph(
         }
     }
     supersede(&mut graph, tx)?;
+    crate::merge::apply(&mut graph, tx)?;
     // `ekr.p2-apply/1`: a schema change replaces the ontology with the version it names, derived
     // from the prior one with `number + 1`, `parent` = the prior version, and the commit time as
     // its `created_at`. `GraphRoot.schema_version_id` stays the seed's: it is the root's identity,
