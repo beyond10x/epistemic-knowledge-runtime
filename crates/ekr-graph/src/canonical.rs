@@ -480,12 +480,23 @@ impl CanonicalGraph {
 
     /// The superseded node an edge was retired with, and the node that one is superseded by, if
     /// a supersession record of this graph holds the edge.
+    ///
+    /// A scan of the records, for one lookup. A reader that looks up many edges builds
+    /// [`RetiredEdges`](crate::RetiredEdges) once instead (`story:supersede-node-review-fixes`,
+    /// D9).
     #[must_use]
     pub fn retired_with(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
         self.superseded
             .values()
+            .inspect(|_| crate::supersession::read_record())
             .find(|record| record.edges.contains_key(&edge))
             .map(|record| (record.node.id, record.by.node()))
+    }
+
+    /// The index of the edges this graph's supersession records hold: one pass over the records.
+    #[must_use]
+    pub fn retired_edges(&self) -> crate::RetiredEdges<'_> {
+        crate::RetiredEdges::of(&self.superseded)
     }
 
     /// What was attached to `assertion` after it was added, in evidence-id order: none for an
@@ -495,7 +506,10 @@ impl CanonicalGraph {
     }
 
     /// What a canonical reference points at, from the map this state keeps its kind in, or `None`
-    /// if this state does not hold it.
+    /// if that map does not hold it. A superseded node, or an edge retired with one, is held in a
+    /// supersession record and in neither map, so it answers `None` here;
+    /// [`superseded_by`](Self::superseded_by) and [`retired_with`](Self::retired_with) answer for
+    /// it.
     ///
     /// The bound is the membrane: a [`TransientRef`](crate::TransientRef) is not a
     /// [`CanonicalDependency`], so this does not compile for one. A dangling canonical reference

@@ -67,6 +67,10 @@
 //! `fact-evidence-unlisted` met in `facts[<index>]` refuses that fact alone, and the rest of the
 //! document is checked on; one met in the ontology, in `entities` or in an evidence item refuses
 //! the document whole. `ekr apply-extraction` reads a document so unless it is run `--strict`.
+//! [`ExtractionDocument::check_at`] and [`ExtractionDocument::check_facts_at`] make the same checks
+//! against a graph, typing a fact's subject and object by the node their key resolves to there:
+//! where a supersession record resolves a key to a node of another type, its property and its
+//! relation's end are checked against that type (`story:supersede-node-review-fixes`, D6 and Q4).
 //!
 //! Nothing here writes: AGENTS.md invariant 1.
 
@@ -74,7 +78,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use ekr_core::{ContentHash, EvidenceId, TypeId};
-use ekr_graph::{Evidence, EvidenceSource};
+use ekr_graph::{CanonicalGraph, Evidence, EvidenceSource, GraphSnapshot};
 use ekr_ontology::{Cardinality, Ontology, Value, ValueType};
 use serde::{Deserialize, Serialize};
 
@@ -544,6 +548,60 @@ pub fn read_extraction(
     Ok(document)
 }
 
+/// Where a graph's keys land: what [`ExtractionDocument::check_at`] reads of the graph, built
+/// once per check and only for a graph holding a supersession record, since no other resolves a
+/// key to a node of another type.
+struct Landing<'g> {
+    graph: &'g CanonicalGraph,
+    aliases: ekr_graph::AliasIndex,
+    types: BTreeMap<String, TypeId>,
+    names: BTreeMap<TypeId, String>,
+}
+
+impl<'g> Landing<'g> {
+    /// `graph`'s, or `None` for a graph holding no supersession record.
+    fn of(graph: &'g CanonicalGraph) -> Option<Self> {
+        if graph.superseded.is_empty() {
+            return None;
+        }
+        let declared = graph.ontology.to_document().node_types;
+        Some(Self {
+            graph,
+            aliases: ekr_graph::AliasIndex::of(graph),
+            types: declared
+                .iter()
+                .map(|node_type| (node_type.name.clone(), node_type.id))
+                .collect(),
+            names: declared
+                .into_iter()
+                .map(|node_type| (node_type.id, node_type.name))
+                .collect(),
+        })
+    }
+
+    /// The name of the type of the node `reference`'s key resolves to ([`crate::resolve_indexed`],
+    /// as `ekr resolve` answers), where that is not the key's own type: a key whose superseded
+    /// node was kept as a node of another type. `None` for every other key — one resolving to a
+    /// node of its own type, to none or to several, or whose type the graph does not declare.
+    fn type_of(&self, reference: &ExtractedReference) -> Option<String> {
+        let type_id = *self.types.get(&reference.node_type)?;
+        let typed = crate::TypedReference {
+            type_id,
+            aliases: reference.aliases.clone(),
+        };
+        let crate::ResolutionOutcome::Resolved(resolved) =
+            crate::resolve_indexed(GraphSnapshot::of(self.graph), &self.aliases, &typed)
+        else {
+            return None;
+        };
+        let landed = self.graph.nodes.get(&resolved.node_id)?.type_id;
+        if landed == type_id {
+            return None;
+        }
+        self.names.get(&landed).cloned()
+    }
+}
+
 /// A refusal of `code` naming `name`.
 fn refusal(code: ExtractionRefusalCode, name: impl Into<String>) -> ExtractionRefusal {
     ExtractionRefusal {
@@ -574,7 +632,7 @@ impl ExtractionDocument {
     /// # Errors
     /// The first [`ExtractionRefusal`] the [module](self) documentation lists under checking.
     pub fn check(&self, store: &Ontology) -> Result<(), ExtractionRefusal> {
-        self.checked(store, true).map(drop)
+        self.checked(store, true, None).map(drop)
     }
 
     /// [`Self::check`], a fact at a time (`story:extraction-partial-apply`). What refuses one
@@ -592,20 +650,53 @@ impl ExtractionDocument {
         &self,
         store: &Ontology,
     ) -> Result<BTreeMap<usize, ExtractionRefusal>, ExtractionRefusal> {
-        self.checked(store, false)
+        self.checked(store, false, None)
+    }
+
+    /// [`Self::check`] against `graph`'s ontology, each fact's subject and object typed by the
+    /// node its key resolves to in `graph` ([`crate::resolve`]): where a supersession record
+    /// resolves a key to a node of another type, its property and its relation's end are checked
+    /// against that node's type, which is the node the fact lands on
+    /// (`story:supersede-node-review-fixes`, D6 and Q4). Every other key is typed by its own type,
+    /// as [`Self::check`] types it, so a graph without a supersession checks as its ontology does.
+    ///
+    /// # Errors
+    /// As [`Self::check`].
+    pub fn check_at(&self, graph: &CanonicalGraph) -> Result<(), ExtractionRefusal> {
+        self.checked(&graph.ontology, true, Some(graph)).map(drop)
+    }
+
+    /// [`Self::check_facts`], typing each key as [`Self::check_at`] does.
+    ///
+    /// # Errors
+    /// As [`Self::check_facts`].
+    pub fn check_facts_at(
+        &self,
+        graph: &CanonicalGraph,
+    ) -> Result<BTreeMap<usize, ExtractionRefusal>, ExtractionRefusal> {
+        self.checked(&graph.ontology, false, Some(graph))
     }
 
     /// The checks of [`Self::check`]; a fact's refusal ends them when `strict`, and is collected
-    /// under its index otherwise.
+    /// under its index otherwise. With `graph`, a fact's subject and object are typed by the node
+    /// their key resolves to there.
     fn checked(
         &self,
         store: &Ontology,
         strict: bool,
+        graph: Option<&CanonicalGraph>,
     ) -> Result<BTreeMap<usize, ExtractionRefusal>, ExtractionRefusal> {
         use ExtractionRefusalCode as Code;
 
         let held = Names::of_store(store);
         let names = held.with(&self.ontology);
+        let landing = graph.and_then(Landing::of);
+        let landed = |reference: &ExtractedReference| -> String {
+            landing
+                .as_ref()
+                .and_then(|landing| landing.type_of(reference))
+                .unwrap_or_else(|| reference.node_type.clone())
+        };
         let node_type = |name: &str| {
             if names.nodes.contains_key(name) {
                 Ok(())
@@ -703,9 +794,9 @@ impl ExtractionDocument {
             match fact {
                 ExtractedFact::Property(fact) => {
                     reference(format!("facts[{at}].subject"), &fact.subject)?;
-                    let named = format!("{}.{}", fact.subject.node_type, fact.property);
-                    let Some(value_type) = names.property(&fact.subject.node_type, &fact.property)
-                    else {
+                    let typed = landed(&fact.subject);
+                    let named = format!("{typed}.{}", fact.property);
+                    let Some(value_type) = names.property(&typed, &fact.property) else {
                         return Err(refusal(Code::ExtractionPropertyUndeclared, named));
                     };
                     if !holds(value_type, &fact.value) {
@@ -727,15 +818,11 @@ impl ExtractionDocument {
                     let connects = |node: &str, ends: &BTreeSet<String>| {
                         ends.iter().any(|end| names.conforms(node, end))
                     };
-                    if !connects(&fact.subject.node_type, &edge.sources)
-                        || !connects(&fact.object.node_type, &edge.targets)
-                    {
+                    let (source, target) = (landed(&fact.subject), landed(&fact.object));
+                    if !connects(&source, &edge.sources) || !connects(&target, &edge.targets) {
                         return Err(refusal(
                             Code::ExtractionRelationEnds,
-                            format!(
-                                "facts[{at}]: {} {} {}",
-                                fact.subject.node_type, fact.relation, fact.object.node_type
-                            ),
+                            format!("facts[{at}]: {source} {} {target}", fact.relation),
                         ));
                     }
                 }

@@ -447,6 +447,13 @@ bad fact too, as the reader's first refusal in document order. Then, in order:
    two nodes by an edge of that type. An edge validation refuses (its endpoint types, its type's
    cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
    those relations as assertions only; applying the document again holds them and adds no edge.
+   A fact's property and a relation's ends are checked against the type of the node its subject
+   or object resolves to: a key [superseded](#a-node-superseded-by-another) by a node of another
+   type takes the kept node's properties and edge ends, by the reader and again before anything
+   is resolved, so a fact the kept node's type admits is applied to it, and one it does not is
+   refused before anything is written — `extraction-property-undeclared` or
+   `extraction-relation-ends`, naming the superseded node, its type and the node kept — and no node
+   is created for it.
    A `!Property` fact marked `replaces: true` also supersedes every active assertion of its
    subject and property — the store's, or an earlier committed fact's — with a
    `!SupersedeAssertion` from the new assertion's valid time on, in the same transaction, so
@@ -2618,8 +2625,9 @@ every other head read — `ekr view`, the session and MCP reads, [`/changes`](#c
 reads the head's nodes and edges and so no longer shows it. A read of its id at the head
 (`/node/<id>` in either format, `/expand`, `/timeline` with that `subject`, the MCP `describe_node`,
 `expand` and `timeline`, the session's
-`describe`, `expand` and `timeline`) is refused as `ekr.views.NodeSuperseded`, 404, naming `by`; at a revision
-before the supersession it reads as it was. A read that reaches an assertion naming it — the
+`describe`, `expand` and `timeline`) is refused as `ekr.views.NodeSuperseded`, naming `by` — by
+`ekr view` with 404, by the MCP tools as a tool error and by the session as a named failure; at a
+revision before the supersession it reads as it was. A read that reaches an assertion naming it — the
 assertion is kept — names the pointer too: a rendered assertion whose `!Node` object is
 superseded carries `object_superseded_by` (`/node/<id>`, the projection, `ekr sample`), an
 `ekr explain` Assertion link carries `subject_superseded_by` and `object_superseded_by`, and a

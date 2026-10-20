@@ -173,7 +173,7 @@ pub use evidence::{
 pub use node::Node;
 pub use root::{GraphRoot, Root, Space};
 pub use snapshot::GraphSnapshot;
-pub use supersession::{Superseded, SupersededNode};
+pub use supersession::{supersession_records_read, RetiredEdges, Superseded, SupersededNode};
 pub use transient::{LocalRef, Resolved, TransientGraph, TransientRef};
 pub use value::{CanonicalValue, InadmissibleValue};
 /// Frozen original-format data; decoding grants no canonical authority.
