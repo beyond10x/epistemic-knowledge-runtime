@@ -2,13 +2,101 @@
 format: aep.planning-md/3
 id: story:merge-entity-applies
 kind: story
-status: draft
+status: active
 title: MergeEntity joins duplicate nodes of one type or of related types, and rewrites every reference to the survivor
 relations:
 - decomposes: epic:p3-incubation-integration
 - serves: vision:o2
 - depends_on: story:supersede-node
-revision: 4
+scope:
+- confidence: cited
+  path: CHANGELOG.md
+- confidence: cited
+  path: README.md
+- confidence: inferred
+  path: crates/ekr-graph/src/canonical.rs
+- confidence: cited
+  path: crates/ekr-graph/src/supersession.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/apply.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/replay.rs
+- confidence: inferred
+  path: crates/ekr-kernel/src/seed.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/transaction.rs
+- confidence: inferred
+  path: crates/ekr-kernel/src/validate/candidate.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/cardinality.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/reference.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/structural.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/supersession.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/types.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests/base_era_v1_replay.rs
+- confidence: inferred
+  path: crates/ekr-kernel/tests/merge_entity.rs
+- confidence: cited
+  path: crates/ekr-sdk/src/document/transaction.rs
+- confidence: inferred
+  path: crates/ekr-sdk/src/read/kernel.rs
+- confidence: inferred
+  path: crates/ekr-sdk/src/read/views.rs
+- confidence: inferred
+  path: crates/ekr-sdk/src/resolve.rs
+- confidence: inferred
+  path: crates/ekr-store/src/snapshot.rs
+- confidence: cited
+  path: crates/ekr-views/src/changes.rs
+- confidence: inferred
+  path: crates/ekr-views/tests/changes.rs
+- confidence: cited
+  path: crates/ekr/src/cli/agent.rs
+- confidence: cited
+  path: crates/ekr/tests/agent_cli.rs
+- confidence: inferred
+  path: crates/ekr/tests/conformance.rs
+- confidence: cited
+  path: crates/ekr/tests/docs_cli.rs
+- confidence: inferred
+  path: crates/ekr/tests/fixtures/conformance/manifest.json
+- confidence: inferred
+  path: crates/ekr/tests/fixtures/conformance/scenarios
+- confidence: cited
+  path: docs/cli.md
+- confidence: cited
+  path: docs/epistemic-knowledge-runtime-design.md
+- confidence: cited
+  path: docs/overview.md
+- confidence: inferred
+  path: systems/ekr/conformance/baseline.json
+- confidence: inferred
+  path: systems/ekr/conformance/provenance.json
+- confidence: cited
+  path: systems/ekr/conformance/suite.json
+- confidence: inferred
+  path: systems/ekr/conformance/views-baseline.json
+- confidence: inferred
+  path: systems/ekr/conformance/views-provenance.json
+- confidence: cited
+  path: systems/ekr/conformance/views-suite.json
+- confidence: cited
+  path: systems/ekr/domains/graph.yaml
+- confidence: inferred
+  path: systems/ekr/domains/integrate.yaml
+- confidence: cited
+  path: systems/ekr/domains/kernel.yaml
+- confidence: cited
+  path: systems/ekr/domains/views.yaml
+revision: 10
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-20T10:50:38Z", actor: "agent:claude-ekr-session", revision: 9}
+- {from: "proposed", to: "active", at: "2026-10-20T10:50:39Z", actor: "agent:claude-ekr-session", revision: 10}
 ---
 ## Context
 
@@ -95,3 +183,74 @@ assertions do (ADR 0017 decision 3; `crates/ekr-kernel/src/apply.rs:333` at `7f0
 rewrites every reference to `absorbed`, so its rewrite includes NodeRef values in node and edge
 properties, recorded in the lineage beside the rewritten assertion fields, with an acceptance case
 `a-merge-rewrites-node-ref-values`.
+
+## Scope
+
+Derived 2026-10-20 by `aep:story-scoper` at `efe53653` (0.0.40). Every line is **cited** (read from
+the story, ADR 0017/0018 or the tree) or **inferred**. Line numbers are as of `efe53653`; where the
+story's numbers drifted, the current ones are given (`apply.rs:486` is now `:559`,
+`structural.rs:1108-1121` is `:1118-1145`, `changes.rs:487` is `:551`, `reference.rs:171` is `:193`,
+ADR 0018's `replay.rs:1187-1211` is `:1202-1215`).
+
+- **Primary surface:** `crates/ekr-kernel` (validation, apply, replay) — cited
+- **Spec:** `kernel.yaml:71`, `:637-642` (`ekr.kernel.EntityMerge`), `:733-736`, `:814`;
+  `graph.yaml:380-384`, `:390` (`SupersededNodeRecord`), `:525-550` (`ekr.graph.SupersededNode`);
+  `views.yaml:1991-1993` (`ChangeKind`), `:2008-2025` (`GraphChange`) — cited
+- **Suites:** `systems/ekr/conformance/suite.json`, `views-suite.json`, regenerated red — cited;
+  baselines, provenance, `crates/ekr/tests/fixtures/conformance/{scenarios/,manifest.json}`,
+  `crates/ekr/tests/conformance.rs` — inferred
+- **Wire shape:** `crates/ekr-kernel/src/transaction.rs:125-137` (`EntityMerge`, derives `Copy`),
+  `:811-814`, `:898-905` (encode), `:983` — cited
+- **Structural gate:** `validate/structural.rs:110-111`, `:957-972` (`merge-into-itself`),
+  `:1118-1145` (bare-shape `unsupported-operation`: guard `:1130-1135`, message `:1142`) — cited
+- **Reference:** `validate/reference.rs:193-196`, `:425-430` — cited
+- **Same-transaction refusal:** `validate/supersession.rs:80-132` (`named`; merge at `:112`), `:135` —
+  cited
+- **Endpoints:** `validate/types.rs:397`, `:468`, `:514-540` — cited; **cardinality:**
+  `validate/cardinality.rs:103-138` — cited; **candidate:** `validate/candidate.rs:172-213`, `:263` —
+  inferred
+- **Apply:** `apply.rs:559-561`, `:326-396` (`supersede`), `:578`, `:108` — cited; **replay:**
+  `replay.rs:158-191`, `:1202-1215` — cited
+- **Record and lineage:** `crates/ekr-graph/src/supersession.rs:41-88` — cited; record ripple in
+  `ekr-kernel/src/seed.rs:1052`, `ekr-store/src/snapshot.rs:421`, `ekr-sdk/src/read/kernel.rs:98-113`;
+  `RetiredEdges` `supersession.rs:113-140`, `canonical.rs:481-499` — inferred
+- **Views:** `crates/ekr-views/src/changes.rs:549-567`, `:273`, `:296`, `:773` — cited;
+  `crates/ekr-views/tests/changes.rs` — inferred
+- **SDK:** `crates/ekr-sdk/src/document/transaction.rs:199-200`, `:235`, `:290-291`, `:476-492` —
+  cited; `src/read/views.rs:1020-1037`, `src/resolve.rs:191-217` — inferred
+- **CLI:** `crates/ekr/src/cli/agent.rs:170-171`, `:404`, `:574-581` — cited; tests pinning "not
+  applied": `crates/ekr/tests/agent_cli.rs:253`, `:1267`, `:2080-2162`, `:2329`;
+  `crates/ekr/tests/docs_cli.rs:2343`, `:2569` — cited
+- **Retained fixture:** `crates/ekr-kernel/tests/base_era_v1_replay.rs:33`, `:226-258`; must reopen
+  unedited — cited
+- **Struct-literal ripple:** `EntityMerge {…}` in 8 kernel tests and `ekr-sdk/tests/document_drift.rs`;
+  `SupersededNode {…}` in 7 tests — inferred
+- **Documents:** `docs/cli.md:2434`, `:2456`, `:3851-3852`; design § 46 (`:2030`), a dated
+  amendment; `CHANGELOG.md`; `README.md:39` and `docs/overview.md:236` say "refused" — cited
+- **Confidence:** high for kernel, spec, views, SDK, CLI; medium for the record ripple and the index.
+- **Would collide with:** any unit in `ekr-kernel/src/validate/*`, `apply.rs`, `replay.rs`,
+  `ekr-graph/src/supersession.rs`, the three spec files and their suites, `docs/cli.md`,
+  `CHANGELOG.md`, `README.md`, `agent.rs`, `agent_cli.rs`, `docs_cli.rs`.
+- **Safety fact:** the bare `{absorbed, into}` shape keeps its two-id encoding
+  (`transaction.rs:898-905`) and its one structural issue (`structural.rs:1130-1142`); replay compares
+  retained issues by count, code and message (`replay.rs:1202-1215`). The new fields stay out of serde
+  and `Canonical` output when unset, and no validator adds an issue for the bare shape.
+
+## Coordinator decisions
+
+Taken by the coordinator of wave 2026-10-20b on 2026-10-20, inside ADR 0018, on the questions the
+story's scoper could not settle:
+
+1. **NodeRef values in assertion value objects.** A merge rewrites, in place, every `NodeRef` naming
+   `absorbed` inside an assertion's `Object::Value` (at any depth), as it rewrites node and edge
+   property values (section "NodeRef property values") and subjects and objects (ADR 0018 decision
+   8); the lineage records each with its prior reference. ADR 0017's D4 clarification concerns a
+   supersession, which rewrites nothing; a merge is the operation that rewrites every reference.
+2. **Collapsed edges.** An edge collapsed onto one `into` already holds (ADR 0018 decision 7(b)) goes
+   into the record's `edges`, as a retired edge does, and the lineage maps its id to the kept edge;
+   `RetiredEdges` and `retired_with` keep answering for it.
+3. **Changes.** A merge appears in `changes_since` as a new `ChangeKind::NodeMerged`, appended after
+   `NodeSuperseded`, naming the absorbed node's type, name and evidence and `into` as its target.
+4. **`ekr.integrate.Merge`** in `integrate.yaml` is left as it is.
+
+Release: 0.0.41 on green CI (operator, 2026-10-20).
