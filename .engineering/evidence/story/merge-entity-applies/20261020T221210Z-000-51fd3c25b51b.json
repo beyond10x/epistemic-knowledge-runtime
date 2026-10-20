@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-20T22:12:10Z",
+  "actor": "agent:claude-ekr-session",
+  "artifact": "story:merge-entity-applies",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "gate on 5b59a139f in ekr-w20b-u1 through b10x-build-slot: fmt, clippy -D warnings, spec-check, conform-fresh (80/110/2), doc-check exit 0; cargo test --workspace 2578 passed 0 failed (implementor), 2590 passed 0 failed with adversary pass 2's 12 cases",
+    "reference": "5b59a139f"
+  }
+}

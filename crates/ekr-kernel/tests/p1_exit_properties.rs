@@ -387,10 +387,14 @@ fn dangling(world: &World, shape: Shape, bits: NodeId) -> (GraphOperation, bool)
         Shape::MergeAbsorbed => GraphOperation::MergeEntity(EntityMerge {
             absorbed: node,
             into: world.nodes[0],
+            reason: None,
+            evidence: None,
         }),
         Shape::MergeInto => GraphOperation::MergeEntity(EntityMerge {
             absorbed: world.nodes[0],
             into: node,
+            reason: None,
+            evidence: None,
         }),
         Shape::InvokedNode => GraphOperation::Invoke {
             node,

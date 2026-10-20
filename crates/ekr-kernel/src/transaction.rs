@@ -122,18 +122,52 @@ pub struct EdgeDraft<V = Value> {
     pub properties: BTreeMap<PropertyId, Vec<V>>,
 }
 
-/// Two nodes the proposer holds to be one: the `EntityMerge` of design § 19.
+/// Two nodes the proposer holds to be one: the `EntityMerge` of design § 19, applied as design
+/// § 111 and `architecture-decision-record:0018-merge-and-split-identity` decide, and
+/// `ekr.kernel.EntityMerge`.
 ///
 /// Which record survives is not a detail: design § 6.4 makes an id permanent, so a merge names
 /// the id that remains and the id that becomes an alias of it.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// # Two shapes, because P1 retained the first
+///
+/// P1 carried `{absorbed, into}` and refused every structurally sound instance of it as
+/// `unsupported-operation`, and stores retain such rejections (the base-era store of
+/// `crates/ekr-kernel/tests/base_era_v1_replay.rs` holds one). So the bare shape is frozen, as
+/// [`PropertyModification`]'s ownerless shape is: with neither `reason` nor `evidence` written it
+/// parses, encodes as the two ids it encoded as, and is refused as P1 refused it under every
+/// profile, by that issue alone ([`EntityMerge::is_bare`]). Written with either, it is the shape
+/// that applies: commit absorbs `absorbed` into a supersession record naming `into` and rewrites
+/// every reference to it (`crate::merge`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EntityMerge {
-    /// The node that stops being its own entity.
+    /// The node that stops being its own entity: one the head holds, not one already superseded.
     pub absorbed: NodeId,
-    /// The node it is absorbed into, which keeps its id.
+    /// The node it is absorbed into, which keeps its id, its type and its name: one the head holds
+    /// or a `CreateNode` of the same transaction creates, of `absorbed`'s type or of a type
+    /// related to it through `parents`.
     pub into: NodeId,
+    /// Why, retained with the record: not empty, and not only whitespace. Absent only in the
+    /// bare P1 shape.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// What the merge rests on: at least one evidence id canonical state retains or an
+    /// `AddEvidence` of the same transaction adds, each in the transaction's
+    /// [`evidence`](GraphTransaction::evidence). Absent only in the bare P1 shape.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "schema", schemars(with = "Option<Vec<EvidenceId>>"))]
+    pub evidence: Option<BTreeSet<EvidenceId>>,
+}
+
+impl EntityMerge {
+    /// Whether this is the bare P1 shape `{absorbed, into}`: neither a reason nor evidence
+    /// written. It is refused as P1 refused it, under every profile, and applies nowhere.
+    #[must_use]
+    pub const fn is_bare(&self) -> bool {
+        self.reason.is_none() && self.evidence.is_none()
+    }
 }
 
 /// An edge type's ends widened: the payload of [`GraphOperation::WidenEdgeType`], and
@@ -558,7 +592,9 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// Add a property to a type, or redeclare one it declares.
     #[cfg_attr(feature = "schema", schemars(rename = "!ModifyProperty"))]
     ModifyProperty(PropertyModification),
-    /// Hold two nodes to be one.
+    /// Hold two nodes to be one (design § 111): the absorbed node leaves the head into a
+    /// supersession record naming the node kept, and every reference to it is rewritten to that
+    /// node. The bare P1 shape is refused.
     #[cfg_attr(feature = "schema", schemars(rename = "!MergeEntity"))]
     MergeEntity(EntityMerge),
     /// Invoke a named operation of the node's type: amendment 87.
@@ -649,7 +685,7 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// value nothing compares to the operations is an address over a number the proposer chose, so
     /// [`Structural`](crate::Structural) holds it equal to the evidence the transaction's
     /// assertions cite, its `AttachEvidence` operations attach, its `CiteEvidence` operations cite
-    /// and its `SupersedeNode` operations rest on. The domain's `operation_count`
+    /// and its `SupersedeNode` and `MergeEntity` operations rest on. The domain's `operation_count`
     /// is the same shape: equally derivable from the operations, equally declared, and equally
     /// checked.
     #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
@@ -896,11 +932,21 @@ impl<V: Canonical> Canonical for EdgeDraft<V> {
 }
 
 impl Canonical for EntityMerge {
-    /// The two fields in declaration order. Not a set: which id survives is the decision the
+    /// The two ids in declaration order. Not a set: which id survives is the decision the
     /// operation records, so a merge and its reverse are two different operations.
+    ///
+    /// The bare P1 shape stops there, so it encodes to exactly the bytes it encoded to before the
+    /// other two fields existed, and no retained address moves. The shape that applies then
+    /// writes `reason` and `evidence`, each as an option, the evidence as a set: a `Some` or
+    /// `None` tag that neither the next operation's variant tag nor a transaction's evidence set
+    /// opens with, so the two shapes never share an encoding.
     fn encode(&self, out: &mut Encoder) {
         self.absorbed.encode(out);
         self.into.encode(out);
+        if !self.is_bare() {
+            out.option(self.reason.as_ref());
+            out.option(self.evidence.as_ref());
+        }
     }
 }
 

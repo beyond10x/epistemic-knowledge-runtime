@@ -210,6 +210,8 @@ fn data_after_a_schema_change_is_held_to_it_on_both_providers() {
                 GraphOperation::MergeEntity(EntityMerge {
                     absorbed: second,
                     into: first,
+                    reason: None,
+                    evidence: None,
                 }),
             ],
             Some(SchemaVersionId::mint()),

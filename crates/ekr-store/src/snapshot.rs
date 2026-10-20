@@ -10,7 +10,8 @@ use ekr_core::{
 };
 use ekr_graph::{
     Assertion, AttachedEvidence, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence,
-    GraphRoot, InadmissibleValue, Node, Object, Space, Subject, Superseded, SupersededNode,
+    GraphRoot, InadmissibleValue, MergeLineage, Node, Object, RewrittenAssertion, Space, Subject,
+    Superseded, SupersededNode,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -431,6 +432,54 @@ fn widen_superseded(record: &SupersededNode<CanonicalValue>) -> SupersededNode<V
         revision: record.revision,
         reason: record.reason.clone(),
         evidence: record.evidence.iter().map(|held| held.id()).collect(),
+        merge: record.merge.as_ref().map(widen_lineage),
+    }
+}
+
+/// A merge's lineage, as a candidate's shape: its values widened and its references losing their
+/// type on the way out, as an assertion's do.
+fn widen_lineage(lineage: &MergeLineage<CanonicalValue>) -> MergeLineage<Value> {
+    let values = |held: &BTreeMap<PropertyId, Vec<CanonicalValue>>| {
+        held.iter()
+            .map(|(id, values)| (*id, values.iter().cloned().map(Value::from).collect()))
+            .collect()
+    };
+    MergeLineage {
+        edges: lineage.edges.clone(),
+        collapsed: lineage.collapsed.clone(),
+        retired: lineage.retired.clone(),
+        assertions: lineage
+            .assertions
+            .iter()
+            .map(|(id, rewritten)| {
+                (
+                    *id,
+                    RewrittenAssertion {
+                        subject: rewritten.subject.map(|subject| match subject {
+                            Subject::Node(node) => Subject::Node(node.node()),
+                            Subject::Edge(edge) => Subject::Edge(edge.id()),
+                            Subject::Type(type_id) => Subject::Type(type_id),
+                        }),
+                        object: rewritten.object.as_ref().map(|object| match object {
+                            Object::Value(value) => Object::Value(Value::from(value.clone())),
+                            Object::Node(node) => Object::Node(node.node()),
+                            Object::Type(type_id) => Object::Type(*type_id),
+                        }),
+                    },
+                )
+            })
+            .collect(),
+        moved_properties: lineage.moved_properties.clone(),
+        node_values: lineage
+            .node_values
+            .iter()
+            .map(|(id, held)| (*id, values(held)))
+            .collect(),
+        edge_values: lineage
+            .edge_values
+            .iter()
+            .map(|(id, held)| (*id, values(held)))
+            .collect(),
     }
 }
 

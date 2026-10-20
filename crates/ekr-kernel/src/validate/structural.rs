@@ -902,6 +902,7 @@ fn check(
     let mut citations: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut attached = false;
     let mut superseding = false;
+    let mut merging = false;
     let declared = |type_id: TypeId| {
         state.ontology.node_type(type_id).is_some() || state.ontology.edge_type(type_id).is_some()
     };
@@ -967,6 +968,13 @@ fn check(
                             merge.absorbed
                         ),
                     ));
+                }
+                // What a merge in the shape that applies rests on is part of what the transaction
+                // rests on, as a supersession's is (design § 111.1). The bare P1 shape rests on
+                // nothing, and is counted as it always was.
+                if !merge.is_bare() {
+                    cited.extend(merge.evidence.iter().flatten().copied());
+                    merging = true;
                 }
                 (None, None)
             }
@@ -1047,16 +1055,23 @@ fn check(
     // Replay compares every retained rejection's message with what this ruleset says now, so a
     // transaction with no attachment and no citation is refused in the words it always was, and
     // one with an attachment and no citation in the words of design § 103. Only a transaction
-    // with a citation, which no store retained before design § 109, reads the third form, and
-    // only one with a supersession, which none retained before design § 110, the fourth.
-    let cite = match (attached, citations.is_empty(), superseding) {
-        (_, _, true) => {
+    // with a citation, which no store retained before design § 109, reads the third form, only one
+    // with a supersession, which none retained before design § 110, the fourth, and only one with
+    // a merge in the shape that applies, which none retained before design § 111, the fifth.
+    let cite = match (attached, citations.is_empty(), superseding, merging) {
+        (_, _, _, true) => {
+            "its assertions cite, its attachments attach, its citations cite or its \
+             supersessions and merges rest on"
+        }
+        (_, _, true, false) => {
             "its assertions cite, its attachments attach, its citations cite or its \
              supersessions rest on"
         }
-        (false, true, false) => "its assertions cite",
-        (true, true, false) => "its assertions cite or its attachments attach",
-        (_, false, false) => "its assertions cite, its attachments attach or its citations cite",
+        (false, true, false, false) => "its assertions cite",
+        (true, true, false, false) => "its assertions cite or its attachments attach",
+        (_, false, false, false) => {
+            "its assertions cite, its attachments attach or its citations cite"
+        }
     };
     if cited != tx.evidence {
         issues.push(issue(
@@ -1116,9 +1131,9 @@ fn check(
     }
 
     // Keep malformed-operation diagnostics precise. A structurally sound operation is not
-    // thereby implemented: entity merge has no application path, and under v1 neither has schema
-    // evolution. The v1 message is P1's, unchanged, because retained v1 rejections replay
-    // against it.
+    // thereby implemented: under v1 schema evolution has no application path, and neither has
+    // the bare P1 shape of an entity merge under any profile (design § 111.1). The message is
+    // P1's, unchanged, because retained rejections replay against it.
     if issues.is_empty() {
         for operation in &tx.operations {
             let name = match operation {
@@ -1128,7 +1143,8 @@ fn check(
                 GraphOperation::WidenEdgeType(_) if !admits_schema => "WidenEdgeType",
                 GraphOperation::CiteEvidence(_) if !admits_schema => "CiteEvidence",
                 GraphOperation::MergeEntity(merge)
-                    if node_types.contains_key(&merge.absorbed)
+                    if merge.is_bare()
+                        && node_types.contains_key(&merge.absorbed)
                         && node_types.contains_key(&merge.into) =>
                 {
                     "MergeEntity"
@@ -1147,5 +1163,6 @@ fn check(
     issues.extend(super::lifecycle::check(graph, tx));
     issues.extend(super::attachment::check(graph, tx));
     issues.extend(super::supersession::check(graph, tx));
+    issues.extend(super::merge::structural(graph, tx, candidate));
     finish(issues)
 }

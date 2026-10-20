@@ -443,6 +443,7 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
         ("assertions_retracted", summary.assertions_retracted),
         ("evidence_added", summary.evidence_added),
         ("nodes_superseded", summary.nodes_superseded),
+        ("nodes_merged", summary.nodes_merged),
     ])?;
     if let Some(first) = summary.first_revision {
         fields.push(("first_revision", integer(first)?));

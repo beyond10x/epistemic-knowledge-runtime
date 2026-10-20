@@ -35,6 +35,7 @@ pub mod authorization;
 mod candidate;
 pub mod cardinality;
 mod lifecycle;
+mod merge;
 pub mod ontology;
 pub mod provenance;
 pub mod reference;

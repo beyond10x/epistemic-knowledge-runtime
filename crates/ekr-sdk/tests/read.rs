@@ -37,12 +37,12 @@ use ekr_sdk::read::{
     OverviewSchema, OverviewSection, OverviewTimeline, ReadError, Reader, RecordedTime,
     ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge,
     SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge,
-    SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode, SnapshotPredicate,
-    SnapshotRoot, SnapshotSubject, SnapshotSupersededNode, Timeline, TimelineBucket, TimelineCell,
-    TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep,
-    TransactionState, Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion,
-    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
-    ViewProperty, ViewValue, WidenedEnd,
+    SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotMergeLineage, SnapshotNode,
+    SnapshotPredicate, SnapshotRewrittenAssertion, SnapshotRoot, SnapshotSubject,
+    SnapshotSupersededNode, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta,
+    TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState, Transactions,
+    TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType,
+    ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -464,7 +464,7 @@ fn changes_hold(changes: &Changes) {
 
 // ---- every conformance fixture document --------------------------------------------------------
 
-const FIXTURES: [&str; 15] = [
+const FIXTURES: [&str; 16] = [
     "seed-only",
     "seeded-evidence",
     "edge-assertion",
@@ -480,6 +480,7 @@ const FIXTURES: [&str; 15] = [
     "schema-changes",
     "property-redeclared",
     "superseded",
+    "merged",
 ];
 
 /// Every document each conformance fixture store renders, at every revision: the overview at
@@ -715,6 +716,30 @@ fn snapshot_holds(snapshot: &Snapshot) {
         for (edge, retired) in &record.edges {
             assert_eq!(retired.id, *edge);
             assert!(!graph.edges.contains_key(edge));
+        }
+        // A node a merge absorbed: its lineage names the head's rewritten edges and assertions,
+        // and the edges its record holds (story:merge-entity-applies).
+        if let Some(lineage) = &record.merge {
+            let lineage: &SnapshotMergeLineage = lineage;
+            for (edge, ends) in &lineage.edges {
+                assert!(graph.edges.contains_key(edge), "{edge}");
+                assert!(
+                    ["Source", "Target", "Both"].contains(&ends.as_str()),
+                    "{ends}"
+                );
+            }
+            for (collapsed, kept) in &lineage.collapsed {
+                assert!(record.edges.contains_key(collapsed) && graph.edges.contains_key(kept));
+            }
+            assert!(lineage
+                .retired
+                .iter()
+                .all(|edge| record.edges.contains_key(edge)));
+            for (assertion, rewritten) in &lineage.assertions {
+                let rewritten: &SnapshotRewrittenAssertion = rewritten;
+                assert!(graph.assertions.contains_key(assertion));
+                assert!(rewritten.subject.is_some() || rewritten.object.is_some());
+            }
         }
     }
 }

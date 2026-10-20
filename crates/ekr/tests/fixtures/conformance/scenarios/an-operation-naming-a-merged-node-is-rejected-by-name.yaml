@@ -1,0 +1,81 @@
+# story:merge-entity-applies, acceptance a-merge-of-an-absorbed-node-is-refused, a later use of the
+# node.
+#
+# The target has committed revision 1 before the first act. The fixture `merge-node.yaml` merges
+# Bob (0302) into Alice (0301) and commits revision 2. A second transaction (fixture
+# `add-alias-superseded.yaml`) gives Bob an alias. Bob is absorbed at revision 2, held in a record
+# naming Alice, so validation against it rejects the second with exactly one issue, which the
+# Reference validator raises under the name node-superseded; its message names Alice.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-operation-naming-a-merged-node-is-rejected-by-name
+summary: An operation naming a node a committed merge absorbed is rejected with one issue, node-superseded, raised by Reference.
+
+arrange:
+  - instance: merge
+    entity: ekr.kernel.GraphTransaction
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T09:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: merge
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: merge, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T09:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: merge}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T09:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: merge}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+  - at: 2027-01-15T09:00:03Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: addition
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T09:00:04Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 2
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Reference
+      code: node-superseded

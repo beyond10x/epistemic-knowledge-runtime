@@ -620,6 +620,7 @@ fn superseded_graph(
                 revision: ekr_core::RevisionNumber::new(1),
                 reason: "recorded twice".to_owned(),
                 evidence: std::collections::BTreeSet::new(),
+                merge: None,
             },
         )]),
     }

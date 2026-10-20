@@ -1032,6 +1032,8 @@ pub enum ChangeKind {
     EvidenceAdded,
     /// A node was superseded by another, by a `SupersedeNode`: `target` names the node kept.
     NodeSuperseded,
+    /// A node was merged into another, by a `MergeEntity`: `target` names the node kept.
+    NodeMerged,
     /// A kind this SDK does not know, added by a newer `ekr`.
     #[serde(other)]
     Other,

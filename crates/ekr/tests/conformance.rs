@@ -681,6 +681,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/a-schema-transaction-citing-retained-evidence-commits-as-a-new-version",
                 "ekr.kernel/authored/a-schema-transaction-adding-and-citing-evidence-commits-as-a-new-version",
                 "ekr.kernel/authored/a-duplicate-node-superseded-by-the-node-it-duplicates-commits",
+                "ekr.kernel/authored/a-duplicate-node-merged-into-the-node-it-duplicates-commits",
             ],
         ),
         (
@@ -709,6 +710,13 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/a-supersession-without-evidence-is-rejected-by-name",
                 "ekr.kernel/authored/a-superseded-node-named-in-its-transaction-is-rejected-by-name",
                 "ekr.kernel/authored/an-operation-naming-a-superseded-node-is-rejected-by-name",
+                "ekr.kernel/authored/a-node-merged-into-itself-is-rejected-by-name",
+                "ekr.kernel/authored/a-merge-without-a-reason-is-rejected-by-name",
+                "ekr.kernel/authored/a-merge-without-evidence-is-rejected-by-name",
+                "ekr.kernel/authored/a-merge-across-unrelated-types-is-rejected-by-name",
+                "ekr.kernel/authored/a-merged-node-named-in-its-transaction-is-rejected-by-name",
+                "ekr.kernel/authored/a-bare-merge-is-rejected-as-p1-rejected-it",
+                "ekr.kernel/authored/an-operation-naming-a-merged-node-is-rejected-by-name",
             ],
         ),
         (

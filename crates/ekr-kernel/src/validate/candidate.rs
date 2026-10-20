@@ -34,6 +34,9 @@ pub(super) struct Candidate<'g> {
     /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
     asserted_edges: Index<'g>,
     pub(super) aliases: Option<&'g super::aliases::AliasHolders>,
+    /// What each merge of the operation set would do, read on first use; see
+    /// [`Candidate::merge_checks`].
+    merges: OnceCell<Vec<super::merge::MergeCheck>>,
 }
 
 /// Existing node types stay in the verified graph; only creations belong to this candidate.
@@ -127,6 +130,7 @@ impl<'g> Candidate<'g> {
             property_counts: BTreeMap::new(),
             asserted_edges: Index::Own(OnceCell::new()),
             aliases: None,
+            merges: OnceCell::new(),
         };
         for operation in &proposal.operations {
             match operation {
@@ -196,6 +200,19 @@ impl<'g> Candidate<'g> {
     /// Whether a `SupersedeNode` of the operation set retires `edge`, an edge of canonical state.
     pub(super) fn retires(&self, edge: &EdgeId) -> bool {
         self.retired_edges.contains(edge)
+    }
+
+    /// What each merge of `proposal` in the shape that applies would do, read off `snapshot` once
+    /// for the validation this view is shared by, by the first validator that asks (design
+    /// § 111.3). Empty, having read nothing, for an operation set without such a merge.
+    /// `snapshot` and `proposal` must be the ones this view was built from.
+    pub(super) fn merge_checks(
+        &self,
+        snapshot: &GraphSnapshot<'_>,
+        proposal: &GraphTransaction,
+    ) -> &[super::merge::MergeCheck] {
+        self.merges
+            .get_or_init(|| super::merge::checks(snapshot, proposal, self))
     }
 
     /// The superseded node `edge` was retired with, and the node that one is superseded by, if a

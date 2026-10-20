@@ -1433,6 +1433,8 @@ fn a_merge_names_two_nodes() {
         vec![GraphOperation::MergeEntity(EntityMerge {
             absorbed: world.open,
             into: world.open,
+            reason: None,
+            evidence: None,
         })],
     );
     assert_eq!(
@@ -1448,6 +1450,8 @@ fn a_merge_names_two_nodes() {
             vec![GraphOperation::MergeEntity(EntityMerge {
                 absorbed: world.open,
                 into: world.decided,
+                reason: None,
+                evidence: None,
             })]
         )),
         vec!["unsupported-operation"]
@@ -1695,6 +1699,8 @@ fn every_kind_of_dangling_reference_is_refused() {
         vec![GraphOperation::MergeEntity(EntityMerge {
             absorbed: absent_node,
             into: world.open,
+            reason: None,
+            evidence: None,
         })],
     );
     assert_eq!(codes(&unresolved_merge), vec!["unresolved-node"]);
@@ -2290,6 +2296,8 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
         GraphOperation::MergeEntity(EntityMerge {
             absorbed: node,
             into: world.open,
+            reason: None,
+            evidence: None,
         }),
         GraphOperation::Invoke {
             node,
@@ -2929,6 +2937,8 @@ fn unsupported_schema_changes_and_merges_refuse_explicitly() {
         GraphOperation::MergeEntity(EntityMerge {
             absorbed: world.open,
             into: world.decided,
+            reason: None,
+            evidence: None,
         }),
     ] {
         assert_eq!(

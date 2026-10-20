@@ -440,6 +440,8 @@ fn operation(rng: &mut Rng) -> GraphOperation {
                 GraphOperation::MergeEntity(EntityMerge {
                     absorbed: node(rng.below(NODES)),
                     into: node(rng.below(NODES)),
+                    reason: None,
+                    evidence: None,
                 })
             } else {
                 GraphOperation::Invoke {

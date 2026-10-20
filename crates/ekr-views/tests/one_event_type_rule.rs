@@ -24,7 +24,7 @@ use support::fixtures::{self, Fixture, Provider};
 
 /// Every fixture store, each once. The `match` in [`every_fixture_is_listed`] fails to compile
 /// when a fixture is added and not listed here.
-const FIXTURES: [Fixture; 26] = [
+const FIXTURES: [Fixture; 27] = [
     Fixture::SeedOnly,
     Fixture::SeededEvidence,
     Fixture::EdgeAssertion,
@@ -51,6 +51,7 @@ const FIXTURES: [Fixture; 26] = [
     Fixture::Names,
     Fixture::Superseded,
     Fixture::DescribedSuperseded,
+    Fixture::Merged,
 ];
 
 #[test]
@@ -82,7 +83,8 @@ fn every_fixture_is_listed() {
             | Fixture::MatchKinds
             | Fixture::Names
             | Fixture::Superseded
-            | Fixture::DescribedSuperseded => {}
+            | Fixture::DescribedSuperseded
+            | Fixture::Merged => {}
         }
     }
     let distinct: BTreeSet<String> = FIXTURES.iter().map(|f| format!("{f:?}")).collect();

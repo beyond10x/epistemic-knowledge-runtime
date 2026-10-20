@@ -208,8 +208,9 @@ fn fields(record: &impl Serialize, excluded: &[&str]) -> Result<Map<String, Valu
 
 /// The supersession records of one read, keyed by the superseded node's id
 /// (`story:supersede-node`): the node and the edges retired with it as `nodes` and `edges` compare
-/// them, `by`, `revision`, `reason` and `evidence`. Two stores that superseded one duplicate by
-/// different nodes resolve its key to different nodes, so they differ here.
+/// them, `by`, `revision`, `reason` and `evidence`, and a merge's `merge` lineage. Two stores that
+/// superseded one duplicate by different nodes resolve its key to different nodes, so they differ
+/// here, and so do one that merged a duplicate and one that superseded it.
 fn superseded(read: &VerifiedRead) -> Result<Entries, Failure> {
     let mut records = Entries::new();
     for (id, record) in &read.graph.superseded {
@@ -236,6 +237,15 @@ fn superseded(read: &VerifiedRead) -> Result<Entries, Failure> {
             "evidence".to_owned(),
             serde_json::to_value(&record.evidence).map_err(Failure::fault)?,
         );
+        // A merge's lineage (`story:merge-entity-applies`, design § 111.2) is knowledge no clock
+        // or transaction id decides. Absent from a supersession's record, so a pair that never
+        // merged compares, and prints, exactly as before it existed.
+        if let Some(lineage) = &record.merge {
+            entry.insert(
+                "merge".to_owned(),
+                serde_json::to_value(lineage).map_err(Failure::fault)?,
+            );
+        }
         records.insert(key(id)?, entry);
     }
     Ok(records)

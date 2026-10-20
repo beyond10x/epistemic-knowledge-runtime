@@ -149,6 +149,10 @@ impl Check for Cardinality {
             }
         }
 
+        // A merge in the shape that applies: the node kept's edges counted once the duplicates
+        // have collapsed, and each property moved to it (design § 111.3).
+        issues.extend(super::merge::cardinality(graph, tx, candidate));
+
         finish(issues)
     }
 }

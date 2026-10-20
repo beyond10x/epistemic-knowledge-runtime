@@ -395,6 +395,7 @@ fn superseded_graph() -> CanonicalGraph {
             revision: RevisionNumber::new(1),
             reason: "recorded twice".into(),
             evidence: BTreeSet::from([CanonicalRef::new(id(EVIDENCE))]),
+            merge: None,
         },
     );
     graph
@@ -467,6 +468,95 @@ fn every_supersession_record_field_reaches_only_the_knowledge_root_and_its_root_
         ),
         "the record's address and the knowledge root of a graph holding it"
     );
+}
+
+/// `story:merge-entity-applies`: a record's merge lineage reaches the knowledge root and not the
+/// evidence root — its presence, and each of its seven fields — while a record without one keeps
+/// the address pinned above, so a store that never merges keeps its roots (design § 111.4).
+#[test]
+fn every_merge_lineage_field_reaches_only_the_knowledge_root() {
+    let merged = || {
+        let mut graph = superseded_graph();
+        record(&mut graph).merge = Some(ekr_graph::MergeLineage::default());
+        graph
+    };
+    let (none, base) = (superseded_graph(), merged());
+    assert_ne!(
+        knowledge_root(&none),
+        knowledge_root(&base),
+        "an empty lineage is still a lineage"
+    );
+    assert_eq!(evidence_root(&none), evidence_root(&base));
+    let (knowledge, evidence) = (knowledge_root(&base), evidence_root(&base));
+    fn lineage(g: &mut CanonicalGraph) -> &mut ekr_graph::MergeLineage {
+        record(g).merge.as_mut().unwrap()
+    }
+    let edge: EdgeId = id(EDGE);
+    let changes: Vec<(&str, Change)> = vec![
+        (
+            "merge.edges",
+            Box::new(move |g| {
+                lineage(g).edges.insert(edge, ekr_graph::MergedEnds::Target);
+            }),
+        ),
+        (
+            "merge.collapsed",
+            Box::new(move |g| {
+                lineage(g).collapsed.insert(edge, id(0x7d));
+            }),
+        ),
+        (
+            "merge.retired",
+            Box::new(move |g| {
+                lineage(g).retired.insert(edge);
+            }),
+        ),
+        (
+            "merge.assertions",
+            Box::new(|g| {
+                lineage(g).assertions.insert(
+                    id(ASSERTION),
+                    ekr_graph::RewrittenAssertion {
+                        subject: Some(Subject::Node(CanonicalRef::new(id(0x11)))),
+                        object: None,
+                    },
+                );
+            }),
+        ),
+        (
+            "merge.moved_properties",
+            Box::new(|g| {
+                lineage(g).moved_properties.insert(id(0x7c));
+            }),
+        ),
+        (
+            "merge.node_values",
+            Box::new(|g| {
+                lineage(g).node_values.insert(
+                    id(NODE),
+                    BTreeMap::from([(id(0x7c), vec![CanonicalValue::String("x".into())])]),
+                );
+            }),
+        ),
+        (
+            "merge.edge_values",
+            Box::new(move |g| {
+                lineage(g).edge_values.insert(
+                    edge,
+                    BTreeMap::from([(id(0x7c), vec![CanonicalValue::String("x".into())])]),
+                );
+            }),
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (name, change) in changes {
+        let mut changed = merged();
+        change(&mut changed);
+        if knowledge_root(&changed) == knowledge || evidence_root(&changed) != evidence {
+            wrong.push(name);
+        }
+    }
+    assert_eq!(wrong, Vec::<&str>::new());
 }
 
 #[test]
