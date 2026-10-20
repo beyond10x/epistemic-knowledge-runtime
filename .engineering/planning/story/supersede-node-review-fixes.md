@@ -48,18 +48,22 @@ scope:
 - confidence: cited
   path: crates/ekr-views/tests/supersession.rs
 - confidence: cited
+  path: crates/ekr/src/cli/extraction.rs
+- confidence: cited
   path: crates/ekr/tests/store_comparison.rs
 - confidence: cited
   path: docs/cli.md
 - confidence: cited
   path: docs/epistemic-knowledge-runtime-design.md
 - confidence: cited
+  path: docs/sdk.md
+- confidence: cited
   path: systems/ekr/domains/graph.yaml
 - confidence: inferred
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 6
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-20T01:30:35Z", actor: "agent:claude-ekr-session", revision: 5}
 - {from: "proposed", to: "active", at: "2026-10-20T01:30:36Z", actor: "agent:claude-ekr-session", revision: 6}
@@ -150,3 +154,13 @@ in Build 12 match the code (`docs_cli` and `story_contract` green).
 ## Out of scope
 
 Q1–Q3, Q5, Q6; merges (`story:merge-entity-applies`).
+
+## Narrowed
+
+On 2026-10-20 the coordinator took Build items 7 (D7), 8 (D8), 10 (D10) and 13 (Q7) out of this
+story: each changes a kernel validation verdict, and replay compares retained rejections byte for
+byte (`crates/ekr-kernel/src/replay.rs:1203-1213`) against stores that ran the released 0.0.39. They
+move to `story:supersession-verdict-fixes-replay-safe`, with the implementation saved as a patch.
+D9 stays: it changes how often records are read, not what any validation answers. The Acceptance
+items for D7, D8, D10 and Q7 move with them. `crates/ekr/src/cli/extraction.rs` and `docs/sdk.md`
+join the scope (D6's reader and D2's SDK note).

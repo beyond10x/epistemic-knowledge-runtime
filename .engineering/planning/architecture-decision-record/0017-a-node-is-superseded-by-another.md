@@ -6,7 +6,7 @@ status: accepted
 title: ADR 0017 — A duplicate node is superseded by the node that replaces it; MergeEntity builds on it
 relations:
 - decides: story:supersede-node
-revision: 2
+revision: 3
 transitions:
 - {from: "proposed", to: "accepted", at: "2026-10-19T11:14:42Z", actor: "agent:claude-ekr-session", revision: 2}
 ---
@@ -123,3 +123,29 @@ supersession record, and the `Absorbed` state the merge decision named is that r
 gain the operation. `story:merge-entity-applies` depends on it and is narrowed to the rewrite and
 the type rule. `story:retype-node` refuses a superseded node as it refuses an absorbed one. No
 existing store's roots, checkpoints or formats change until it commits a supersession.
+
+## Clarifications
+
+### Clarification to decision 3 (2026-10-20; story:supersede-node-review-fixes, D4)
+
+A `NodeRef` value inside an assertion's `Object::Value` — a property whose value type is a `NodeRef`,
+or such a value nested in a `List` or `Record` — keeps naming the superseded id, as every other
+byte of the assertion keeps its value. Reads render no pointer for it: `object_superseded_by` is
+written only for a `!Node` object (`views.yaml` `ekr.views.ProjectedAssertion`, `kernel.yaml`
+`ekr.kernel` explanation link), so "a read that reaches it from elsewhere names the retired id with
+its pointer" holds for a `!Node` object and for the subject. A reader that follows such a value to
+the superseded id gets `node-superseded` (`ekr.views.NodeSuperseded`), which names `by`; and a
+later operation writing such a value is refused as `node-superseded` by the reference validator,
+naming `by`, so no new value names a superseded node.
+
+### Clarification to decision 4 (2026-10-20; story:supersede-node-review-fixes, R2)
+
+"`by` must be a node the head holds" admits a `by` that a `!CreateNode` of the same transaction
+creates: creations apply before supersessions (design § 110.2), so the head the commit produces
+holds it, and the reference validator accepts it (`supersede-by-unknown-node` only when `by` is
+neither held nor created by the transaction). Two nodes may be superseded in one transaction, each
+by a node the head holds or the transaction creates, and an edge between them is retired once, into
+the record of its source. Pinned by `crates/ekr-kernel/tests/adversary_w20261019a_supersede_node.rs`
+(`adv_two_nodes_superseded_together_with_an_edge_between_them`) and
+`crates/ekr-kernel/tests/supersede_node.rs`
+(`an_edge_between_two_nodes_superseded_together_is_held_by_its_sources_record`).
