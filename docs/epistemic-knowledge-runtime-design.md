@@ -6504,9 +6504,11 @@ a retired edge without a filter of its own, and a reader nobody updated fails cl
   `ekr_sdk::extraction::apply` and the engine's reader checked against the head
   (`ExtractionDocument::check_facts_at`) alike — so a fact valid for the kept node is applied
   there, and one its type does not admit is refused before anything is written, and no node is
-  created for it. A key is checked alone, and again as the group of keys it is resolved with. A
-  refusal names the superseded node, its type and the kept node only where that end caused it:
-  the property its type does not declare, or the end of a relation its edge type does not connect.
+  created for it. A key is checked alone, and again as the group of keys it is resolved with;
+  under `strict` either refusal refuses the document. A refusal names the superseded node, its
+  type and the kept node only where that end caused it: the property the kept node's type does
+  not declare, or the end of a relation whose kept node's type its edge type does not connect —
+  the same refusal from the verb and from the SDK.
 - **In the same transaction.** A `NodeRef` value of any operation naming a node the transaction
   supersedes is `superseded-node-named-in-transaction`, as an endpoint is; an operation naming an
   edge the transaction retires is refused by that code alone, not also as `unresolved-edge`.

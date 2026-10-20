@@ -29,12 +29,15 @@
 //! the node the key resolves to, which a supersession record can make a node of another type
 //! (`story:supersede-node-review-fixes`, D6 and Q4): such a key takes the kept node's properties
 //! and edge ends, a fact the kept type does not admit is skipped before anything only it names is
-//! created, and its refusal names the supersession of each end that caused it. So is a `!Property` fact marked `replaces` that neither the store —
+//! created, and its refusal names the supersession of each end that caused it. A key is checked
+//! alone and again as the group it is resolved with, and a fact the group's type does not admit
+//! is skipped the same way. So is a `!Property` fact marked `replaces` that neither the store —
 //! on the nodes `ekr resolve` would answer its subject with — nor an earlier fact of the document
 //! holds an active value of its property for ([`REPLACES_NOTHING`]). It is listed under
 //! [`ExtractionReport::rejected`] with its refusal, and nothing only it names is resolved, created
 //! or added. [`ApplyOptions::strict`] refuses the whole document for it instead, as [`apply`] did
-//! before — but a replacement with nothing to replace, which depends on the store, is skipped
+//! before — a fact a kept node's type does not admit included, whether its key alone or its group
+//! lands there — but a replacement with nothing to replace, which depends on the store, is skipped
 //! under it too.
 //!
 //! In order, over `transport`:
@@ -633,8 +636,8 @@ impl Plan {
     /// (`story:supersede-node-review-fixes`, D6 and Q4). A named thing is resolved as its group,
     /// every alias of the keys sharing one, so once the groups are made a fact whose group lands on
     /// another type than its key alone does is checked again against the group's, and skipped if
-    /// that type refuses it — before anything is resolved, as a replacement with nothing to
-    /// replace is, so no node is created for a fact that is then refused.
+    /// that type refuses it — or, under `options.strict`, the document refused, as for a key —
+    /// before anything is resolved, so no node is created for a fact that is then refused.
     fn of(
         document: &ExtractionDocument,
         ontology: &Ontology,
@@ -740,6 +743,9 @@ impl Plan {
                 };
                 match planned {
                     Ok(planned) => facts.push(planned),
+                    // A fact its group lands on another type for is refused as one its key does
+                    // is: under `strict`, the whole document.
+                    Err(defect) if options.strict => return Err(defect.into_error()),
                     Err(defect) => {
                         refused.insert(at, defect.into_refusal());
                         facts.push(None);
@@ -1165,9 +1171,10 @@ pub fn apply_with<T: Transport + ?Sized>(
 /// The refusal of a fact the caller's reader refused (`ApplyOptions::refused`), naming the
 /// supersession of each end it resolved through that is its cause
 /// (`story:supersede-node-review-fixes`, D6): a property undeclared, or a value its property does
-/// not hold, on a subject whose
-/// key resolves through a supersession record to a node of another type; and an end of a relation
-/// that does not connect by its key's own type or by the type of the node its key resolves to.
+/// not hold, on a subject whose key resolves through a supersession record to a node of another
+/// type; and an end of a relation whose key resolves so, where the type of the node it lands on
+/// does not connect — the end [`ends_connect`] names for the same fact, so `ekr apply-extraction`,
+/// whose reader types each key as the SDK does, and the SDK give one refusal for one fact.
 /// A refusal of anything else, and one no supersession reaches, is the reader's, unchanged. The
 /// SDK's own refusals name their cause where they are made, and a refusal by validation names
 /// none: the checks before it hold each end to the type of the node it lands on.
@@ -1190,9 +1197,7 @@ fn named_by_cause(
                 .into_iter()
                 .filter_map(|(reference, source)| {
                     let landed = kept.of(&reference.node_type, &reference.aliases)?;
-                    let connects =
-                        |node_type: &str| ontology.connects_end(&fact.relation, node_type, source);
-                    (!connects(&reference.node_type) || !connects(&landed.node_type))
+                    (!ontology.connects_end(&fact.relation, &landed.node_type, source))
                         .then_some(landed)
                 })
                 .collect()
