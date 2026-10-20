@@ -180,9 +180,9 @@ WHERE VALUES COME FROM
                    transaction_time.recorded_from is written as 0 and set by the kernel
   evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
                    its AttachEvidence operations attach, its CiteEvidence operations cite and
-                   its SupersedeNode operations rest on, and each must be retained (seeded, or
-                   added by an earlier commit) or be added by an AddEvidence of the same
-                   transaction (see ADDING EVIDENCE)
+                   its SupersedeNode and MergeEntity operations rest on, and each must be
+                   retained (seeded, or added by an earlier commit) or be added by an
+                   AddEvidence of the same transaction (see ADDING EVIDENCE)
   content hashes   ekr hash <file | ->
 
 RESOLVE BEFORE YOU CREATE: ekr resolve
@@ -210,7 +210,8 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   node kept. A duplicate of the node kept's type, or of a type related to it through parents,
   is merged into it with MergeEntity (`ekr operations MergeEntity`) instead: it leaves every head
   read as a superseded node does, and every edge, assertion and NodeRef naming it is rewritten
-  to the node kept rather than retired.
+  to the node kept rather than retired, except an edge joining the two and an edge duplicating
+  one the node kept holds, which are retired into its record.
 
 EXTRACTION DOCUMENTS
   An agent that extracts knowledge from sources writes it as one ekr.extraction-document/1

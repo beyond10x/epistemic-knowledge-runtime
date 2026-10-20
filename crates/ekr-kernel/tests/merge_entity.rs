@@ -711,6 +711,49 @@ fn a_merge_that_would_exceed_edge_cardinality_is_refused() {
     });
 }
 
+/// An edge the merge's own transaction creates and deletes again is gone when the merge applies:
+/// the duplicate's edge to the same end is rewritten rather than collapsed onto it, and counts
+/// toward the kept node's cardinality (haiku review of PR #101, slices 2 and 3).
+#[test]
+fn a_merge_does_not_collapse_onto_an_edge_its_transaction_deletes() {
+    each_store(|at, _, _, _, kernel| {
+        let (kept_edge, duplicate_edge, cancelled) =
+            (EdgeId::mint(), EdgeId::mint(), EdgeId::mint());
+        committed(
+            kernel,
+            &transaction(
+                vec![
+                    edge(kept_edge, PRIMARY_TAG, KEPT, PARSER, &[]),
+                    edge(duplicate_edge, PRIMARY_TAG, DUPLICATE, LEXER, &[]),
+                ],
+                &[],
+            ),
+            20,
+        );
+        let head = kernel.head().unwrap().unwrap();
+        let verdict = submit(
+            kernel,
+            &transaction(
+                vec![
+                    edge(cancelled, PRIMARY_TAG, KEPT, LEXER, &[]),
+                    GraphOperation::DeleteEdge(cancelled),
+                    merge(DUPLICATE, KEPT),
+                ],
+                &[id(STATEMENT)],
+            ),
+            30,
+        );
+        assert_eq!(
+            codes(&verdict),
+            vec![(ValidatorName::Cardinality, "edge-cardinality".to_owned())],
+            "{at}: {verdict:?}"
+        );
+        let message = &refused(&verdict)[0].2;
+        assert!(!message.contains(&cancelled.to_string()), "{at}: {message}");
+        assert_eq!(kernel.head().unwrap().unwrap(), head, "{at}: nothing moved");
+    });
+}
+
 /// `a-merge-into-a-parent-type-keeps-the-survivors-type`: a MergeRequest merged into a WorkItem,
 /// its parent type, commits; the kept node stays a WorkItem and the record holds the merge request
 /// as one. A WorkItem merged into a MergeRequest, the other way, keeps the MergeRequest.
@@ -1662,6 +1705,17 @@ fn a_merge_is_refused_by_name() {
                 "two merges in one transaction",
                 transaction(
                     vec![merge(DUPLICATE, KEPT), merge(ISSUE, LATER)],
+                    &[statement],
+                ),
+                vec![structural("superseded-node-named-in-transaction")],
+                None,
+            ),
+            // Refused for the count alone: no merge of such a transaction is checked, so a
+            // document of many merges costs one refusal, not a pass and issues per merge.
+            (
+                "two merges in one transaction, one across sibling types",
+                transaction(
+                    vec![merge(DUPLICATE, KEPT), merge(REQUEST, ISSUE)],
                     &[statement],
                 ),
                 vec![structural("superseded-node-named-in-transaction")],

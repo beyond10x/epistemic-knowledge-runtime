@@ -5,7 +5,8 @@
 //! makes is one a transaction could have written — every property the absorbed node holds declared
 //! by the node kept's type and free of conflict with it, every duplicate edge equal to the one it
 //! collapses onto, every rewritten edge end and active relation assertion of an allowed type, no
-//! active relation assertion made a relation of the node kept to itself, every rewritten
+//! active relation assertion joining the two nodes (it would relate the node kept to itself;
+//! design § 111.3 names that pair only), every rewritten
 //! `NodeRef` value admitted by its declaration, and every count within its cardinality once the
 //! duplicates have collapsed.
 //!
@@ -135,13 +136,14 @@ pub(super) fn checks(
     candidate: &Candidate<'_>,
 ) -> Vec<MergeCheck> {
     let merges: Vec<&EntityMerge> = merge::shaped(tx).collect();
-    if merges.is_empty() {
+    // More than one merge is refused for that alone (`same_transaction`). Checking each would read
+    // the head once per merge and keep, then report, what each would rewrite: a document of k
+    // merges would cost k passes and up to k issues per edge for one verdict.
+    let [merge] = merges.as_slice() else {
         return Vec::new();
-    }
-    let state = snapshot.graph();
-    merges
+    };
+    check_one(snapshot.graph(), tx, candidate, merge)
         .into_iter()
-        .filter_map(|merge| check_one(state, tx, candidate, merge))
         .collect()
 }
 
@@ -225,6 +227,9 @@ fn check_one(
         }
     }
     let gone = |edge: EdgeId| deleted.contains(&edge) || candidate.retires(&edge);
+    // An edge the transaction creates and deletes again is gone before the merge applies, as a
+    // held edge it deletes is: nothing collapses onto it, and it counts toward no cardinality.
+    near.retain(|edge| !gone(edge.id));
     near.extend(
         state
             .edges
