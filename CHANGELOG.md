@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.41] — 2026-10-21
+
 ### Added
 
 - `!MergeEntity {absorbed, into, reason, evidence}` applies (story:merge-entity-applies, design
