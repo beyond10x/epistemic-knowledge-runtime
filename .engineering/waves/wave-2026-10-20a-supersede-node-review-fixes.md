@@ -36,6 +36,13 @@ inferred); no `aep:story-scoper` ran, because every surface is a reviewer's cita
 - `target/` reached 47G (the `adr-changes` monitor session's `du`); `cargo clean -p` of the 11
   workspace members brought it to 3.7G and `/` to 77G free; later builds run with
   `CARGO_INCREMENTAL=0`, one at a time. The disk watch logged no stop.
+- The first full gate on `478807e5` was stopped by the coordinator in its `test` step, after
+  `fmt-check`, `search-web-check` and `clippy` exited 0, at `adr-changes`' alarm: `/` at 18G free,
+  `target/debug/deps` 44G (`du`) holding 508 entries without an extension. The watch had logged no
+  stop (it polled every 20 s); it now polls every 5 s. The cache was discarded with
+  `worktree discard-cache` (`/` to 89G free) and the gate rerun with `CARGO_PROFILE_DEV_DEBUG=0`.
+  Cause: `cargo test --workspace` links about 250 integration-test binaries, each with the
+  opt-level-3 dependency tree; one run writes about 45G.
 
 ## Pre-flight
 
@@ -47,4 +54,13 @@ inferred); no `aep:story-scoper` ran, because every surface is a reviewer's cita
 
 ## Gate
 
-Not run yet.
+Local rerun on `478807e5` in the U1 tree (`<home>/.cache/ekr-w20a-u1-scratch/gate-478807e5-2/status.txt`):
+`fmt-check`, `search-web-check`, `clippy`, `spec-check`, `conform-fresh`, `plan-check`, `site-check`
+and `cargo fmt --all -- --check` exit 0. `test` ran 2077 cases before the disk watch stopped it at
+under 20G free (six STOP lines, 08:15–08:17Z, `/` down to 17G with other sessions building): 2076
+passed, 1 failed, `ekr-ontology`'s `yaml_ingress::every_production_yaml_reader_has_an_explicit_input_policy`,
+because the T6 test in `replay.rs`'s test module is a third `serde_yaml_ng::to_string` and the
+inventory pinned two (fixed in `52dcc3cc`). `doc-check`, `vendor-check` and the `ekr` cross-crate
+lane were stopped by the watch (exit 143/201), not failed. The implementor's lanes had not run
+`ekr-ontology`'s tests, which is how the count slipped through. The full gate runs again as the pull
+request's `Repository correctness` job.
