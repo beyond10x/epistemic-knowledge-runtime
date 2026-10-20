@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-20T09:05:03Z",
+  "actor": "agent:claude-ekr-session",
+  "artifact": "story:supersede-node-review-fixes",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "D1, D2, D3, D6 and D9 cases ran red before their fixes and green after (implementor red.log, red2.log); adversary probe: D9 index equal to the 0.0.39 scans on 2,000 record sets",
+    "reference": "base 01830917d0 vs f982c3404"
+  }
+}

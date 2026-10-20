@@ -16,8 +16,8 @@ use std::sync::OnceLock;
 use ekr_sdk::batch::Batcher;
 use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::document::{
-    AgentId, AliasAddition, GraphRootId, NodeDraft, NodeId, Operation, PropertyId,
-    PropertyMutation, TransactionBuilder, TypeId, TypedReference, Value,
+    AgentId, AliasAddition, EvidenceId, GraphRootId, NodeDraft, NodeId, NodeSupersession,
+    Operation, PropertyId, PropertyMutation, TransactionBuilder, TypeId, TypedReference, Value,
 };
 use ekr_sdk::reply::Answer;
 use ekr_sdk::resolve::{Flushed, Resolution, Resolver};
@@ -664,5 +664,72 @@ fn an_alias_committed_by_a_second_process_between_two_resolves_makes_no_duplicat
         }
         assert!(!organizations.contains_key(&first.to_string()));
         assert!(!organizations.contains_key(&second.to_string()));
+    }
+}
+
+/// `story:supersede-node-review-fixes` D2 (`a-supersession-drops-the-cached-answers-it-retires`):
+/// `dup` and `keep` resolve to two organizations, cached; the consumer's batch supersedes `dup`'s
+/// node by `keep`'s and the resolver observes it. A resolve of `dup` then asks `ekr resolve` again
+/// and answers the kept node, as `ekr resolve` does, instead of the superseded one from the cache;
+/// `keep` stays cached. On both providers.
+#[test]
+fn an_observed_supersession_drops_the_answers_naming_the_superseded_node() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let mut session = world.seeded();
+        let mut transport = RecordingTransport::record(&mut session);
+        let mut resolver = Resolver::new(root(), operator());
+        let batcher = Batcher::new(operator());
+
+        let duplicate = TypedReference::new(organization(), ["dup"]);
+        let wider = TypedReference::new(organization(), ["dup", "dup-inc"]);
+        let keep = TypedReference::new(organization(), ["keep"]);
+        let retired = node_of(&resolver.resolve(&mut transport, &duplicate).unwrap());
+        let kept = node_of(&resolver.resolve(&mut transport, &keep).unwrap());
+        let flushed = resolver.flush(&mut transport).unwrap();
+        assert!(
+            flushed.report.rejected.is_empty(),
+            "{backend:?}: {flushed:?}"
+        );
+        assert_eq!(
+            resolver.resolve(&mut transport, &wider).unwrap(),
+            Resolution::Resolved(retired),
+            "{backend:?}"
+        );
+        let asked = resolves(&transport);
+
+        let statement: EvidenceId = id("00000000-0000-4000-8000-000000000401");
+        let groups = vec![vec![NodeSupersession::new(
+            retired,
+            kept,
+            "recorded twice",
+            [statement],
+        )
+        .into()]];
+        let report = batcher.commit(&mut transport, &groups).unwrap();
+        assert!(report.rejected.is_empty(), "{backend:?}: {report:?}");
+        resolver.observe(&report, &groups);
+
+        for reference in [&duplicate, &wider] {
+            assert_eq!(
+                resolver.resolve(&mut transport, reference).unwrap(),
+                Resolution::Resolved(kept),
+                "{backend:?}: {reference:?} answers the kept node"
+            );
+        }
+        assert_eq!(
+            resolves(&transport),
+            asked + 2,
+            "{backend:?}: each key naming the superseded node was asked again"
+        );
+        assert_eq!(
+            resolver.resolve(&mut transport, &keep).unwrap(),
+            Resolution::Resolved(kept)
+        );
+        assert_eq!(
+            resolves(&transport),
+            asked + 2,
+            "{backend:?}: keep stays cached"
+        );
     }
 }

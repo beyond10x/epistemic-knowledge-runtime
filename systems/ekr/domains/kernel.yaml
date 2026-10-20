@@ -737,8 +737,9 @@ types:
   # AddAssertion subject or object, a NodeRef value — is node-superseded (Reference), naming the
   # node it is superseded by; a RetractAssertion of an assertion about one is not, and commits. A
   # CreateNode or AddAlias of a superseded node's type and one of its aliases is
-  # alias-already-exists (Structural), and a CreateNode or CreateEdge reusing its id or a retired
-  # edge's is identity-already-exists (Structural). A transaction without a SupersedeNode is
+  # alias-already-exists (Structural); a CreateNode reusing its id, or a CreateEdge reusing a
+  # retired edge's, is identity-already-exists (Structural) under every profile, and the
+  # cross-kind reuses are refused under profile v3 only. A transaction without a SupersedeNode is
   # validated exactly as before the kind existed, so no retained rejection replays differently and
   # no retained address moves.
   - name: ekr.kernel.NodeSupersession

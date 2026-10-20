@@ -7,7 +7,7 @@
 //! every fact kind and every field the crate reads is the one `systems/ekr/domains/integrate.yaml`
 //! declares.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use ekr_integrate::{
@@ -566,4 +566,139 @@ fn the_example_reads_into_the_exported_fact_and_evidence_types() {
     };
     assert_eq!(property, "status");
     assert_eq!(value, &ekr_ontology::Value::Enum("active".to_owned()));
+}
+
+/// The example store's types: Person and Organization.
+const PERSON: u64 = 0x201;
+const ORGANIZATION: u64 = 0x202;
+
+fn fixed<T: std::str::FromStr>(n: u64) -> T
+where
+    T::Err: std::fmt::Debug,
+{
+    format!("00000000-0000-4000-8000-{n:012x}").parse().unwrap()
+}
+
+/// The example store's graph after node `superseded` (of type `old`, known by `alias`) is
+/// superseded by node `kept` (of type `new`, known by `kept_alias`): the kept node held, the other
+/// in its record.
+fn superseded_graph(
+    (superseded, old, alias): (u64, u64, &str),
+    (kept, new, kept_alias): (u64, u64, &str),
+) -> ekr_graph::CanonicalGraph {
+    use ekr_graph::{CanonicalRef, GraphRoot, Node, Space, SupersededNode};
+    let ontology = store();
+    let root = GraphRoot {
+        id: fixed(2),
+        space: Space::Canonical,
+        schema_version_id: ontology.version().id,
+        parent: None,
+        created_at: ekr_core::Timestamp::EPOCH,
+    };
+    let node = |id: u64, type_id: u64, alias: &str| {
+        let mut node = Node::new(fixed(id), root.id, fixed(type_id), alias);
+        node.aliases = vec![alias.to_owned()];
+        node
+    };
+    let held = node(kept, new, kept_alias);
+    let retired = node(superseded, old, alias);
+    ekr_graph::CanonicalGraph {
+        root,
+        revision: ekr_core::RevisionNumber::new(1),
+        ontology,
+        nodes: std::collections::BTreeMap::from([(held.id, held)]),
+        edges: std::collections::BTreeMap::new(),
+        assertions: std::collections::BTreeMap::new(),
+        evidence: std::collections::BTreeMap::new(),
+        attachments: std::collections::BTreeMap::new(),
+        superseded: std::collections::BTreeMap::from([(
+            retired.id,
+            SupersededNode {
+                node: retired,
+                edges: std::collections::BTreeMap::new(),
+                by: CanonicalRef::new(fixed(kept)),
+                revision: ekr_core::RevisionNumber::new(1),
+                reason: "recorded twice".to_owned(),
+                evidence: std::collections::BTreeSet::new(),
+            },
+        )]),
+    }
+}
+
+/// A document of `facts`, every one citing its one evidence item.
+fn with_facts(facts: &str) -> ExtractionDocument {
+    let payload = b"Carol runs the company the registry lists.";
+    let bytes: Vec<String> = payload.iter().map(u8::to_string).collect();
+    ExtractionDocument::from_yaml(&format!(
+        "format: ekr.extraction-document/1\nfacts:\n{facts}evidence:\n- evidence:\n    id: \
+         00000000-0000-4000-8000-000000000421\n    source: !HumanStatement\n      identity: \
+         Registry extract\n    content_hash: {}\n    extracted_by: \
+         00000000-0000-4000-8000-000000000101\n    observed_at: 1775001600000\n    confidence: \
+         9000\n  payload: [{}]\n",
+        ekr_core::ContentHash::of_bytes(payload).to_hex(),
+        bytes.join(", ")
+    ))
+    .expect("the document decodes")
+}
+
+/// `story:supersede-node-review-fixes` D6 and Q4, the engine's reader: checked against a graph,
+/// a fact's subject and object are typed by the node their key resolves to there, where a
+/// supersession record resolves it to a node of another type, and checked against the store's
+/// ontology alone they are typed by the key. Acme, an organization, superseded by Alice, a person:
+/// Carol `CEO_OF` the organization `acme` is a Person to a Person at that graph and refused there.
+/// Bob, a person, superseded by Acme: Carol `CEO_OF` the person `bob`, and the person `bob`'s
+/// `legal_name`, hold for Acme and are refused only by the key's own type.
+#[test]
+fn checked_at_a_graph_a_fact_is_typed_by_the_node_its_key_resolves_to() {
+    let carol_of_acme = with_facts(
+        "- !Relation\n  subject: {node_type: Person, aliases: [carol]}\n  relation: CEO_OF\n  \
+         object: {node_type: Organization, aliases: [acme]}\n  evidence: \
+         [00000000-0000-4000-8000-000000000421]\n",
+    );
+    let acme_by_alice = superseded_graph((0x303, ORGANIZATION, "acme"), (0x301, PERSON, "alice"));
+    assert_eq!(carol_of_acme.check_facts(&store()), Ok(BTreeMap::new()));
+    let ends = ExtractionRefusal {
+        code: ExtractionRefusalCode::ExtractionRelationEnds,
+        name: "facts[0]: Person CEO_OF Person".to_owned(),
+    };
+    assert_eq!(
+        carol_of_acme.check_facts_at(&acme_by_alice),
+        Ok(BTreeMap::from([(0, ends.clone())]))
+    );
+    assert_eq!(carol_of_acme.check_at(&acme_by_alice), Err(ends));
+
+    let bob_by_acme = superseded_graph((0x302, PERSON, "bob"), (0x303, ORGANIZATION, "acme"));
+    let of_bob = with_facts(
+        "- !Relation\n  subject: {node_type: Person, aliases: [carol]}\n  relation: CEO_OF\n  \
+         object: {node_type: Person, aliases: [bob]}\n  evidence: \
+         [00000000-0000-4000-8000-000000000421]\n- !Property\n  subject: {node_type: Person, \
+         aliases: [bob]}\n  property: legal_name\n  value: {value_kind: String, value: Acme \
+         Holdings}\n  evidence: [00000000-0000-4000-8000-000000000421]\n",
+    );
+    assert_eq!(
+        of_bob.check_facts(&store()),
+        Ok(BTreeMap::from([
+            (
+                0,
+                ExtractionRefusal {
+                    code: ExtractionRefusalCode::ExtractionRelationEnds,
+                    name: "facts[0]: Person CEO_OF Person".to_owned(),
+                }
+            ),
+            (
+                1,
+                ExtractionRefusal {
+                    code: ExtractionRefusalCode::ExtractionPropertyUndeclared,
+                    name: "Person.legal_name".to_owned(),
+                }
+            ),
+        ]))
+    );
+    assert_eq!(of_bob.check_facts_at(&bob_by_acme), Ok(BTreeMap::new()));
+    assert_eq!(of_bob.check_at(&bob_by_acme), Ok(()));
+    assert_eq!(
+        of_bob.check_facts_at(&acme_by_alice),
+        of_bob.check_facts(&store()),
+        "a graph where the key resolves to its own type checks as the ontology does"
+    );
 }

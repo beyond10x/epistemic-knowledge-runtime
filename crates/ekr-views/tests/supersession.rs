@@ -16,7 +16,8 @@ use ekr_views::{
 use serde_json::Value;
 
 use support::fixtures::{
-    self, id, Fixture, Provider, ALPHA_NODE, BETA_NODE, SEEDED_LINK, SUPERSEDED_KEPT,
+    self, id, Fixture, Provider, ALPHA_NODE, BETA_NODE, REFERENCING_EDGE_CLAIM,
+    REFERENCING_RELATION, SEEDED_LINK, SUPERSEDED_KEPT,
 };
 
 fn uuid(n: u64) -> String {
@@ -259,4 +260,129 @@ fn a_timeline_of_a_superseded_subject_names_its_successor() {
             .expect("an unheld subject is no refusal");
         assert_eq!(unknown.summary.rows, 0, "{provider}");
     });
+}
+
+/// Each provider's [`fixtures::build_superseded_referencing`] store, with its head index and
+/// revision 1's, at which beta and its edge are still held.
+fn each_referencing(mut run: impl FnMut(&str, &Index, &Index)) {
+    for provider in [Provider::File, Provider::Sqlite] {
+        let work = tempfile::tempdir().expect("work directory");
+        let runtime = fixtures::open(work.path(), provider);
+        fixtures::build_superseded_referencing(&runtime);
+        let head = Index::load(&runtime, None).expect("the head indexes");
+        let before = Index::load(&runtime, Some(RevisionNumber::new(1))).expect("revision 1");
+        run(provider.name(), &head, &before);
+    }
+}
+
+/// `story:supersede-node-review-fixes` D1 (`a-superseded-subject-references-nothing`): alpha is
+/// the object of a Relation assertion about beta and of an assertion about the edge from alpha to
+/// beta. Once beta is superseded, `DescribeNode` /1 of alpha lists neither under `referencing` and
+/// counts neither, as it lists neither under any other key; at revision 1 it lists both.
+#[test]
+fn a_live_nodes_referencing_omits_assertions_about_a_superseded_subject() {
+    each_referencing(|provider, head, before| {
+        let alpha: NodeId = id(ALPHA_NODE);
+        let listed = |index: &Index| {
+            let answer = index.describe(alpha).expect("alpha is held");
+            let document = json(&answer.bytes);
+            let ids: Vec<String> = document["referencing"]
+                .as_array()
+                .expect("referencing")
+                .iter()
+                .map(|entry| entry["assertion"]["id"].as_str().expect("an id").to_owned())
+                .collect();
+            (ids, answer.summary.referencing)
+        };
+        let kept = [uuid(REFERENCING_RELATION), uuid(REFERENCING_EDGE_CLAIM)];
+        let (earlier, counted) = listed(before);
+        for claim in &kept {
+            assert!(
+                earlier.contains(claim),
+                "{provider}: revision 1 lists {claim} under referencing: {earlier:?}"
+            );
+        }
+        assert_eq!(counted, 2, "{provider}: revision 1 counts both");
+        let (now, counted) = listed(head);
+        for claim in &kept {
+            assert!(
+                !now.contains(claim),
+                "{provider}: the head lists {claim}, about a superseded subject: {now:?}"
+            );
+        }
+        assert_eq!(counted, 0, "{provider}: the head counts {now:?}");
+    });
+}
+
+/// `story:supersede-node-review-fixes` D3 (`a-superseded-subject-dates-nothing`): the Relation
+/// assertion `beta links alpha`, valid from an hour after alpha's own claim, is alpha's second
+/// dated fact while beta is held, so revision 1 judges one `Subject` by its facts. Once beta is
+/// superseded the head dates nothing from it — the overview's timeline already omits it — so alpha
+/// has one dated fact and no `Subject` is judged.
+#[test]
+fn an_assertion_about_a_superseded_subject_dates_no_node() {
+    each_referencing(|provider, head, before| {
+        let subject_timing = |index: &Index| {
+            let overview = json(
+                &index
+                    .overview(&OverviewRequest::new(None).expect("bounds"))
+                    .expect("the overview answers")
+                    .bytes,
+            );
+            overview["roles"]["types"]
+                .as_array()
+                .expect("roles")
+                .iter()
+                .find(|timing| timing["type"] == Value::String(uuid(fixtures::SUBJECT_TYPE)))
+                .expect("the Subject type")
+                .clone()
+        };
+        assert_eq!(
+            subject_timing(before)["judged"],
+            1,
+            "{provider}: alpha has two dated facts while beta is held"
+        );
+        let timing = subject_timing(head);
+        assert_eq!(
+            timing["judged"], 0,
+            "{provider}: a fact about the superseded beta dates alpha: {timing}"
+        );
+        assert_eq!(timing["within_hour"], 0, "{provider}: {timing}");
+    });
+}
+
+/// `story:supersede-node-review-fixes` D9 (`a-read-indexes-retired-edges-once`): a sample filtered
+/// to the `links` edge type reads two assertions about the edge retired with beta — the seeded
+/// one and `about` — and looks the edge up for its type and its pointer. Counted, not timed: the
+/// read reads each supersession record once, however many lookups it makes.
+#[test]
+fn a_sample_reads_each_supersession_record_once() {
+    for provider in [Provider::File, Provider::Sqlite] {
+        let name = provider.name();
+        let work = tempfile::tempdir().expect("work directory");
+        let runtime = fixtures::open(work.path(), provider);
+        fixtures::build_superseded_referencing(&runtime);
+        let read = runtime.read(None).expect("the head reads");
+        assert_eq!(read.graph.superseded.len(), 1, "{name}");
+        let request =
+            ekr_views::SampleRequest::new(7, 10, Some(id(fixtures::LINKS_TYPE))).expect("bounds");
+        let before = ekr_graph::supersession_records_read();
+        let drawn = ekr_views::sample(&read, &request).expect("the sample draws");
+        let reads = ekr_graph::supersession_records_read() - before;
+        assert_eq!(drawn.summary.population, 2, "{name}: {:?}", drawn.summary);
+        assert_eq!(reads, 1, "{name}: supersession records read for one sample");
+        let document = json(&drawn.bytes);
+        for item in document["items"].as_array().expect("items") {
+            assert_eq!(
+                item["subject_superseded_by"],
+                Value::String(uuid(SUPERSEDED_KEPT)),
+                "{name}: {item}"
+            );
+            assert_eq!(
+                item["subject_type"],
+                Value::String(uuid(fixtures::LINKS_TYPE)),
+                "{name}: {item}"
+            );
+        }
+    }
 }

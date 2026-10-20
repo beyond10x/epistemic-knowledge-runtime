@@ -201,20 +201,20 @@ pub fn draw_sample(
     sample(&read, request)
 }
 
-/// The type a subject is of: a node's type, an edge's type, or a Type subject's own id.
-fn subject_type(read: &VerifiedRead, subject: &Subject) -> Option<TypeId> {
+/// The type a subject is of: a node's type, an edge's type — one the revision holds, or one
+/// retired with a superseded node, looked up in `retired`, the read's one index of the records
+/// (`story:supersede-node-review-fixes`, D9) — or a Type subject's own id.
+fn subject_type(
+    graph: &ekr_graph::CanonicalGraph,
+    retired: &ekr_graph::RetiredEdges<'_>,
+    subject: &Subject,
+) -> Option<TypeId> {
     match subject {
-        Subject::Node(node) => held_node(&read.graph, node.id()).map(|node| node.type_id),
-        Subject::Edge(edge) => read
-            .graph
+        Subject::Node(node) => held_node(graph, node.id()).map(|node| node.type_id),
+        Subject::Edge(edge) => graph
             .edges
             .get(&edge.id())
-            .or_else(|| {
-                read.graph
-                    .superseded
-                    .values()
-                    .find_map(|record| record.edges.get(&edge.id()))
-            })
+            .or_else(|| retired.edge(edge.id()))
             .map(|edge| edge.type_id),
         Subject::Type(type_id) => Some(*type_id),
     }
@@ -303,14 +303,16 @@ pub fn sample(
     request: &SampleRequest,
 ) -> Result<Answer<FactSampleDrawn>, ProjectError> {
     let graph = &read.graph;
+    // Built once for the read, and only where a record holds an edge to look up.
+    let retired = graph.retired_edges();
     let mut ranked: Vec<(String, String, &ekr_graph::Assertion)> = graph
         .assertions
         .values()
         .filter(|assertion| matches!(assertion.lifecycle, AssertionLifecycle::Active))
         .filter(|assertion| {
-            request
-                .type_id
-                .is_none_or(|wanted| subject_type(read, &assertion.subject) == Some(wanted))
+            request.type_id.is_none_or(|wanted| {
+                subject_type(graph, &retired, &assertion.subject) == Some(wanted)
+            })
         })
         .map(|assertion| {
             (
@@ -341,7 +343,7 @@ pub fn sample(
                     ("Type", type_id.to_string(), type_name(ontology, *type_id))
                 }
             };
-            let of_type = subject_type(read, &assertion.subject);
+            let of_type = subject_type(graph, &retired, &assertion.subject);
             let predicate_name = match assertion.predicate {
                 Predicate::Property(property) => {
                     of_type.and_then(|type_id| property_name(ontology, type_id, property))
@@ -352,10 +354,8 @@ pub fn sample(
             // retired with; and of a superseded object node (ADR 0017 decision 3).
             let subject_superseded_by = match &assertion.subject {
                 Subject::Node(node) => graph.superseded_by(node.id()),
-                Subject::Edge(edge) if !graph.superseded.is_empty() => {
-                    graph.retired_with(edge.id()).map(|(_, by)| by)
-                }
-                Subject::Edge(_) | Subject::Type(_) => None,
+                Subject::Edge(edge) => retired.retired_with(edge.id()).map(|(_, by)| by),
+                Subject::Type(_) => None,
             }
             .map(|by| by.to_string());
             let (object_name, object_superseded_by) = match &assertion.object {

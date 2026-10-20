@@ -2,10 +2,12 @@
 //! store (`ekr.integrate.ApplyExtraction`, `story:extraction-verb-shares-the-sdk-path`).
 //!
 //! The document is read by the engine's reader, `ekr_integrate`'s `ExtractionDocument`, against
-//! the ontology of the store's head; a document it refuses is refused by its code (exit 2) and
+//! the store's head: its ontology, each fact's subject and object typed by the node its key
+//! resolves to there (`ExtractionDocument::check_facts_at`, `story:supersede-node-review-fixes`,
+//! D6 and Q4); a document it refuses is refused by its code (exit 2) and
 //! nothing is written. A fact it refuses is skipped and reported under `rejected`, and the rest
 //! applies (`story:extraction-partial-apply`); `--strict` refuses the document for it instead, as
-//! `ekr_integrate::read_extraction` does. Otherwise the SDK's own routine,
+//! `ExtractionDocument::check_at` does. Otherwise the SDK's own routine,
 //! `ekr_sdk::extraction::apply_with`, applies it over [`InProcess`]: a transport that answers each
 //! request through the session's own dispatch, against the runtime this verb opened, with no child
 //! process. So the verb writes exactly what a consumer writes running that routine over a child
@@ -62,15 +64,16 @@ fn applied<'a, T: Transport>(
     let mut options = ApplyOptions::default();
     {
         let read = runtime.read(None)?;
-        let ontology = &read.graph.ontology;
+        let document =
+            ekr_integrate::ExtractionDocument::from_yaml(text).map_err(|error| refused(&error))?;
         if strict {
-            ekr_integrate::read_extraction(text, ontology).map_err(|error| refused(&error))?;
+            document
+                .check_at(&read.graph)
+                .map_err(|refusal| refused(&ekr_integrate::ExtractionError::Refused(refusal)))?;
             options = options.strict();
         } else {
-            let document = ekr_integrate::ExtractionDocument::from_yaml(text)
-                .map_err(|error| refused(&error))?;
             let facts = document
-                .check_facts(ontology)
+                .check_facts_at(&read.graph)
                 .map_err(|refusal| refused(&ekr_integrate::ExtractionError::Refused(refusal)))?;
             let facts: BTreeMap<usize, ExtractionRefusal> = facts
                 .into_iter()

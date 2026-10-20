@@ -44,7 +44,10 @@ pub struct SupersededNode<V: ValueSpace = CanonicalValue> {
     /// aliases, lifecycle state and properties.
     #[serde(bound(deserialize = "V: Deserialize<'de>"))]
     pub node: Node<V>,
-    /// Every edge that had the node at either end, by id, as the head held it.
+    /// The edges retired with the node, by id, as the head held them: every edge that had it at
+    /// either end, except that an edge between two nodes one transaction supersedes is retired
+    /// once, into the record of its source, and the record of its target does not hold it
+    /// (design § 110.2).
     #[serde(
         deserialize_with = "ekr_core::decode::unique_map",
         bound(deserialize = "V: Deserialize<'de>")
@@ -84,3 +87,74 @@ impl Canonical for SupersededNode {
 
 /// Every superseded node of a graph, by the node's id.
 pub type Superseded = BTreeMap<NodeId, SupersededNode>;
+
+thread_local! {
+    static RECORDS_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Counts one supersession record read by a lookup of a retired edge.
+pub(crate) fn read_record() {
+    RECORDS_READ.with(|count| count.set(count.get() + 1));
+}
+
+/// How many supersession records the calling thread has read to find the record an edge was
+/// retired into: one per record [`RetiredEdges::of`] indexes, and one per record
+/// [`CanonicalGraph::retired_with`](crate::CanonicalGraph::retired_with) passes on its way.
+///
+/// Test instrumentation, as `ekr_store::knowledge_roots_hashed` is: it lets a test show that a
+/// validation or a read looks retired edges up in one index rather than scanning every record per
+/// lookup (`story:supersede-node-review-fixes`, D9). Counted per thread because validation and
+/// reads run on their caller's thread, and tests in one binary run on several.
+#[doc(hidden)]
+#[must_use]
+pub fn supersession_records_read() -> u64 {
+    RECORDS_READ.with(std::cell::Cell::get)
+}
+
+/// Every edge the supersession records of one graph hold, by the edge's id, with the record that
+/// holds it: built in one pass over the records, so a reader that looks many retired edges up —
+/// a validation, a sample — reads each record once rather than once per lookup
+/// (`story:supersede-node-review-fixes`, D9).
+///
+/// An edge is held by exactly one record: an edge between two nodes one transaction supersedes is
+/// retired into its source's record (design § 110.2).
+#[derive(Clone, Debug, Default)]
+pub struct RetiredEdges<'g>(BTreeMap<EdgeId, &'g SupersededNode>);
+
+impl<'g> RetiredEdges<'g> {
+    /// The index of `superseded`'s retired edges. An edge two records held — which no commit
+    /// makes — is filed under the first in node-id order, the record
+    /// [`CanonicalGraph::retired_with`](crate::CanonicalGraph::retired_with)'s scan finds, so the
+    /// two answer alike for every record set.
+    #[must_use]
+    pub fn of(superseded: &'g Superseded) -> Self {
+        let mut index = BTreeMap::new();
+        for record in superseded.values() {
+            read_record();
+            for edge in record.edges.keys() {
+                index.entry(*edge).or_insert(record);
+            }
+        }
+        Self(index)
+    }
+
+    /// The record `edge` was retired into, if one holds it.
+    #[must_use]
+    pub fn record(&self, edge: EdgeId) -> Option<&'g SupersededNode> {
+        self.0.get(&edge).copied()
+    }
+
+    /// The superseded node `edge` was retired with, and the node that one is superseded by, as
+    /// [`CanonicalGraph::retired_with`](crate::CanonicalGraph::retired_with) answers.
+    #[must_use]
+    pub fn retired_with(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
+        self.record(edge)
+            .map(|record| (record.node.id, record.by.node()))
+    }
+
+    /// The edge as the record holds it.
+    #[must_use]
+    pub fn edge(&self, edge: EdgeId) -> Option<&'g Edge> {
+        self.record(edge)?.edges.get(&edge)
+    }
+}

@@ -166,7 +166,14 @@ summary: >-
   a search, an expansion, a timeline, a projection and every export omit it, and a node or type
   count is the count of the nodes the revision holds. An assertion whose subject is a superseded
   node, or an edge retired with one, is kept by the kernel and listed by no document's nodes and
-  edges, so it is not listed under any; an assertion whose subject the revision holds in no way is
+  edges, so it is not listed under any: not under its subject, not under its Node object's
+  `referencing` (ekr.node-detail/1), which counts only what it lists, and the overview's roles
+  date no node from it, as its timeline counts nothing from it (story:supersede-node-review-fixes).
+  An overview's assertion totals — meta.assertion_count and each OverviewRevision's `assertions`
+  — count every assertion the revision holds, these included; a projection's
+  meta.assertion_count and the overview's timeline count the assertions they list, so for a
+  revision holding a supersession the two differ by the assertions about superseded nodes and
+  retired edges. An assertion whose subject the revision holds in no way is
   still Inconsistent. A DescribeNode or ExpandNeighbourhood naming a superseded id answers
   NodeSuperseded. ChangesSince lists the supersession itself as a NodeSuperseded change.
 

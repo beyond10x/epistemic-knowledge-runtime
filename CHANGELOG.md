@@ -4,6 +4,25 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.40] — 2026-10-20
+
+### Fixed
+
+- `SupersedeNode` review fixes (story:supersede-node-review-fixes). `describe_node` /1 of a live
+  node no longer lists or counts, under `referencing`, an assertion whose subject is a superseded
+  node or an edge retired with one, and the overview's roles date no node from one, as its
+  timeline already did. `Resolver::observe` drops every cached answer naming a node a committed
+  `SupersedeNode` retires. `ekr apply-extraction` and `ekr_sdk::extraction::apply` check a fact
+  against the type of the node its key resolves to: a key superseded by a node of another type
+  takes the kept node's properties and edge ends, a fact the kept type does not admit is refused
+  before anything is written — no node is created for it — and a refusal names the supersession
+  only where that end caused it. A validation and a sample look retired edges up in one index of
+  the supersession records instead of scanning them per lookup; no verdict changes. Documents:
+  design § 110 and `graph.yaml` say an edge between two nodes superseded
+  together is held in its source's record; `docs/cli.md` says only `ekr view` answers the refusal
+  with 404; `views.yaml` says overview totals count every held assertion while projections and the
+  timeline omit those about superseded or retired subjects.
+
 ## [0.0.39] — 2026-10-19
 
 ### Added

@@ -188,6 +188,10 @@ impl Resolver {
     /// Record a consumer's own batches: their revisions are the SDK's, so the next flush does not
     /// drop the cache for them, and every alias a committed `CreateNode` or `AddAlias` gives is
     /// invalidated (an `AddAlias` for every type, since the resolver does not know the node's).
+    /// A committed `SupersedeNode` drops every cached answer naming the node it retires: `ekr
+    /// resolve` answers each such key with the node kept from then on, and the cache holds its
+    /// answers by node, so those are exactly the answers that change
+    /// (`story:supersede-node-review-fixes`, D2).
     pub fn observe(&mut self, report: &BatchReport, groups: &[Vec<Operation>]) {
         for committed in &report.committed {
             self.own.insert(committed.revision);
@@ -205,6 +209,9 @@ impl Resolver {
                     }
                     Operation::AddAlias(addition) => {
                         self.cache.retain(|key, _| !key.1.contains(&addition.alias))
+                    }
+                    Operation::SupersedeNode(supersession) => {
+                        self.cache.retain(|_, node| *node != supersession.node);
                     }
                     _ => {}
                 }

@@ -198,12 +198,15 @@ impl Check for SchemaStructural {
 /// A node's aliases identify it within its exact type: `ekr_integrate::resolve` matches a typed
 /// reference to the nodes of the root whose `type_id` equals the reference's and that hold one of
 /// its non-empty aliases, byte for byte. A `CreateNode` or an `AddAlias` that gave a `(type,
-/// alias)` another node already identifies by would make every reference to either `Ambiguous`,
-/// and no operation removes an alias to repair that, so it is refused: against canonical state as
+/// alias)` another node already identifies by would make a reference to either `Ambiguous`, and
+/// no operation removes an alias to repair that, so it is refused: against canonical state as
 /// `alias-already-exists`, and against another operation of the same transaction as
-/// `duplicate-alias`. The empty alias identifies nothing: a `CreateNode` may carry it and it is not
-/// checked, a repeat inside one draft is one alias, and an `AddAlias` of it adds nothing and is
-/// `empty-alias`.
+/// `duplicate-alias`. A superseded node keeps holding its aliases (design § 110.3), so an alias it
+/// holds is taken too, though a reference to it resolves to the node it is superseded by and is
+/// not `Ambiguous` — not even when the node given it is that one: the alias stays the superseded
+/// node's, which is what stops the next ingestion run recreating the duplicate. The empty alias
+/// identifies nothing: a `CreateNode` may carry it and it is not checked, a repeat inside one
+/// draft is one alias, and an `AddAlias` of it adds nothing and is `empty-alias`.
 ///
 /// The `CreateNode` checks run first and say what they said before `AddAlias` existed, so a
 /// transaction without one is refused exactly as it was: replay compares every retained
@@ -688,9 +691,11 @@ impl HeldIdentities {
     }
 
     /// Records the nodes and edges `tx` creates as first held at `revision`, the revision that
-    /// committing it produces. What a committed transaction creates is everything a revision
-    /// holds that its predecessor did not, because applying one removes edges and adds nothing
-    /// else.
+    /// committing it produces. What a committed transaction creates is every node and edge
+    /// identity a revision holds that its predecessor did not, because applying one otherwise
+    /// only takes identities away from the head: a deletion removes an edge, and a supersession
+    /// moves a node and the edges at it into a record, which keeps holding their ids (design
+    /// § 110.3).
     pub(crate) fn hold<V: ValueSpace>(
         &mut self,
         revision: RevisionNumber,
@@ -782,7 +787,7 @@ impl Check for IdentityStructural {
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
         let mut issues = check(graph, tx, candidate, true).err().unwrap_or_default();
-        once_held(graph, &self.held, tx, &mut issues);
+        once_held(graph, candidate, &self.held, tx, &mut issues);
         finish(issues)
     }
 }
@@ -794,6 +799,7 @@ impl Check for IdentityStructural {
 /// (`identity-previously-held`). The same-kind cases are [`check`]'s and are not repeated here.
 fn once_held(
     graph: &GraphSnapshot<'_>,
+    candidate: &Candidate<'_>,
     history: &HeldIdentities,
     tx: &GraphTransaction,
     issues: &mut Vec<ValidationIssue>,
@@ -832,9 +838,7 @@ fn once_held(
         let (node, edge) = (NodeId::from_uuid(uuid), EdgeId::from_uuid(uuid));
         let current = if state.nodes.contains_key(&node) || state.superseded.contains_key(&node) {
             Some(Held::Node)
-        } else if state.edges.contains_key(&edge)
-            || (!state.superseded.is_empty() && state.retired_with(edge).is_some())
-        {
+        } else if state.edges.contains_key(&edge) || candidate.retired_with(edge).is_some() {
             Some(Held::Edge)
         } else {
             None
@@ -916,9 +920,8 @@ fn check(
             ),
             GraphOperation::CreateEdge(draft) => (
                 (!edges.insert(draft.id)).then(|| format!("edge {}", draft.id)),
-                (state.edges.contains_key(&draft.id)
-                    || (!state.superseded.is_empty() && state.retired_with(draft.id).is_some()))
-                .then(|| format!("edge {}", draft.id)),
+                (state.edges.contains_key(&draft.id) || candidate.retired_with(draft.id).is_some())
+                    .then(|| format!("edge {}", draft.id)),
             ),
             GraphOperation::AddAssertion(assertion) => {
                 cited.extend(assertion.evidence.iter().copied());

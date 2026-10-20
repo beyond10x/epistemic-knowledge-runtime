@@ -383,6 +383,27 @@ fn a_supersession_is_its_own_revision() {
             Some((duplicate, id(KEPT))),
             "{at}"
         );
+        // The one-pass index answers each retired edge as the scan does, and nothing else.
+        let retired: ekr_graph::RetiredEdges<'_> = head.retired_edges();
+        assert_eq!(
+            retired.retired_with(id(DUPLICATE_TAGGED)),
+            head.retired_with(id(DUPLICATE_TAGGED)),
+            "{at}"
+        );
+        assert_eq!(
+            retired
+                .record(id(DUPLICATE_TAGGED))
+                .map(|record| record.id()),
+            Some(duplicate),
+            "{at}"
+        );
+        assert_eq!(
+            retired.edge(id(DUPLICATE_TAGGED)),
+            Some(&before.edges[&id(DUPLICATE_TAGGED)]),
+            "{at}"
+        );
+        let live = *head.edges.keys().next().expect("the kept node's edge");
+        assert_eq!(retired.retired_with(live), None, "{at}");
         for assertion in [claims.about_node, claims.about_edge] {
             assert_eq!(
                 ContentHash::of(&head.assertions[&assertion]),
@@ -805,6 +826,265 @@ fn a_supersession_is_refused_by_name() {
                 &[],
             ),
             1_000,
+        );
+    });
+}
+
+/// The codes of a rejection, as `(validator, code)`.
+fn codes(verdict: &ValidationCommandResult) -> Vec<(ValidatorName, String)> {
+    refused(verdict)
+        .into_iter()
+        .map(|(validator, code, _)| (validator, code))
+        .collect()
+}
+
+/// `story:supersede-node-review-fixes` T1: the standalone structural validator — the public
+/// `Pipeline::validate`, which scans the graph for alias holders rather than reading a store's
+/// lookup — counts a superseded node among them, under each profile's pipeline.
+#[test]
+fn the_standalone_alias_scan_counts_a_superseded_holder() {
+    let directory = tempfile::tempdir().unwrap();
+    let kernel = open(directory.path(), false, profiles()[0].1.clone());
+    superseded_store(&kernel);
+    let graph = kernel.snapshot().unwrap();
+    let snapshot = ekr_graph::GraphSnapshot::of(&graph);
+    let tx = transaction(
+        vec![node(
+            NodeId::mint(),
+            MERGE_REQUEST,
+            "group/app!18",
+            &["group/app!18"],
+        )],
+        &[],
+    );
+    let validator = context().validator;
+    for (profile, pipeline) in [
+        ("v1", ekr_kernel::Pipeline::deterministic(validator)),
+        (
+            "v2",
+            ekr_kernel::Pipeline::schema_evolving(validator, BTreeSet::new()),
+        ),
+        (
+            "v3",
+            ekr_kernel::Pipeline::identity_keeping(
+                validator,
+                BTreeSet::new(),
+                ekr_kernel::validate::HeldIdentities::of([&graph]),
+            ),
+        ),
+    ] {
+        let issues = pipeline
+            .validate(&snapshot, &tx)
+            .expect_err("the alias is taken");
+        assert_eq!(
+            issues
+                .iter()
+                .map(|issue| (issue.validator, issue.code.as_str()))
+                .collect::<Vec<_>>(),
+            [(ValidatorName::Structural, "alias-already-exists")],
+            "{profile}: {issues:?}"
+        );
+        assert!(
+            issues[0].message.contains(DUPLICATE),
+            "{profile}: {issues:?}"
+        );
+    }
+}
+
+/// `story:supersede-node-review-fixes` T2 and T3: an edge into a node, not only out of one, names
+/// it — a `CreateEdge` whose target the same transaction supersedes, and an `AddAlias` of a node
+/// the same transaction supersedes, are `superseded-node-named-in-transaction`; a later
+/// `CreateEdge` whose target is superseded is `node-superseded`, naming its `by`.
+#[test]
+fn an_edge_target_and_an_alias_name_the_node_they_reach() {
+    each_store(|at, path, file, authority| {
+        let kernel = open(path, file, authority);
+        superseded_store(&kernel);
+        let statement: EvidenceId = id(STATEMENT);
+        let kept_tag = NodeId::mint();
+        let named = vec![(
+            ValidatorName::Structural,
+            "superseded-node-named-in-transaction".to_owned(),
+        )];
+        let into = submit(
+            &kernel,
+            &transaction(
+                vec![
+                    node(kept_tag, TAG, "parser, kept", &[]),
+                    supersede(id(PARSER), kept_tag),
+                    tagged(EdgeId::mint(), id(KEPT), id(PARSER)),
+                ],
+                &[statement],
+            ),
+            5_000,
+        );
+        assert_eq!(codes(&into), named, "{at}: an edge into it: {into:?}");
+        let aliased = submit(
+            &kernel,
+            &transaction(
+                vec![
+                    supersede(id(OTHER), id(KEPT)),
+                    GraphOperation::AddAlias(AliasAddition {
+                        node: id(OTHER),
+                        alias: "group/app!19".into(),
+                    }),
+                ],
+                &[statement],
+            ),
+            5_010,
+        );
+        assert_eq!(codes(&aliased), named, "{at}: an alias of it: {aliased:?}");
+
+        committed(
+            &kernel,
+            &transaction(
+                vec![
+                    node(kept_tag, TAG, "parser, kept", &[]),
+                    supersede(id(PARSER), kept_tag),
+                ],
+                &[statement],
+            ),
+            5_020,
+        );
+        let later = submit(
+            &kernel,
+            &transaction(vec![tagged(EdgeId::mint(), id(KEPT), id(PARSER))], &[]),
+            5_030,
+        );
+        assert_eq!(
+            codes(&later),
+            vec![(ValidatorName::Reference, "node-superseded".to_owned())],
+            "{at}: a later edge into it: {later:?}"
+        );
+        assert!(
+            refused(&later)[0].2.contains(&kept_tag.to_string()),
+            "{at}: {later:?}"
+        );
+    });
+}
+
+/// `story:supersede-node-review-fixes` T4: a node the same transaction creates is not held yet,
+/// so superseding it is `supersede-unknown-node`, and nothing commits.
+#[test]
+fn a_node_the_transaction_creates_is_not_superseded_by_it() {
+    each_store(|at, path, file, authority| {
+        let kernel = open(path, file, authority);
+        superseded_store(&kernel);
+        let head = kernel.head().unwrap().unwrap();
+        let created = NodeId::mint();
+        let verdict = submit(
+            &kernel,
+            &transaction(
+                vec![
+                    node(created, MERGE_REQUEST, "group/app!20", &[]),
+                    supersede(created, id(KEPT)),
+                ],
+                &[id(STATEMENT)],
+            ),
+            6_000,
+        );
+        assert_eq!(
+            codes(&verdict),
+            vec![(
+                ValidatorName::Reference,
+                "supersede-unknown-node".to_owned()
+            )],
+            "{at}: {verdict:?}"
+        );
+        assert_eq!(kernel.head().unwrap().unwrap(), head, "{at}: nothing moved");
+    });
+}
+
+/// `story:supersede-node-review-fixes` D9: a validation looks every retired edge up in one index
+/// of the supersession records, built once, rather than scanning the records per lookup. Two
+/// records, the duplicate's holding three edges with an assertion about each; a transaction
+/// creating three edges, each id held against the retired ones, is validated reading each record
+/// once, under every profile. Counted, not timed.
+#[test]
+fn a_validation_reads_each_supersession_record_once() {
+    each_store(|at, path, file, authority| {
+        let kernel = open(path, file, authority);
+        kernel.seed(seed(), || Timestamp::from_millis(10)).unwrap();
+        let (first, second) = (EdgeId::mint(), EdgeId::mint());
+        let mut operations = vec![
+            tagged(first, id(DUPLICATE), id(PARSER)),
+            tagged(second, id(DUPLICATE), id(PARSER)),
+        ];
+        for edge in [id::<EdgeId>(DUPLICATE_TAGGED), first, second] {
+            operations.push(claim(&format!("!Edge {edge}"), NOTE, "imported").1);
+        }
+        committed(&kernel, &transaction(operations, &[id(STATEMENT)]), 20);
+        committed(
+            &kernel,
+            &transaction(
+                vec![
+                    supersede(id(DUPLICATE), id(KEPT)),
+                    supersede(id(OTHER), id(KEPT)),
+                ],
+                &[id(STATEMENT)],
+            ),
+            30,
+        );
+        let head = kernel.snapshot().unwrap();
+        assert_eq!(head.superseded.len(), 2, "{at}");
+        assert_eq!(head.superseded[&id(DUPLICATE)].edges.len(), 3, "{at}");
+        let tx = transaction(
+            (0..3)
+                .map(|_| tagged(EdgeId::mint(), id(KEPT), id(PARSER)))
+                .collect(),
+            &[],
+        );
+        kernel
+            .propose(&encode(&tx), context().operator, || {
+                Timestamp::from_millis(40)
+            })
+            .unwrap();
+        let before = ekr_graph::supersession_records_read();
+        let verdict = kernel
+            .validate(tx.id, head.revision, || Timestamp::from_millis(41))
+            .unwrap();
+        let reads = ekr_graph::supersession_records_read() - before;
+        assert!(
+            matches!(verdict, ValidationCommandResult::Validated(_)),
+            "{at}: {verdict:?}"
+        );
+        assert_eq!(
+            reads, 2,
+            "{at}: supersession records read for one validation"
+        );
+    });
+}
+
+/// `story:supersede-node-review-fixes` R1: an edge between two nodes one transaction supersedes
+/// is retired once, into the record of its source, and the record of its target does not hold
+/// it (design § 110.2, `ekr.graph.SupersededNode`).
+#[test]
+fn an_edge_between_two_nodes_superseded_together_is_held_by_its_sources_record() {
+    each_store(|at, path, file, authority| {
+        let kernel = open(path, file, authority);
+        kernel.seed(seed(), || Timestamp::from_millis(10)).unwrap();
+        let kept_tag = NodeId::mint();
+        committed(
+            &kernel,
+            &transaction(
+                vec![
+                    node(kept_tag, TAG, "parser, kept", &[]),
+                    supersede(id(DUPLICATE), id(KEPT)),
+                    supersede(id(PARSER), kept_tag),
+                ],
+                &[id(STATEMENT)],
+            ),
+            20,
+        );
+        let head = kernel.snapshot().unwrap();
+        let edge: EdgeId = id(DUPLICATE_TAGGED);
+        assert!(
+            head.superseded[&id(DUPLICATE)].edges.contains_key(&edge),
+            "{at}: the source's record holds the edge"
+        );
+        assert!(
+            !head.superseded[&id(PARSER)].edges.contains_key(&edge),
+            "{at}: the target's record does not"
         );
     });
 }
