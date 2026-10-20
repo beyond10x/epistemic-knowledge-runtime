@@ -2,7 +2,8 @@
 
 Skill: aep:implementing 0.23.2 (wave mode). Coordinator: the Claude session of waves 2026-10-19a and
 2026-10-20a.
-Status: **dispatching** U1.
+Status: **gated locally**; U1 merged into `wave/20261020b`; `story:merge-entity-applies`
+implemented; the pull request's CI runs the full gate again before the merge into `main`.
 
 Source: `story:merge-entity-applies`, designed by ADR 0018 (accepted 2026-10-19 with option A and its
 six defaults), on ADR 0017's supersession record (release 0.0.39, fixed in 0.0.40).
@@ -30,7 +31,24 @@ the story's "Coordinator decisions" section.
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261020b` | `ekr-w20261020b` | none | none | store writes |
-| U1 | `unit/20261020b-u1` | `ekr-w20b-u1` | `<tree>/target` | `<home>/.cache/ekr-w20b-scratch` | dispatched |
+| U1 | `unit/20261020b-u1` | `ekr-w20b-u1` | `<tree>/target` | `<home>/.cache/ekr-w20b-scratch` | implementor `05bd7050`, correction 1 `5b59a139`; merged |
+
+## Reviews
+
+| pass | record | findings | outcome |
+|---|---|---|---|
+| adversary 1 on `05bd7050` | `review-result:adversary-w20261020b-u1-pass-1` | 6 introduced | F1, F2, J2, J3, J4 fixed in `5b59a139`; J1 filed as `story:explain-names-the-merge` (no-op) |
+| adversary 2 on `5b59a139` | `review-result:adversary-w20261020b-u1-pass-2` | 1 note (N1) | coordinator's decision: no change (no-op); 12 green cases kept in scratch |
+
+## Incidents
+
+- The implementor stopped five times on HTTP 429 (session and weekly limits); each time the account
+  was switched by `b10x-chef-orchestrator` and the agent was resumed with its context.
+- `/` fell to 13G free while the implementor was stopped; the coordinator stopped its orphaned
+  `cargo test -p ekr-views` and discarded the tree's cache (11,233 MiB) on the orchestrator's
+  request; the next build was a full one.
+- Sizing of the operator's ess-upgrade wish (ess 0.66.0) refused 52, 1021 and 5 times in the three
+  syntheses; it is `story:ekr-on-ess-0-66`, outside this wave and release 0.0.41.
 
 ## Pre-flight
 
@@ -42,4 +60,10 @@ the story's "Coordinator decisions" section.
 
 ## Gate
 
-Not run yet.
+On `5b59a139` in the U1 tree, through `b10x-build-slot`: `cargo fmt --all -- --check`,
+`cargo clippy --locked --workspace --all-targets -- -D warnings`, `task spec-check`,
+`task conform-fresh` (kernel 80, views 110, integrate 2) and `task doc-check` exit 0;
+`cargo test --locked --workspace --no-fail-fast` 2578 passed, 0 failed, 13 ignored (implementor), and
+2590 passed, 0 failed with adversary pass 2's 12 cases (`ekr-ontology` included). `task site-check`
+and `vendor-check` were not run locally; the pull request's `Repository correctness` job runs
+`task check` whole.

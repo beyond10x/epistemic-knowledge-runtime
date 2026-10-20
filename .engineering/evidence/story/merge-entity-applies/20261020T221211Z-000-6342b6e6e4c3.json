@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-20T22:12:11Z",
+  "actor": "agent:claude-ekr-session",
+  "artifact": "story:merge-entity-applies",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "17 merge_entity cases red before the behaviour (red-run-kept.log: 1 passed, 17 failed), green after; base_era_v1_replay 4/4 unedited; pinned record roots unchanged",
+    "reference": "base 2a843eb60 vs 5b59a139f"
+  }
+}

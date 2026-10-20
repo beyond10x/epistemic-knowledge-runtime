@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:merge-entity-applies
 kind: story
-status: active
+status: implemented
 title: MergeEntity joins duplicate nodes of one type or of related types, and rewrites every reference to the survivor
 relations:
 - decomposes: epic:p3-incubation-integration
@@ -93,10 +93,11 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-20T10:50:38Z", actor: "agent:claude-ekr-session", revision: 9}
 - {from: "proposed", to: "active", at: "2026-10-20T10:50:39Z", actor: "agent:claude-ekr-session", revision: 10}
+- {from: "active", to: "implemented", at: "2026-10-20T22:12:11Z", actor: "agent:claude-ekr-session", revision: 11, decided_on: {"recorded":{"test_result":1,"review_outcome":4,"verification":1}}}
 ---
 ## Context
 
