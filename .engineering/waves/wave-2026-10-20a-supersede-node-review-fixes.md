@@ -1,0 +1,43 @@
+# Wave 2026-10-20a — the 0.0.39 review's SupersedeNode defects fixed
+
+Skill: aep:implementing 0.23.2 (wave mode). Coordinator: the Claude session of wave 2026-10-19a.
+Status: **dispatching** U1.
+
+Source: `review-result:haiku-panel-0-0-39-supersede-node`, 20 read-only reviewers on release 0.0.39,
+54 findings. Story: `story:supersede-node-review-fixes`.
+
+Approval: the operator chose option A on 2026-10-20: record the panel, file the story, run it as a
+wave of one and release 0.0.40. That authorises: the unit's commits on `unit/20261020a-u1`, its merge
+into `wave/20261020a`, the store commits on `wave/20261020a`, the push of `wave/20261020a`, one pull
+request, its merge into `main` once CI is green, a `Release 0.0.40` commit, the bot tag `0.0.40` on the
+merge commit and the GitHub release `0.0.40`.
+
+Base: `main` at `67bd5555` (release 0.0.39). Integration branch `wave/20261020a`.
+
+Width: 1 unit. The story's scope was written from the panel's cited `file:line`s (23 cited, 3
+inferred); no `aep:story-scoper` ran, because every surface is a reviewer's citation.
+
+## Units
+
+| unit | story | main surface | dispatch |
+|---|---|---|---|
+| U1 | `story:supersede-node-review-fixes` | `ekr-views` index/sample, `ekr-sdk` resolve/extraction, `ekr-kernel` validate, `ekr-graph` canonical; documents | `aep:implementor` |
+
+## Trees
+
+| unit | branch | worktree id | build dir | scratch | state |
+|---|---|---|---|---|---|
+| integration | `wave/20261020a` | `ekr-w20261019a` (reused) | none | none | store writes |
+| U1 | `unit/20261020a-u1` | `ekr-w20a-u1` | `<tree>/target` | `<home>/.cache/ekr-w20a-u1-scratch` | dispatched |
+
+## Pre-flight
+
+| check | reading |
+|---|---|
+| free disk on `/` | 65G (`df -h /`, 2026-10-20); the U1 build of wave 2026-10-19a reached 26–43G |
+| disk watch | `<home>/.cache/ekr-w20a-u1-scratch/disk-watch.sh` stops U1's cargo and rustc processes under 20G free (operator rule, 2026-10-20) |
+| pinned tools | `ess` 0.36.0, `aep` 0.64.0 through `pinned-task.sh` |
+
+## Gate
+
+Not run yet.
