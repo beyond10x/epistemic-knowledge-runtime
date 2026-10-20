@@ -205,6 +205,35 @@ impl Built {
         seam(&args, at)
     }
 
+    /// Commits a `!SupersedeNode` of `node` by `by` on Bob's evidence, every step at an instant
+    /// after `clock`: revision 2.
+    fn supersede(&self, clock: i64, node: &str, by: &str) {
+        let minted: Value = serde_json::from_str(&text(&["mint", "transaction"])).unwrap();
+        let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+        let document = format!(
+            "format: ekr.transaction-document/2\ntransaction:\n  id: {}\n  proposer: {}\n  \
+             operations:\n  - !SupersedeNode\n    node: {node}\n    by: {by}\n    reason: \
+             recorded twice\n    evidence:\n    - {BOB_EVIDENCE}\n  evidence:\n  - \
+             {BOB_EVIDENCE}\n",
+            minted["id"].as_str().unwrap(),
+            host["context"]["operator"].as_str().unwrap()
+        );
+        let path = self.directory.path().join("supersede.yaml");
+        std::fs::write(&path, document).unwrap();
+        let proposed: Value =
+            serde_json::from_str(&self.at(clock, &["propose", path.to_str().unwrap()])).unwrap();
+        let id = proposed["transaction_id"]
+            .as_str()
+            .or_else(|| proposed["result"]["transaction_id"].as_str())
+            .unwrap_or_else(|| panic!("no transaction id in {proposed}"))
+            .to_owned();
+        let validated: Value =
+            serde_json::from_str(&self.at(clock + 1, &["validate", &id])).unwrap();
+        assert_eq!(validated["kind"], "Validated", "{validated}");
+        self.at(clock + 2, &["commit", &id]);
+        assert_eq!(self.head()["revision"], 2);
+    }
+
     /// `ekr head`, from a fresh process.
     fn head(&self) -> Value {
         let output = ekr()
@@ -268,7 +297,8 @@ fn category<'a>(comparison: &'a Value, name: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("no {name} in {comparison}"))
 }
 
-/// The shape every comparison has, whatever it found.
+/// The shape every comparison has, whatever it found: the six categories, and the seventh,
+/// `superseded`, after them exactly when either store holds a supersession record.
 fn well_formed(comparison: &Value) {
     assert_eq!(
         comparison["format"], "ekr.store-comparison/1",
@@ -280,7 +310,16 @@ fn well_formed(comparison: &Value) {
         .iter()
         .map(|c| c["category"].as_str().unwrap())
         .collect();
-    assert_eq!(names, CATEGORIES, "{comparison}");
+    let mut expected = CATEGORIES.to_vec();
+    if names.len() > CATEGORIES.len() {
+        let superseded = category(comparison, "superseded");
+        assert!(
+            superseded["left"].as_u64().unwrap() + superseded["right"].as_u64().unwrap() > 0,
+            "a superseded category where neither store holds a record: {comparison}"
+        );
+        expected.push("superseded");
+    }
+    assert_eq!(names, expected, "{comparison}");
     let every = comparison["categories"]
         .as_array()
         .unwrap()
@@ -392,6 +431,63 @@ fn a_store_that_differs_by_one_thing_compares_unequal_and_names_its_id_and_field
                 );
             }
         }
+    }
+}
+
+/// `story:supersede-node-review-fixes` T7: a store that superseded Initech by Acme against one that
+/// did not lists a seventh category, `superseded`, holding Initech on that side alone — as `nodes`
+/// lists it on the other — in either order and across providers; two stores that superseded it
+/// alike compare equal on all seven; and a pair where neither superseded lists six.
+#[test]
+fn a_supersession_on_one_side_is_the_seventh_category() {
+    const ACME: &str = "00000000-0000-4000-8000-000000000303";
+    for (left_backend, right_backend) in [("file", "sqlite"), ("sqlite", "file")] {
+        let base = Built::new(left_backend, Variant::Base, 1_000_000);
+        let superseded = Built::new(right_backend, Variant::Base, 9_000_000);
+        superseded.supersede(9_000_100, INITECH, ACME);
+        for (comparison, presence) in [
+            (base.compare(&superseded, &[]), "right"),
+            (superseded.compare(&base, &[]), "left"),
+        ] {
+            well_formed(&comparison);
+            assert_eq!(comparison["equal"], false, "{comparison}");
+            let names: Vec<&str> = comparison["categories"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["category"].as_str().unwrap())
+                .collect();
+            assert_eq!(names.last(), Some(&"superseded"), "{comparison}");
+            let records = category(&comparison, "superseded");
+            assert_eq!(
+                records["differing"],
+                serde_json::json!([{ "id": INITECH, "presence": presence, "fields": [] }]),
+                "{comparison}"
+            );
+            let other = if presence == "right" { "left" } else { "right" };
+            assert_eq!(
+                category(&comparison, "nodes")["differing"],
+                serde_json::json!([{ "id": INITECH, "presence": other, "fields": [] }]),
+                "{comparison}"
+            );
+        }
+        let alike = Built::new(left_backend, Variant::Base, 5_000_000);
+        alike.supersede(5_000_100, INITECH, ACME);
+        let comparison = alike.compare(&superseded, &[]);
+        well_formed(&comparison);
+        assert_eq!(comparison["equal"], true, "{comparison}");
+        assert_eq!(
+            category(&comparison, "superseded")["left"],
+            1,
+            "{comparison}"
+        );
+        let earlier = alike.compare(&superseded, &["--at", "1", "--other-at", "1"]);
+        well_formed(&earlier);
+        assert_eq!(
+            earlier["categories"].as_array().unwrap().len(),
+            CATEGORIES.len(),
+            "{earlier}"
+        );
     }
 }
 

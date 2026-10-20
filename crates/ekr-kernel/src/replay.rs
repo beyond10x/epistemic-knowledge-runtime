@@ -2266,6 +2266,147 @@ mod tests {
         check(&sqlite(directory.path(), false));
     }
 
+    /// [`seed`], retaining one evidence entry for a supersession to rest on: the seed and the
+    /// entry's id.
+    fn evidenced_seed() -> (SeedDocument, ekr_core::EvidenceId) {
+        let mut seed = seed();
+        let bytes = b"subject 1 and subject 2 are one subject".to_vec();
+        let hash = ekr_core::ContentHash::of_bytes(&bytes);
+        let entry = ekr_graph::Evidence {
+            id: "00000000-0000-4000-8000-000000000007".parse().unwrap(),
+            source: ekr_graph::EvidenceSource::HumanStatement {
+                identity: Some("operator".into()),
+            },
+            content_hash: hash,
+            extracted_by: context().operator,
+            observed_at: Timestamp::EPOCH,
+            confidence: ekr_graph::Confidence::CERTAIN,
+        };
+        let id = entry.id;
+        seed.graph.evidence.insert(id, entry);
+        seed.evidence_payloads.insert(hash, bytes.into());
+        (seed, id)
+    }
+    /// Commits revision `n`, validated against the head: the node revision 1 created superseded
+    /// by the one revision 2 created, on `evidence`.
+    fn supersede<S: RevisionLog + ObjectStore>(
+        kernel: &Commit<S>,
+        n: u64,
+        evidence: ekr_core::EvidenceId,
+    ) {
+        #[derive(serde::Serialize)]
+        struct Wire<'a> {
+            format: &'static str,
+            transaction: &'a GraphTransaction,
+        }
+        let state = kernel.read_state().unwrap();
+        let graph = state.head().graph().unwrap();
+        let named = |name: &str| {
+            graph
+                .nodes
+                .values()
+                .find(|node| node.canonical_name == name)
+                .unwrap()
+                .id
+        };
+        let tx = GraphTransaction {
+            id: TransactionId::mint(),
+            proposer: context().operator,
+            operations: vec![GraphOperation::SupersedeNode(crate::NodeSupersession {
+                node: named("subject 1"),
+                by: named("subject 2"),
+                reason: "recorded twice".into(),
+                evidence: BTreeSet::from([evidence]),
+            })],
+            evidence: BTreeSet::from([evidence]),
+            schema_version: None,
+        };
+        let bytes = serde_yaml_ng::to_string(&Wire {
+            format: "ekr.transaction-document/2",
+            transaction: &tx,
+        })
+        .unwrap()
+        .into_bytes();
+        kernel
+            .propose(&bytes, context().operator, || at(n, 0))
+            .unwrap();
+        let verdict = kernel
+            .validate(tx.id, RevisionNumber::new(n - 1), || at(n, 1))
+            .unwrap();
+        assert!(
+            matches!(verdict, ValidationCommandResult::Validated(_)),
+            "{verdict:?}"
+        );
+        let result = kernel
+            .commit(tx.id, context().operator, || at(n, 2))
+            .unwrap();
+        assert!(matches!(result, CommitCommandResult::Committed(_)));
+        assert_eq!(
+            kernel
+                .read_state()
+                .unwrap()
+                .head()
+                .graph()
+                .unwrap()
+                .superseded
+                .len(),
+            1
+        );
+    }
+
+    /// `story:supersede-node-review-fixes` T6: a supersession retires edges and changes no
+    /// assertion, so the revision it makes shares its predecessor's index of assertions about
+    /// edges: validating against it builds none.
+    #[test]
+    fn a_supersession_commit_shares_the_unchanged_assertion_edge_index() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let (seed, evidence) = evidenced_seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            commit(kernel, &seed, 1);
+            commit(kernel, &seed, 2);
+            supersede(kernel, 3, evidence);
+            let before = crate::validate::edge_indexes_built();
+            let (_, verdict) = validated(kernel, &seed, 4, seed.ontology.node_types[0].id, 3);
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            assert_eq!(
+                crate::validate::edge_indexes_built() - before,
+                0,
+                "a supersession commit rebuilt an unchanged edge-assertion index"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    /// `story:supersede-node-review-fixes` T6: a supersession keeps every alias holder — the
+    /// superseded node keeps holding its aliases — so the alias lookup advances past it and a warm
+    /// validation against the revision it makes visits no node.
+    #[test]
+    fn warm_alias_checks_after_a_supersession_visit_no_unchanged_nodes() {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = sqlite(directory.path(), false);
+        let (seed, evidence) = evidenced_seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=4 {
+            commit(&kernel, &seed, n);
+        }
+        supersede(&kernel, 5, evidence);
+        let before = crate::validate::ALIAS_NODES_VISITED.with(std::cell::Cell::get);
+        let (_, result) = validated(&kernel, &seed, 6, seed.ontology.node_types[0].id, 5);
+        assert!(matches!(result, ValidationCommandResult::Validated(_)));
+        assert_eq!(
+            crate::validate::ALIAS_NODES_VISITED.with(std::cell::Cell::get) - before,
+            0,
+            "unchanged canonical nodes scanned for aliases after a supersession"
+        );
+    }
+
     #[test]
     fn retirement_requires_the_confirmed_occurrence_and_matching_prefix() {
         let directory = tempfile::tempdir().unwrap();

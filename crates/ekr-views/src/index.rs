@@ -197,17 +197,14 @@ impl Index {
         let mut about_edge: HashMap<u32, Vec<AssertionId>> = HashMap::new();
         let mut referencing: HashMap<u32, Vec<AssertionId>> = HashMap::new();
         // An assertion about a superseded node, or an edge retired with one, is kept by the
-        // kernel and listed under nothing here (`story:supersede-node`); any other subject the
-        // revision does not hold is still inconsistent.
-        let retired: std::collections::HashSet<EdgeId> = graph
-            .superseded
-            .values()
-            .flat_map(|record| record.edges.keys().copied())
-            .collect();
+        // kernel and listed under nothing here (`story:supersede-node`) — not under its subject
+        // and not under its object's `referencing` either (`story:supersede-node-review-fixes`,
+        // D1); any other subject the revision does not hold is still inconsistent.
+        let retired = graph.retired_edges();
         for claim in graph.assertions.values() {
             match &claim.subject {
-                Subject::Node(node) if graph.superseded.contains_key(&node.id()) => {}
-                Subject::Edge(edge) if retired.contains(&edge.id()) => {}
+                Subject::Node(node) if graph.superseded.contains_key(&node.id()) => continue,
+                Subject::Edge(edge) if retired.record(edge.id()).is_some() => continue,
                 Subject::Node(node) => about_node
                     .entry(held(node.id(), &format!("assertion {}", claim.id))?)
                     .or_default()
@@ -539,7 +536,16 @@ impl Index {
         let mut dated: Vec<(u64, i64, i64)> = vec![(0, i64::MAX, i64::MIN); count];
         // Node pairs a Relation assertion joins, subject to object.
         let mut related: Vec<(u32, u32)> = Vec::new();
+        // An assertion about a superseded node, or an edge retired with one, dates nothing and
+        // joins nothing, as the overview's timeline counts nothing from it
+        // (`story:supersede-node-review-fixes`, D3).
+        let retired = graph.retired_edges();
         for claim in graph.assertions.values() {
+            match &claim.subject {
+                Subject::Node(node) if graph.superseded.contains_key(&node.id()) => continue,
+                Subject::Edge(edge) if retired.record(edge.id()).is_some() => continue,
+                _ => {}
+            }
             let subject = match &claim.subject {
                 Subject::Node(node) => self.node_index.get(&node.id()).copied(),
                 _ => None,

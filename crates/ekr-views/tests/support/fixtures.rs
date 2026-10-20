@@ -1559,6 +1559,81 @@ pub fn build_shared_id(runtime: &Runtime) {
     );
 }
 
+/// [`build_superseded_referencing`]'s Relation assertion `beta links alpha`, valid from
+/// [`REFERENCING_VALID_MS`].
+pub const REFERENCING_RELATION: u64 = 0xf3_0011;
+/// [`build_superseded_referencing`]'s assertion about the seeded edge from alpha to beta: its
+/// `about` is alpha, valid from [`REFERENCING_VALID_MS`].
+pub const REFERENCING_EDGE_CLAIM: u64 = 0xf3_0012;
+/// The NodeRef property `about` that [`build_superseded_referencing`] gives the `links` edge type.
+const ABOUT: u64 = 0xf3_0021;
+/// When both of [`build_superseded_referencing`]'s assertions hold from: an hour after the seeded
+/// claim about alpha.
+pub const REFERENCING_VALID_MS: i64 = 500 + 3_600_000;
+
+/// `story:supersede-node-review-fixes`, D1 and D3: the `edge-assertion` seed with two subjects
+/// and the seeded claim about alpha, its `links` edge type given a NodeRef property `about`; at
+/// revision 1, `beta, kept` ([`SUPERSEDED_KEPT`]), a Relation assertion `beta links alpha`
+/// ([`REFERENCING_RELATION`]) and an assertion that the seeded edge from alpha to beta is `about`
+/// alpha ([`REFERENCING_EDGE_CLAIM`]), both naming alpha as their object; at revision 2, beta
+/// superseded by `beta, kept`, retiring the seeded edge with it. Both assertions are kept, their
+/// subjects superseded or retired, and alpha is still their object.
+pub fn build_superseded_referencing(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS,
+        transactions: TRANSACTIONS,
+    };
+    let mut document = seed(1, true, true, 2);
+    let mut about = PropertyDefinition::new(
+        id(ABOUT),
+        "about",
+        ValueType::NodeRef {
+            allowed_types: BTreeSet::from([id(SUBJECT)]),
+        },
+    );
+    about.cardinality = Cardinality::One;
+    document
+        .ontology
+        .edge_types
+        .iter_mut()
+        .find(|declared| declared.id == id(LINKS))
+        .expect("the links edge type")
+        .properties
+        .insert(about.id, about);
+    writer.seed(document);
+    writer.commit(
+        vec![
+            GraphOperation::CreateNode(NodeDraft {
+                id: id(SUPERSEDED_KEPT),
+                root_id: id(2),
+                type_id: id(SUBJECT),
+                canonical_name: "beta, kept".into(),
+                properties: BTreeMap::new(),
+                aliases: vec!["beta-kept".into()],
+            }),
+            GraphOperation::AddAssertion(Box::new(fact(
+                REFERENCING_RELATION,
+                Subject::Node(id(BETA)),
+                Predicate::Relation(id(LINKS)),
+                Object::Node(id(ALPHA)),
+                Some(REFERENCING_VALID_MS),
+                evidence_id(0),
+            ))),
+            GraphOperation::AddAssertion(Box::new(fact(
+                REFERENCING_EDGE_CLAIM,
+                Subject::Edge(id(SEEDED_EDGE)),
+                Predicate::Property(id(ABOUT)),
+                Object::Node(id(ALPHA)),
+                Some(REFERENCING_VALID_MS),
+                evidence_id(0),
+            ))),
+        ],
+        None,
+    );
+    writer.commit(supersession(BETA, SUPERSEDED_KEPT), None);
+}
+
 struct Writer<'a> {
     runtime: &'a Runtime,
     clock: i64,

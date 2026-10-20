@@ -456,7 +456,8 @@ The cache stays correct in three ways:
   that holds the alias. `observe(&report, &groups)` records a consumer's own `Batcher` commits.
   Their revisions count as the SDK's, and every alias that a committed `CreateNode` or `AddAlias`
   gives is invalidated. An `AddAlias` invalidates the alias under every type, because the resolver
-  does not know the node's type.
+  does not know the node's type. A committed `SupersedeNode` drops every cached answer naming the
+  node it retires, since `ekr resolve` answers each such key with the node kept from then on.
 - **The cache is dropped when `head` shows a commit the SDK did not make.** Each flush reads
   `ekr head` first. If any revision since the last check is not one the resolver committed or
   observed, the resolver drops its cache and resolves every queued reference again. If another

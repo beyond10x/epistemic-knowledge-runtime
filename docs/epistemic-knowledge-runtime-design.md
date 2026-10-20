@@ -6391,7 +6391,10 @@ Applying it (`ekr.p1-apply/1` and `ekr.p2-apply/1` alike) removes `node` from
 `CanonicalGraph.nodes`, moves every edge with `node` at either end out of `CanonicalGraph.edges`,
 and holds both, whole, in `CanonicalGraph.superseded`, a collection of its own keyed by the node's
 id: `ekr.graph.SupersededNode`, the node as it was, the edges retired with it, `by`, the revision the
-commit produces, the reason and the evidence. Every existing record whose `by` is `node` is
+commit produces, the reason and the evidence. An edge between two nodes one transaction
+supersedes is held once, in the record of its source; the record of its target does not hold it
+(`crates/ekr-kernel/tests/supersede_node.rs`,
+`an_edge_between_two_nodes_superseded_together_is_held_by_its_sources_record`). Every existing record whose `by` is `node` is
 repointed to the new `by` in the same revision, and keeps the revision that made it, so a reader
 follows at most one pointer and a record always names a node the head holds. Assertions are not
 changed: an assertion about the node or one of its edges keeps its bytes, evidence and lifecycle.
@@ -6424,12 +6427,17 @@ subject or object, a `NodeRef` value — is `node-superseded` (Reference), namin
 superseded by, where it was `unresolved-node` or `unresolved-edge` before. A `RetractAssertion` of an
 assertion about a superseded node names no node and commits. The reference validator's refusal of
 an assertion about an edge no revision holds skips an edge held in a supersession record, so a
-transaction after a supersession is not refused for the assertions it kept.
+transaction after a supersession is not refused for the assertions it kept. A validation looks
+retired edges up in one index of the records, built by its first lookup, so it reads each record
+once however many edges it looks up, and answers each lookup as a scan of the records would.
 
 The structural validator counts a superseded node among the nodes that hold an id and an alias:
-a `CreateNode` or `CreateEdge` reusing its id, or a retired edge's, is `identity-already-exists`
-under every profile, and a `CreateNode` or `AddAlias` giving a node of its type one of its aliases
-is `alias-already-exists`, so the next ingestion run cannot recreate the duplicate. A transaction
+a `CreateNode` reusing its id, or a `CreateEdge` reusing a retired edge's, is
+`identity-already-exists` under every profile; the cross-kind reuses (a `CreateNode` taking a
+retired edge's id, a `CreateEdge` taking a superseded node's) are refused under profile v3 only,
+until `story:supersession-verdict-fixes-replay-safe`; and a `CreateNode` or `AddAlias` giving a
+node of its type one of its aliases is `alias-already-exists`, so the next ingestion run cannot
+recreate the duplicate. A transaction
 without a `SupersedeNode` reads none of this and is validated exactly as before, so no retained
 rejection of a store that never superseded replays differently.
 
@@ -6462,7 +6470,13 @@ a retired edge without a filter of its own, and a reader nobody updated fails cl
   resolves to the kept node even when the two types differ.
 - **Views.** `ekr_views::Index::build` and the projection skip an assertion whose subject is a
   superseded node or an edge held in a record, where they refused the whole revision as
-  `Inconsistent` before; any other unheld subject is still `Inconsistent`. `DescribeNode` (both
+  `Inconsistent` before; any other unheld subject is still `Inconsistent`. Skipped, it is listed
+  under nothing — not under its subject, and not under its Node object's `referencing` in
+  `ekr.node-detail/1`, which counts only what it lists — and the overview's roles date no node from
+  it, as the overview's timeline counts nothing from it. The overview's assertion totals
+  (`meta.assertion_count` and each revision's `assertions`) count every assertion the revision
+  holds, these included, while the projection's `assertion_count` and the timeline count what they
+  list, so for a revision holding a supersession the two differ by those assertions. `DescribeNode` (both
   formats) and `ExpandNeighbourhood` of a superseded id answer `ekr.views.NodeSuperseded`, naming
   `by`, on every surface (`ekr view`'s `/node/` and `/expand`, the session and MCP reads), and
   `not_found` in the reader metrics; at a revision before the supersession the node reads as it was.
@@ -6474,15 +6488,27 @@ a retired edge without a filter of its own, and a reader nobody updated fails cl
   record, and `subject_superseded_by` names the node it is superseded by — for a subject edge
   retired with a superseded node, the node that record names. Every rendered assertion whose Node
   object is superseded carries `object_superseded_by` (`ekr.views.ProjectedAssertion`, so the
-  projection, both node-detail formats and the sample), and an `ekr explain` Assertion link both
+  projection, `ekr.node-detail/1` and the sample), and an `ekr explain` Assertion link both
   pointers; each is omitted where nothing is superseded, so no document of a revision without a
-  supersession moves (ADR 0017 decision 3). `ProjectTimeline` of a superseded `subject` is
+  supersession moves (ADR 0017 decision 3). `ekr.node-detail/2` renders no assertion whole: its
+  relation groups are built from the head's nodes, so it omits a relation to or from a superseded
+  node, as every read omits the node, and carries no pointer. A `NodeRef` inside a `!Value` object
+  keeps naming the superseded id and carries no pointer either; a reader that follows it is
+  answered `NodeSuperseded`, naming `by`. `ProjectTimeline` of a superseded `subject` is
   `NodeSuperseded`, as `DescribeNode` is. `ekr compare` lists a seventh category, `superseded`,
   only where either store holds a record.
 - **Extraction.** `ekr apply-extraction` decides whether a `replaces: true` fact has a value to
-  replace on the nodes `ekr resolve` answers, a superseded key's kept node included. A fact refused
-  after its key resolved through a record to a kept node of another type names the superseded
-  node, its type and the kept node in its refusal.
+  replace on the nodes `ekr resolve` answers, a superseded key's kept node included. A fact is
+  checked against the type of the node its key resolves to: a key a record resolves to a kept node
+  of another type takes that type's properties and edge ends — the SDK's
+  `ekr_sdk::extraction::apply` and the engine's reader checked against the head
+  (`ExtractionDocument::check_facts_at`) alike — so a fact valid for the kept node is applied
+  there, and one its type does not admit is refused before anything is written, and no node is
+  created for it. A key is checked alone, and again as the group of keys it is resolved with;
+  under `strict` either refusal refuses the document. A refusal names the superseded node, its
+  type and the kept node only where that end caused it: the property the kept node's type does
+  not declare, or the end of a relation whose kept node's type its edge type does not connect —
+  the same refusal from the verb and from the SDK.
 - **In the same transaction.** A `NodeRef` value of any operation naming a node the transaction
   supersedes is `superseded-node-named-in-transaction`, as an endpoint is; an operation naming an
   edge the transaction retires is refused by that code alone, not also as `unresolved-edge`.
@@ -6498,8 +6524,8 @@ every refusal by name and the roots of a reopen, a full replay and a migration;
 `crates/ekr-views/tests/supersession.rs` the head reads, the refusal and the earlier revision;
 `crates/ekr-integrate/tests/resolve.rs` that both resolvers agree; `crates/ekr/tests/resolve_cli.rs`
 and `crates/ekr/tests/mcp.rs` the same through the binary; seven authored `ekr-kernel` scenarios and
-one `ekr-views` scenario, beside the two generated `node-superseded` outcomes, the same through the
-conformance suites; and the worked example of `docs/cli.md` supersedes a duplicate and resolves its
+one `ekr-views` scenario, beside the three generated `node-superseded` outcomes (`ExpandNeighbourhood`,
+`DescribeNode` and `ProjectTimeline`), the same through the conformance suites; and the worked example of `docs/cli.md` supersedes a duplicate and resolves its
 alias on both providers. A store that never supersedes keeps its roots and checkpoint bytes: the
 pinned root and store fixtures are unedited. Not changed:
 assertions about a superseded node are not rewritten to `by`, edges are not moved, a node is not

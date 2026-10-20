@@ -507,10 +507,13 @@ entities:
   # A node retired in favour of the node that replaces it (story:supersede-node, design § 110,
   # architecture-decision-record:0017-a-node-is-superseded-by-another). What creates one: an
   # ekr.kernel SupersedeNode operation of a committed transaction (ekr.kernel.NodeSupersession);
-  # `revision` is the revision that commit produced, `reason` and the evidence its own. The record
-  # holds the node whole, with its root_id, type and aliases, and every edge that had it at either
-  # end, which leave the head's nodes and edges: a reader that builds from those omits the node
-  # without a filter of its own. Assertions about it are not changed. `by` is a node the head
+  # `revision` is the revision that commit produced, `reason` and `evidence` its own, `evidence`
+  # naming at least one entry canonical state retains. The record holds the node whole, with its
+  # root_id, type and aliases, and the edges retired with it, by id in `edges`, each held whole:
+  # every edge that had it at either end, which leave the head's nodes and edges, so a reader that
+  # builds from those omits the node without a filter of its own. An edge between two nodes one
+  # commit supersedes is retired once, into the record of its source; the record of its target
+  # does not hold it. Assertions about it are not changed. `by` is a node the head
   # holds, never a superseded one: a supersession of the node a record names repoints that record
   # to the new `by` in the same revision, so a reader follows at most one pointer (many records to
   # one kept node, referenced, not owned). Nothing removes a record. The canonical graph keeps the
@@ -532,6 +535,10 @@ entities:
         type: ekr.kernel.RevisionNumber
       - name: reason
         type: String
+      - name: edges
+        type: List<ekr.graph.EdgeId>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
     relations:
       - name: kept
         kind: references

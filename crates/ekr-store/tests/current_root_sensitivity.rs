@@ -379,6 +379,96 @@ fn the_two_roots_are_distinct_value_addresses() {
     assert_ne!(knowledge_root(&empty), evidence_root(&empty));
 }
 
+/// [`graph`] after its second node is superseded by its first (`story:supersede-node`): the second
+/// node and the edge to it leave the head and are held in one record, naming the first node, at
+/// revision 1, for a reason, on the evidence entry.
+fn superseded_graph() -> CanonicalGraph {
+    let mut graph = graph();
+    let second = graph.nodes.remove(&id(0x11)).unwrap();
+    let edge = graph.edges.remove(&id(EDGE)).unwrap();
+    graph.superseded.insert(
+        second.id,
+        ekr_graph::SupersededNode {
+            node: second,
+            edges: BTreeMap::from([(edge.id, edge)]),
+            by: CanonicalRef::new(id(NODE)),
+            revision: RevisionNumber::new(1),
+            reason: "recorded twice".into(),
+            evidence: BTreeSet::from([CanonicalRef::new(id(EVIDENCE))]),
+        },
+    );
+    graph
+}
+
+fn record(g: &mut CanonicalGraph) -> &mut ekr_graph::SupersededNode {
+    g.superseded.get_mut(&id(0x11)).unwrap()
+}
+
+/// `story:supersede-node-review-fixes` T5: every field of a supersession record reaches the
+/// knowledge root and not the evidence root, and the root of a graph holding one is pinned, so a
+/// field `SupersededNode::encode` drops or reorders moves a number a reader can see.
+#[test]
+fn every_supersession_record_field_reaches_only_the_knowledge_root_and_its_root_is_pinned() {
+    let base = superseded_graph();
+    let (knowledge, evidence) = (knowledge_root(&base), evidence_root(&base));
+    let changes: Vec<(&str, Change)> = vec![
+        ("superseded: member", Box::new(|g| g.superseded.clear())),
+        (
+            "record.node",
+            Box::new(|g| record(g).node.canonical_name.push('x')),
+        ),
+        (
+            "record.edges: member",
+            Box::new(|g| record(g).edges.clear()),
+        ),
+        (
+            "record.edges: edge",
+            Box::new(|g| {
+                record(g)
+                    .edges
+                    .values_mut()
+                    .next()
+                    .unwrap()
+                    .properties
+                    .clear();
+            }),
+        ),
+        (
+            "record.by",
+            Box::new(|g| record(g).by = CanonicalRef::new(id(0x7f))),
+        ),
+        (
+            "record.revision",
+            Box::new(|g| record(g).revision = RevisionNumber::new(2)),
+        ),
+        ("record.reason", Box::new(|g| record(g).reason.push('x'))),
+        (
+            "record.evidence",
+            Box::new(|g| {
+                record(g).evidence.insert(CanonicalRef::new(id(0x7e)));
+            }),
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (name, change) in changes {
+        let mut changed = superseded_graph();
+        change(&mut changed);
+        if knowledge_root(&changed) == knowledge || evidence_root(&changed) != evidence {
+            wrong.push(name);
+        }
+    }
+    assert_eq!(wrong, Vec::<&str>::new());
+    let record = &base.superseded[&id(0x11)];
+    assert_eq!(
+        (ContentHash::of(record).to_hex(), knowledge.to_hex()),
+        (
+            "a743d661129585d29b018b05f8c35376b67513eb3dad8b62239a8a97245a81fb".to_owned(),
+            "2b0554cd2aad8be2a4f1224c599c16b7d2784973afa78f1bdeecbfd173219408".to_owned()
+        ),
+        "the record's address and the knowledge root of a graph holding it"
+    );
+}
+
 #[test]
 fn every_attachment_coordinate_reaches_only_the_knowledge_root() {
     let base = graph();

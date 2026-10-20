@@ -26,6 +26,9 @@ pub(super) struct Candidate<'g> {
     /// The edges of canonical state a `SupersedeNode` of the operation set retires with its
     /// node; see [`Candidate::retires`].
     retired_edges: BTreeSet<EdgeId>,
+    /// The edges canonical state's supersession records hold, indexed on first use; see
+    /// [`Candidate::retired_with`].
+    retired_index: OnceCell<ekr_graph::RetiredEdges<'g>>,
     /// The value count of each property of each node the operation set creates or updates.
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
     /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
@@ -118,6 +121,7 @@ impl<'g> Candidate<'g> {
                 .collect(),
             created_edges: BTreeSet::new(),
             retired_edges: BTreeSet::new(),
+            retired_index: OnceCell::new(),
             // Only a created node's counts are ever read, and creating a node replaces whatever
             // canonical state held under its id, so canonical state's counts are not copied.
             property_counts: BTreeMap::new(),
@@ -192,6 +196,21 @@ impl<'g> Candidate<'g> {
     /// Whether a `SupersedeNode` of the operation set retires `edge`, an edge of canonical state.
     pub(super) fn retires(&self, edge: &EdgeId) -> bool {
         self.retired_edges.contains(edge)
+    }
+
+    /// The superseded node `edge` was retired with, and the node that one is superseded by, if a
+    /// supersession record of canonical state holds the edge: the answer
+    /// [`CanonicalGraph::retired_with`] gives, looked up in one index of the records built by the
+    /// first lookup of this validation, so a validation reads each record once however many
+    /// edges it looks up (`story:supersede-node-review-fixes`, D9). A graph with no record builds
+    /// none.
+    pub(super) fn retired_with(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
+        if self.basis.superseded.is_empty() {
+            return None;
+        }
+        self.retired_index
+            .get_or_init(|| self.basis.retired_edges())
+            .retired_with(edge)
     }
 
     /// [`Candidate::of`], reading the [`AssertedEdges`] kept with the snapshot's graph, `kept`,

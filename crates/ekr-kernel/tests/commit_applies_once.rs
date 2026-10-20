@@ -161,19 +161,37 @@ fn transaction(n: u64) -> GraphTransaction {
     }
 }
 fn document(n: u64) -> (TransactionId, Vec<u8>) {
+    encoded(&transaction(n), "ekr.transaction-document/1")
+}
+fn encoded(tx: &GraphTransaction, format: &'static str) -> (TransactionId, Vec<u8>) {
     #[derive(Serialize)]
     struct Wire<'a> {
         format: &'static str,
         transaction: &'a GraphTransaction,
     }
-    let tx = transaction(n);
     let bytes = serde_yaml_ng::to_string(&Wire {
-        format: "ekr.transaction-document/1",
-        transaction: &tx,
+        format,
+        transaction: tx,
     })
     .unwrap()
     .into_bytes();
     (tx.id, bytes)
+}
+/// Revision `n`'s transaction after [`history`]: the node revision 1 created superseded by the
+/// node revision 3 created, on the seeded evidence.
+fn supersession(n: u64) -> GraphTransaction {
+    GraphTransaction {
+        id: id(9, n),
+        proposer: context().operator,
+        evidence: BTreeSet::from([evidence()]),
+        operations: vec![GraphOperation::SupersedeNode(NodeSupersession {
+            node: id(3, 1),
+            by: id(3, 3),
+            reason: "recorded twice".into(),
+            evidence: BTreeSet::from([evidence()]),
+        })],
+        schema_version: None,
+    }
 }
 /// What the commit command alone did on this thread: head graphs cloned and applied, and whole
 /// graphs hashed.
@@ -185,8 +203,12 @@ struct Work {
 /// Proposes, validates and commits revision `n` through `runtime`, returning the published root
 /// and the work the commit command alone did.
 fn commit(runtime: &Runtime, n: u64) -> (Root, Work) {
+    commit_document(runtime, n, document(n))
+}
+/// [`commit`], of the encoded transaction `document`.
+fn commit_document(runtime: &Runtime, n: u64, document: (TransactionId, Vec<u8>)) -> (Root, Work) {
     let at = i64::try_from(n * 100).unwrap();
-    let (tx, bytes) = document(n);
+    let (tx, bytes) = document;
     runtime
         .propose(&bytes, context().operator, || Timestamp::from_millis(at))
         .unwrap();
@@ -242,6 +264,38 @@ fn a_commit_clones_and_applies_the_head_graph_once() {
                 root.revision
             );
         }
+    }
+}
+
+/// `story:supersede-node-review-fixes` T6: a `SupersedeNode` commit after [`history`] clones and
+/// applies the head graph once and hashes it once, as every other commit does, through a fresh
+/// runtime; and a full replay from the seed reaches the root it published, record and all.
+#[test]
+fn a_supersession_commit_clones_and_applies_the_head_graph_once() {
+    for file in [true, false] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        history(path, file);
+        let fresh = open(path, file);
+        fresh.read(None).unwrap();
+        let (root, work) = commit_document(
+            &fresh,
+            6,
+            encoded(&supersession(6), "ekr.transaction-document/2"),
+        );
+        assert_eq!(
+            work,
+            Work {
+                applied: 1,
+                hashed: 1
+            },
+            "file={file}"
+        );
+        let mut replayed = open(path, file);
+        replayed.set_full_replay(true);
+        let graph = replayed.replay(root.revision).unwrap();
+        assert_eq!(graph.superseded.len(), 1, "file={file}");
+        assert_eq!(ekr_store::knowledge_root(&graph), root.knowledge_root);
     }
 }
 

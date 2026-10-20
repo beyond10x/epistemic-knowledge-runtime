@@ -470,12 +470,10 @@ impl<'c, 'g> Known<'c, 'g> {
     }
 
     /// The superseded node `edge` was retired with, and the node that one is superseded by, if a
-    /// supersession record of canonical state holds the edge.
+    /// supersession record of canonical state holds the edge: from the validation's one index of
+    /// the records (`story:supersede-node-review-fixes`, D9).
     fn retired(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
-        if self.state.superseded.is_empty() {
-            return None;
-        }
-        self.state.retired_with(edge)
+        self.candidate.retired_with(edge)
     }
 
     /// Refuses every `NodeRef` inside `value` that nothing will hold.
