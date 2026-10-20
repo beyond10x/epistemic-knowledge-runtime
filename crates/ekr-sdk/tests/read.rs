@@ -38,10 +38,11 @@ use ekr_sdk::read::{
     ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge,
     SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge,
     SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode, SnapshotPredicate,
-    SnapshotRoot, SnapshotSubject, Timeline, TimelineBucket, TimelineCell, TimelineEvent,
-    TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState,
-    Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge,
-    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
+    SnapshotRoot, SnapshotSubject, SnapshotSupersededNode, Timeline, TimelineBucket, TimelineCell,
+    TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep,
+    TransactionState, Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion,
+    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
+    ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -463,7 +464,7 @@ fn changes_hold(changes: &Changes) {
 
 // ---- every conformance fixture document --------------------------------------------------------
 
-const FIXTURES: [&str; 14] = [
+const FIXTURES: [&str; 15] = [
     "seed-only",
     "seeded-evidence",
     "edge-assertion",
@@ -478,6 +479,7 @@ const FIXTURES: [&str; 14] = [
     "quality",
     "schema-changes",
     "property-redeclared",
+    "superseded",
 ];
 
 /// Every document each conformance fixture store renders, at every revision: the overview at
@@ -700,6 +702,20 @@ fn snapshot_holds(snapshot: &Snapshot) {
     for (id, evidence) in &graph.evidence {
         let evidence: &SnapshotEvidence = evidence;
         assert_eq!(evidence.id, *id);
+    }
+    // A superseded node is held in its record and not among the nodes; the node it is
+    // superseded by is (story:supersede-node).
+    for (id, record) in &graph.superseded {
+        let record: &SnapshotSupersededNode = record;
+        assert_eq!(record.node.id, *id);
+        assert!(!graph.nodes.contains_key(id));
+        assert!(graph.nodes.contains_key(&record.by));
+        assert!(record.revision <= root.revision && record.revision > 0);
+        assert!(!record.evidence.is_empty());
+        for (edge, retired) in &record.edges {
+            assert_eq!(retired.id, *edge);
+            assert!(!graph.edges.contains_key(edge));
+        }
     }
 }
 

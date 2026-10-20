@@ -23,6 +23,7 @@ fn input() -> (SeedDocument, BootstrapContext) {
             },
             graph: GraphDocument {
                 attachments: Default::default(),
+                superseded: Default::default(),
                 root: GraphRoot {
                     id: GraphRootId::mint(),
                     space: Space::Canonical,

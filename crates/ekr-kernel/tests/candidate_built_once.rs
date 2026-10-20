@@ -55,6 +55,7 @@ fn graph() -> CanonicalGraph {
     );
     let mut graph = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: root(),
             space: Space::Canonical,

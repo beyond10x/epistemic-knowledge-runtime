@@ -1,0 +1,45 @@
+# story:supersede-node, acceptance a-supersession-is-refused-by-name, no evidence.
+#
+# The target has committed revision 1 before the first act. The fixture
+# `supersede-node-without-evidence.yaml` supersedes Bob (0302) by Alice (0301) and names no
+# evidence. A supersession rests on at least one evidence entry, so validation rejects it with
+# exactly one issue, which the Structural validator raises under the name
+# supersession-without-evidence.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-supersession-without-evidence-is-rejected-by-name
+summary: A supersession that names no evidence is rejected with one issue, supersession-without-evidence, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: supersession
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: supersession-without-evidence

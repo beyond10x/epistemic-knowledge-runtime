@@ -539,6 +539,7 @@ fn basis(held: &[Held]) -> CanonicalGraph {
     let schema = SchemaVersionId::mint();
     let mut graph = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: p.root,
             space: Space::Canonical,

@@ -52,7 +52,8 @@ pub use kernel::{
     NamedType, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty,
     OntologyValueType, RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment,
     SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode,
-    SnapshotPredicate, SnapshotRoot, SnapshotSubject, TransactionState, Transactions, ValidTime,
+    SnapshotPredicate, SnapshotRoot, SnapshotSubject, SnapshotSupersededNode, TransactionState,
+    Transactions, ValidTime,
 };
 pub use ocel::{
     OcelCounts, OcelDocument, OcelEvent, OcelEventAttribute, OcelExport, OcelLog, OcelMeta,

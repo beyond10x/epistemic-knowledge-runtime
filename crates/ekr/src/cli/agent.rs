@@ -178,9 +178,10 @@ WHERE VALUES COME FROM
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
   evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
-                   its AttachEvidence operations attach and its CiteEvidence operations cite,
-                   and each must be retained (seeded, or added by an earlier commit) or be
-                   added by an AddEvidence of the same transaction (see ADDING EVIDENCE)
+                   its AttachEvidence operations attach, its CiteEvidence operations cite and
+                   its SupersedeNode operations rest on, and each must be retained (seeded, or
+                   added by an earlier commit) or be added by an AddEvidence of the same
+                   transaction (see ADDING EVIDENCE)
   content hashes   ekr hash <file | ->
 
 RESOLVE BEFORE YOU CREATE: ekr resolve
@@ -202,6 +203,10 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   Rejected (alias-already-exists): resolve again, and use the node it returns.
   A node that exists but lacks the alias a reference names gains it with AddAlias
   (`ekr operations AddAlias`); ekr resolve finds it by that alias from the next revision on.
+  A duplicate node already created is retired with SupersedeNode (`ekr operations
+  SupersedeNode`): it leaves every head read, its aliases resolve to the node kept, even one of
+  another type, and they stay taken, so a later run that resolves the old key lands on the
+  node kept.
 
 EXTRACTION DOCUMENTS
   An agent that extracts knowledge from sources writes it as one ekr.extraction-document/1
@@ -320,6 +325,8 @@ pub enum OperationKind {
     AttachEvidence,
     /// `!CiteEvidence`.
     CiteEvidence,
+    /// `!SupersedeNode`.
+    SupersedeNode,
 }
 
 impl OperationKind {
@@ -345,6 +352,7 @@ impl OperationKind {
             GraphOperation::AddAlias(_) => Self::AddAlias,
             GraphOperation::AttachEvidence(_) => Self::AttachEvidence,
             GraphOperation::CiteEvidence(_) => Self::CiteEvidence,
+            GraphOperation::SupersedeNode(_) => Self::SupersedeNode,
         }
     }
 
@@ -367,6 +375,7 @@ impl OperationKind {
             Self::AddAlias => "AddAlias",
             Self::AttachEvidence => "AttachEvidence",
             Self::CiteEvidence => "CiteEvidence",
+            Self::SupersedeNode => "SupersedeNode",
         }
     }
 
@@ -385,7 +394,8 @@ impl OperationKind {
             | Self::SupersedeAssertion
             | Self::AddEvidence
             | Self::AddAlias
-            | Self::AttachEvidence => Applied::Always,
+            | Self::AttachEvidence
+            | Self::SupersedeNode => Applied::Always,
             Self::DefineNodeType
             | Self::DefineEdgeType
             | Self::ModifyProperty
@@ -682,6 +692,34 @@ impl OperationKind {
   The AddEvidence of an entry the transaction cites travels with the schema changes; any other
   operation beside them is still mixed-schema-transaction.",
                 "- !CiteEvidence 00000000-0000-4000-8000-000000000401",
+            ),
+            Self::SupersedeNode => (
+                "retire a duplicate node in favour of the node that replaces it",
+                "  node      NodeId        the node retired: ekr snapshot (supersede-unknown-node if the
+                          head holds none, one the same transaction creates included;
+                          node-already-superseded if it is)
+  by        NodeId        the node kept: ekr snapshot, or one a CreateNode of the same
+                          transaction creates (supersede-by-unknown-node otherwise;
+                          supersede-into-itself if it is node; supersede-by-superseded-node if
+                          it is superseded, naming the node to use instead)
+  reason    String        why; not empty or only whitespace (supersession-without-reason)
+  evidence  [EvidenceId]  at least one (supersession-without-evidence), each retained or added
+                          by an AddEvidence of the same transaction
+                          (supersession-evidence-unknown)
+  List the evidence ids in transaction.evidence. The node and every edge at it leave the head
+  and are kept in a supersession record (ekr snapshot graph.graph.superseded) naming by, the
+  revision, the reason and the evidence; assertions about it are not changed; every earlier
+  revision still reads it. ekr resolve of its type and one of its aliases answers by, and a
+  later CreateNode or AddAlias of that type and alias is alias-already-exists. No other
+  operation of the transaction may name the node or an edge at it
+  (superseded-node-named-in-transaction), except a CreateEdge from by; afterwards an operation
+  naming it is node-superseded, naming by.",
+                "- !SupersedeNode
+  node: 00000000-0000-4000-8000-000000000302
+  by: 00000000-0000-4000-8000-000000000301
+  reason: one person recorded twice
+  evidence:
+  - 00000000-0000-4000-8000-000000000402",
             ),
         }
     }

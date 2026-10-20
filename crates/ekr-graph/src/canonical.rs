@@ -50,6 +50,7 @@ use crate::edge::Edge;
 use crate::evidence::Evidence;
 use crate::node::Node;
 use crate::root::GraphRoot;
+use crate::supersession::Superseded;
 use crate::value::CanonicalValue;
 
 pub(crate) mod sealed {
@@ -459,9 +460,34 @@ pub struct CanonicalGraph {
     /// reached, and the knowledge root then encodes exactly what it encoded before the field
     /// existed (`ekr_store::knowledge_root`).
     pub attachments: Attachments,
+    /// The nodes superseded by another, by the superseded node's id (`story:supersede-node`,
+    /// design § 110): each held whole, with the edges retired with it, in a record naming the node
+    /// it is superseded by. Neither the node nor those edges is in [`nodes`](Self::nodes) or
+    /// [`edges`](Self::edges), so a reader of those omits it. Empty in a graph no `SupersedeNode`
+    /// has reached, and the knowledge root then encodes exactly what it encoded before the field
+    /// existed (`ekr_store::knowledge_root`).
+    pub superseded: Superseded,
 }
 
 impl CanonicalGraph {
+    /// The node `node` is superseded by, if this graph holds a supersession of it: always a node
+    /// [`nodes`](Self::nodes) holds, since a supersession of the node a record names repoints the
+    /// record.
+    #[must_use]
+    pub fn superseded_by(&self, node: NodeId) -> Option<NodeId> {
+        self.superseded.get(&node).map(|record| record.by.node())
+    }
+
+    /// The superseded node an edge was retired with, and the node that one is superseded by, if
+    /// a supersession record of this graph holds the edge.
+    #[must_use]
+    pub fn retired_with(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
+        self.superseded
+            .values()
+            .find(|record| record.edges.contains_key(&edge))
+            .map(|record| (record.node.id, record.by.node()))
+    }
+
     /// What was attached to `assertion` after it was added, in evidence-id order: none for an
     /// assertion with no attachment, or one this graph does not hold.
     pub fn attached(&self, assertion: AssertionId) -> impl Iterator<Item = &AttachedEvidence> {

@@ -8,7 +8,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{GraphRootId, NodeId, RevisionNumber, SchemaVersionId, Timestamp, TypeId};
-use ekr_graph::{AliasIndex, CanonicalGraph, GraphRoot, GraphSnapshot, Node, Space};
+use ekr_graph::{
+    AliasIndex, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Node, Space, SupersededNode,
+};
 use ekr_integrate::{
     resolve, AmbiguousReference, ResolutionOutcome, ResolutionRefusal, ResolutionRefusalCode,
     ResolvedReference, TypedReference,
@@ -84,6 +86,7 @@ fn node(n: u64, type_id: TypeId, name: &str, aliases: &[&str]) -> Node {
 fn graph(nodes: impl IntoIterator<Item = Node>) -> CanonicalGraph {
     CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: root_id(1),
             space: Space::Canonical,
@@ -463,5 +466,136 @@ proptest! {
             serde_json::to_vec(&looked_up).expect("an outcome serialises")
         );
         prop_assert_eq!(index, AliasIndex::of(&state.clone()));
+    }
+}
+
+/// `graph` with each node of `superseded` moved out of its nodes into a supersession record
+/// naming the node `by` names, as a committed `SupersedeNode` leaves it.
+fn superseding(mut state: CanonicalGraph, superseded: &[(u64, u64)]) -> CanonicalGraph {
+    for (node, by) in superseded {
+        let held = state
+            .nodes
+            .remove(&node_id(*node))
+            .expect("the superseded node is held");
+        state.superseded.insert(
+            held.id,
+            SupersededNode {
+                node: held,
+                edges: BTreeMap::new(),
+                by: CanonicalRef::new(node_id(*by)),
+                revision: RevisionNumber::new(2),
+                reason: "a duplicate".to_owned(),
+                evidence: BTreeSet::new(),
+            },
+        );
+    }
+    state
+}
+
+/// `story:supersede-node`, `a-superseded-alias-resolves-to-the-kept-node`: a reference of a
+/// superseded node's exact type and one of its aliases resolves to the node its record names,
+/// though that node is of another type; a reference of the kept node's own type still resolves to
+/// it by its own aliases; both resolvers answer alike.
+#[test]
+fn a_superseded_alias_resolves_to_the_kept_node() {
+    let t = types();
+    let state = superseding(
+        graph([
+            node(1, t.person, "group/app!18", &["group/app!18"]),
+            node(
+                2,
+                t.organisation,
+                "group/app!18",
+                &["group/app!18", "mr-18"],
+            ),
+        ]),
+        &[(2, 1)],
+    );
+    let index = AliasIndex::of(&state);
+    for (reference, expected) in [
+        (
+            reference(t.organisation, &["mr-18"]),
+            ResolutionOutcome::Resolved(ResolvedReference {
+                node_id: node_id(1),
+            }),
+        ),
+        (
+            reference(t.organisation, &["group/app!18", "mr-18"]),
+            ResolutionOutcome::Resolved(ResolvedReference {
+                node_id: node_id(1),
+            }),
+        ),
+        (
+            reference(t.person, &["group/app!18"]),
+            ResolutionOutcome::Resolved(ResolvedReference {
+                node_id: node_id(1),
+            }),
+        ),
+        (
+            reference(t.person, &["mr-18"]),
+            ResolutionOutcome::ProposeNew(reference(t.person, &["mr-18"])),
+        ),
+    ] {
+        assert_eq!(
+            resolve(GraphSnapshot::of(&state), &reference),
+            expected,
+            "{reference:?}"
+        );
+        assert_eq!(
+            ekr_integrate::resolve_indexed(GraphSnapshot::of(&state), &index, &reference),
+            expected,
+            "{reference:?}: indexed"
+        );
+    }
+    assert_eq!(index.nodes(t.organisation, "mr-18"), [node_id(1)]);
+}
+
+proptest! {
+    /// With some of the universe's nodes superseded by others, the indexed lookup still answers
+    /// byte for byte what the scan answers, and each candidate is a node the head holds.
+    #[test]
+    fn the_indexed_lookup_answers_what_the_scan_answers_over_superseded_nodes(
+        shape in any_universe(),
+        retired in proptest::collection::vec(any::<bool>(), 8),
+        wanted_type in 1..=6u64,
+        wanted in proptest::collection::vec(0..ANY_ALIAS.len(), 0..4),
+    ) {
+        let state = graph(shape.iter().enumerate().map(|(n, (kind, inside, aliases))| {
+            let named: Vec<&str> = aliases.iter().map(|&at| ANY_ALIAS[at]).collect();
+            let mut held = node(n as u64, type_id(*kind), "same name", &named);
+            if !inside {
+                held.root_id = root_id(2);
+            }
+            held
+        }));
+        // Every retired node is superseded by the first node that stays, when one stays.
+        let kept = (0..shape.len()).find(|n| !retired[*n]);
+        let pairs: Vec<(u64, u64)> = kept
+            .map(|kept| {
+                (0..shape.len())
+                    .filter(|n| retired[*n])
+                    .map(|n| (n as u64, kept as u64))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let state = superseding(state, &pairs);
+        let wanted: Vec<&str> = wanted.iter().map(|&at| ANY_ALIAS[at]).collect();
+        let reference = reference(type_id(wanted_type), &wanted);
+        let scanned = resolve(GraphSnapshot::of(&state), &reference);
+        let index = AliasIndex::of(&state);
+        let looked_up =
+            ekr_integrate::resolve_indexed(GraphSnapshot::of(&state), &index, &reference);
+        prop_assert_eq!(
+            serde_json::to_vec(&scanned).expect("an outcome serialises"),
+            serde_json::to_vec(&looked_up).expect("an outcome serialises")
+        );
+        let candidates = match &scanned {
+            ResolutionOutcome::Resolved(resolved) => vec![resolved.node_id],
+            ResolutionOutcome::Ambiguous(ambiguous) => ambiguous.candidates.clone(),
+            ResolutionOutcome::ProposeNew(_) | ResolutionOutcome::Refused(_) => Vec::new(),
+        };
+        for candidate in candidates {
+            prop_assert!(state.nodes.contains_key(&candidate), "{} is not held", candidate);
+        }
     }
 }

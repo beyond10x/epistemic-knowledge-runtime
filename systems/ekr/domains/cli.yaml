@@ -27,6 +27,8 @@ naming:
 #   those attached later as `attached_evidence`), valid time, assessment and lifecycle. Not its
 #   transaction time, its proposer or its root id.
 # - Evidence: source, payload hash (`content_hash`), extractor, observation time and confidence.
+# - Superseded (story:supersede-node), keyed by the superseded node's id: the node and the edges
+#   retired with it as nodes and edges are compared, `by`, `revision`, `reason` and `evidence`.
 #
 # Nothing a commit's clock or its transaction id decides is compared. A difference is named by
 # the id it is under and, where both stores hold that id, by the fields that differ.
@@ -43,7 +45,7 @@ types:
 
   - name: ekr.cli.ComparisonCategory
     kind: enum
-    variants: [types, properties, nodes, edges, assertions, evidence]
+    variants: [types, properties, nodes, edges, assertions, evidence, superseded]
 
   # Which store holds an id: `both` (then `fields` names the fields that differ), or only one.
   - name: ekr.cli.Presence
@@ -85,7 +87,9 @@ types:
         type: ekr.kernel.RevisionNumber
 
   # `left` is the configured store (--store), `right` the other (--other). `equal` holds exactly
-  # when every category's does; `categories` lists all six, in the order of ComparisonCategory.
+  # when every category's does; `categories` lists the first six, in the order of
+  # ComparisonCategory, and `superseded` after them only where either store holds a supersession
+  # record, so a pair that never superseded prints as it did before the category existed.
   - name: ekr.cli.StoreComparisonV1
     kind: struct
     fields:

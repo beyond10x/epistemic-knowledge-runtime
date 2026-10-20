@@ -489,7 +489,8 @@ impl Index {
     /// # Errors
     ///
     /// [`QueryError::NodeIsAType`] for an id no node holds and a type of the revision's ontology
-    /// does; [`QueryError::NodeNotFound`] for any other id the revision holds no node with.
+    /// does; [`QueryError::NodeSuperseded`] for an id a supersession of the revision holds;
+    /// [`QueryError::NodeNotFound`] for any other id the revision holds no node with.
     pub fn detail_v2(
         &self,
         node: NodeId,
@@ -498,6 +499,9 @@ impl Index {
         let graph = &self.loaded.graph;
         let (Some(&index), Some(held)) = (self.node_index.get(&node), graph.nodes.get(&node))
         else {
+            if graph.superseded.contains_key(&node) {
+                return Err(self.not_held(node));
+            }
             let as_type = node.to_string().parse::<TypeId>().ok();
             if let Some((kind, type_name)) = as_type.and_then(|id| self.type_kind(id)) {
                 return Err(QueryError::NodeIsAType {

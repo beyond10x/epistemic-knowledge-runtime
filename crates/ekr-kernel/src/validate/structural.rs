@@ -409,7 +409,10 @@ fn alias_holders<'tx>(
         return holders;
     }
     let state = graph.graph();
-    for node in state.nodes.values() {
+    // A superseded node keeps its aliases under its type in its record and keeps holding them
+    // (design § 110.3), so it is a holder as a node of the head is: the lowest id of either.
+    let superseded = state.superseded.values().map(|record| &record.node);
+    for node in state.nodes.values().chain(superseded) {
         #[cfg(test)]
         ALIAS_NODES_VISITED.with(|count| count.set(count.get() + 1));
         if node.root_id != state.root.id {
@@ -420,7 +423,7 @@ fn alias_holders<'tx>(
         };
         for alias in &node.aliases {
             if let Some(holder) = wanted.get_mut(alias.as_str()) {
-                holder.get_or_insert(node.id);
+                *holder = Some(holder.map_or(node.id, |held| held.min(node.id)));
             }
         }
     }
@@ -825,9 +828,13 @@ fn once_held(
             Some(_) => continue,
             None => {}
         }
-        let current = if state.nodes.contains_key(&NodeId::from_uuid(uuid)) {
+        // A superseded node and a retired edge are held still, in a supersession record.
+        let (node, edge) = (NodeId::from_uuid(uuid), EdgeId::from_uuid(uuid));
+        let current = if state.nodes.contains_key(&node) || state.superseded.contains_key(&node) {
             Some(Held::Node)
-        } else if state.edges.contains_key(&EdgeId::from_uuid(uuid)) {
+        } else if state.edges.contains_key(&edge)
+            || (!state.superseded.is_empty() && state.retired_with(edge).is_some())
+        {
             Some(Held::Edge)
         } else {
             None
@@ -890,6 +897,7 @@ fn check(
     let mut cited: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut citations: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut attached = false;
+    let mut superseding = false;
     let declared = |type_id: TypeId| {
         state.ontology.node_type(type_id).is_some() || state.ontology.edge_type(type_id).is_some()
     };
@@ -898,20 +906,19 @@ fn check(
         // minted earlier in this transaction, and does canonical state already hold it. The
         // arms are exhaustive so that an operation added to `ekr.kernel.OperationKind` has to
         // be placed on one side of that rule rather than falling into a catch-all.
+        // A superseded node, and an edge retired with one, is held still: in its record, which
+        // nothing removes (design § 110.3), so its id is never taken again.
         let (created, held) = match operation {
             GraphOperation::CreateNode(draft) => (
                 (!nodes.insert(draft.id)).then(|| format!("node {}", draft.id)),
-                state
-                    .nodes
-                    .contains_key(&draft.id)
+                (state.nodes.contains_key(&draft.id) || state.superseded.contains_key(&draft.id))
                     .then(|| format!("node {}", draft.id)),
             ),
             GraphOperation::CreateEdge(draft) => (
                 (!edges.insert(draft.id)).then(|| format!("edge {}", draft.id)),
-                state
-                    .edges
-                    .contains_key(&draft.id)
-                    .then(|| format!("edge {}", draft.id)),
+                (state.edges.contains_key(&draft.id)
+                    || (!state.superseded.is_empty() && state.retired_with(draft.id).is_some()))
+                .then(|| format!("edge {}", draft.id)),
             ),
             GraphOperation::AddAssertion(assertion) => {
                 cited.extend(assertion.evidence.iter().copied());
@@ -1001,6 +1008,13 @@ fn check(
             | GraphOperation::RetractAssertion(_)
             | GraphOperation::SupersedeAssertion(_)
             | GraphOperation::Invoke { .. } => (None, None),
+            // Names two nodes and creates none; what it rests on is part of what the transaction
+            // rests on, so its evidence is in the manifest too (design § 110.1).
+            GraphOperation::SupersedeNode(supersession) => {
+                cited.extend(supersession.evidence.iter().copied());
+                superseding = true;
+                (None, None)
+            }
         };
         if let Some(named) = created {
             issues.push(issue(
@@ -1030,11 +1044,16 @@ fn check(
     // Replay compares every retained rejection's message with what this ruleset says now, so a
     // transaction with no attachment and no citation is refused in the words it always was, and
     // one with an attachment and no citation in the words of design § 103. Only a transaction
-    // with a citation, which no store retained before design § 109, reads the third form.
-    let cite = match (attached, citations.is_empty()) {
-        (false, true) => "its assertions cite",
-        (true, true) => "its assertions cite or its attachments attach",
-        (_, false) => "its assertions cite, its attachments attach or its citations cite",
+    // with a citation, which no store retained before design § 109, reads the third form, and
+    // only one with a supersession, which none retained before design § 110, the fourth.
+    let cite = match (attached, citations.is_empty(), superseding) {
+        (_, _, true) => {
+            "its assertions cite, its attachments attach, its citations cite or its \
+             supersessions rest on"
+        }
+        (false, true, false) => "its assertions cite",
+        (true, true, false) => "its assertions cite or its attachments attach",
+        (_, false, false) => "its assertions cite, its attachments attach or its citations cite",
     };
     if cited != tx.evidence {
         issues.push(issue(
@@ -1124,5 +1143,6 @@ fn check(
 
     issues.extend(super::lifecycle::check(graph, tx));
     issues.extend(super::attachment::check(graph, tx));
+    issues.extend(super::supersession::check(graph, tx));
     finish(issues)
 }

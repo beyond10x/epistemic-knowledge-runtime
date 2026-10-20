@@ -49,6 +49,7 @@ fn world() -> World {
         },
         graph: GraphDocument {
             attachments: Default::default(),
+            superseded: Default::default(),
             root: GraphRoot {
                 id: GraphRootId::mint(),
                 space: Space::Canonical,

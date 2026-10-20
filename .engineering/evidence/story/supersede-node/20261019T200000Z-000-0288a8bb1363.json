@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-19T20:00:00Z",
+  "actor": "agent:claude-ekr-session",
+  "artifact": "story:supersede-node",
+  "kind": "story",
+  "revision": 13,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check, step by step, on a3d900185 in tree ekr-w19a-u1: 10 steps exit 0; cargo test 2526 passed, 0 failed, 13 ignored; 2537 listed",
+    "reference": "a3d900185"
+  }
+}

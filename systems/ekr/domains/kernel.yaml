@@ -51,7 +51,11 @@ types:
   # same transaction adds, to an accepted and active assertion canonical state holds, as an
   # ekr.graph.EvidenceAttachment (ekr.kernel.EvidenceAttachmentProjection). CiteEvidence is index
   # 16 (story:schema-transaction-cites-evidence, design § 109): one evidence id the schema version
-  # the transaction produces cites; see ekr.kernel.CanonicalOperationProjection.
+  # the transaction produces cites; see ekr.kernel.CanonicalOperationProjection. SupersedeNode is
+  # index 17 (story:supersede-node, design § 110,
+  # architecture-decision-record:0017-a-node-is-superseded-by-another): data, applied under every
+  # validation profile; it retires a node canonical state holds in favour of another, as an
+  # ekr.graph.SupersededNode (ekr.kernel.NodeSupersession).
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -72,6 +76,7 @@ types:
       - AddAlias
       - AttachEvidence
       - CiteEvidence
+      - SupersedeNode
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -705,6 +710,49 @@ types:
       - name: evidence
         type: ekr.graph.EvidenceId
 
+  # `SupersedeNode` in the canonical operation: the node retired, the node that replaces it, the
+  # reason and the evidence, encoded as the four fields in this order, the evidence as a set
+  # (story:supersede-node, design § 110). Commit removes `node` from the head's nodes, moves every
+  # edge with `node` at either end out of the head's edges, and holds both, whole, in an
+  # ekr.graph.SupersededNode under `node`'s id at the revision it produces, naming `by`; every
+  # record whose `by` is `node` is repointed to this `by` in the same revision, so a reader follows
+  # one pointer. Assertions are not changed. `node`'s aliases stay taken under its type, and a
+  # typed reference matching them resolves to `by` (ekr.integrate). The evidence is part of what
+  # the transaction rests on, so each id is in the transaction's evidence set
+  # (evidence-set-mismatch, Structural, otherwise). A CreateEdge from `by` in the same transaction
+  # is applied as any CreateEdge is. Validation refuses, as named issues of a Rejected
+  # transaction: a `node` canonical state does not hold (supersede-unknown-node, Reference); a
+  # `node` already superseded, naming its `by` (node-already-superseded, Reference); `node` equal
+  # to `by` (supersede-into-itself, Structural); a `by` canonical state does not hold and the
+  # transaction does not create (supersede-by-unknown-node, Reference); a `by` already superseded,
+  # naming its `by` (supersede-by-superseded-node, Reference); an empty or whitespace-only reason
+  # (supersession-without-reason, Structural); no evidence (supersession-without-evidence,
+  # Structural); evidence canonical state does not retain and no AddEvidence of the transaction
+  # adds (supersession-evidence-unknown, Reference); and another operation of the same
+  # transaction naming `node` or one of its edges — an edge endpoint, UpdateProperty, AddAlias,
+  # Invoke, MergeEntity, DeleteEdge, an AddAssertion subject or object — `node` superseded twice,
+  # or `by` itself superseded by the same transaction (superseded-node-named-in-transaction,
+  # Structural). After the commit, any operation naming a superseded node or an edge retired
+  # with one — an edge endpoint, UpdateProperty, AddAlias, Invoke, MergeEntity, DeleteEdge, an
+  # AddAssertion subject or object, a NodeRef value — is node-superseded (Reference), naming the
+  # node it is superseded by; a RetractAssertion of an assertion about one is not, and commits. A
+  # CreateNode or AddAlias of a superseded node's type and one of its aliases is
+  # alias-already-exists (Structural), and a CreateNode or CreateEdge reusing its id or a retired
+  # edge's is identity-already-exists (Structural). A transaction without a SupersedeNode is
+  # validated exactly as before the kind existed, so no retained rejection replays differently and
+  # no retained address moves.
+  - name: ekr.kernel.NodeSupersession
+    kind: struct
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: by
+        type: ekr.graph.NodeId
+      - name: reason
+        type: String
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -770,6 +818,7 @@ types:
       AddAlias: ekr.kernel.AliasAdditionProjection
       AttachEvidence: ekr.kernel.EvidenceAttachmentProjection
       CiteEvidence: ekr.graph.EvidenceId
+      SupersedeNode: ekr.kernel.NodeSupersession
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct
@@ -1048,6 +1097,13 @@ types:
       - name: commit
         type: ekr.kernel.ExplainedCommit
 
+  # An Assertion link is the assertion as the captured revision holds it. Where that revision
+  # holds a supersession (story:supersede-node, ADR 0017 decision 3) the link also names, beside
+  # the record, `subject_superseded_by` — the node a superseded subject node, or the node a
+  # retired subject edge was retired with, is superseded by — and `object_superseded_by` for a
+  # superseded Node object, each an ekr.graph.NodeId and each omitted where there is none, so an
+  # explanation of a revision without a supersession is the bytes it was. Added to
+  # ekr.explanation/2 and /3 without a version bump, as the Attachment link was.
   - name: ekr.kernel.ExplanationLink
     kind: union
     tag: kind

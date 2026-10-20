@@ -23,13 +23,14 @@ use ekr_sdk::document::{
     Assessment, Cardinality, Confidence, DocumentError, DocumentLimit, DocumentLimits, EdgeDraft,
     EdgeId, EdgeType, EdgeTypeSpec, EdgeWidening, EntityMerge, Evidence, EvidenceAddition,
     EvidenceAttachment, EvidenceId, EvidenceSource, GraphRoot, GraphRootId, GraphSection,
-    Invocation, Lifecycle, NodeDraft, NodeId, NodeType, NodeTypeSpec, Object, Ontology,
-    OntologyError, OntologySection, OntologySpec, Operation, OperationDefinition, OperationKind,
-    Predicate, PropertyDefinition, PropertyId, PropertyModification, PropertyMutation,
-    PropertySpec, Retraction, SchemaChange, SchemaVersion, SchemaVersionId, SeedBuilder,
-    SeedDocument, SeedGraph, SeedNode, Space, Subject, Supersession, TemporalRange, Timestamp,
-    Transaction, TransactionBuilder, TransactionDocument, TransactionId, TransactionTime,
-    Transition, TypeId, TypedReference, ValidationProfile, Value, ValueSpec, ValueType,
+    Invocation, Lifecycle, NodeDraft, NodeId, NodeSupersession, NodeType, NodeTypeSpec, Object,
+    Ontology, OntologyError, OntologySection, OntologySpec, Operation, OperationDefinition,
+    OperationKind, Predicate, PropertyDefinition, PropertyId, PropertyModification,
+    PropertyMutation, PropertySpec, Retraction, SchemaChange, SchemaVersion, SchemaVersionId,
+    SeedBuilder, SeedDocument, SeedGraph, SeedNode, Space, Subject, Supersession, TemporalRange,
+    Timestamp, Transaction, TransactionBuilder, TransactionDocument, TransactionId,
+    TransactionTime, Transition, TypeId, TypedReference, ValidationProfile, Value, ValueSpec,
+    ValueType,
 };
 use serde_json::Value as Json;
 
@@ -102,6 +103,7 @@ fn kernel_kind(operation: &ekr_kernel::GraphOperation) -> &'static str {
         G::AddAlias(_) => "AddAlias",
         G::AttachEvidence(_) => "AttachEvidence",
         G::CiteEvidence(_) => "CiteEvidence",
+        G::SupersedeNode(_) => "SupersedeNode",
     }
 }
 
@@ -224,6 +226,13 @@ fn example(kind: OperationKind, operator: AgentId) -> Operation {
             EvidenceAttachment::new(AssertionId::mint(), EvidenceId::mint()).into()
         }
         OperationKind::CiteEvidence => sdk::Operation::CiteEvidence(EvidenceId::mint()),
+        OperationKind::SupersedeNode => NodeSupersession::new(
+            NodeId::mint(),
+            NodeId::mint(),
+            "catalogued twice",
+            [EvidenceId::mint()],
+        )
+        .into(),
     }
 }
 

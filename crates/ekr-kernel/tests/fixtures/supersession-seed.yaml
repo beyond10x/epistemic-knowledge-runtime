@@ -1,0 +1,132 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-000000000001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-000000000201
+    name: Tag
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000000202
+    name: WorkItem
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000000211:
+        id: 00000000-0000-4000-8000-000000000211
+        name: title
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000000203
+    name: MergeRequest
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000000213:
+        id: 00000000-0000-4000-8000-000000000213
+        name: title
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types:
+  - id: 00000000-0000-4000-8000-000000000204
+    name: TAGGED
+    source_types:
+    - 00000000-0000-4000-8000-000000000202
+    - 00000000-0000-4000-8000-000000000203
+    target_types:
+    - 00000000-0000-4000-8000-000000000201
+    cardinality: Many
+    properties:
+      00000000-0000-4000-8000-000000000212:
+        id: 00000000-0000-4000-8000-000000000212
+        name: note
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    inverse: null
+    symmetric: false
+    transitive: false
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-000000000002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-000000000001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-000000000301:
+        id: 00000000-0000-4000-8000-000000000301
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000202
+        canonical_name: group/app!18
+        aliases:
+        - group/app!18
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000000302:
+        id: 00000000-0000-4000-8000-000000000302
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000203
+        canonical_name: group/app!18
+        aliases:
+        - group/app!18
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000000303:
+        id: 00000000-0000-4000-8000-000000000303
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000201
+        canonical_name: parser
+        aliases:
+        - parser
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000000304:
+        id: 00000000-0000-4000-8000-000000000304
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000202
+        canonical_name: group/app!18 in the tracker
+        aliases:
+        - tracker/18
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000000305:
+        id: 00000000-0000-4000-8000-000000000305
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000203
+        canonical_name: group/app!19
+        aliases: []
+        type_state: null
+        properties: {}
+    edges:
+      00000000-0000-4000-8000-000000000501:
+        id: 00000000-0000-4000-8000-000000000501
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000204
+        source: 00000000-0000-4000-8000-000000000302
+        target: 00000000-0000-4000-8000-000000000303
+        properties: {}
+    assertions: {}
+    evidence: {}
+evidence_payloads: {}

@@ -28,6 +28,12 @@ pub fn knowledge_roots_hashed() -> u64 {
 /// tagged `Some` and only when there are any, the shape `GraphTransaction::schema_version` takes:
 /// a graph with none encodes to exactly the bytes it encoded to before the collection existed, so
 /// no root a store records moves, and the `Some` tag cannot be read as anything else.
+///
+/// The supersession records (`story:supersede-node`, design § 110.4) are written only when there
+/// are any, and then after the attachments written as an option in either case — `Some` when
+/// there are any, `None` otherwise — and the records as a tagged `Some`. A graph without a
+/// supersession encodes exactly as before the collection existed, and no graph with records
+/// shares an encoding with one without.
 #[must_use]
 pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
     struct Knowledge<'a>(&'a CanonicalGraph);
@@ -36,8 +42,13 @@ pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
             self.0.nodes.encode(out);
             self.0.edges.encode(out);
             self.0.assertions.encode(out);
-            if !self.0.attachments.is_empty() {
-                out.option(Some(&self.0.attachments));
+            if self.0.superseded.is_empty() {
+                if !self.0.attachments.is_empty() {
+                    out.option(Some(&self.0.attachments));
+                }
+            } else {
+                out.option((!self.0.attachments.is_empty()).then_some(&self.0.attachments));
+                out.option(Some(&self.0.superseded));
             }
         }
     }

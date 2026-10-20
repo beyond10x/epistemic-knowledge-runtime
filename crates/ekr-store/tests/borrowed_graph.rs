@@ -131,6 +131,7 @@ fn graph() -> CanonicalGraph {
         assertions,
         evidence: BTreeMap::from([(evidence.id, evidence)]),
         attachments: BTreeMap::new(),
+        superseded: BTreeMap::new(),
     }
 }
 
