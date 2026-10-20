@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-20T23:27:07Z",
+  "actor": "human:timo",
+  "artifact": "story:merge-entity-applies",
+  "kind": "story",
+  "revision": 11,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "haiku panel fixes: 2 new merge_entity cases red on 7a7e885be (one Validated where a rejection was expected; one with an extra merge-types-unrelated), green after; ekr-kernel and 5 ekr CLI suites 760 passed, 0 failed; fmt and clippy exit 0",
+    "reference": "wave/20261020b, review-result:haiku-panel-pr-101-merge-entity"
+  }
+}

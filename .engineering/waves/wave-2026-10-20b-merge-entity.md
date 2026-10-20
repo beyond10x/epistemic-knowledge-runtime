@@ -39,6 +39,14 @@ the story's "Coordinator decisions" section.
 |---|---|---|---|
 | adversary 1 on `05bd7050` | `review-result:adversary-w20261020b-u1-pass-1` | 6 introduced | F1, F2, J2, J3, J4 fixed in `5b59a139`; J1 filed as `story:explain-names-the-merge` (no-op) |
 | adversary 2 on `5b59a139` | `review-result:adversary-w20261020b-u1-pass-2` | 1 note (N1) | coordinator's decision: no change (no-op); 12 green cases kept in scratch |
+| haiku panel (10, operator's request) on PR head `7a7e885b`, before the merge | `review-result:haiku-panel-pr-101-merge-entity` | 26: 3 blocker, 12 warning, 11 note | H1 to H5 fixed on `wave/20261020b` (2 blockers: a created-and-deleted edge in the merge check, per-merge checks before the more-than-one-merge refusal; guide text; module doc); H6 to H12 filed as `story:merge-entity-review-follow-ups` |
+
+The panel's fixes were gated in the integration tree through `b10x-build-slot`: `cargo fmt --all -- --check`
+and `cargo clippy --workspace --all-targets --locked -- -D warnings` exit 0; `cargo test -p ekr-kernel` and
+the `ekr` CLI suites `agent_cli`, `docs_cli`, `adversary_p4_01_agent_cli`, `conformance` and
+`adversary_w20261020b_merge_cli`: 99 binaries, 760 passed, 0 failed. The two new kernel cases failed on
+`7a7e885b` first (one Validated where a rejection was expected, one with an extra `merge-types-unrelated`).
+The pull request's `Repository correctness` job runs `task check` whole.
 
 ## Incidents
 
