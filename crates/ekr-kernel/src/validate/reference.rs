@@ -328,8 +328,9 @@ impl Check for Reference {
                     } else if let Some(kept) = known.state.superseded_by(by) {
                         let message = match known.candidate.superseding(kept) {
                             // Profile v4: the node the head will hold for `kept` once this
-                            // transaction commits (D8).
-                            Some(next) if known.candidate.exact() => format!(
+                            // transaction commits (D8) — unless that is `node` itself, which
+                            // would advise superseding a node by itself.
+                            Some(next) if known.candidate.exact() && next != node => format!(
                                 "node {node} is superseded by node {by}, which is itself \
                                  superseded by node {kept}, which this transaction supersedes by \
                                  node {next}; supersede node {node} by node {next}"

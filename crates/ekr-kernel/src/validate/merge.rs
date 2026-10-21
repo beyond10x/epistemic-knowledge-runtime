@@ -184,9 +184,13 @@ fn check_one(
     }
 
     // What the transaction's other operations leave of the head, as commit applies them before
-    // the merge: deletions, supersessions, updates and creations.
+    // the merge: deletions, supersessions, updates and creations. The supersessions are those
+    // that retire anything in the transaction, as the edges below read them (`gone`): every
+    // `SupersedeNode` under profiles v1 to v3, and under v4 only those `Reference` admits, so a
+    // merge beside a refused supersession is judged as the merge alone
+    // (`story:supersession-verdict-fixes-replay-safe`, D7).
     let mut deleted = BTreeSet::new();
-    let mut superseding = BTreeSet::new();
+    let superseding: BTreeSet<NodeId> = candidate.retiring().collect();
     let mut updated = BTreeSet::new();
     let mut created: Option<&crate::NodeDraft> = None;
     let mut near: Vec<EdgeAt<'_>> = Vec::new();
@@ -194,9 +198,6 @@ fn check_one(
         match operation {
             GraphOperation::DeleteEdge(edge) => {
                 deleted.insert(*edge);
-            }
-            GraphOperation::SupersedeNode(supersession) => {
-                superseding.insert(supersession.node);
             }
             GraphOperation::UpdateProperty(mutation) => {
                 updated.insert((mutation.node, mutation.property));

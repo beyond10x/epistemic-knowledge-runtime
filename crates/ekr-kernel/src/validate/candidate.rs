@@ -269,10 +269,15 @@ impl<'g> Candidate<'g> {
     }
 
     /// The node a supersession of [`Candidate::retiring`] supersedes `node` by, if one supersedes
-    /// it: what the head will name instead of `node` once the transaction commits. Read for the
-    /// messages of profile v4 only.
+    /// it by another node: what the head will name instead of `node` once the transaction
+    /// commits. Read for the messages of profile v4 only. A supersession of `node` by itself —
+    /// `Structural`'s `supersede-into-itself`, which never commits — names nothing here, though
+    /// it retires `node` in its transaction as D7 states.
     pub(super) fn superseding(&self, node: NodeId) -> Option<NodeId> {
-        self.superseding.get(&node).copied()
+        self.superseding
+            .get(&node)
+            .copied()
+            .filter(|by| *by != node)
     }
 
     /// The nodes the operation set's supersessions retire in their transaction: every

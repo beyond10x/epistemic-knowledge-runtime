@@ -6685,7 +6685,13 @@ three answers about `SupersedeNode` (§ 110.3). It is one exact pair, chosen at 
    superseded node says a superseded node's edges are retired, not moved, and to create the edge on
    the node kept. `alias-already-exists` for an alias a superseded node holds names the holder as
    superseded, its `by`, and that the alias already resolves there; for a holder a supersession of
-   the same transaction retires, it says so and to create the node without the alias.
+   the same transaction retires, it says so and to create the node without the alias. A
+   supersession of a node by itself (`supersede-into-itself`) never commits, so none of these
+   follows it: it still retires its node in its transaction, as item 1 says, but a refusal names
+   that node as it would without it. Nor does `supersede-by-superseded-node` follow a `by` to the
+   node being superseded, which would advise superseding a node by itself. A merge beside a
+   supersession reads the same retiring set, so beside a refused one it is judged as the merge
+   alone.
 3. **A duplicate supersession evidence id is refused as the document is read (Q7).** A
    `!SupersedeNode` listing one evidence id twice is refused by the reader, as an assertion citing
    one twice is, before any proposal is retained. The reader takes the profile in force: `ekr
