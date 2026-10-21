@@ -19,11 +19,13 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   refused as `ekr propose` reads the document. Profiles v1 to v3 answer every proposal as 0.0.41
   did, messages included, so every store keeps reopening and replaying; no mechanism moves an
   existing store to v4 yet. Kernel: `ValidationProfileV1::supersession_exact`,
-  `ValidationProfileV1::supersedes_exactly`, `Pipeline::supersession_exact`,
-  `TransactionDocument::parse_under` and `TransactionDocument::read_under`. SDK:
+  `ValidationProfileV1::supersedes_exactly`, `Pipeline::supersession_exact` and
+  `TransactionDocument::parse_under`. SDK:
   `ValidationProfile::V4` (a consumer matching the enum exhaustively adds an arm),
   `ValidationProfile::supersedes_exactly` and `TransactionDocument::from_yaml`, which reads a
-  document under a profile as `ekr propose` does. Help texts, `docs/cli.md`, `docs/sdk.md` and
+  document applying the profile's rule for a `!SupersedeNode` listing one evidence id twice, and
+  is otherwise a plain read, bounded first as the SDK bounds every document it reads; it refuses
+  as `DocumentError::Read`, a new variant. Help texts, `docs/cli.md`, `docs/sdk.md` and
   `kernel.yaml` name four profiles.
 
 ## [0.0.41] — 2026-10-21

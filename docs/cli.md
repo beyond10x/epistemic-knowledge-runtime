@@ -2670,12 +2670,13 @@ supersession refused as `supersede-unknown-node`, `node-already-superseded`,
 `supersede-by-unknown-node` or `supersede-by-superseded-node` retires nothing, so another operation
 of the transaction naming its node is refused only for what it is itself, and a `node` no revision
 holds named as its own `by` is refused once for its absence beside `supersede-into-itself`. A
-refusal names the node the head will hold once the transaction commits: `node-superseded` and
-`supersede-by-superseded-node` follow a `by` the same transaction supersedes to that supersession's
-`by`; for an edge, `node-superseded` says edges are retired, not moved, and to create the edge on
-that node; and `alias-already-exists` for an alias a superseded node holds names it as superseded,
-the node kept and that the alias already resolves there, or, for a holder the same transaction
-supersedes, says so and to create the node without the alias. A `!SupersedeNode` listing one evidence id
+refusal names the node the head will hold once the transaction commits, following the
+transaction's supersessions from a `by` it supersedes to the end of the chain, and says so when the
+chain comes back on itself and keeps no node: `node-superseded` and `supersede-by-superseded-node`
+name the end of the chain; for an edge, `node-superseded` says edges are retired, not moved, and to
+create the edge on that node; and `alias-already-exists` for an alias a superseded node holds names
+it as superseded, the node kept and the node the alias resolves to, or, for a holder the same
+transaction supersedes, says so and to create the node without the alias. A `!SupersedeNode` listing one evidence id
 twice is refused as `ekr propose` reads the document, as an assertion listing one twice is; under
 v1 to v3 it reads as listing the id once.
 

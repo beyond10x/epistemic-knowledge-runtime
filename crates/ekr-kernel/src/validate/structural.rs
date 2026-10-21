@@ -77,7 +77,7 @@ use std::sync::Arc;
 use ekr_core::{EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{CanonicalGraph, GraphSnapshot, ValueSpace};
 
-use super::candidate::Candidate;
+use super::candidate::{Candidate, Followed};
 use super::{finish, issue, Check, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
@@ -252,17 +252,10 @@ fn aliases(
                          same type {type_id} already holds; resolve the reference and use that \
                          node"
                     ),
-                    Some(Retired::Committed(by)) => format!(
+                    Some(retired) => format!(
                         "node {id} is created with alias {alias:?}, which node {holder} of the \
-                         same type {type_id} holds; node {holder} is superseded by node {by}, and \
-                         the alias already resolves to node {by}: resolve the reference and use \
-                         node {by}"
-                    ),
-                    Some(Retired::ThisTransaction(by)) => format!(
-                        "node {id} is created with alias {alias:?}, which node {holder} of the \
-                         same type {type_id} holds; this transaction supersedes node {holder} by \
-                         node {by}, and a superseded node keeps its aliases, which then resolve to \
-                         node {by}: create node {id} without the alias"
+                         same type {type_id} holds; {}",
+                        retired.said(holder, Some(id))
                     ),
                 };
                 issues.push(issue(
@@ -315,16 +308,10 @@ fn aliases(
                         "node {node} is given alias {alias:?}, which node {holder} of the same \
                          type {type_id} already holds; one alias identifies one node of a type"
                     ),
-                    Some(Retired::Committed(by)) => format!(
+                    Some(retired) => format!(
                         "node {node} is given alias {alias:?}, which node {holder} of the same \
-                         type {type_id} holds; node {holder} is superseded by node {by}, and the \
-                         alias already resolves to node {by}"
-                    ),
-                    Some(Retired::ThisTransaction(by)) => format!(
-                        "node {node} is given alias {alias:?}, which node {holder} of the same \
-                         type {type_id} holds; this transaction supersedes node {holder} by node \
-                         {by}, and a superseded node keeps its aliases, which then resolve to node \
-                         {by}"
+                         type {type_id} holds; {}",
+                        retired.said(holder, None)
                     ),
                 };
                 issues.push(issue(
@@ -351,16 +338,83 @@ fn aliases(
     }
 }
 
-/// How an alias holder is retired, when it is.
+/// How an alias holder is retired, when it is, and where the transaction's supersessions lead
+/// from there.
 enum Retired {
-    /// A committed supersession holds it, naming this node.
-    Committed(NodeId),
-    /// A supersession of this transaction, which `Reference` admits, supersedes it by this node.
-    ThisTransaction(NodeId),
+    /// A committed supersession holds it, naming this node, from which the transaction's
+    /// supersessions are followed.
+    Committed(NodeId, Followed),
+    /// Supersessions of this transaction, which `Reference` admits, supersede it: followed from
+    /// the holder.
+    ThisTransaction(Followed),
 }
 
-/// Under profile v4, whether `holder` is superseded — by a committed supersession, or by one of
-/// the transaction that `Reference` admits — and by what
+impl Retired {
+    /// What a v4 `alias-already-exists` says of the superseded holder `holder`, after "holds; ":
+    /// the node the alias resolves to once the transaction commits, the transaction's
+    /// supersessions followed to the end, or that they come back on themselves and keep no node.
+    /// `created` is the node a `CreateNode` creates with the alias, `None` for an `AddAlias`.
+    fn said(&self, holder: NodeId, created: Option<NodeId>) -> String {
+        let (opening, followed) = match self {
+            Self::Committed(by, followed) => {
+                if !followed.moved() {
+                    let advice = created
+                        .map(|_| format!(": resolve the reference and use node {by}"))
+                        .unwrap_or_default();
+                    return format!(
+                        "node {holder} is superseded by node {by}, and the alias already resolves \
+                         to node {by}{advice}"
+                    );
+                }
+                (
+                    format!(
+                        "node {holder} is superseded by node {by}{}",
+                        followed.steps()
+                    ),
+                    followed,
+                )
+            }
+            Self::ThisTransaction(followed) => (
+                format!(
+                    "this transaction supersedes node {holder} by node {}{}",
+                    followed.first(),
+                    followed.later_steps()
+                ),
+                followed,
+            ),
+        };
+        let end = followed.held();
+        if let Some(cycle) = followed.cycle() {
+            let advice = created
+                .map(|id| format!(", and create node {id} without the alias"))
+                .unwrap_or_default();
+            return format!(
+                "{opening}{cycle}; supersede the nodes they name by one node that is kept{advice}"
+            );
+        }
+        match (self, created) {
+            (Self::Committed(..), Some(_)) => format!(
+                "{opening}, and the alias then resolves to node {end}: resolve the reference and \
+                 use node {end}"
+            ),
+            (Self::Committed(..), None) => {
+                format!("{opening}, and the alias then resolves to node {end}")
+            }
+            (Self::ThisTransaction(_), Some(id)) => format!(
+                "{opening}, and a superseded node keeps its aliases, which then resolve to node \
+                 {end}: create node {id} without the alias"
+            ),
+            (Self::ThisTransaction(_), None) => format!(
+                "{opening}, and a superseded node keeps its aliases, which then resolve to node \
+                 {end}"
+            ),
+        }
+    }
+}
+
+/// Under profile v4, whether `holder` is superseded — by a committed supersession, or by
+/// supersessions of the transaction that `Reference` admits — and where the transaction's
+/// supersessions lead from there, as `Reference`'s `node-superseded` follows them
 /// (`story:supersession-verdict-fixes-replay-safe`, D8). `None` under profiles v1 to v3, whose
 /// refusals read as released, and for every holder of a graph and transaction without a
 /// supersession.
@@ -372,11 +426,13 @@ fn retired_holder(
     if !candidate.exact() {
         return None;
     }
-    graph
-        .graph()
-        .superseded_by(holder)
-        .map(Retired::Committed)
-        .or_else(|| candidate.superseding(holder).map(Retired::ThisTransaction))
+    if let Some(by) = graph.graph().superseded_by(holder) {
+        return Some(Retired::Committed(by, candidate.followed(by, None)));
+    }
+    let followed = candidate.followed(holder, None);
+    followed
+        .moved()
+        .then_some(Retired::ThisTransaction(followed))
 }
 
 /// The `empty-alias` refusal of an `AddAlias` to `node`.

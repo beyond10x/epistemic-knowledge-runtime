@@ -27,17 +27,28 @@ pub struct TransactionDocument {
 }
 
 impl TransactionDocument {
-    /// Reads `text` as `ekr propose` reads it in a store under `profile`: under
-    /// [`ValidationProfile::V4`] a `!SupersedeNode` listing one evidence id twice is refused, and
-    /// under v1 to v3 it reads as naming the id once, as a plain [`serde`] read of this type does
-    /// (ADR 0102 decision 5).
+    /// Reads `text` with the one rule of a store's profile its reader applies: under
+    /// [`ValidationProfile::V4`] a `!SupersedeNode` listing one evidence id twice is refused, as
+    /// `ekr propose` refuses it in a v4 store, and under v1 to v3 it reads as naming the id once,
+    /// as a plain [`serde`] read of this type does (ADR 0102 decision 5). The text is bounded
+    /// before it is decoded, as the SDK reads every caller document: at most
+    /// [`TRANSACTION_LIMITS`](super::TRANSACTION_LIMITS)' input bytes, containers no deeper than
+    /// its depth, no YAML alias. Every other rule is the plain read's, which is not
+    /// `ekr propose`'s in every case.
     ///
     /// # Errors
-    /// The reader's refusal: invalid YAML, an unknown or missing field, a value of the wrong
-    /// shape, and the duplicate evidence id above.
-    pub fn from_yaml(text: &str, profile: ValidationProfile) -> Result<Self, serde_yaml_ng::Error> {
+    /// [`DocumentError::Read`]: past a bound above or an alias, invalid YAML, an unknown or
+    /// missing field, a value of the wrong shape, and the duplicate evidence id above.
+    pub fn from_yaml(text: &str, profile: ValidationProfile) -> Result<Self, DocumentError> {
+        let limits = super::TRANSACTION_LIMITS;
         ekr_core::decode::with_strict_sets(profile.supersedes_exactly(), || {
-            serde_yaml_ng::from_str(text)
+            super::extraction::read_bounded(text, limits.input_bytes, limits.depth)
+        })
+        .map_err(|unread| {
+            DocumentError::Read(match unread {
+                super::extraction::Unread::Bound(bound) => bound.to_string(),
+                super::extraction::Unread::Decode(error) => error,
+            })
         })
     }
 

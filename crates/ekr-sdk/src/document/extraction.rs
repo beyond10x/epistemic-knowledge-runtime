@@ -24,6 +24,7 @@
 
 use std::collections::BTreeMap;
 
+use ekr_core::decode::{observe_yaml, YamlRefusal};
 use ekr_core::EvidenceId;
 use serde::{Deserialize, Serialize};
 
@@ -218,21 +219,21 @@ impl ExtractionDocument {
     /// # Errors
     /// [`ExtractionRefusal`], with the reader's code.
     pub fn decode(text: &str) -> Result<Self, ExtractionRefusal> {
-        use ekr_core::decode::{observe_yaml, YamlRefusal};
-
-        observe_yaml(text, EXTRACTION_INPUT_BYTES, EXTRACTION_DEPTH).map_err(|bound| {
-            let code = match bound {
-                YamlRefusal::TooLarge { .. } => code::TOO_LARGE,
-                YamlRefusal::TooDeep { .. } => code::TOO_DEEP,
-                YamlRefusal::Alias { .. } => code::YAML_ALIAS,
-                YamlRefusal::Malformed(_) => code::MALFORMED,
-            };
-            ExtractionRefusal::new(code, bound.to_string())
-        })?;
-        serde_yaml_ng::from_str(text).map_err(|error| {
-            unsupported_source(text)
-                .unwrap_or_else(|| ExtractionRefusal::new(code::MALFORMED, error.to_string()))
-        })
+        read_bounded(text, EXTRACTION_INPUT_BYTES, EXTRACTION_DEPTH).map_err(
+            |unread| match unread {
+                Unread::Bound(bound) => {
+                    let code = match bound {
+                        YamlRefusal::TooLarge { .. } => code::TOO_LARGE,
+                        YamlRefusal::TooDeep { .. } => code::TOO_DEEP,
+                        YamlRefusal::Alias { .. } => code::YAML_ALIAS,
+                        YamlRefusal::Malformed(_) => code::MALFORMED,
+                    };
+                    ExtractionRefusal::new(code, bound.to_string())
+                }
+                Unread::Decode(error) => unsupported_source(text)
+                    .unwrap_or_else(|| ExtractionRefusal::new(code::MALFORMED, error)),
+            },
+        )
     }
 
     /// The engine reader's checks of the document alone, in its order: every id a fact cites
@@ -308,6 +309,29 @@ impl ExtractionDocument {
     pub fn to_yaml(&self) -> Result<String, DocumentError> {
         super::to_yaml(self)
     }
+}
+
+/// Why [`read_bounded`] read no document.
+pub(super) enum Unread {
+    /// The bounded loader refused the text before any value of it was decoded.
+    Bound(YamlRefusal),
+    /// The typed decoder refused it, with the decoder's message.
+    Decode(String),
+}
+
+/// Decodes `text` as a `T` once the bounded loader (`ekr_core::decode::observe_yaml`) admits it:
+/// at most `max_bytes` bytes, containers nested no deeper than `max_depth`, no alias, one
+/// document. The SDK's one reader of caller YAML into a typed document, shared by
+/// [`ExtractionDocument::decode`] and
+/// [`TransactionDocument::from_yaml`](super::TransactionDocument::from_yaml), so every such read
+/// is bounded before it is decoded.
+pub(super) fn read_bounded<T: serde::de::DeserializeOwned>(
+    text: &str,
+    max_bytes: usize,
+    max_depth: usize,
+) -> Result<T, Unread> {
+    observe_yaml(text, max_bytes, max_depth).map_err(Unread::Bound)?;
+    serde_yaml_ng::from_str(text).map_err(|error| Unread::Decode(error.to_string()))
 }
 
 /// The engine reader's refusal of an evidence item whose source is not a `!HumanStatement`, the

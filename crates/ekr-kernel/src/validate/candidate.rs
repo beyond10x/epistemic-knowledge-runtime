@@ -94,6 +94,67 @@ fn admits(
         && (by == node || (graph.superseded_by(by).is_none() && nodes.contains_key(&by)))
 }
 
+/// The operation set's supersessions followed from one node ([`Candidate::followed`]), and the
+/// clauses profile v4's refusals write of them.
+pub(super) struct Followed {
+    /// The start, then each node the transaction supersedes the one before by, in turn; for a
+    /// cycle, last the node already visited that it leads back to.
+    path: Vec<NodeId>,
+    /// Whether the path leads back to a node already visited.
+    cycle: bool,
+}
+
+impl Followed {
+    /// Whether the transaction supersedes the start by another node.
+    pub(super) fn moved(&self) -> bool {
+        self.path.len() > 1
+    }
+
+    /// The node the head will hold for the start once the transaction commits: the end of the
+    /// path. For a cycle, the node it leads back to.
+    pub(super) fn held(&self) -> NodeId {
+        *self.path.last().expect("a path holds its start")
+    }
+
+    /// The node after the start: what the transaction supersedes the start by.
+    pub(super) fn first(&self) -> NodeId {
+        self.path.get(1).copied().unwrap_or_else(|| self.held())
+    }
+
+    /// Each step from the start, written after a clause naming the start: ", which this
+    /// transaction supersedes by node A, which it supersedes by node B". Empty for no step.
+    pub(super) fn steps(&self) -> String {
+        let Some(first) = self.path.get(1) else {
+            return String::new();
+        };
+        format!(
+            ", which this transaction supersedes by node {first}{}",
+            self.later_steps()
+        )
+    }
+
+    /// Each step after the first, written after a clause naming the first: ", which it
+    /// supersedes by node B". Empty for at most one step.
+    pub(super) fn later_steps(&self) -> String {
+        self.path
+            .iter()
+            .skip(2)
+            .map(|node| format!(", which it supersedes by node {node}"))
+            .collect()
+    }
+
+    /// For a cycle, the clause saying so: ": the supersessions lead back to node X, so they keep
+    /// no node". `None` for a path that ends.
+    pub(super) fn cycle(&self) -> Option<String> {
+        self.cycle.then(|| {
+            format!(
+                ": the supersessions lead back to node {}, so they keep no node",
+                self.held()
+            )
+        })
+    }
+}
+
 /// Canonical state's assertions about edges, by edge, each list in the order canonical state holds
 /// the assertions.
 pub(crate) type AssertedEdges = BTreeMap<EdgeId, Vec<AssertionId>>;
@@ -269,15 +330,35 @@ impl<'g> Candidate<'g> {
     }
 
     /// The node a supersession of [`Candidate::retiring`] supersedes `node` by, if one supersedes
-    /// it by another node: what the head will name instead of `node` once the transaction
-    /// commits. Read for the messages of profile v4 only. A supersession of `node` by itself —
-    /// `Structural`'s `supersede-into-itself`, which never commits — names nothing here, though
-    /// it retires `node` in its transaction as D7 states.
-    pub(super) fn superseding(&self, node: NodeId) -> Option<NodeId> {
+    /// it by another node: one step of [`Candidate::followed`]. A supersession of `node` by
+    /// itself — `Structural`'s `supersede-into-itself`, which never commits — names nothing here,
+    /// though it retires `node` in its transaction as D7 states.
+    fn superseding(&self, node: NodeId) -> Option<NodeId> {
         self.superseding
             .get(&node)
             .copied()
             .filter(|by| *by != node)
+    }
+
+    /// The operation set's supersessions followed from `start` to the node the head will hold
+    /// for it once the transaction commits, as commit repoints every record to the end of the
+    /// chain; read for the messages of profile v4 only
+    /// (`story:supersession-verdict-fixes-replay-safe`, D8). The walk stops at a node already
+    /// visited — `start`, `also`, or one on the way — and then reports the cycle, which keeps no
+    /// node: `also` is the node a refusal is about, so that a chain coming back to it is a cycle
+    /// rather than advice to supersede it by itself.
+    pub(super) fn followed(&self, start: NodeId, also: Option<NodeId>) -> Followed {
+        let mut path = vec![start];
+        let mut visited: BTreeSet<NodeId> = also.into_iter().chain([start]).collect();
+        let mut at = start;
+        while let Some(next) = self.superseding(at) {
+            path.push(next);
+            if !visited.insert(next) {
+                return Followed { path, cycle: true };
+            }
+            at = next;
+        }
+        Followed { path, cycle: false }
     }
 
     /// The nodes the operation set's supersessions retire in their transaction: every

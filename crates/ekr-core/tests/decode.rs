@@ -227,3 +227,46 @@ fn strings_decode_only_strings() {
         assert!(read(refused).is_err(), "{refused}");
     }
 }
+
+/// ADR 0102 decision 5: a `profiled_set` collapses a duplicate member, as a plain set decodes,
+/// except inside `with_strict_sets(true, …)`, where it refuses one as `unique_set` does; the
+/// setting before the call is restored when the call returns and when it unwinds, so a strict
+/// read leaves no later read strict.
+#[test]
+fn a_profiled_set_refuses_a_duplicate_only_inside_a_strict_read() {
+    fn read(text: &str) -> Result<BTreeSet<PropertyId>, serde_json::Error> {
+        let mut input = serde_json::Deserializer::from_str(text);
+        let values = ekr_core::decode::profiled_set(&mut input)?;
+        input.end()?;
+        Ok(values)
+    }
+    let twice = format!("[\"{ID}\",\"{ID}\"]");
+    let once = BTreeSet::from([ID.parse::<PropertyId>().unwrap()]);
+    assert_eq!(read(&twice).unwrap(), once, "outside: collapsed");
+    assert_eq!(
+        ekr_core::decode::with_strict_sets(false, || read(&twice)).unwrap(),
+        once,
+        "not strict: collapsed"
+    );
+    let refused = ekr_core::decode::with_strict_sets(true, || read(&twice)).unwrap_err();
+    assert!(
+        refused.to_string().contains("duplicate decoded set member"),
+        "{refused}"
+    );
+    assert_eq!(
+        ekr_core::decode::with_strict_sets(true, || read(&format!("[\"{ID}\"]"))).unwrap(),
+        once,
+        "strict: one member reads"
+    );
+    // Nested: the inner setting holds inside it, and the outer one again after it.
+    ekr_core::decode::with_strict_sets(true, || {
+        assert!(ekr_core::decode::with_strict_sets(false, || read(&twice)).is_ok());
+        assert!(read(&twice).is_err(), "the outer strict read is restored");
+    });
+    assert_eq!(read(&twice).unwrap(), once, "restored after return");
+    let unwound = std::panic::catch_unwind(|| {
+        ekr_core::decode::with_strict_sets(true, || -> u8 { panic!("a reader that unwinds") })
+    });
+    assert!(unwound.is_err());
+    assert_eq!(read(&twice).unwrap(), once, "restored after unwinding");
+}

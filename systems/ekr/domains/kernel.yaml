@@ -805,11 +805,11 @@ types:
   # nothing in its transaction, so no other operation is refused as naming its node, and a `node`
   # equal to `by` and not held is refused once for the absence beside supersede-into-itself;
   # node-superseded and supersede-by-superseded-node name the node the head will hold once the
-  # transaction commits, a `by` the same transaction supersedes followed to that supersession's
-  # `by`, and for an edge say edges are retired and not moved and to create it on that node;
-  # alias-already-exists for an alias a superseded node holds names it as superseded, its `by` and
-  # that the alias resolves there, or, superseded by the same transaction, to create the node
-  # without the alias; and a document listing one evidence id twice is refused as it is read,
+  # transaction commits, the transaction's supersessions followed from a `by` it supersedes to the
+  # end of the chain, or say the chain comes back on itself and keeps no node, and for an edge say
+  # edges are retired and not moved and to create it on that node; alias-already-exists for an
+  # alias a superseded node holds names it as superseded, its `by` and the node the alias resolves
+  # to, or, superseded by the same transaction, to create the node without the alias; and a document listing one evidence id twice is refused as it is read,
   # where v1 to v3 read the id once.
   - name: ekr.kernel.NodeSupersession
     kind: struct

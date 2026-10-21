@@ -296,7 +296,7 @@ impl TransactionDocument {
     ///
     /// # Errors
     /// [`Self::read`]'s refusals, and [`Self::parse_under`]'s.
-    pub fn read_under(
+    pub(crate) fn read_under(
         reader: impl Read,
         profile: &ValidationProfileV1,
     ) -> Result<Self, DocumentError> {

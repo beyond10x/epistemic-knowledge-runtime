@@ -116,4 +116,8 @@ pub enum DocumentError {
     /// The YAML writer refused the value.
     #[error("writing YAML: {0}")]
     Yaml(#[from] serde_yaml_ng::Error),
+    /// [`TransactionDocument::from_yaml`] read no document from the text: past a bound, a YAML
+    /// alias, invalid YAML or a value of the wrong shape, with the reader's message.
+    #[error("reading YAML: {0}")]
+    Read(String),
 }

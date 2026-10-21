@@ -167,9 +167,12 @@ request, so a document can be built before a session exists, or with none.
 three documents as YAML, with every variant as a tag (`!CreateNode`, `!Node <id>`,
 `!HumanStatement`). A `SchemaChange` is not a document: `SchemaChange::transaction` builds its
 `TransactionDocument`. The readers refuse the one-key JSON form of a tag, so a document is never
-written with `serde_json`. `TransactionDocument::from_yaml` reads a document as `ekr propose` reads
-it in a store under the profile it is given: under `ValidationProfile::V4` a `!SupersedeNode`
-listing one evidence id twice is refused, and under v1 to v3 it reads as listing the id once.
+written with `serde_json`. `TransactionDocument::from_yaml` reads a document with the one rule of
+the profile it is given that the store's reader applies: under `ValidationProfile::V4` a
+`!SupersedeNode` listing one evidence id twice is refused, as `ekr propose` refuses it in a v4
+store, and under v1 to v3 it reads as listing the id once. It is otherwise a plain read of the
+document, bounded first as the SDK bounds every document it reads (the format's input bytes and
+depth, no YAML alias), and not `ekr propose`'s reader.
 
 In the examples below, `session` is a `ProcessSession` on a store that does not exist yet
 ([A session](#a-session)), and `operator` is the host document's `context.operator`, an `AgentId`.

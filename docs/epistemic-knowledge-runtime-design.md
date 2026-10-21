@@ -6679,19 +6679,23 @@ three answers about `SupersedeNode` (§ 110.3). It is one exact pair, chosen at 
    only for what it is itself, not also as `superseded-node-named-in-transaction`. A node named as
    its own `by` is refused once for its absence or its supersession, beside
    `supersede-into-itself`, and not again as a `by`.
-2. **A refusal names what the head will hold (D8).** `node-superseded` of a node, and
-   `supersede-by-superseded-node`, follow a `by` the same transaction supersedes to that
-   supersession's `by`, as commit repoints the record. `node-superseded` of an edge retired with a
-   superseded node says a superseded node's edges are retired, not moved, and to create the edge on
-   the node kept. `alias-already-exists` for an alias a superseded node holds names the holder as
-   superseded, its `by`, and that the alias already resolves there; for a holder a supersession of
-   the same transaction retires, it says so and to create the node without the alias. A
-   supersession of a node by itself (`supersede-into-itself`) never commits, so none of these
-   follows it: it still retires its node in its transaction, as item 1 says, but a refusal names
-   that node as it would without it. Nor does `supersede-by-superseded-node` follow a `by` to the
-   node being superseded, which would advise superseding a node by itself. A merge beside a
-   supersession reads the same retiring set, so beside a refused one it is judged as the merge
-   alone.
+2. **A refusal names what the head will hold (D8).** Each of these refusals follows the
+   transaction's supersessions to the node the head will hold once it commits: from a `by` the
+   transaction supersedes, to that supersession's `by`, and on while the transaction supersedes
+   that one too, as commit repoints every record to the end of the chain, each step written into
+   the message. `node-superseded` of a node and `supersede-by-superseded-node` name the end of the
+   chain. `node-superseded` of an edge retired with a superseded node says a superseded node's
+   edges are retired, not moved, and to create the edge on that node. `alias-already-exists` for
+   an alias a superseded node holds names the holder as superseded, its `by`, and the node the
+   alias resolves to, followed the same way; for a holder supersessions of the same transaction
+   retire, it says so and to create the node without the alias. A chain that comes back to a node
+   already on it — or, for `supersede-by-superseded-node`, to the node being superseded — keeps
+   no node, and the refusal says the supersessions lead back to that node and to supersede the
+   nodes they name by one node that is kept, rather than advising a supersession the transaction
+   would refuse. A supersession of a node by itself (`supersede-into-itself`) never commits, so no
+   chain follows it: it still retires its node in its transaction, as item 1 says, but a refusal
+   names that node as it would without it. A merge beside a supersession reads the same retiring
+   set, so beside a refused one it is judged as the merge alone.
 3. **A duplicate supersession evidence id is refused as the document is read (Q7).** A
    `!SupersedeNode` listing one evidence id twice is refused by the reader, as an assertion citing
    one twice is, before any proposal is retained. The reader takes the profile in force: `ekr

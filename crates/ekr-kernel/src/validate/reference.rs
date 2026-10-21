@@ -326,16 +326,32 @@ impl Check for Reference {
                         // (`story:supersession-verdict-fixes-replay-safe`, D7). These are exactly
                         // the refusals `candidate::admits` reads.
                     } else if let Some(kept) = known.state.superseded_by(by) {
-                        let message = match known.candidate.superseding(kept) {
-                            // Profile v4: the node the head will hold for `kept` once this
-                            // transaction commits (D8) — unless that is `node` itself, which
-                            // would advise superseding a node by itself.
-                            Some(next) if known.candidate.exact() && next != node => format!(
-                                "node {node} is superseded by node {by}, which is itself \
-                                 superseded by node {kept}, which this transaction supersedes by \
-                                 node {next}; supersede node {node} by node {next}"
-                            ),
-                            _ => format!(
+                        // Profile v4: the node the head will hold for `kept` once this transaction
+                        // commits, its supersessions followed to the end (D8). A chain that comes
+                        // back to `node`, or to any node on it, keeps no node, and is named as
+                        // such rather than advising a supersession it would refuse.
+                        let followed = known
+                            .candidate
+                            .exact()
+                            .then(|| known.candidate.followed(kept, Some(node)))
+                            .filter(super::candidate::Followed::moved);
+                        let message = match followed {
+                            Some(followed) => match followed.cycle() {
+                                Some(cycle) => format!(
+                                    "node {node} is superseded by node {by}, which is itself \
+                                     superseded by node {kept}{}{cycle}; supersede node {node} \
+                                     and the nodes they name by one node that is kept",
+                                    followed.steps()
+                                ),
+                                None => format!(
+                                    "node {node} is superseded by node {by}, which is itself \
+                                     superseded by node {kept}{}; supersede node {node} by node \
+                                     {}",
+                                    followed.steps(),
+                                    followed.held()
+                                ),
+                            },
+                            None => format!(
                                 "node {node} is superseded by node {by}, which is itself \
                                  superseded by node {kept}; supersede node {node} by node {kept}"
                             ),
@@ -476,20 +492,30 @@ impl<'c, 'g> Known<'c, 'g> {
     /// `unresolved-node` otherwise.
     ///
     /// Under profile v4 the node to name instead is the one the head will hold once this
-    /// transaction commits: where a supersession of this transaction retires the record's `by`,
-    /// commit repoints the record to that supersession's `by`, which the refusal names
-    /// (`story:supersession-verdict-fixes-replay-safe`, D8).
+    /// transaction commits: where supersessions of this transaction retire the record's `by`, and
+    /// the node that one is superseded by, and so on, commit repoints the record to the end of
+    /// that chain, which the refusal names; a chain that comes back on itself keeps no node, and
+    /// the refusal says so (`story:supersession-verdict-fixes-replay-safe`, D8).
     fn node(&self, tx: &GraphTransaction, node: NodeId, issues: &mut Vec<ValidationIssue>) {
         if self.candidate.nodes.contains_key(&node) {
             return;
         }
         if let Some(by) = self.state.superseded_by(node) {
-            let message = match self.candidate.superseding(by) {
-                Some(next) if self.candidate.exact() => format!(
-                    "node {node} is superseded by node {by}, which this transaction supersedes by \
-                     node {next}; name node {next} instead"
-                ),
-                _ => format!("node {node} is superseded by node {by}; name node {by} instead"),
+            let followed = self.followed(by);
+            let message = match followed {
+                Some(followed) => match followed.cycle() {
+                    Some(cycle) => format!(
+                        "node {node} is superseded by node {by}{}{cycle}; supersede the nodes \
+                         they name by one node that is kept, then name that node instead",
+                        followed.steps()
+                    ),
+                    None => format!(
+                        "node {node} is superseded by node {by}{}; name node {} instead",
+                        followed.steps(),
+                        followed.held()
+                    ),
+                },
+                None => format!("node {node} is superseded by node {by}; name node {by} instead"),
             };
             issues.push(issue(
                 tx,
@@ -524,18 +550,23 @@ impl<'c, 'g> Known<'c, 'g> {
         }
         if let Some((node, by)) = self.retired(edge) {
             let message = if self.candidate.exact() {
-                let (kept, after) = match self.candidate.superseding(by) {
-                    Some(next) => (
-                        next,
-                        format!(", which this transaction supersedes by node {next}"),
+                let followed = self.candidate.followed(by, None);
+                match followed.cycle() {
+                    Some(cycle) => format!(
+                        "edge {edge} was retired with node {node}, which is superseded by node \
+                         {by}{}{cycle}; a superseded node's edges are retired, not moved: \
+                         supersede the nodes they name by one node that is kept, and create the \
+                         edge on it",
+                        followed.steps()
                     ),
-                    None => (by, String::new()),
-                };
-                format!(
-                    "edge {edge} was retired with node {node}, which is superseded by node \
-                     {by}{after}; a superseded node's edges are retired, not moved: create the \
-                     edge on node {kept} and name that one instead"
-                )
+                    None => format!(
+                        "edge {edge} was retired with node {node}, which is superseded by node \
+                         {by}{}; a superseded node's edges are retired, not moved: create the \
+                         edge on node {} and name that one instead",
+                        followed.steps(),
+                        followed.held()
+                    ),
+                }
             } else {
                 format!(
                     "edge {edge} was retired with node {node}, which is superseded by node {by}; \
@@ -556,6 +587,16 @@ impl<'c, 'g> Known<'c, 'g> {
             UNRESOLVED_EDGE,
             format!("edge {edge} is not in the graph"),
         ));
+    }
+
+    /// Under profile v4, this transaction's supersessions followed from `by`, a node a record of
+    /// canonical state names, when they supersede it (D8); `None` under v1 to v3 and when none
+    /// does.
+    fn followed(&self, by: NodeId) -> Option<super::candidate::Followed> {
+        self.candidate
+            .exact()
+            .then(|| self.candidate.followed(by, None))
+            .filter(super::candidate::Followed::moved)
     }
 
     /// The superseded node `edge` was retired with, and the node that one is superseded by, if a
