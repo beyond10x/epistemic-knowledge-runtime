@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p3-incubation-integration
 - serves: vision:o2
 - depends_on: story:merge-entity-applies
-revision: 1
+revision: 2
 ---
 ## Context
 
@@ -37,6 +37,15 @@ on wave/20261020b before release 0.0.41. This story holds the seven rows deferre
   `narrow_lineage` / `widen_lineage` against the node and edge property loops (`seed.rs:1076`,
   `crates/ekr-store/src/snapshot.rs:441`).
 - **H12** `crates/ekr-sdk/src/resolve.rs:223`: one cache `retain` per committed merge.
+- **H13** (wave 2026-10-21b, `review-result:adversary-w20261021b-u1-pass-1`):
+  `MergeEntity.evidence` (`crates/ekr-kernel/src/transaction.rs:161`) collapses duplicate ids under
+  every profile, v4 included; ADR 0102 d3 names three fixes, so a refusal waits for a later profile.
+- **H14** (wave 2026-10-21b, `review-result:adversary-w20261021b-u1-pass-2` finding 5): the SDK's
+  `Assertion.evidence` (`crates/ekr-sdk/src/document/graph.rs:239`) is a plain `BTreeSet`, so
+  `from_yaml` collapses an `!AddAssertion` citing one evidence id twice that `ekr propose` refuses
+  under every profile; profile-independent and pre-existing. The adversary's case
+  `from_yaml_refuses_an_assertion_citing_one_evidence_id_twice_as_propose_does`
+  (`crates/ekr-sdk/tests/adversary_w20261021b_supersession_v4_pass2.rs`) is kept `#[ignore]` for it.
 
 H6 and H7 change a kernel verdict once 0.0.41 has shipped (replay compares retained rejections byte
 for byte, `crates/ekr-kernel/src/replay.rs:1202-1215`), so they wait on the rules-era decision of

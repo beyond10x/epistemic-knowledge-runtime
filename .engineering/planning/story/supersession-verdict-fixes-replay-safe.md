@@ -12,9 +12,13 @@ scope:
 - confidence: cited
   path: CHANGELOG.md
 - confidence: cited
+  path: crates/ekr-core/src/decode.rs
+- confidence: cited
   path: crates/ekr-kernel/src/authority.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/commands.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/document.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/replay.rs
 - confidence: cited
@@ -49,7 +53,7 @@ scope:
   path: systems/ekr/conformance
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 7
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-21T00:42:12Z", actor: "human:timo", revision: 6}
 - {from: "proposed", to: "active", at: "2026-10-21T00:42:12Z", actor: "human:timo", revision: 7}
@@ -115,6 +119,23 @@ validators since, so it is reworked behind v4, not applied.
 - Every existing replay and base-era fixture replays unedited.
 - The kernel specification and its conformance suite hold v4; `task spec-check` and
   `task conform-fresh` exit 0.
+
+## Coordinator decisions (wave 2026-10-21b, U1 `bb5b5b05`)
+
+1. Four parse sites stay without a profile and keep collapsing duplicate evidence ids:
+   `crates/ekr-kernel/src/replay.rs:283` (fallback re-parse), `commit.rs:199`, `explain.rs:277`,
+   `crates/ekr-views/src/changes.rs:745`. Each re-reads bytes a store already accepted; for any
+   document v4 accepts, the unprofiled read gives the same transaction, and handing these sites the
+   store's current profile would refuse v1-v3-era documents once `story:validation-profile-move`
+   moves a store. The profiled sites are `commands.rs:200`, `:268` and `replay.rs:615`; U2 hands
+   `replay.rs:615` the profile in force at each proposal's position.
+2. Acceptance narrowed: no v4 conformance scenario is added in U1 (one would change
+   `systems/ekr/conformance/baseline.json` and `provenance.json`, which no Taskfile target
+   regenerates). v4 is held by `kernel.yaml` naming it, Rust cases in
+   `crates/ekr-kernel/tests/supersede_node.rs` and `crates/ekr-sdk/tests/document_drift.rs`, and an
+   unchanged, fresh suite.
+3. `crates/ekr-core/src/decode.rs` joins the scope: Q7's profiled set lives there, shared by kernel
+   and SDK.
 
 ## Out of scope
 
