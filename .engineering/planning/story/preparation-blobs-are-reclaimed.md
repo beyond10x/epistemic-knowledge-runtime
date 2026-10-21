@@ -31,8 +31,12 @@ scope:
   path: crates/ekr-store/src/inventory.rs
 - confidence: inferred
   path: crates/ekr-store/src/log.rs
+- confidence: inferred
+  path: crates/ekr-store/src/objects.rs
 - confidence: cited
   path: crates/ekr-store/src/preparation.rs
+- confidence: cited
+  path: crates/ekr-store/tests/eventlog_object_memo.rs
 - confidence: inferred
   path: crates/ekr-views/src/changes.rs
 - confidence: inferred
@@ -43,7 +47,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 7
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:23Z", actor: "human:timo", revision: 5}
 ---
@@ -72,22 +76,22 @@ Preparations are about half the store; about 196 MB is written per batch at 1×.
 
 ## Scope
 
-Derived 2026-09-30 by `story-scoper`. Every line is **cited** (read from the story or the tree) or
-**inferred** (a reading that could be wrong).
+Re-derived 2026-10-21 by `story-scoper` against the tree of wave 2026-10-21b U1 (profile v4), read-only. Each line is **cited** (read in the tree) or **inferred**.
 
-- **Primary surface:** `crates/ekr-store` (preparation lifecycle) and `crates/ekr-kernel` (commit receipt format, commit decision, replay linkage) — cited
-- **Files:** `crates/ekr-store/src/preparation.rs:1162` (`read_preparation`), `:1166` — cited
-- **Files:** `crates/ekr-kernel/src/commands.rs:543` (`commit_decision`; the receipt is built at `:599`–`:611`, `proposal: tx.proposal.clone()`) — cited
-- **Files:** `crates/ekr-kernel/src/records.rs:332` (`CommitReceiptV1`, `FORMAT` `ekr.commit-receipt/3` at `:360`, `check_format` `:381`) — cited
-- **Files:** `systems/ekr/domains/kernel.yaml:151`, `:429` (`CommitReceiptV1`, `proposal: ProposalRecordV1`) — cited
-- **Files:** `crates/ekr-kernel/src/replay.rs:1077`–`:1085` (`commit-record-linkage`) — cited
-- **Files:** `crates/ekr-store/src/inventory.rs:153`–`:180` (`prepared_occurrence` reads the preparation blob; a reclaimed blob breaks it) — inferred
-- **Files:** `crates/ekr-kernel/src/migrate.rs:155`–`:172`, `:535`–`:562` — inferred
-- **Files:** `systems/ekr/domains/store.yaml:161`–`:235` (`PublicationPreparationV1`) — inferred
-- **Also likely:** `crates/ekr-store/src/eventlog.rs:1361`–`:1378` (reclaim hook; `delete_blob` precedent `:1687`), `crates/ekr-store/src/log.rs:232` — inferred
-- **Also likely (readers of `receipt.proposal`):** `crates/ekr-kernel/src/commit.rs:161`, `crates/ekr-kernel/src/explain.rs:227,381,401-406`, `crates/ekr-kernel/src/checkpoint.rs:209,537`, `crates/ekr-views/src/changes.rs:575`, `crates/ekr/src/conformance.rs:1876` — inferred
-- **Documents:** `docs/epistemic-knowledge-runtime-design.md` (§ 94, § 99.5, § 100.2, § 100.3) — inferred
-- **Confidence:** medium — the three named sites exist; the reclaim hook and the receipt change's fan-out are read from the tree
-- **Would collide with:** `story:explain-reads-an-index` (`replay.rs`, `explain.rs`, `kernel.yaml`); anything touching the kernel's receipts or replay linkage, `ekr-store`'s preparation/inventory/`RevisionLog`, `migrate.rs` or the design document
-- **Safety fact:** reclaim deletes only a preparation's private blob `ekr.private.preparation.{hash}` (`preparation.rs:585`); evidence payloads under their own addresses are published too (`preparation.rs:236`–`:247`, `:1326`–`:1332`) and must stay — inferred
-- **Not established:** a harness for the 1× measurement; which four copies the audit counted; whether the receipt drops the field or resolves it on read (the fan-out depends on it); whether `migrate` must keep working on reclaimed stores (as the code stands, `inventory.rs` breaks)
+- **What a commit writes today:** four copies of the proposal: the proposal record object; propose's private preparation record; the receipt, which embeds the full proposal (`crates/ekr-kernel/src/commands.rs:658-670`, `:662`); commit's private preparation record. The two private preparation records are what this story reclaims. Private blob key: `crates/ekr-store/src/preparation.rs:590`. cited
+- **Readers that break when a preparation blob is gone:** inventory (`crates/ekr-store/src/inventory.rs:137-148`, `:370-373`), `migrate` through inventory (`crates/ekr-store/src/migrate.rs:261`), and `read_preparation` (`crates/ekr-store/src/preparation.rs:1172-1197`, which reads every selection's blob). cited
+- **Readers that hold:** replay, explain and checkpoint do not read the private blob. cited
+- **Store rule 2** (`systems/ekr/domains/store.yaml:738-762`): retained bytes are withdrawn only with an event on the object's stream. Guard: `crates/ekr-store/tests/eventlog_object_memo.rs`, `no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream`. cited
+- **No harness measures store bytes.** `crates/ekr/tests/explain_by_reference.rs:70-78` (`ONE_X`) is the closest pattern. cited
+- **Receipt format:** `ekr.commit-receipt/3` (`crates/ekr-store/src/records.rs:360`). cited
+- **Files:** `crates/ekr-store/src/preparation.rs` cited; `inventory.rs`, `eventlog.rs`, `objects.rs`, `tests/eventlog_object_memo.rs`, `crates/ekr-store/tests/recovery/support.rs`, `systems/ekr/domains/store.yaml`, `docs/epistemic-knowledge-runtime-design.md` inferred.
+- **Confidence:** medium.
+- **Would collide with:** wave 2026-10-21b U2 (`story:validation-profile-move`) if it adds a log event kind in `eventlog.rs`. inferred
+
+**Decided by the coordinator on 2026-10-21** (each the option the code favours):
+
+1. A reclaimed preparation blob is withdrawn with an event on the preparation stream, and the guard's allow-list names that event.
+2. `read_preparation` reads only the latest selection's blob.
+3. Stage `/4` preparations are excluded.
+4. The receipt format does not change: the receipt keeps embedding the proposal, so no reader of `ekr.commit-receipt/3` breaks.
+5. Inventory skips the blob for a published selection.
