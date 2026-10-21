@@ -7,6 +7,7 @@ use std::sync::{Arc, OnceLock};
 use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, TypeId};
 use ekr_graph::{CanonicalGraph, GraphSnapshot, Subject};
 
+use super::Supersessions;
 use crate::transaction::{GraphOperation, GraphTransaction};
 
 /// The edge identity and endpoints that survive the operation set.
@@ -23,9 +24,16 @@ pub(super) struct Candidate<'g> {
     pub(super) edges: BTreeMap<EdgeId, Edge>,
     /// The edges the operation set creates; see [`Candidate::available`].
     created_edges: BTreeSet<EdgeId>,
-    /// The edges of canonical state a `SupersedeNode` of the operation set retires with its
-    /// node; see [`Candidate::retires`].
-    retired_edges: BTreeSet<EdgeId>,
+    /// Which supersession verdicts this validation gives; see [`Candidate::exact`].
+    supersessions: Supersessions,
+    /// The nodes the operation set's supersessions retire, each with the node it is superseded
+    /// by: every `SupersedeNode` of it under [`Supersessions::Released`], and only those
+    /// `Reference` admits ([`admits`]) under [`Supersessions::Exact`]. See
+    /// [`Candidate::retiring`] and [`Candidate::superseding`].
+    superseding: BTreeMap<NodeId, NodeId>,
+    /// The edges of canonical state a supersession of [`Candidate::retiring`] retires, each with
+    /// the node it is retired with; see [`Candidate::retires`].
+    retired_edges: BTreeMap<EdgeId, NodeId>,
     /// The edges canonical state's supersession records hold, indexed on first use; see
     /// [`Candidate::retired_with`].
     retired_index: OnceCell<ekr_graph::RetiredEdges<'g>>,
@@ -67,6 +75,25 @@ impl ekr_ontology::NodeTypes for Nodes<'_> {
     }
 }
 
+/// Whether `Reference` admits `supersession` against `graph`, `nodes` being the nodes held once
+/// the operation set's creations apply: its node is one canonical state holds and has not
+/// superseded, and its `by` is the node itself — `supersede-into-itself` is `Structural`'s — or
+/// one held or created and not superseded. Exactly the supersessions `Reference` raises none of
+/// `supersede-unknown-node`, `node-already-superseded`, `supersede-by-unknown-node` and
+/// `supersede-by-superseded-node` for under profile v4; only those retire anything in their
+/// transaction there (`story:supersession-verdict-fixes-replay-safe`, D7). The evidence is not
+/// read: a supersession resting on unknown evidence still names the node it would retire.
+fn admits(
+    graph: &CanonicalGraph,
+    nodes: &Nodes<'_>,
+    supersession: &crate::transaction::NodeSupersession,
+) -> bool {
+    let (node, by) = (supersession.node, supersession.by);
+    graph.superseded_by(node).is_none()
+        && graph.nodes.contains_key(&node)
+        && (by == node || (graph.superseded_by(by).is_none() && nodes.contains_key(&by)))
+}
+
 /// Canonical state's assertions about edges, by edge, each list in the order canonical state holds
 /// the assertions.
 pub(crate) type AssertedEdges = BTreeMap<EdgeId, Vec<AssertionId>>;
@@ -100,7 +127,18 @@ pub(super) fn indexed() -> u64 {
 }
 
 impl<'g> Candidate<'g> {
+    /// The candidate view of a validation giving the supersession verdicts profiles v1 to v3
+    /// released: a validator's own [`Validator::validate`](super::Validator::validate) builds this.
     pub(super) fn of(snapshot: &GraphSnapshot<'g>, proposal: &GraphTransaction) -> Self {
+        Self::under(snapshot, proposal, Supersessions::Released)
+    }
+
+    /// The candidate view of a validation giving `supersessions`' verdicts.
+    pub(super) fn under(
+        snapshot: &GraphSnapshot<'g>,
+        proposal: &GraphTransaction,
+        supersessions: Supersessions,
+    ) -> Self {
         BUILT.with(|count| count.set(count.get() + 1));
         let graph = snapshot.graph();
         let mut result = Self {
@@ -123,7 +161,9 @@ impl<'g> Candidate<'g> {
                 })
                 .collect(),
             created_edges: BTreeSet::new(),
-            retired_edges: BTreeSet::new(),
+            supersessions,
+            superseding: BTreeMap::new(),
+            retired_edges: BTreeMap::new(),
             retired_index: OnceCell::new(),
             // Only a created node's counts are ever read, and creating a node replaces whatever
             // canonical state held under its id, so canonical state's counts are not copied.
@@ -174,32 +214,71 @@ impl<'g> Candidate<'g> {
             }
         }
         // A supersession retires every edge of canonical state at its node (design § 110.2):
-        // one pass over the edges, and only for a transaction that supersedes. The node itself
-        // stays, so that an operation naming it is refused once, by the structural check that
-        // owns that question (`superseded-node-named-in-transaction`).
-        let retiring: BTreeSet<NodeId> = proposal
-            .operations
-            .iter()
-            .filter_map(|operation| match operation {
-                GraphOperation::SupersedeNode(supersession) => Some(supersession.node),
-                _ => None,
-            })
-            .collect();
-        if !retiring.is_empty() {
-            for edge in graph.edges.values() {
-                if retiring.contains(&edge.source.node()) || retiring.contains(&edge.target.node())
+        // one pass over the edges, and only for a transaction that supersedes. An edge between
+        // two nodes the operation set supersedes is retired with its source, as commit retires
+        // it. The node itself stays, so that an operation naming it is refused once, by the
+        // structural check that owns that question (`superseded-node-named-in-transaction`).
+        // Under profile v4 a supersession `Reference` refuses retires nothing
+        // (`story:supersession-verdict-fixes-replay-safe`, D7): its node is absent or already
+        // retired, or the supersession does not happen as written, and an operation naming that
+        // node is refused for what it is itself. Under v1 to v3 every one retires, as released.
+        for operation in &proposal.operations {
+            if let GraphOperation::SupersedeNode(supersession) = operation {
+                if supersessions == Supersessions::Released
+                    || admits(graph, &result.nodes, supersession)
                 {
-                    result.retired_edges.insert(edge.id);
-                    result.edges.remove(&edge.id);
+                    result
+                        .superseding
+                        .insert(supersession.node, supersession.by);
                 }
+            }
+        }
+        if !result.superseding.is_empty() {
+            for edge in graph.edges.values() {
+                let (source, target) = (edge.source.node(), edge.target.node());
+                let node = if result.superseding.contains_key(&source) {
+                    source
+                } else if result.superseding.contains_key(&target) {
+                    target
+                } else {
+                    continue;
+                };
+                result.retired_edges.insert(edge.id, node);
+                result.edges.remove(&edge.id);
             }
         }
         result
     }
 
-    /// Whether a `SupersedeNode` of the operation set retires `edge`, an edge of canonical state.
+    /// Whether this validation gives profile v4's exact supersession verdicts
+    /// ([`Supersessions::Exact`]) rather than those profiles v1 to v3 released.
+    pub(super) fn exact(&self) -> bool {
+        self.supersessions == Supersessions::Exact
+    }
+
+    /// Whether a supersession of [`Candidate::retiring`] retires `edge`, an edge of canonical
+    /// state.
     pub(super) fn retires(&self, edge: &EdgeId) -> bool {
-        self.retired_edges.contains(edge)
+        self.retired_edges.contains_key(edge)
+    }
+
+    /// The node a supersession of [`Candidate::retiring`] retires `edge` with, `edge` being an
+    /// edge of canonical state at it: its source when both its ends are retiring.
+    pub(super) fn retired_by_transaction(&self, edge: &EdgeId) -> Option<NodeId> {
+        self.retired_edges.get(edge).copied()
+    }
+
+    /// The node a supersession of [`Candidate::retiring`] supersedes `node` by, if one supersedes
+    /// it: what the head will name instead of `node` once the transaction commits. Read for the
+    /// messages of profile v4 only.
+    pub(super) fn superseding(&self, node: NodeId) -> Option<NodeId> {
+        self.superseding.get(&node).copied()
+    }
+
+    /// The nodes the operation set's supersessions retire in their transaction: every
+    /// `SupersedeNode`'s under profiles v1 to v3, and those `Reference` admits under v4.
+    pub(super) fn retiring(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.superseding.keys().copied()
     }
 
     /// What each merge of `proposal` in the shape that applies would do, read off `snapshot` once
@@ -230,18 +309,19 @@ impl<'g> Candidate<'g> {
             .retired_with(edge)
     }
 
-    /// [`Candidate::of`], reading the [`AssertedEdges`] kept with the snapshot's graph, `kept`,
+    /// [`Candidate::under`], reading the [`AssertedEdges`] kept with the snapshot's graph, `kept`,
     /// rather than building its own. `kept` must be the one kept with that graph.
     pub(super) fn kept(
         snapshot: &GraphSnapshot<'g>,
         proposal: &GraphTransaction,
         kept: &'g OnceLock<AssertedEdges>,
         aliases: &'g super::aliases::AliasHolders,
+        supersessions: Supersessions,
     ) -> Self {
         Self {
             asserted_edges: Index::Kept(kept),
             aliases: Some(aliases),
-            ..Self::of(snapshot, proposal)
+            ..Self::under(snapshot, proposal, supersessions)
         }
     }
 

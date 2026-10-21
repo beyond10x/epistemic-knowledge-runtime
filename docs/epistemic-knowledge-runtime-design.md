@@ -6643,3 +6643,67 @@ scenarios and one `ekr-views` scenario the same through the conformance suites; 
 example of `docs/cli.md` merges a duplicate author on both providers. Not changed: `SplitEntity`,
 `RetypeNode`, more than one pair per operation, bulk or predicate merges, duplicate detection, and
 `ekr.integrate.Merge`.
+
+# 112. Validation Profile v4: Exact Supersession Verdicts (2026-10-21)
+
+`story:supersession-verdict-fixes-replay-safe`, under Atlas ADR 0102 ("A kernel verdict change is
+a new validation profile; a retained verdict replays under the profile that decided it", accepted
+2026-10-21). Four findings of the review of § 110 change what the kernel answers to a proposal.
+Replay re-runs a store's own profile over every retained decision and compares a rejection's issues
+with what the ruleset says now, count, codes and messages byte for byte, so a release that changed
+those answers under a released profile would stop a store that retained one of them from
+reopening. This amendment states the rule for every verdict, as § 95 stated it for messages, and
+adds the profile that carries three of the four.
+
+## 112.1 A verdict change is a new profile
+
+A change to what the kernel answers — the admit or refuse outcome, the issue count, an issue's code
+or its message, or what the document reader accepts — is made only as a new validation profile with
+a new ruleset id. `ekr.p1-deterministic/1`, `ekr.p2-deterministic/1` and `ekr.p3-deterministic/1`
+answer as they were released, messages included. A store keeps the profile its seed named, and
+replay validates each retained proposal under it (§ 91), so a store written before this amendment
+reopens and fully replays unchanged.
+
+## 112.2 Profile v4
+
+Validation profile v4 is ruleset `ekr.p4-deterministic/1` with application `ekr.p2-apply/1`:
+v3's rules — schema changes admitted as under v2, node and edge ids held against the lineage — and
+three answers about `SupersedeNode` (§ 110.3). It is one exact pair, chosen at seed as v3 is
+(`ValidationProfileV1::supersession_exact`); its ruleset with another application is
+`seed-authority-profile`.
+
+1. **A refused supersession retires nothing (D7).** A supersession the reference validator refuses
+   — `supersede-unknown-node`, `node-already-superseded`, `supersede-by-unknown-node` or
+   `supersede-by-superseded-node` — does not enter its transaction's retiring set: its node's edges
+   stay in the candidate view, and another operation naming that node or an edge at it is refused
+   only for what it is itself, not also as `superseded-node-named-in-transaction`. A node named as
+   its own `by` is refused once for its absence or its supersession, beside
+   `supersede-into-itself`, and not again as a `by`.
+2. **A refusal names what the head will hold (D8).** `node-superseded` of a node, and
+   `supersede-by-superseded-node`, follow a `by` the same transaction supersedes to that
+   supersession's `by`, as commit repoints the record. `node-superseded` of an edge retired with a
+   superseded node says a superseded node's edges are retired, not moved, and to create the edge on
+   the node kept. `alias-already-exists` for an alias a superseded node holds names the holder as
+   superseded, its `by`, and that the alias already resolves there; for a holder a supersession of
+   the same transaction retires, it says so and to create the node without the alias.
+3. **A duplicate supersession evidence id is refused as the document is read (Q7).** A
+   `!SupersedeNode` listing one evidence id twice is refused by the reader, as an assertion citing
+   one twice is, before any proposal is retained. The reader takes the profile in force: `ekr
+   propose` and the replay of a retained proposal read under the store's profile
+   (`TransactionDocument::parse_under`), and v1 to v3 read the two as one, as they always did. A
+   reader that only displays a retained, verified document — `ekr explain`, the change list, the
+   retention scan — reads it without a profile, which for every document a v4 store retained gives
+   the same transaction. The SDK's `TransactionDocument::from_yaml` takes the profile the same way.
+
+The fourth finding, a `CreateNode` over the id of an edge retired with a superseded node, is not a
+v4 rule: it is a cross-kind reuse, which v3 already refuses (§ 110.3), and v4 keeps that.
+
+## 112.3 Result, and what is not changed
+
+`crates/ekr-kernel/tests/supersede_node.rs` gives each of the three its v4 verdict and the same
+proposal its released verdict under v1, v2 and v3 on both providers, and replays each profile's
+verdicts from a checkpoint and in full; `crates/ekr-sdk/tests/document_drift.rs` holds the two
+readers to one answer under each profile. Every pinned replay, base-era and retained-rejection
+fixture replays unedited. Not changed: the verdicts of v1 to v3, the application, the canonical
+encoding of every record, and a store's profile, which no mechanism yet moves to v4 — that is
+`story:validation-profile-move` (ADR 0102 decision 6).

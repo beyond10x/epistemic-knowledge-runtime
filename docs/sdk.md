@@ -167,7 +167,9 @@ request, so a document can be built before a session exists, or with none.
 three documents as YAML, with every variant as a tag (`!CreateNode`, `!Node <id>`,
 `!HumanStatement`). A `SchemaChange` is not a document: `SchemaChange::transaction` builds its
 `TransactionDocument`. The readers refuse the one-key JSON form of a tag, so a document is never
-written with `serde_json`.
+written with `serde_json`. `TransactionDocument::from_yaml` reads a document as `ekr propose` reads
+it in a store under the profile it is given: under `ValidationProfile::V4` a `!SupersedeNode`
+listing one evidence id twice is refused, and under v1 to v3 it reads as listing the id once.
 
 In the examples below, `session` is a `ProcessSession` on a store that does not exist yet
 ([A session](#a-session)), and `operator` is the host document's `context.operator`, an `AgentId`.
@@ -330,11 +332,12 @@ group does the same, never puts them in a batch with data, and skips the group w
 
 **Profile v1 fixes the schema.** `ensure` takes the store's validation profile, which it does not
 read from the store: `ValidationProfile::V1` for a host whose `authority.validation_profile.ruleset`
-is `ekr.p1-deterministic/1`, `ValidationProfile::V2` for `ekr.p2-deterministic/1` and
-`ValidationProfile::V3` for `ekr.p3-deterministic/1`. Under v1 a spec the store already declares
+is `ekr.p1-deterministic/1`, `ValidationProfile::V2` for `ekr.p2-deterministic/1`,
+`ValidationProfile::V3` for `ekr.p3-deterministic/1` and `ValidationProfile::V4` for
+`ekr.p4-deterministic/1`. Under v1 a spec the store already declares
 gives an empty change, so `ensure` still checks a v1 store against a spec. A spec that needs any
 operation is `SchemaFixed`, and no operation moves a store from v1 to v2: seed a new store under
-v2 or v3 ([Evolve the schema](cli.md#evolve-the-schema)).
+v2, v3 or v4 ([Evolve the schema](cli.md#evolve-the-schema)).
 
 ```rust
 use ekr_sdk::batch::Batcher;

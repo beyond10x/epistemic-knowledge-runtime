@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::graph::{Assertion, Confidence, EdgeDraft, Evidence, EvidenceSource, NodeDraft};
 use super::value::{EdgeType, NodeType, PropertyDefinition, Value};
-use super::DocumentError;
+use super::{DocumentError, ValidationProfile};
 
 /// The format every transaction document the SDK writes declares.
 pub const TRANSACTION_FORMAT: &str = "ekr.transaction-document/2";
@@ -27,6 +27,20 @@ pub struct TransactionDocument {
 }
 
 impl TransactionDocument {
+    /// Reads `text` as `ekr propose` reads it in a store under `profile`: under
+    /// [`ValidationProfile::V4`] a `!SupersedeNode` listing one evidence id twice is refused, and
+    /// under v1 to v3 it reads as naming the id once, as a plain [`serde`] read of this type does
+    /// (ADR 0102 decision 5).
+    ///
+    /// # Errors
+    /// The reader's refusal: invalid YAML, an unknown or missing field, a value of the wrong
+    /// shape, and the duplicate evidence id above.
+    pub fn from_yaml(text: &str, profile: ValidationProfile) -> Result<Self, serde_yaml_ng::Error> {
+        ekr_core::decode::with_strict_sets(profile.supersedes_exactly(), || {
+            serde_yaml_ng::from_str(text)
+        })
+    }
+
     /// The document as YAML, every variant written as a tag.
     ///
     /// # Errors
@@ -357,7 +371,7 @@ impl OperationKind {
         }
     }
 
-    /// Whether the kind is a schema change: applied under profile v2 or v3 only, in a
+    /// Whether the kind is a schema change: applied under profile v2, v3 or v4 only, in a
     /// transaction of schema changes that names its `schema_version`.
     #[must_use]
     pub const fn is_schema_change(self) -> bool {
@@ -592,6 +606,10 @@ pub struct NodeSupersession {
     /// Why: not empty, and not only whitespace.
     pub reason: String,
     /// At least one evidence id: retained, or added by an `!AddEvidence` of the same transaction.
+    /// A document listing one id twice is read as listing it once, as profiles v1 to v3 read it,
+    /// and refused by [`TransactionDocument::from_yaml`] under profile v4, as `ekr propose` refuses
+    /// it in a v4 store.
+    #[serde(deserialize_with = "ekr_core::decode::profiled_set")]
     pub evidence: BTreeSet<EvidenceId>,
 }
 

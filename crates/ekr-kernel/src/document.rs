@@ -25,7 +25,7 @@ use std::{cell::RefCell, io::Read};
 use ekr_core::ContentHash;
 use serde::{de, Deserialize};
 
-use crate::GraphTransaction;
+use crate::{GraphTransaction, ValidationProfileV1};
 
 /// Inclusive frozen limits of one transaction-document format version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -277,7 +277,38 @@ pub(crate) struct Envelope {
 }
 
 impl TransactionDocument {
+    /// [`Self::parse`] as a store under validation profile `profile` reads the document: under
+    /// profile v4 a `SupersedeNode` listing one evidence id twice is refused, as an assertion
+    /// citing one twice is (`story:supersession-verdict-fixes-replay-safe`, Q7); under v1 to v3 it
+    /// reads exactly as [`Self::parse`] does, the duplicate collapsed (ADR 0102 decision 5).
+    ///
+    /// Every reader that decides whether a store retains or replays a proposal reads it here,
+    /// under the store's profile.
+    ///
+    /// # Errors
+    /// [`Self::parse`]'s refusals, and the duplicate above under v4.
+    pub fn parse_under(bytes: &[u8], profile: &ValidationProfileV1) -> Result<Self, DocumentError> {
+        ekr_core::decode::with_strict_sets(profile.supersedes_exactly(), || Self::parse(bytes))
+    }
+
+    /// [`Self::read`] as a store under validation profile `profile` reads the document, as
+    /// [`Self::parse_under`] parses it.
+    ///
+    /// # Errors
+    /// [`Self::read`]'s refusals, and [`Self::parse_under`]'s.
+    pub fn read_under(
+        reader: impl Read,
+        profile: &ValidationProfileV1,
+    ) -> Result<Self, DocumentError> {
+        ekr_core::decode::with_strict_sets(profile.supersedes_exactly(), || Self::read(reader))
+    }
+
     /// Parse one UTF-8 document under the immutable profile of the version it declares.
+    ///
+    /// The document is read as validation profiles v1 to v3 read it: a `SupersedeNode` listing
+    /// one evidence id twice reads as listing it once. A reader deciding a store's verdict reads
+    /// under the store's profile instead ([`Self::parse_under`]); one that only reads a retained
+    /// document a store already verified may read here, which gives the same transaction.
     ///
     /// # Errors
     /// Returns a named resource refusal or invalid syntax/shape/version error.

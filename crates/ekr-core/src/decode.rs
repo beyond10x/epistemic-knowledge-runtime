@@ -73,6 +73,47 @@ where
     deserializer.deserialize_seq(Unique(PhantomData))
 }
 
+std::thread_local! {
+    /// Whether a [`profiled_set`] decoded on this thread refuses a duplicate member.
+    static STRICT_SETS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `decode` with every [`profiled_set`] it decodes on this thread refusing a duplicate member
+/// as [`unique_set`] does when `strict`, and collapsing one as a plain set does otherwise; the
+/// setting before the call is restored afterwards, whether `decode` returns or unwinds.
+///
+/// A reader whose rules depend on a validation profile passes the profile's answer here, so that
+/// one typed decoder serves a profile that refuses the duplicate and the released ones that keep
+/// collapsing it (ADR 0102 decision 5).
+pub fn with_strict_sets<R>(strict: bool, decode: impl FnOnce() -> R) -> R {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            STRICT_SETS.with(|cell| cell.set(self.0));
+        }
+    }
+    let _restore = Restore(STRICT_SETS.with(|cell| cell.replace(strict)));
+    decode()
+}
+
+/// Decode a set whose duplicate member the reader's profile decides: refused as [`unique_set`]
+/// refuses it inside [`with_strict_sets`] with `strict` set, and collapsed, exactly as a plain
+/// `BTreeSet` decodes, everywhere else.
+///
+/// # Errors
+/// Refuses malformed elements, and repeated decoded identities when strict.
+pub fn profiled_set<'de, D, T>(deserializer: D) -> Result<BTreeSet<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Ord,
+{
+    if STRICT_SETS.with(std::cell::Cell::get) {
+        unique_set(deserializer)
+    } else {
+        BTreeSet::deserialize(deserializer)
+    }
+}
+
 /// Why [`observe_yaml`] refused a text before any value of it was decoded.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum YamlRefusal {

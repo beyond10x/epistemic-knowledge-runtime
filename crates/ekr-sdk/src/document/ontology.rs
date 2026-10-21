@@ -241,13 +241,24 @@ pub enum ValidationProfile {
     V2,
     /// `ekr.p3-deterministic/1`: as v2, and a previously held id is not reused.
     V3,
+    /// `ekr.p4-deterministic/1`: as v3, and a `!SupersedeNode` the store refuses for its node or
+    /// its `by` retires nothing, a refusal about a superseded node names the node the head will
+    /// hold, and a `!SupersedeNode` listing one evidence id twice is refused as it is read.
+    V4,
 }
 
 impl ValidationProfile {
     /// Whether a store under this profile applies schema changes.
     #[must_use]
     pub const fn admits_schema_changes(self) -> bool {
-        matches!(self, Self::V2 | Self::V3)
+        matches!(self, Self::V2 | Self::V3 | Self::V4)
+    }
+
+    /// Whether a store under this profile refuses a `!SupersedeNode` listing one evidence id twice
+    /// as it reads the document, rather than reading the id once: true of v4 only.
+    #[must_use]
+    pub const fn supersedes_exactly(self) -> bool {
+        matches!(self, Self::V4)
     }
 }
 
@@ -286,7 +297,7 @@ pub enum OntologyError {
     /// The store's profile fixes its schema, and the spec needs schema operations.
     #[error(
         "validation profile v1 fixes the schema at seeding, and the spec needs {missing} schema \
-         operations; seed a new store under profile v2 or v3"
+         operations; seed a new store under profile v2, v3 or v4"
     )]
     SchemaFixed {
         /// How many operations the spec needs.

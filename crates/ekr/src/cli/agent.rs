@@ -151,7 +151,11 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty, WidenEdgeType
      replace those two values, and run `ekr seed` with that host into a new --store. Profile
      v3, \"ruleset\": \"ekr.p3-deterministic/1\" with \"application\": \"ekr.p2-apply/1\",
      admits them as v2 does, and also refuses a CreateNode or CreateEdge whose id an earlier
-     revision held, such as a deleted edge's (identity-previously-held).
+     revision held, such as a deleted edge's (identity-previously-held). Profile v4,
+     \"ruleset\": \"ekr.p4-deterministic/1\" with the same application, is v3 with exact
+     supersession verdicts: a SupersedeNode refused for its node or its by retires nothing in
+     its transaction, a refusal about a superseded node names the node the head will hold, and
+     a SupersedeNode listing one evidence id twice is refused when the document is read.
   2. The transaction holds only schema changes (mixed-schema-transaction otherwise), and the
      evidence the new version cites: CiteEvidence operations and the AddEvidence of each entry
      they cite. The version records every cited id; ekr ontology prints them as
@@ -762,7 +766,7 @@ impl OperationKind {
 enum Applied {
     /// Under every profile.
     Always,
-    /// Under validation profiles v2 and v3 only, in a schema-only transaction naming its
+    /// Under validation profiles v2, v3 and v4 only, in a schema-only transaction naming its
     /// `schema_version`; profile v1 rejects it as `unsupported-operation`.
     SchemaChange,
     /// Beside schema changes only, under the profiles that apply them: it cites evidence for the
@@ -779,13 +783,13 @@ pub(super) fn operation_list() -> String {
         match kind.applied() {
             Applied::Always => {}
             Applied::SchemaChange => out.push_str(
-                " [schema change: applied under validation profile v2 or v3 only, in a \
+                " [schema change: applied under validation profile v2, v3 or v4 only, in a \
                  schema-only transaction with schema_version; profile v1 rejects it as \
                  unsupported-operation]",
             ),
             Applied::SchemaCitation => out.push_str(
-                " [schema citation: applied under validation profile v2 or v3 only, beside schema \
-                 changes in a transaction with schema_version; profile v1 rejects it as \
+                " [schema citation: applied under validation profile v2, v3 or v4 only, beside \
+                 schema changes in a transaction with schema_version; profile v1 rejects it as \
                  unsupported-operation]",
             ),
         }
@@ -797,15 +801,16 @@ pub(super) fn operation_list() -> String {
 /// What a page says about a schema kind.
 const SCHEMA_CHANGE: &str = "A schema change: applied only under validation profile v2 (a store \
 seeded under a host whose authority.validation_profile has ruleset ekr.p2-deterministic/1 and \
-application ekr.p2-apply/1) or v3 (ruleset ekr.p3-deterministic/1, the same application), in a \
+application ekr.p2-apply/1), v3 (ruleset ekr.p3-deterministic/1, the same application) or v4 \
+(ruleset ekr.p4-deterministic/1, the same application), in a \
 transaction that holds only schema changes and names the version \
 it produces in transaction.schema_version (ekr mint schema-version). Under profile v1 validation \
 rejects it with the issue code unsupported-operation. `ekr example schema-change` prints a complete \
 schema change; `ekr guide` says more under SCHEMA CHANGES.";
 
 /// What a page says about the schema citation.
-const SCHEMA_CITATION: &str = "A schema citation: applied only under validation profile v2 or \
-v3, beside the schema changes of a transaction that names its schema_version. The version they \
+const SCHEMA_CITATION: &str = "A schema citation: applied only under validation profile v2, v3 \
+or v4, beside the schema changes of a transaction that names its schema_version. The version they \
 make records the cited evidence id, and `ekr ontology` prints it as schema_version_evidence. Beside \
 schema changes a transaction may carry CiteEvidence and the AddEvidence of an entry it cites; any \
 other operation is still mixed-schema-transaction. Under profile v1 validation rejects it with \

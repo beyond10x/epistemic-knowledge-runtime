@@ -492,7 +492,9 @@ fn names_the_prose_uses(
         ValidationProfile::V1,
         ValidationProfile::V2,
         ValidationProfile::V3,
+        ValidationProfile::V4,
     ];
+    let _ = TransactionDocument::from_yaml("", ValidationProfile::V4).is_err();
     let _ = SchemaChange::is_empty(change);
     let _ = SchemaChange::operations(change);
     let _ = SchemaChange::ontology(change);

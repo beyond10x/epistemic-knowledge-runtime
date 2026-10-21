@@ -120,10 +120,10 @@ not input: keep it next to the store and use the same file for every command aga
 | `context.validator` | the agent id that validates. It must differ from the operator |
 | `authority.format` | exactly `ekr.authority-state/1` |
 | `authority.agents` | a map from agent id to `{id, name, capabilities}`. The key must equal `id`; both the operator and the validator must be registered. `name` is a label. `capabilities` is a list of distinct strings that P1 records and does not interpret (the example uses `propose`, `read` and `validate`) |
-| `authority.validation_profile` | one of the three deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). Profile v3 is v2 with `ruleset` `ekr.p3-deterministic/1` and the same `application` `ekr.p2-apply/1`: it admits schema changes as v2 does, and also refuses a `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`). What this page says of profile v2 holds of v3. A store keeps the profile it was seeded under |
+| `authority.validation_profile` | one of the four deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). Profile v3 is v2 with `ruleset` `ekr.p3-deterministic/1` and the same `application` `ekr.p2-apply/1`: it admits schema changes as v2 does, and also refuses a `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`). Profile v4 is v3 with `ruleset` `ekr.p4-deterministic/1` and the same `application`: it gives a supersession exact verdicts, so a `SupersedeNode` refused for its node or its `by` retires nothing in its transaction, a refusal about a superseded node names the node the head will hold, and a `!SupersedeNode` listing one evidence id twice is refused as the document is read ([A node superseded by another](#a-node-superseded-by-another)). What this page says of profile v2 holds of v3 and v4, and what it says of v3 holds of v4. A store keeps the profile it was seeded under |
 
 Unknown, missing or duplicated fields are refused. A host document that parses but whose profile is
-none of the three, or whose agent registry the kernel does not accept, is refused when the
+none of the four, or whose agent registry the kernel does not accept, is refused when the
 store is opened, by any store verb including
 `ekr seed`: `ekr: opening the provider: invalid seed: seed-authority-profile`, exit 1 (an operator
 equal to the validator reads `…: invalid seed: proposer-is-validator`). The host's authority is
@@ -2664,6 +2664,21 @@ Validation refuses, as named issues:
 After the commit, an operation that names a superseded node, or an edge retired with one, is
 `node-superseded` (Reference), naming the node to use instead.
 
+Under validation profile v4 (`ekr.p4-deterministic/1`) three of these verdicts are exact; profiles
+v1 to v3 answer as they were released, so every store keeps replaying what it retained. A
+supersession refused as `supersede-unknown-node`, `node-already-superseded`,
+`supersede-by-unknown-node` or `supersede-by-superseded-node` retires nothing, so another operation
+of the transaction naming its node is refused only for what it is itself, and a `node` no revision
+holds named as its own `by` is refused once for its absence beside `supersede-into-itself`. A
+refusal names the node the head will hold once the transaction commits: `node-superseded` and
+`supersede-by-superseded-node` follow a `by` the same transaction supersedes to that supersession's
+`by`; for an edge, `node-superseded` says edges are retired, not moved, and to create the edge on
+that node; and `alias-already-exists` for an alias a superseded node holds names it as superseded,
+the node kept and that the alias already resolves there, or, for a holder the same transaction
+supersedes, says so and to create the node without the alias. A `!SupersedeNode` listing one evidence id
+twice is refused as `ekr propose` reads the document, as an assertion listing one twice is; under
+v1 to v3 it reads as listing the id once.
+
 ### Two nodes merged into one
 
 `!MergeEntity` joins a duplicate to the node it duplicates and keeps every fact about it: the
@@ -4002,7 +4017,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | pass the payload file with `--evidence`, or paste the hash `ekr hash` prints as the key |
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
-| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
+| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2), `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3) or `ekr.p4-deterministic/1` with `ekr.p2-apply/1` (v4); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `store-read-only` | seed, propose, validate, commit | 2 | this process may not write the store at `--store` — a file store's directory, `writer.lock`, `events.jsonl` or `blobs`; a SQLite database, its directory or its `-wal` or `-shm` file — so the verb, which writes, is refused before it opens anything and nothing is written. The verbs that only read answer on the same store ([Configuration](#configuration)) | run the verb as a user that may write the store, or on a writable copy of it |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
@@ -4063,7 +4078,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
 | `evidence-unsupported-source` | validation issue | 0 | an `!AddEvidence` entry whose `source` is not `!HumanStatement` | add evidence from a `!HumanStatement` source |
 | `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
-| `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
+| `identity-previously-held` | validation issue | 0 | under profile v3 or v4, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
 | `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds, or an `AddAlias` gives a node an alias that it or another node of its type already holds; a superseded node keeps holding its aliases | resolve the reference and use that node instead of creating one or aliasing another; a superseded node's alias resolves to the node kept |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` or `AddAlias` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node, once |

@@ -104,13 +104,17 @@ impl CliHostConfigurationV1 {
             ),
             (
                 "authority",
-                "The authority anchor: the registered agents and one of the three validation \
+                "The authority anchor: the registered agents and one of the four validation \
                  profiles — v1 (ruleset `ekr.p1-deterministic/1`, application `ekr.p1-apply/1`), \
                  which `ekr example ekr.cli-host/1` prints and under which the schema is fixed at \
                  seeding; v2 (`ekr.p2-deterministic/1`, `ekr.p2-apply/1`), which admits \
-                 committed schema changes; or v3 (`ekr.p3-deterministic/1`, `ekr.p2-apply/1`), \
+                 committed schema changes; v3 (`ekr.p3-deterministic/1`, `ekr.p2-apply/1`), \
                  which is v2 and also refuses a new node or edge whose id an earlier revision held \
-                 (identity-previously-held). A store keeps the profile it was seeded under.",
+                 (identity-previously-held); or v4 (`ekr.p4-deterministic/1`, `ekr.p2-apply/1`), \
+                 which is v3 with exact supersession verdicts: a SupersedeNode refused for its \
+                 node or its by retires nothing, a refusal about a superseded node names the node \
+                 the head will hold, and a SupersedeNode listing one evidence id twice is refused \
+                 as the document is read. A store keeps the profile it was seeded under.",
             ),
         ] {
             schema

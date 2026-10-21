@@ -197,7 +197,10 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         actor: AgentId,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ProposalRecordV1, CommitError> {
-        let document = crate::TransactionDocument::read(reader)?;
+        let document = crate::TransactionDocument::read_under(
+            reader,
+            &self.authority.anchor.validation_profile,
+        )?;
         self.propose(document.bytes(), actor, now)
     }
     pub(crate) fn read_state(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
@@ -262,7 +265,10 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ProposalRecordV1, CommitError> {
         let state = self.read_state()?;
-        let parsed = crate::TransactionDocument::parse(bytes)?;
+        let parsed = crate::TransactionDocument::parse_under(
+            bytes,
+            &self.authority.anchor.validation_profile,
+        )?;
         let id = parsed.transaction().id;
         if !self.authority.anchor.agents.contains_key(&actor)
             || !replay::attributed(parsed.transaction(), actor)

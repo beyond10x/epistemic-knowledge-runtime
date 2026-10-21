@@ -7,12 +7,13 @@
 //! retains or adds are `Reference`'s refusals and are not repeated here. A transaction without a
 //! `SupersedeNode` reads nothing here, so it is validated exactly as before the kind existed.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use ekr_core::{EdgeId, NodeId};
-use ekr_graph::{GraphSnapshot, Object, Subject};
+use ekr_graph::{Object, Subject};
 use ekr_ontology::Value;
 
+use super::candidate::Candidate;
 use super::issue;
 use crate::transaction::NodeSupersession;
 use crate::{GraphOperation, GraphTransaction, ValidationIssue, ValidatorName};
@@ -139,10 +140,17 @@ pub(super) fn named(operation: &GraphOperation) -> (Vec<NodeId>, Vec<EdgeId>) {
     }
 }
 
-/// The issues of `tx`'s supersessions against `snapshot`, in operation order.
-pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<ValidationIssue> {
+/// The issues of `tx`'s supersessions against the candidate view of `tx`, in operation order.
+///
+/// What a supersession retires in its transaction is what `candidate` holds as retiring: under
+/// profiles v1 to v3 every `SupersedeNode`'s node and the edges at it, as released; under v4 only
+/// those of the supersessions `Reference` admits (`story:supersession-verdict-fixes-replay-safe`,
+/// D7), so a supersession `Reference` refuses — its node not held or already superseded, its `by`
+/// unknown or superseded — retires nothing, and an operation naming its node is refused for what
+/// it is itself and not also here.
+pub(super) fn check(tx: &GraphTransaction, candidate: &Candidate<'_>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    let mut retiring: BTreeSet<NodeId> = BTreeSet::new();
+    let mut superseded: BTreeSet<NodeId> = BTreeSet::new();
     for supersession in supersessions(tx) {
         let (node, by) = (supersession.node, supersession.by);
         if node == by {
@@ -178,7 +186,7 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
                 ),
             ));
         }
-        if !retiring.insert(node) {
+        if !superseded.insert(node) {
             issues.push(named_in_transaction(
                 tx,
                 format!(
@@ -188,6 +196,7 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
             ));
         }
     }
+    let retiring: BTreeSet<NodeId> = candidate.retiring().collect();
     if retiring.is_empty() {
         return issues;
     }
@@ -203,28 +212,18 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
             ));
         }
     }
-    // The edges a supersession of this transaction retires: one pass over the head's edges.
-    let state = snapshot.graph();
-    let retired: BTreeMap<EdgeId, NodeId> = state
-        .edges
-        .values()
-        .filter_map(|edge| {
-            let (source, target) = (edge.source.node(), edge.target.node());
-            if retiring.contains(&source) {
-                Some((edge.id, source))
-            } else if retiring.contains(&target) {
-                Some((edge.id, target))
-            } else {
-                None
-            }
-        })
-        .collect();
+    // The edges a supersession of this transaction retires are the candidate's: one pass over
+    // the head's edges, made as the view was built.
     for operation in &tx.operations {
         let (nodes, edges) = named(operation);
         let node = nodes
             .into_iter()
             .find(|node| retiring.contains(node))
-            .or_else(|| edges.iter().find_map(|edge| retired.get(edge).copied()));
+            .or_else(|| {
+                edges
+                    .iter()
+                    .find_map(|edge| candidate.retired_by_transaction(edge))
+            });
         if let Some(node) = node {
             issues.push(named_in_transaction(
                 tx,

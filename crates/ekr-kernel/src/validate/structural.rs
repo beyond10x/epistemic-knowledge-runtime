@@ -25,9 +25,9 @@
 //! Canonical state is one revision, and `DeleteEdge` leaves no trace of the id it removes, so
 //! "already holds" does not cover an id an earlier revision held. [`HeldIdentities`] carries that
 //! history, and the structural validator of [`Pipeline::identity_keeping`](super::Pipeline) —
-//! validation profile v3, `ekr.p3-deterministic/1` — holds node and edge ids against it in one
-//! space (`identity-previously-held`). Profiles v1 and v2 do not, and keep answering as they did,
-//! so a store that already committed such a reuse replays.
+//! validation profile v3, `ekr.p3-deterministic/1`, and v4 after it — holds node and edge ids
+//! against it in one space (`identity-previously-held`). Profiles v1 and v2 do not, and keep
+//! answering as they did, so a store that already committed such a reuse replays.
 //!
 //! # The class is six, and it was written here as three
 //!
@@ -204,9 +204,13 @@ impl Check for SchemaStructural {
 /// `duplicate-alias`. A superseded node keeps holding its aliases (design § 110.3), so an alias it
 /// holds is taken too, though a reference to it resolves to the node it is superseded by and is
 /// not `Ambiguous` — not even when the node given it is that one: the alias stays the superseded
-/// node's, which is what stops the next ingestion run recreating the duplicate. The empty alias
-/// identifies nothing: a `CreateNode` may carry it and it is not checked, a repeat inside one
-/// draft is one alias, and an `AddAlias` of it adds nothing and is `empty-alias`.
+/// node's, which is what stops the next ingestion run recreating the duplicate. Under profile v4
+/// such a refusal names the holder as superseded, the node it is superseded by, and that the
+/// alias already resolves there; a holder the same transaction supersedes, that it does and that
+/// the alias then resolves to that node (`story:supersession-verdict-fixes-replay-safe`, D8).
+/// Under v1 to v3 it reads as released. The empty alias identifies nothing: a `CreateNode` may
+/// carry it and it is not checked, a repeat inside one draft is one alias, and an `AddAlias` of it
+/// adds nothing and is `empty-alias`.
 ///
 /// The `CreateNode` checks run first and say what they said before `AddAlias` existed, so a
 /// transaction without one is refused exactly as it was: replay compares every retained
@@ -241,15 +245,31 @@ fn aliases(
                 .copied()
                 .flatten()
             {
+                let (id, type_id) = (draft.id, draft.type_id);
+                let message = match retired_holder(graph, candidate, holder) {
+                    None => format!(
+                        "node {id} is created with alias {alias:?}, which node {holder} of the \
+                         same type {type_id} already holds; resolve the reference and use that \
+                         node"
+                    ),
+                    Some(Retired::Committed(by)) => format!(
+                        "node {id} is created with alias {alias:?}, which node {holder} of the \
+                         same type {type_id} holds; node {holder} is superseded by node {by}, and \
+                         the alias already resolves to node {by}: resolve the reference and use \
+                         node {by}"
+                    ),
+                    Some(Retired::ThisTransaction(by)) => format!(
+                        "node {id} is created with alias {alias:?}, which node {holder} of the \
+                         same type {type_id} holds; this transaction supersedes node {holder} by \
+                         node {by}, and a superseded node keeps its aliases, which then resolve to \
+                         node {by}: create node {id} without the alias"
+                    ),
+                };
                 issues.push(issue(
                     tx,
                     ValidatorName::Structural,
                     ALIAS_ALREADY_EXISTS,
-                    format!(
-                        "node {} is created with alias {alias:?}, which node {holder} of the same \
-                         type {} already holds; resolve the reference and use that node",
-                        draft.id, draft.type_id
-                    ),
+                    message,
                 ));
             }
             if !taken.insert((draft.type_id, alias)) {
@@ -289,15 +309,31 @@ fn aliases(
                      added once"
                 ),
             )),
-            Some(holder) => issues.push(issue(
-                tx,
-                ValidatorName::Structural,
-                ALIAS_ALREADY_EXISTS,
-                format!(
-                    "node {node} is given alias {alias:?}, which node {holder} of the same type \
-                     {type_id} already holds; one alias identifies one node of a type"
-                ),
-            )),
+            Some(holder) => {
+                let message = match retired_holder(graph, candidate, holder) {
+                    None => format!(
+                        "node {node} is given alias {alias:?}, which node {holder} of the same \
+                         type {type_id} already holds; one alias identifies one node of a type"
+                    ),
+                    Some(Retired::Committed(by)) => format!(
+                        "node {node} is given alias {alias:?}, which node {holder} of the same \
+                         type {type_id} holds; node {holder} is superseded by node {by}, and the \
+                         alias already resolves to node {by}"
+                    ),
+                    Some(Retired::ThisTransaction(by)) => format!(
+                        "node {node} is given alias {alias:?}, which node {holder} of the same \
+                         type {type_id} holds; this transaction supersedes node {holder} by node \
+                         {by}, and a superseded node keeps its aliases, which then resolve to node \
+                         {by}"
+                    ),
+                };
+                issues.push(issue(
+                    tx,
+                    ValidatorName::Structural,
+                    ALIAS_ALREADY_EXISTS,
+                    message,
+                ));
+            }
             None => {}
         }
         if !taken.insert((type_id, alias)) {
@@ -313,6 +349,34 @@ fn aliases(
             ));
         }
     }
+}
+
+/// How an alias holder is retired, when it is.
+enum Retired {
+    /// A committed supersession holds it, naming this node.
+    Committed(NodeId),
+    /// A supersession of this transaction, which `Reference` admits, supersedes it by this node.
+    ThisTransaction(NodeId),
+}
+
+/// Under profile v4, whether `holder` is superseded — by a committed supersession, or by one of
+/// the transaction that `Reference` admits — and by what
+/// (`story:supersession-verdict-fixes-replay-safe`, D8). `None` under profiles v1 to v3, whose
+/// refusals read as released, and for every holder of a graph and transaction without a
+/// supersession.
+fn retired_holder(
+    graph: &GraphSnapshot<'_>,
+    candidate: &Candidate<'_>,
+    holder: NodeId,
+) -> Option<Retired> {
+    if !candidate.exact() {
+        return None;
+    }
+    graph
+        .graph()
+        .superseded_by(holder)
+        .map(Retired::Committed)
+        .or_else(|| candidate.superseding(holder).map(Retired::ThisTransaction))
 }
 
 /// The `empty-alias` refusal of an `AddAlias` to `node`.
@@ -1162,7 +1226,7 @@ fn check(
 
     issues.extend(super::lifecycle::check(graph, tx));
     issues.extend(super::attachment::check(graph, tx));
-    issues.extend(super::supersession::check(graph, tx));
+    issues.extend(super::supersession::check(tx, candidate));
     issues.extend(super::merge::structural(graph, tx, candidate));
     finish(issues)
 }

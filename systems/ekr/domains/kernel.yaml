@@ -41,7 +41,7 @@ types:
   # ekr.graph.Evidence and the payload bytes its content_hash addresses, and is applied under every
   # validation profile. Design §19 plus amendments87–91. WidenEdgeType is index 13 (design §101,
   # story:edge-type-endpoints-widen): a schema change, as DefineNodeType, DefineEdgeType and
-  # ModifyProperty are, admitted only under validation profiles v2 and v3 in a schema-only
+  # ModifyProperty are, admitted only under validation profiles v2, v3 and v4 in a schema-only
   # transaction naming its schema_version, and refused under v1 as unsupported-operation. AddAlias
   # is index 14 (story:node-gains-an-alias): data, not a schema change, applied under every
   # validation profile; it appends one alias to a node that exists
@@ -120,10 +120,12 @@ types:
     of: String
 
   # Required literal: "ekr.p1-deterministic/1" (validation profile v1), "ekr.p2-deterministic/1"
-  # (profile v2, which admits schema changes) or "ekr.p3-deterministic/1" (profile v3: v2, and a
-  # node or edge id any revision held is never created again), paired with the matching
-  # application. Runtime version dispatch enforces it; a store keeps the profile its authority
-  # anchor named at seed.
+  # (profile v2, which admits schema changes), "ekr.p3-deterministic/1" (profile v3: v2, and a
+  # node or edge id any revision held is never created again) or "ekr.p4-deterministic/1" (profile
+  # v4: v3, and the exact supersession verdicts of ekr.kernel.NodeSupersession), paired with the
+  # matching application. Runtime version dispatch enforces it; a store keeps the profile its
+  # authority anchor named at seed. A change to what the kernel answers is made only as a new
+  # profile: v1 to v3 answer as they were released, messages included (ADR 0102).
   - name: ekr.kernel.RulesetV1
     kind: newtype
     of: String
@@ -138,7 +140,7 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profiles v2 and v3, under
+  # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profiles v2 to v4, under
   # which a committed schema change replaces the ontology with the version it names). Runtime
   # version dispatch enforces it.
   - name: ekr.kernel.ApplicationProfileV1
@@ -487,7 +489,7 @@ types:
 
   # The node and edge ids one committed transaction created, ascending: each CreateNode draft's
   # id and each CreateEdge draft's id. Admitting a replay checkpoint under validation profile v3
-  # reads them from the receipt, which the commit's event names by digest, instead of parsing the
+  # or v4 reads them from the receipt, which the commit's event names by digest, instead of parsing the
   # committed proposal; a receipt retained before "/3" names none and its proposal is parsed.
   - name: ekr.kernel.CreatedIdentitiesV1
     kind: struct
@@ -794,9 +796,21 @@ types:
   # CreateNode or AddAlias of a superseded node's type and one of its aliases is
   # alias-already-exists (Structural); a CreateNode reusing its id, or a CreateEdge reusing a
   # retired edge's, is identity-already-exists (Structural) under every profile, and the
-  # cross-kind reuses are refused under profile v3 only. A transaction without a SupersedeNode is
-  # validated exactly as before the kind existed, so no retained rejection replays differently and
-  # no retained address moves.
+  # cross-kind reuses are refused under profiles v3 and v4 only. A transaction without a
+  # SupersedeNode is validated exactly as before the kind existed, so no retained rejection replays
+  # differently and no retained address moves. Under validation profile v4 (ekr.p4-deterministic/1,
+  # story:supersession-verdict-fixes-replay-safe) three verdicts are exact, and under v1 to v3 each
+  # stays as released (ADR 0102): a supersession refused as supersede-unknown-node,
+  # node-already-superseded, supersede-by-unknown-node or supersede-by-superseded-node retires
+  # nothing in its transaction, so no other operation is refused as naming its node, and a `node`
+  # equal to `by` and not held is refused once for the absence beside supersede-into-itself;
+  # node-superseded and supersede-by-superseded-node name the node the head will hold once the
+  # transaction commits, a `by` the same transaction supersedes followed to that supersession's
+  # `by`, and for an edge say edges are retired and not moved and to create it on that node;
+  # alias-already-exists for an alias a superseded node holds names it as superseded, its `by` and
+  # that the alias resolves there, or, superseded by the same transaction, to create the node
+  # without the alias; and a document listing one evidence id twice is refused as it is read,
+  # where v1 to v3 read the id once.
   - name: ekr.kernel.NodeSupersession
     kind: struct
     fields:

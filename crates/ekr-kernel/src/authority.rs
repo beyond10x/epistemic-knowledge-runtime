@@ -1,4 +1,4 @@
-//! Host-supplied authority anchor and the three exact deterministic validation profiles.
+//! Host-supplied authority anchor and the four exact deterministic validation profiles.
 use crate::{BootstrapContext, ValidatorName};
 use ekr_core::{AgentId, Canonical, Encoder};
 use serde::{Deserialize, Serialize};
@@ -29,16 +29,25 @@ const P2_APPLICATION: &str = "ekr.p2-apply/1";
 /// The ruleset of validation profile v3: v2, and a node or edge id any revision held is never
 /// created again (`task:deleted-edge-id-is-reusable`). Applied as v2 is.
 const P3_RULESET: &str = "ekr.p3-deterministic/1";
+/// The ruleset of validation profile v4: v3, and the exact supersession verdicts of
+/// `story:supersession-verdict-fixes-replay-safe` (ADR 0102 decision 3). Applied as v2 is.
+const P4_RULESET: &str = "ekr.p4-deterministic/1";
 
 /// The complete fixed profile under which a store seals and replays decisions.
 ///
-/// Three profiles exist, and each is one exact value for a given validator:
+/// Four profiles exist, and each is one exact value for a given validator:
 /// [`ValidationProfileV1::deterministic`] (v1: `ekr.p1-deterministic/1` + `ekr.p1-apply/1`),
-/// [`ValidationProfileV1::schema_evolving`] (v2: `ekr.p2-deterministic/1` + `ekr.p2-apply/1`) and
-/// [`ValidationProfileV1::identity_keeping`] (v3: `ekr.p3-deterministic/1` + `ekr.p2-apply/1`).
+/// [`ValidationProfileV1::schema_evolving`] (v2: `ekr.p2-deterministic/1` + `ekr.p2-apply/1`),
+/// [`ValidationProfileV1::identity_keeping`] (v3: `ekr.p3-deterministic/1` + `ekr.p2-apply/1`) and
+/// [`ValidationProfileV1::supersession_exact`] (v4: `ekr.p4-deterministic/1` + `ekr.p2-apply/1`).
 /// A store keeps the profile its authority anchor named at seed: the anchor is part of the seed
 /// envelope and compared again on every reopening, and no mechanism moves a store from one to
 /// the other.
+///
+/// A change to what the kernel answers — the admit or refuse outcome, the issue count, an issue's
+/// code or message, or what the document reader accepts — is made only as a new profile: v1, v2
+/// and v3 answer as they were released, messages included, so every store they decided replays
+/// (ADR 0102 decision 1).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[cfg_attr(
@@ -61,6 +70,12 @@ const P3_RULESET: &str = "ekr.p3-deterministic/1";
                 "ruleset": { "const": "ekr.p3-deterministic/1" },
                 "application": { "const": "ekr.p2-apply/1" }
             }
+        },
+        {
+            "properties": {
+                "ruleset": { "const": "ekr.p4-deterministic/1" },
+                "application": { "const": "ekr.p2-apply/1" }
+            }
         }
     ]))
 )]
@@ -69,14 +84,15 @@ pub struct ValidationProfileV1 {
     /// Exactly `ekr.p1-validation-profile/1`, for every profile.
     #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.p1-validation-profile/1")))]
     pub format: String,
-    /// `ekr.p1-deterministic/1` (v1), `ekr.p2-deterministic/1` (v2) or `ekr.p3-deterministic/1`
-    /// (v3).
+    /// `ekr.p1-deterministic/1` (v1), `ekr.p2-deterministic/1` (v2), `ekr.p3-deterministic/1`
+    /// (v3) or `ekr.p4-deterministic/1` (v4).
     #[cfg_attr(
         feature = "schema",
         schemars(extend("enum" = [
             "ekr.p1-deterministic/1",
             "ekr.p2-deterministic/1",
-            "ekr.p3-deterministic/1"
+            "ekr.p3-deterministic/1",
+            "ekr.p4-deterministic/1"
         ]))
     )]
     pub ruleset: String,
@@ -90,7 +106,7 @@ pub struct ValidationProfileV1 {
     /// Exactly `retained-admissible-evidence/1`.
     #[cfg_attr(feature = "schema", schemars(extend("const" = "retained-admissible-evidence/1")))]
     pub provenance: String,
-    /// `ekr.p1-apply/1` (v1) or `ekr.p2-apply/1` (v2 and v3), matching the ruleset.
+    /// `ekr.p1-apply/1` (v1) or `ekr.p2-apply/1` (v2, v3 and v4), matching the ruleset.
     #[cfg_attr(
         feature = "schema",
         schemars(extend("enum" = ["ekr.p1-apply/1", "ekr.p2-apply/1"]))
@@ -121,24 +137,44 @@ impl ValidationProfileV1 {
         Self::with(validator, P3_RULESET, P2_APPLICATION)
     }
 
-    /// Whether this profile admits schema changes: true of v2 and v3.
+    /// Validation profile v4 for a host-selected validator: v3, and three exact supersession
+    /// verdicts (`story:supersession-verdict-fixes-replay-safe`, ADR 0102 decision 3). A
+    /// `SupersedeNode` the reference validator refuses retires nothing in its transaction (D7); a
+    /// refusal about a superseded node names the node the head will hold once the transaction
+    /// commits (D8); and a document whose `SupersedeNode` lists one evidence id twice is refused
+    /// as it is read (Q7).
+    #[must_use]
+    pub fn supersession_exact(validator: AgentId) -> Self {
+        Self::with(validator, P4_RULESET, P2_APPLICATION)
+    }
+
+    /// Whether this profile admits schema changes: true of v2, v3 and v4.
     #[must_use]
     pub fn admits_schema_changes(&self) -> bool {
-        (self.ruleset == P2_RULESET || self.ruleset == P3_RULESET)
+        (self.ruleset == P2_RULESET || self.ruleset == P3_RULESET || self.ruleset == P4_RULESET)
             && self.application == P2_APPLICATION
     }
 
-    /// Whether this profile holds node and edge ids against the whole lineage: true of v3 only.
+    /// Whether this profile holds node and edge ids against the whole lineage: true of v3 and v4.
     #[must_use]
     pub fn keeps_identities(&self) -> bool {
-        self.ruleset == P3_RULESET && self.application == P2_APPLICATION
+        (self.ruleset == P3_RULESET || self.ruleset == P4_RULESET)
+            && self.application == P2_APPLICATION
     }
 
-    /// Whether this is exactly one of the three supported profiles for `validator`.
+    /// Whether this profile gives the exact supersession verdicts of
+    /// [`ValidationProfileV1::supersession_exact`]: true of v4 only.
+    #[must_use]
+    pub fn supersedes_exactly(&self) -> bool {
+        self.ruleset == P4_RULESET && self.application == P2_APPLICATION
+    }
+
+    /// Whether this is exactly one of the four supported profiles for `validator`.
     fn is_supported_for(&self, validator: AgentId) -> bool {
         *self == Self::deterministic(validator)
             || *self == Self::schema_evolving(validator)
             || *self == Self::identity_keeping(validator)
+            || *self == Self::supersession_exact(validator)
     }
 
     fn with(validator: AgentId, ruleset: &str, application: &str) -> Self {

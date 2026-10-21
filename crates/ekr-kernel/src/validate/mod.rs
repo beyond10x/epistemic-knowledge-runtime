@@ -96,6 +96,26 @@ pub trait Validator {
 /// in is data rather than a sequence of calls someone can reorder by accident.
 pub struct Pipeline {
     validators: Vec<Box<dyn Check>>,
+    /// The supersession verdicts the validators give, through the candidate view they share.
+    supersessions: Supersessions,
+}
+
+/// Which verdicts a validation gives a transaction that supersedes a node: those released with
+/// validation profiles v1 to v3, which those profiles keep for good, or profile v4's (ADR 0102).
+///
+/// It is read off the candidate view every validator of one validation shares
+/// ([`Candidate::exact`]), because what a `SupersedeNode` retires in its transaction is what that
+/// view holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Supersessions {
+    /// Profiles v1 to v3, as released: every `SupersedeNode` of the operation set retires its node
+    /// and the edges at it, and each refusal reads as it was released, so every rejection a store
+    /// under them retains replays.
+    Released,
+    /// Profile v4 (`story:supersession-verdict-fixes-replay-safe`): only a `SupersedeNode` the
+    /// reference validator admits retires anything in its transaction (D7), and a refusal about a
+    /// superseded node names the node the head will hold once the transaction commits (D8).
+    Exact,
 }
 
 impl Pipeline {
@@ -106,7 +126,7 @@ impl Pipeline {
         snapshot: &GraphSnapshot<'_>,
         proposal: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        let candidate = Candidate::of(snapshot, proposal);
+        let candidate = Candidate::under(snapshot, proposal, self.supersessions);
         let mut issues = Vec::new();
         for validator in &self.validators {
             if proposal.operations.is_empty() && validator.name() == ValidatorName::Structural {
@@ -131,6 +151,7 @@ impl Pipeline {
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],
+            supersessions: Supersessions::Released,
         }
     }
 
@@ -157,6 +178,7 @@ impl Pipeline {
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],
+            supersessions: Supersessions::Released,
         }
     }
 
@@ -182,6 +204,26 @@ impl Pipeline {
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],
+            supersessions: Supersessions::Released,
+        }
+    }
+
+    /// The seven validators of validation profile v4 (`ekr.p4-deterministic/1`), run by `actor`:
+    /// [`Pipeline::identity_keeping`]'s, giving the exact supersession verdicts of
+    /// `story:supersession-verdict-fixes-replay-safe`. A `SupersedeNode` the reference validator
+    /// refuses — its node not held or already superseded, its `by` unknown or superseded — retires
+    /// nothing in its transaction, so no other operation is refused for naming its node (D7); and
+    /// a refusal about a superseded node names the node the head will hold once the transaction
+    /// commits (D8). Every other verdict is v3's.
+    #[must_use]
+    pub fn supersession_exact(
+        actor: AgentId,
+        lineage: BTreeSet<SchemaVersionId>,
+        held: HeldIdentities,
+    ) -> Self {
+        Self {
+            supersessions: Supersessions::Exact,
+            ..Self::identity_keeping(actor, lineage, held)
         }
     }
 
@@ -207,7 +249,11 @@ impl Pipeline {
         snapshot: &GraphSnapshot<'_>,
         proposal: &GraphTransaction,
     ) -> Result<ValidatedTransaction, Vec<ValidationIssue>> {
-        self.sealed(snapshot, proposal, Candidate::of(snapshot, proposal))
+        self.sealed(
+            snapshot,
+            proposal,
+            Candidate::under(snapshot, proposal, self.supersessions),
+        )
     }
 
     /// [`Pipeline::validate`], reading the index of assertions about edges kept with the
@@ -224,7 +270,7 @@ impl Pipeline {
         self.sealed(
             snapshot,
             proposal,
-            Candidate::kept(snapshot, proposal, kept, aliases),
+            Candidate::kept(snapshot, proposal, kept, aliases, self.supersessions),
         )
     }
 

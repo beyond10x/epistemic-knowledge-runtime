@@ -272,6 +272,10 @@ impl ReplayState {
         }))
     }
     /// The retained proposal's parsed document, or a fresh parse of its verified bytes.
+    ///
+    /// The fresh parse takes no profile: the bytes are a proposal replay already read under the
+    /// store's profile ([`parsed_proposal`]) or one a verified checkpoint covers, and for every
+    /// document a profile's reader accepts, the reader without one gives the same transaction.
     pub(crate) fn document(
         &self,
         proposal: &ProposalRecordV1,
@@ -606,7 +610,9 @@ pub(crate) fn parsed_proposal(
 ) -> Result<(ProposalRecordV1, TransactionDocument), StoreError> {
     registered(anchor, actor)?;
     crate::read::count(|cost| cost.documents_parsed += 1);
-    let document = TransactionDocument::parse(bytes)
+    // Read as the store's profile reads it, as `propose` read it: a duplicate a profile refuses
+    // at the reader was never retained, and one the profiles before it collapse still is.
+    let document = TransactionDocument::parse_under(bytes, &anchor.validation_profile)
         .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
     let tx = document.transaction();
     require(attributed(tx, actor), "proposal-attribution-mismatch")?;
@@ -648,9 +654,11 @@ pub(crate) fn basis(
 /// Validates a retained proposal's parsed document against `prior` under the store's own profile.
 ///
 /// `revisions` are the committed revisions retained so far; those up to `prior` are the lineage a
-/// profile-v2 or v3 schema change is held new against. `held` is every node and edge identity
-/// those revisions held, which profile v3 reads at `prior` and holds a new record against.
-/// Profile v1 reads neither, and seals and refuses exactly as P1 did.
+/// profile-v2, v3 or v4 schema change is held new against. `held` is every node and edge identity
+/// those revisions held, which profiles v3 and v4 read at `prior` and hold a new record against.
+/// Profile v1 reads neither, and seals and refuses exactly as P1 did. Profile v4's pipeline gives
+/// the exact supersession verdicts ([`Pipeline::supersession_exact`]); v1 to v3 give theirs as
+/// released.
 ///
 /// # Errors
 ///
@@ -673,7 +681,9 @@ pub(crate) fn validate(
                 .map(|(_, revision)| &*revision.ontology),
         )
     };
-    let pipeline = if anchor.validation_profile.keeps_identities() {
+    let pipeline = if anchor.validation_profile.supersedes_exactly() {
+        Pipeline::supersession_exact(validator, lineage(), held.at(prior.root.revision))
+    } else if anchor.validation_profile.keeps_identities() {
         Pipeline::identity_keeping(validator, lineage(), held.at(prior.root.revision))
     } else if anchor.validation_profile.admits_schema_changes() {
         Pipeline::schema_evolving(validator, lineage())

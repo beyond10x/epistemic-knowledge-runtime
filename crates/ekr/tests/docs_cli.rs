@@ -2251,6 +2251,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
         "ekr.p1-deterministic/1",
         "ekr.p2-deterministic/1",
         "ekr.p3-deterministic/1",
+        "ekr.p4-deterministic/1",
         "schema change",
     ] {
         assert!(
@@ -2273,6 +2274,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
         "`ekr.p1-deterministic/1` with `ekr.p1-apply/1`",
         "`ekr.p2-deterministic/1` with `ekr.p2-apply/1`",
         "`ekr.p3-deterministic/1` with `ekr.p2-apply/1`",
+        "`ekr.p4-deterministic/1` with `ekr.p2-apply/1`",
     ] {
         assert!(
             line.contains(needle),

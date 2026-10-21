@@ -542,6 +542,89 @@ fn the_seed_builder_files_every_record_under_its_id_inside_the_graph_document_en
     );
 }
 
+/// `story:supersession-verdict-fixes-replay-safe` Q7 (ADR 0102 decision 5): a `!SupersedeNode`
+/// listing one evidence id twice is refused by the kernel's reader and by the SDK's when each is
+/// handed validation profile v4, as an assertion citing one twice is; under profiles v1 to v3, and
+/// by the readers that take no profile, both read it as naming the id once, as 0.0.41 read it. The
+/// same document listing the id once is read by both under every profile.
+#[test]
+fn a_supersession_naming_one_evidence_id_twice_is_refused_by_both_readers_under_v4_only() {
+    let operator = AgentId::mint();
+    let validator = AgentId::mint();
+    let evidence = EvidenceId::mint();
+    let document = TransactionBuilder::new(operator)
+        .push(
+            NodeSupersession::new(NodeId::mint(), NodeId::mint(), "recorded twice", [evidence])
+                .into(),
+        )
+        .build()
+        .unwrap();
+    let once = document.to_yaml().unwrap();
+    let mut lines: Vec<&str> = once.lines().collect();
+    let at = lines
+        .iter()
+        .position(|line| line.trim() == format!("- {evidence}"))
+        .expect("the supersession lists its evidence before the transaction does");
+    lines.insert(at, lines[at]);
+    let twice = lines.join("\n") + "\n";
+    assert_ne!(twice, once);
+
+    let read = kernel_reads(&once);
+    assert_eq!(kernel_reads(&twice).transaction(), read.transaction());
+    assert_eq!(
+        serde_yaml_ng::from_str::<TransactionDocument>(&twice).unwrap(),
+        document
+    );
+    for (profile, under) in [
+        (
+            ValidationProfile::V1,
+            ekr_kernel::ValidationProfileV1::deterministic(validator),
+        ),
+        (
+            ValidationProfile::V2,
+            ekr_kernel::ValidationProfileV1::schema_evolving(validator),
+        ),
+        (
+            ValidationProfile::V3,
+            ekr_kernel::ValidationProfileV1::identity_keeping(validator),
+        ),
+        (
+            ValidationProfile::V4,
+            ekr_kernel::ValidationProfileV1::supersession_exact(validator),
+        ),
+    ] {
+        let kernel = ekr_kernel::TransactionDocument::parse_under(once.as_bytes(), &under)
+            .unwrap_or_else(|e| panic!("{profile:?}: the kernel refuses the id listed once: {e}"));
+        assert_eq!(kernel.transaction(), read.transaction(), "{profile:?}");
+        assert_eq!(
+            TransactionDocument::from_yaml(&once, profile).unwrap(),
+            document,
+            "{profile:?}"
+        );
+        let kernel = ekr_kernel::TransactionDocument::parse_under(twice.as_bytes(), &under);
+        let sdk = TransactionDocument::from_yaml(&twice, profile);
+        if profile == ValidationProfile::V4 {
+            let kernel = kernel.expect_err("the kernel reads one evidence id twice under v4");
+            assert!(
+                kernel.to_string().contains("duplicate decoded set member"),
+                "{kernel}"
+            );
+            let sdk = sdk.expect_err("the SDK reads one evidence id twice under v4");
+            assert!(
+                sdk.to_string().contains("duplicate decoded set member"),
+                "{sdk}"
+            );
+        } else {
+            assert_eq!(
+                kernel.unwrap().transaction(),
+                read.transaction(),
+                "{profile:?}"
+            );
+            assert_eq!(sdk.unwrap(), document, "{profile:?}");
+        }
+    }
+}
+
 #[test]
 fn the_readers_refuse_the_one_key_json_form_of_a_tag_so_the_sdk_writes_tags() {
     let operator = AgentId::mint();
@@ -987,6 +1070,7 @@ impl Store {
             ValidationProfile::V1 => ("ekr.p1-deterministic/1", "ekr.p1-apply/1"),
             ValidationProfile::V2 => ("ekr.p2-deterministic/1", "ekr.p2-apply/1"),
             ValidationProfile::V3 => ("ekr.p3-deterministic/1", "ekr.p2-apply/1"),
+            ValidationProfile::V4 => ("ekr.p4-deterministic/1", "ekr.p2-apply/1"),
         };
         let agent = |id: AgentId, name: &str, capabilities: &[&str]| serde_json::json!({"id": id.to_string(), "name": name, "capabilities": capabilities});
         let host = serde_json::json!({
@@ -1160,6 +1244,15 @@ fn ensure_against_a_store_whose_ontology_matches_emits_no_operation_and_otherwis
     );
     assert!(!ValidationProfile::V1.admits_schema_changes());
     assert!(ValidationProfile::V3.admits_schema_changes());
+    assert!(ValidationProfile::V4.admits_schema_changes());
+    assert!(ValidationProfile::V4.supersedes_exactly());
+    for profile in [
+        ValidationProfile::V1,
+        ValidationProfile::V2,
+        ValidationProfile::V3,
+    ] {
+        assert!(!profile.supersedes_exactly(), "{profile:?}");
+    }
 
     let change = read.ensure(&grown_spec(), ValidationProfile::V2).unwrap();
     assert_eq!(

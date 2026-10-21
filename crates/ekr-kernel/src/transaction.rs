@@ -277,8 +277,12 @@ pub struct NodeSupersession {
     /// Why, retained with the record: not empty, and not only whitespace.
     pub reason: String,
     /// What the supersession rests on: at least one evidence id canonical state retains or an
-    /// `AddEvidence` of the same transaction adds.
+    /// `AddEvidence` of the same transaction adds. One id listed twice is read as listing it once
+    /// under validation profiles v1 to v3, as released, and refused as the document is read under
+    /// v4, as an assertion's evidence is (`story:supersession-verdict-fixes-replay-safe`, Q7;
+    /// [`crate::TransactionDocument::parse_under`]).
     #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
+    #[serde(deserialize_with = "ekr_core::decode::profiled_set")]
     pub evidence: BTreeSet<EvidenceId>,
 }
 

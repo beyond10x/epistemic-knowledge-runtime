@@ -320,15 +320,30 @@ impl Check for Reference {
                             ),
                         ));
                     }
-                    if let Some(kept) = known.state.superseded_by(by) {
+                    if by == node && known.candidate.exact() {
+                        // Profile v4: `supersede-into-itself` is `Structural`'s, and the node's
+                        // own refusal above is not repeated for its `by`
+                        // (`story:supersession-verdict-fixes-replay-safe`, D7). These are exactly
+                        // the refusals `candidate::admits` reads.
+                    } else if let Some(kept) = known.state.superseded_by(by) {
+                        let message = match known.candidate.superseding(kept) {
+                            // Profile v4: the node the head will hold for `kept` once this
+                            // transaction commits (D8).
+                            Some(next) if known.candidate.exact() => format!(
+                                "node {node} is superseded by node {by}, which is itself \
+                                 superseded by node {kept}, which this transaction supersedes by \
+                                 node {next}; supersede node {node} by node {next}"
+                            ),
+                            _ => format!(
+                                "node {node} is superseded by node {by}, which is itself \
+                                 superseded by node {kept}; supersede node {node} by node {kept}"
+                            ),
+                        };
                         issues.push(issue(
                             tx,
                             ValidatorName::Reference,
                             SUPERSEDE_BY_SUPERSEDED_NODE,
-                            format!(
-                                "node {node} is superseded by node {by}, which is itself \
-                                 superseded by node {kept}; supersede node {node} by node {kept}"
-                            ),
+                            message,
                         ));
                     } else if !known.candidate.nodes.contains_key(&by) {
                         issues.push(issue(
@@ -458,16 +473,28 @@ impl<'c, 'g> Known<'c, 'g> {
     /// Refuses `node` if nothing will hold it: as `node-superseded`, naming the node it is
     /// superseded by, when a supersession of canonical state holds it (design § 110.3), and as
     /// `unresolved-node` otherwise.
+    ///
+    /// Under profile v4 the node to name instead is the one the head will hold once this
+    /// transaction commits: where a supersession of this transaction retires the record's `by`,
+    /// commit repoints the record to that supersession's `by`, which the refusal names
+    /// (`story:supersession-verdict-fixes-replay-safe`, D8).
     fn node(&self, tx: &GraphTransaction, node: NodeId, issues: &mut Vec<ValidationIssue>) {
         if self.candidate.nodes.contains_key(&node) {
             return;
         }
         if let Some(by) = self.state.superseded_by(node) {
+            let message = match self.candidate.superseding(by) {
+                Some(next) if self.candidate.exact() => format!(
+                    "node {node} is superseded by node {by}, which this transaction supersedes by \
+                     node {next}; name node {next} instead"
+                ),
+                _ => format!("node {node} is superseded by node {by}; name node {by} instead"),
+            };
             issues.push(issue(
                 tx,
                 ValidatorName::Reference,
                 NODE_SUPERSEDED,
-                format!("node {node} is superseded by node {by}; name node {by} instead"),
+                message,
             ));
             return;
         }
@@ -485,19 +512,40 @@ impl<'c, 'g> Known<'c, 'g> {
     /// An edge a `SupersedeNode` of the same transaction retires is held by the head: an
     /// operation naming it is refused once, by the structural check that owns that question
     /// (`superseded-node-named-in-transaction`), not also here.
+    ///
+    /// Under profile v4 a supersession retires edges and does not move them (ADR 0017 decision
+    /// 2), so the refusal says to create the edge on the kept node — the one the head will hold
+    /// once this transaction commits — rather than to name one it may not have
+    /// (`story:supersession-verdict-fixes-replay-safe`, D8).
     fn edge(&self, tx: &GraphTransaction, edge: EdgeId, issues: &mut Vec<ValidationIssue>) {
         if self.candidate.edges.contains_key(&edge) || self.candidate.retires(&edge) {
             return;
         }
         if let Some((node, by)) = self.retired(edge) {
+            let message = if self.candidate.exact() {
+                let (kept, after) = match self.candidate.superseding(by) {
+                    Some(next) => (
+                        next,
+                        format!(", which this transaction supersedes by node {next}"),
+                    ),
+                    None => (by, String::new()),
+                };
+                format!(
+                    "edge {edge} was retired with node {node}, which is superseded by node \
+                     {by}{after}; a superseded node's edges are retired, not moved: create the \
+                     edge on node {kept} and name that one instead"
+                )
+            } else {
+                format!(
+                    "edge {edge} was retired with node {node}, which is superseded by node {by}; \
+                     name an edge of node {by} instead"
+                )
+            };
             issues.push(issue(
                 tx,
                 ValidatorName::Reference,
                 NODE_SUPERSEDED,
-                format!(
-                    "edge {edge} was retired with node {node}, which is superseded by node {by}; \
-                     name an edge of node {by} instead"
-                ),
+                message,
             ));
             return;
         }

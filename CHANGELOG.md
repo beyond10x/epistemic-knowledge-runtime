@@ -4,6 +4,28 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- Validation profile v4, `ekr.p4-deterministic/1` with `ekr.p2-apply/1`
+  (story:supersession-verdict-fixes-replay-safe, design § 112, ADR 0102), chosen at seed as v3 is:
+  v3's rules and three exact `SupersedeNode` verdicts. A supersession refused for its node or its
+  `by` retires nothing in its transaction, so another operation naming its node is refused once,
+  for what it is itself, and `X by X` of an absent node is refused once for the absence beside
+  `supersede-into-itself`. Refusals name what the head will hold: `node-superseded` and
+  `supersede-by-superseded-node` follow a `by` the same transaction supersedes, `node-superseded`
+  of a retired edge says edges are retired, not moved, and to create the edge on the kept node, and
+  `alias-already-exists` for an alias a superseded node holds says it is superseded, by what, and
+  that the alias already resolves there. A `!SupersedeNode` listing one evidence id twice is
+  refused as `ekr propose` reads the document. Profiles v1 to v3 answer every proposal as 0.0.41
+  did, messages included, so every store keeps reopening and replaying; no mechanism moves an
+  existing store to v4 yet. Kernel: `ValidationProfileV1::supersession_exact`,
+  `ValidationProfileV1::supersedes_exactly`, `Pipeline::supersession_exact`,
+  `TransactionDocument::parse_under` and `TransactionDocument::read_under`. SDK:
+  `ValidationProfile::V4` (a consumer matching the enum exhaustively adds an arm),
+  `ValidationProfile::supersedes_exactly` and `TransactionDocument::from_yaml`, which reads a
+  document under a profile as `ekr propose` does. Help texts, `docs/cli.md`, `docs/sdk.md` and
+  `kernel.yaml` name four profiles.
+
 ## [0.0.41] — 2026-10-21
 
 ### Added

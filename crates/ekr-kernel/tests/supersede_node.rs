@@ -30,6 +30,7 @@ use serde::Serialize;
 const SEED: &str = include_str!("fixtures/supersession-seed.yaml");
 const ROOT: &str = "00000000-0000-4000-8000-000000000002";
 const TAG: &str = "00000000-0000-4000-8000-000000000201";
+const WORK_ITEM: &str = "00000000-0000-4000-8000-000000000202";
 const MERGE_REQUEST: &str = "00000000-0000-4000-8000-000000000203";
 const TAGGED: &str = "00000000-0000-4000-8000-000000000204";
 /// `title` of a MergeRequest.
@@ -1145,4 +1146,500 @@ fn a_supersession_replays_to_identical_roots() {
             assert_eq!(before.evidence_root, after.evidence_root, "{at}");
         }
     });
+}
+
+// Profile v4 (ADR 0102, `story:supersession-verdict-fixes-replay-safe`) --------------------------
+
+/// A rejection's issues as `(validator, code)`.
+type Codes = Vec<(ValidatorName, String)>;
+
+/// The four validation profiles, v4 (`ekr.p4-deterministic/1` with `ekr.p2-apply/1`, ADR 0102
+/// decision 3) last: v3's rules and the supersession verdict fixes D7, D8 and Q7.
+fn four_profiles() -> [(&'static str, AuthorityStateV1); 4] {
+    let [v1, v2, v3] = profiles();
+    [
+        v1,
+        v2,
+        v3,
+        (
+            "v4",
+            anchor(ValidationProfileV1::supersession_exact(context().validator)),
+        ),
+    ]
+}
+
+/// Every provider under every profile, v4 included, labelled with the profile and the store.
+fn each_profile_store(mut run: impl FnMut(&str, &str, &std::path::Path, bool, AuthorityStateV1)) {
+    for (profile, authority) in four_profiles() {
+        for file in [false, true] {
+            let at = format!("{profile} {}", if file { "file" } else { "sqlite" });
+            let directory = tempfile::tempdir().unwrap();
+            run(profile, &at, directory.path(), file, authority.clone());
+        }
+    }
+}
+
+/// An `UpdateProperty` of a MergeRequest's title on `node`.
+fn retitle(node: NodeId) -> GraphOperation {
+    GraphOperation::UpdateProperty(PropertyMutation {
+        node,
+        property: id(MERGE_REQUEST_TITLE),
+        values: vec![Value::String("Fix the lexer".into())],
+    })
+}
+
+/// `story:supersession-verdict-fixes-replay-safe` D7, under profile v4 only: a `SupersedeNode`
+/// `Reference` refuses — its node not held or already superseded, its `by` unknown or superseded —
+/// retires nothing in its transaction, so another operation naming that node or an edge at it is
+/// refused only for what it is itself, and `X by X` of a node no revision holds is refused once for
+/// the absence beside `supersede-into-itself`. Profiles v1 to v3 give each of these proposals the
+/// issues 0.0.41 gave it, count and codes included (ADR 0102 decision 1).
+#[test]
+#[allow(clippy::too_many_lines)]
+fn under_v4_a_supersession_reference_refuses_retires_nothing_and_v1_to_v3_answer_as_released() {
+    each_profile_store(|profile, at, path, file, authority| {
+        let kernel = open(path, file, authority);
+        superseded_store(&kernel);
+        let head = kernel.snapshot().unwrap();
+        let statement: EvidenceId = id(STATEMENT);
+        let kept_edge = *head
+            .edges
+            .values()
+            .find(|edge| edge.source.node() == id::<NodeId>(KEPT))
+            .map(|edge| &edge.id)
+            .expect("the kept node's TAGGED edge");
+        let unknown = NodeId::mint();
+        let reference = |code: &str| (ValidatorName::Reference, code.to_owned());
+        let structural = |code: &str| (ValidatorName::Structural, code.to_owned());
+        let named = structural("superseded-node-named-in-transaction");
+        // What, the transaction, its issues under v1 to v3, and under v4.
+        let cases: Vec<(&str, GraphTransaction, Codes, Codes)> = vec![
+            (
+                "a node no revision holds, and an update of it",
+                transaction(
+                    vec![supersede(unknown, id(KEPT)), retitle(unknown)],
+                    &[statement],
+                ),
+                vec![
+                    named.clone(),
+                    reference("supersede-unknown-node"),
+                    reference("unresolved-node"),
+                ],
+                vec![
+                    reference("supersede-unknown-node"),
+                    reference("unresolved-node"),
+                ],
+            ),
+            (
+                "a node already superseded, and an update of it",
+                transaction(
+                    vec![supersede(id(DUPLICATE), id(LATER)), retitle(id(DUPLICATE))],
+                    &[statement],
+                ),
+                vec![
+                    named.clone(),
+                    reference("node-already-superseded"),
+                    reference("node-superseded"),
+                ],
+                vec![
+                    reference("node-already-superseded"),
+                    reference("node-superseded"),
+                ],
+            ),
+            (
+                "a node superseded by a superseded node, and an update of it",
+                transaction(
+                    vec![supersede(id(OTHER), id(DUPLICATE)), retitle(id(OTHER))],
+                    &[statement],
+                ),
+                vec![named.clone(), reference("supersede-by-superseded-node")],
+                vec![reference("supersede-by-superseded-node")],
+            ),
+            (
+                "a node superseded by one no revision holds, and a deletion of its edge",
+                transaction(
+                    vec![
+                        supersede(id(KEPT), NodeId::mint()),
+                        GraphOperation::DeleteEdge(kept_edge),
+                    ],
+                    &[statement],
+                ),
+                vec![named.clone(), reference("supersede-by-unknown-node")],
+                vec![reference("supersede-by-unknown-node")],
+            ),
+            (
+                "a node no revision holds, superseded by itself",
+                transaction(vec![supersede(unknown, unknown)], &[statement]),
+                vec![
+                    structural("supersede-into-itself"),
+                    reference("supersede-unknown-node"),
+                    reference("supersede-by-unknown-node"),
+                ],
+                vec![
+                    structural("supersede-into-itself"),
+                    reference("supersede-unknown-node"),
+                ],
+            ),
+        ];
+        for (offset, (what, tx, released, exact)) in cases.into_iter().enumerate() {
+            let verdict = submit(&kernel, &tx, 2_000 + 10 * i64::try_from(offset).unwrap());
+            let expected = if profile == "v4" { exact } else { released };
+            assert_eq!(codes(&verdict), expected, "{at}: {what}: {verdict:?}");
+        }
+        assert_eq!(kernel.snapshot().unwrap(), head, "{at}: nothing moved");
+    });
+}
+
+/// `story:supersession-verdict-fixes-replay-safe` D8, under profile v4 only: each of the five
+/// refusals that advise names what the head will hold once the transaction commits. An operation
+/// naming a node superseded by one this transaction supersedes names that supersession's `by`, as
+/// does a supersession by such a node; an operation naming an edge retired with a superseded node
+/// says edges are retired, not moved, and to create the edge on the kept node; and an alias a
+/// superseded node holds is named as held by a superseded node, with the node it resolves to, or —
+/// superseded by the same transaction — with the advice to create the node without it. Profiles
+/// v1 to v3 give each of these proposals the one issue 0.0.41 gave it, message byte for byte (ADR
+/// 0102 decision 1).
+#[test]
+#[allow(clippy::too_many_lines)]
+fn under_v4_a_supersession_refusal_names_what_the_head_will_hold_and_v1_to_v3_read_as_released() {
+    each_profile_store(|profile, at, path, file, authority| {
+        let kernel = open(path, file, authority);
+        superseded_store(&kernel);
+        let head = kernel.head().unwrap().unwrap();
+        let statement: EvidenceId = id(STATEMENT);
+        let created = NodeId::mint();
+        let work_item = NodeId::mint();
+        // What, the transaction, the refusing validator and code, and the message under v1 to v3
+        // and under v4.
+        let cases: Vec<(&str, GraphTransaction, ValidatorName, &str, String, String)> = vec![
+            (
+                "an update of a node superseded by one this transaction supersedes",
+                transaction(
+                    vec![supersede(id(KEPT), id(LATER)), retitle(id(DUPLICATE))],
+                    &[statement],
+                ),
+                ValidatorName::Reference,
+                "node-superseded",
+                format!("node {DUPLICATE} is superseded by node {KEPT}; name node {KEPT} instead"),
+                format!(
+                    "node {DUPLICATE} is superseded by node {KEPT}, which this transaction \
+                     supersedes by node {LATER}; name node {LATER} instead"
+                ),
+            ),
+            (
+                "a supersession by a node superseded by one this transaction supersedes",
+                transaction(
+                    vec![
+                        supersede(id(OTHER), id(DUPLICATE)),
+                        supersede(id(KEPT), id(LATER)),
+                    ],
+                    &[statement],
+                ),
+                ValidatorName::Reference,
+                "supersede-by-superseded-node",
+                format!(
+                    "node {OTHER} is superseded by node {DUPLICATE}, which is itself superseded \
+                     by node {KEPT}; supersede node {OTHER} by node {KEPT}"
+                ),
+                format!(
+                    "node {OTHER} is superseded by node {DUPLICATE}, which is itself superseded \
+                     by node {KEPT}, which this transaction supersedes by node {LATER}; supersede \
+                     node {OTHER} by node {LATER}"
+                ),
+            ),
+            (
+                "a deletion of an edge retired with a superseded node",
+                transaction(vec![GraphOperation::DeleteEdge(id(DUPLICATE_TAGGED))], &[]),
+                ValidatorName::Reference,
+                "node-superseded",
+                format!(
+                    "edge {DUPLICATE_TAGGED} was retired with node {DUPLICATE}, which is \
+                     superseded by node {KEPT}; name an edge of node {KEPT} instead"
+                ),
+                format!(
+                    "edge {DUPLICATE_TAGGED} was retired with node {DUPLICATE}, which is \
+                     superseded by node {KEPT}; a superseded node's edges are retired, not moved: \
+                     create the edge on node {KEPT} and name that one instead"
+                ),
+            ),
+            (
+                "a node created with an alias a superseded node holds",
+                transaction(
+                    vec![node(
+                        created,
+                        MERGE_REQUEST,
+                        "group/app!18",
+                        &["group/app!18"],
+                    )],
+                    &[],
+                ),
+                ValidatorName::Structural,
+                "alias-already-exists",
+                format!(
+                    "node {created} is created with alias \"group/app!18\", which node \
+                     {DUPLICATE} of the same type {MERGE_REQUEST} already holds; resolve the \
+                     reference and use that node"
+                ),
+                format!(
+                    "node {created} is created with alias \"group/app!18\", which node \
+                     {DUPLICATE} of the same type {MERGE_REQUEST} holds; node {DUPLICATE} is \
+                     superseded by node {KEPT}, and the alias already resolves to node {KEPT}: \
+                     resolve the reference and use node {KEPT}"
+                ),
+            ),
+            (
+                "an alias a superseded node holds, given to another node",
+                transaction(
+                    vec![GraphOperation::AddAlias(AliasAddition {
+                        node: id(OTHER),
+                        alias: "group/app!18".into(),
+                    })],
+                    &[],
+                ),
+                ValidatorName::Structural,
+                "alias-already-exists",
+                format!(
+                    "node {OTHER} is given alias \"group/app!18\", which node {DUPLICATE} of the \
+                     same type {MERGE_REQUEST} already holds; one alias identifies one node of a \
+                     type"
+                ),
+                format!(
+                    "node {OTHER} is given alias \"group/app!18\", which node {DUPLICATE} of the \
+                     same type {MERGE_REQUEST} holds; node {DUPLICATE} is superseded by node \
+                     {KEPT}, and the alias already resolves to node {KEPT}"
+                ),
+            ),
+            (
+                "a node created with an alias of a node this transaction supersedes",
+                transaction(
+                    vec![
+                        supersede(id(LATER), id(KEPT)),
+                        node(work_item, WORK_ITEM, "tracker/18", &["tracker/18"]),
+                    ],
+                    &[statement],
+                ),
+                ValidatorName::Structural,
+                "alias-already-exists",
+                format!(
+                    "node {work_item} is created with alias \"tracker/18\", which node {LATER} \
+                     of the same type {WORK_ITEM} already holds; resolve the reference and use \
+                     that node"
+                ),
+                format!(
+                    "node {work_item} is created with alias \"tracker/18\", which node {LATER} \
+                     of the same type {WORK_ITEM} holds; this transaction supersedes node \
+                     {LATER} by node {KEPT}, and a superseded node keeps its aliases, which then \
+                     resolve to node {KEPT}: create node {work_item} without the alias"
+                ),
+            ),
+        ];
+        for (offset, (what, tx, validator, code, released, exact)) in cases.into_iter().enumerate()
+        {
+            let verdict = submit(&kernel, &tx, 3_000 + 10 * i64::try_from(offset).unwrap());
+            let message = if profile == "v4" { exact } else { released };
+            assert_eq!(
+                refused(&verdict),
+                vec![(validator, code.to_owned(), message)],
+                "{at}: {what}"
+            );
+        }
+        assert_eq!(kernel.head().unwrap().unwrap(), head, "{at}: nothing moved");
+    });
+}
+
+/// `tx` as a document whose `!SupersedeNode` lists the statement twice: the first line listing it,
+/// which is the supersession's (operations come before the transaction's own evidence), doubled.
+fn listing_the_statement_twice(tx: &GraphTransaction) -> Vec<u8> {
+    let once = String::from_utf8(encode(tx)).unwrap();
+    let mut lines: Vec<&str> = once.lines().collect();
+    let at = lines
+        .iter()
+        .position(|line| line.trim() == format!("- {STATEMENT}"))
+        .expect("the supersession lists the statement");
+    lines.insert(at, lines[at]);
+    let twice = lines.join("\n") + "\n";
+    assert_eq!(
+        twice.matches(&format!("- {STATEMENT}")).count(),
+        once.matches(&format!("- {STATEMENT}")).count() + 1
+    );
+    twice.into_bytes()
+}
+
+/// `story:supersession-verdict-fixes-replay-safe` Q7, under profile v4 only: a document whose
+/// `!SupersedeNode` lists one evidence id twice is refused as it is read, at propose, as one
+/// listing an assertion's evidence twice is, and nothing is retained. Under profiles v1 to v3 the
+/// reader collapses the two into one, as 0.0.41 did (ADR 0102 decision 5), and the supersession
+/// commits resting on the statement once. The parser itself answers so when handed each profile.
+#[test]
+fn under_v4_a_supersession_listing_one_evidence_id_twice_is_refused_at_propose() {
+    each_profile_store(|profile, at, path, file, authority| {
+        let kernel = open(path, file, authority.clone());
+        superseded_store(&kernel);
+        let tx = transaction(vec![supersede(id(OTHER), id(KEPT))], &[id(STATEMENT)]);
+        let twice = listing_the_statement_twice(&tx);
+        let read = ekr_kernel::TransactionDocument::parse(&twice)
+            .expect("the profile-free reader collapses the duplicate");
+        assert_eq!(read.transaction(), &tx, "{at}");
+        let under =
+            ekr_kernel::TransactionDocument::parse_under(&twice, &authority.validation_profile);
+        let records = kernel.transactions().unwrap();
+        let proposed = kernel.propose(&twice, context().operator, || Timestamp::from_millis(7_000));
+        if profile == "v4" {
+            let refused = under.expect_err("v4 reads one evidence id twice");
+            assert!(
+                refused.to_string().contains("duplicate decoded set member"),
+                "{at}: {refused}"
+            );
+            let refused = proposed.expect_err("v4 retains a document listing one id twice");
+            assert!(
+                matches!(&refused, ekr_kernel::CommitError::Document(_))
+                    && refused.to_string().contains("duplicate decoded set member"),
+                "{at}: {refused}"
+            );
+            assert_eq!(
+                kernel.transactions().unwrap(),
+                records,
+                "{at}: nothing retained"
+            );
+            return;
+        }
+        assert_eq!(under.expect("v1 to v3 collapse").transaction(), &tx, "{at}");
+        proposed.expect("v1 to v3 retain the proposal");
+        let head = kernel.head().unwrap().unwrap().revision;
+        let verdict = kernel
+            .validate(tx.id, head, || Timestamp::from_millis(7_001))
+            .unwrap();
+        assert!(
+            matches!(verdict, ValidationCommandResult::Validated(_)),
+            "{at}: {verdict:?}"
+        );
+        kernel
+            .commit(tx.id, context().operator, || Timestamp::from_millis(7_002))
+            .unwrap();
+        assert_eq!(
+            kernel.snapshot().unwrap().superseded[&id(OTHER)].evidence,
+            BTreeSet::from([CanonicalRef::new(id(STATEMENT))]),
+            "{at}"
+        );
+    });
+}
+
+/// ADR 0102 decision 2: every store replays the verdicts its own profile gave. A store holding the
+/// D7 and D8 proposals above, the Q7 document and a supersession reopens from its checkpoint and
+/// under a full replay with every transaction record, each rejection's issues included, as it
+/// wrote them — a v4 store its v4 verdicts and its refusal of the Q7 document, which retained
+/// nothing; a v1, v2 or v3 store the 0.0.41 verdicts and the Q7 supersession it committed.
+#[test]
+fn every_profile_replays_the_supersession_verdicts_it_gave() {
+    each_profile_store(|profile, at, path, file, authority| {
+        let kernel = open(path, file, authority.clone());
+        superseded_store(&kernel);
+        let statement: EvidenceId = id(STATEMENT);
+        let unknown = NodeId::mint();
+        for (offset, tx) in [
+            transaction(
+                vec![supersede(unknown, id(KEPT)), retitle(unknown)],
+                &[statement],
+            ),
+            transaction(
+                vec![supersede(id(OTHER), id(DUPLICATE)), retitle(id(OTHER))],
+                &[statement],
+            ),
+            transaction(
+                vec![supersede(id(KEPT), id(LATER)), retitle(id(DUPLICATE))],
+                &[statement],
+            ),
+            transaction(vec![GraphOperation::DeleteEdge(id(DUPLICATE_TAGGED))], &[]),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let verdict = submit(&kernel, &tx, 8_000 + 10 * i64::try_from(offset).unwrap());
+            assert!(
+                matches!(verdict, ValidationCommandResult::Rejected(_)),
+                "{at}: {verdict:?}"
+            );
+        }
+        let q7 = transaction(vec![supersede(id(OTHER), id(KEPT))], &[statement]);
+        let proposed = kernel.propose(
+            &listing_the_statement_twice(&q7),
+            context().operator,
+            || Timestamp::from_millis(8_100),
+        );
+        assert_eq!(proposed.is_err(), profile == "v4", "{at}: {proposed:?}");
+        if proposed.is_ok() {
+            let head = kernel.head().unwrap().unwrap().revision;
+            kernel
+                .validate(q7.id, head, || Timestamp::from_millis(8_101))
+                .unwrap();
+            kernel
+                .commit(q7.id, context().operator, || Timestamp::from_millis(8_102))
+                .unwrap();
+        }
+        committed(
+            &kernel,
+            &transaction(vec![supersede(id(LATER), id(KEPT))], &[statement]),
+            8_200,
+        );
+        let head = kernel.snapshot().unwrap();
+        let records = kernel.transactions().unwrap();
+        let recorded = roots(&kernel);
+        drop(kernel);
+
+        let reopened = open(path, file, authority.clone());
+        assert_eq!(reopened.transactions().unwrap(), records, "{at}: reopened");
+        assert_eq!(reopened.snapshot().unwrap(), head, "{at}: reopened");
+        drop(reopened);
+
+        let mut replayed = open(path, file, authority.clone());
+        replayed.set_full_replay(true);
+        assert_eq!(
+            replayed.transactions().unwrap(),
+            records,
+            "{at}: full replay"
+        );
+        assert_eq!(replayed.snapshot().unwrap(), head, "{at}: full replay");
+        assert_eq!(roots(&replayed), recorded, "{at}: full replay");
+    });
+}
+
+/// Profile v4 is one exact pair, accepted at seed as v3 is: `ekr.p4-deterministic/1` with
+/// `ekr.p2-apply/1`. Its ruleset with the v1 application is no profile at all. It keeps
+/// identities and admits schema changes, as v3 does, and is the only profile that supersedes
+/// exactly.
+#[test]
+fn profile_v4_is_one_exact_pair_beside_the_other_three() {
+    let validator = context().validator;
+    let v4 = ValidationProfileV1::supersession_exact(validator);
+    assert_eq!(
+        (v4.ruleset.as_str(), v4.application.as_str()),
+        ("ekr.p4-deterministic/1", "ekr.p2-apply/1")
+    );
+    assert!(v4.keeps_identities() && v4.admits_schema_changes() && v4.supersedes_exactly());
+    for other in [
+        ValidationProfileV1::deterministic(validator),
+        ValidationProfileV1::schema_evolving(validator),
+        ValidationProfileV1::identity_keeping(validator),
+    ] {
+        assert!(!other.supersedes_exactly(), "{}", other.ruleset);
+    }
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = open(directory.path(), file, anchor(v4.clone()));
+        kernel.seed(seed(), || Timestamp::from_millis(10)).unwrap();
+        let mut mixed = v4.clone();
+        mixed.application = "ekr.p1-apply/1".into();
+        let directory = tempfile::tempdir().unwrap();
+        let refused = if file {
+            Runtime::file(directory.path(), "test", context(), anchor(mixed))
+        } else {
+            Runtime::sqlite(
+                &directory.path().join("state.db"),
+                "test",
+                context(),
+                anchor(mixed),
+            )
+        };
+        assert!(refused.is_err(), "file {file}");
+    }
 }
