@@ -2,12 +2,36 @@
 format: aep.planning-md/3
 id: story:ekr-on-ess-0-66
 kind: story
-status: draft
+status: active
 title: The repository's ess pin moves to 0.66.0 with its suites regenerated
 relations:
 - decomposes: epic:p0-bootstrap
 - serves: vision:o2
-revision: 1
+scope:
+- confidence: cited
+  path: .github/workflows/correctness.yml
+- confidence: inferred
+  path: AGENTS.md
+- confidence: inferred
+  path: CHANGELOG.md
+- confidence: inferred
+  path: Cargo.lock
+- confidence: inferred
+  path: Cargo.toml
+- confidence: cited
+  path: Taskfile.yml
+- confidence: inferred
+  path: crates/ekr-integrate/tests
+- confidence: cited
+  path: crates/ekr-views/tests/fixtures/conformance
+- confidence: cited
+  path: crates/ekr/tests/fixtures/conformance
+- confidence: cited
+  path: systems/ekr/conformance
+revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-21T00:27:15Z", actor: "human:timo", revision: 5}
+- {from: "proposed", to: "active", at: "2026-10-21T00:27:15Z", actor: "human:timo", revision: 6}
 ---
 ## Context
 
@@ -48,6 +72,27 @@ three committed suites and their baselines are regenerated.
   conformance runners) exit 0; the executed scenario counts are not lower than under 0.36.0 (kernel
   80, views 110, integrate 2 after wave 2026-10-20b).
 
+## Coordinator decisions (2026-10-21)
+
+Approved by `b10x-chef-orchestrator` under the dependency-upgrade grant, "on the side that changes
+no behaviour":
+
+1. `ekr.kernel.Commit/stale` and the two `ESS-SYNTH-004` states it routes: reached by a fixture or
+   an authored scenario. The branch's condition in `systems/ekr/domains/kernel.yaml` is not
+   rewritten (a changed condition is a specification change near ADR 0102, still proposed). If the
+   branch is unreachable by design, the unit stops and says so.
+2. `ESS-AUTHOR-041` on `a-superseded-node-is-refused-naming-the-node-it-is-superseded-by`: the
+   scenario's input changes so it passes the earlier guard; the guard order in
+   `systems/ekr/domains/views.yaml` stays.
+3. `ESS-AUTHOR-042`: an expectation pinning a `{generated: true}` field drops the value or asserts
+   presence and type; no specification field loses `generated`.
+4. The pin moves to 0.66.0 (the newest release on 2026-10-21): `Taskfile.yml` preconditions and
+   `correctness.yml` `ESS_VERSION` / `ESS_SHA256`
+   (`aa6b209efb5f9545c85fc31d3b66363d10be208c5bcdeaba61be0d54c50e17f6`, the release's SHA256SUMS
+   line for `ess-0.66.0-x86_64-unknown-linux-gnu.tar.gz`). The `ess-conformance` and
+   `ess-primitives` crate revisions in `Cargo.toml` move only if the regenerated suites need it.
+5. No release: the wave lands on main by a bot fast-forward of the green head.
+
 ## Out of scope
 
-Any behaviour change in the runtime.
+Any behaviour change in the runtime; any change to a specification branch condition or guard order.
