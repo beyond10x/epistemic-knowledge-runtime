@@ -13,7 +13,7 @@ replayed and explained.
 The `ekr` binary is the way in. It is built for agents as much as for people: every verb prints
 JSON, every refusal has a name, and the binary documents its own workflow (`ekr guide`).
 
-It is the third generation of the organisation-memory line: `company-brain` (v1, Python over a
+It is the third generation of the organisation-memory line: an earlier, non-public prototype (v1, Python over a
 markdown store) and `org-brain` (v2, a Rust engine on the entity-runtime kernel) came before it.
 What they proved necessary and how their data enters this runtime is written down in
 [`docs/predecessors.md`](docs/predecessors.md).

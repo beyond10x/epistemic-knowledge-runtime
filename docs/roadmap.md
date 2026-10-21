@@ -4,7 +4,7 @@
 `initiative:epistemic-knowledge-runtime` with one epic per phase and three ADRs.
 **Scope:** the order in which `docs/epistemic-knowledge-runtime-design.md` is built as a multi-crate
 Rust workspace, what each phase must deliver, and the evidence that closes it.
-**Companion:** `docs/predecessors.md` — what v1 (`company-brain`) and v2 (`org-brain`) do that the
+**Companion:** `docs/predecessors.md` — what v1 (an earlier organisation-memory prototype) and v2 (`org-brain`) do that the
 design does not yet say, and how their data enters this runtime.
 
 ---
@@ -15,7 +15,7 @@ The third generation of the organisation-memory line:
 
 | generation | repository | shape | fate |
 |---|---|---|---|
-| v1 | `company-brain` | Python scripts over a curated markdown store with an event-sourced `observations.jsonl` | retired into v2 on 2026-09-03 (`import-report.json`) |
+| v1 | the predecessor knowledge store (not public) | Python scripts over a curated markdown store with an event-sourced `observations.jsonl` | retired into v2 on 2026-09-03 (`import-report.json`) |
 | v2 | `org-brain` engine (`beyond10x/org-brain` 0.5.0) + `org-brain` instance | Rust engine on the entity-runtime kernel, connectors and AEP; typed definitions, a signal ledger, bounded model extraction, attention page | superseded by this runtime (decision D2) |
 | v3 | this repository | the design document: kernel, ontology, canonical core, incubation forest, observation layer, frontier, maintenance | built here |
 
@@ -288,5 +288,5 @@ P5 and P6 depend on P3 only. P4 can start once P3's transient roots exist. P7 wa
 ## 7. Out of scope
 
 Carried by neither this runtime nor its instance repository: v1's story backlog and CHANGELOG (a
-development process), v1's telephony probes (`acd-health` and siblings), v2's adoption screen
-(`src/screen.rs`). See predecessors § 4.
+development process), v1's downstream-system probes (a queue-health probe and its siblings), v2's
+adoption screen (`src/screen.rs`). See predecessors § 4.

@@ -3139,7 +3139,7 @@ That loop—not any individual graph representation—is the central object of t
 # Amendments — 2026-09-21
 
 Sections 1–80 are the original design. The sections below add what the two predecessor systems,
-`company-brain` (v1) and `org-brain` (v2), proved necessary and the original does not say. The
+v1 (an earlier organisation-memory prototype) and `org-brain` (v2), proved necessary and the original does not say. The
 survey behind them, with the paths and counts, is `docs/predecessors.md`; the ids A1–A15 there
 name the capabilities each amendment carries. An amendment adds; it does not rewrite. Where one
 extends an earlier section it says so.
