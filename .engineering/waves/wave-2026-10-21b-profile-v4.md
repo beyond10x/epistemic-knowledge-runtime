@@ -31,7 +31,7 @@ Width: 2 units, sequential (both touch `authority.rs` and `replay.rs`).
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261021b` | `ekr-w20261020b` (reused) | none | none | store writes |
-| U1 | `unit/20261021b-u1` | `ekr-w21b-u1` | `<tree>/target` | `<home>/.cache/ekr-w21b-scratch` | implementor `bb5b5b05`, correction 1 `d11b3acd`; correction 2 uncommitted, full gate running (`<home>/.cache/ekr-w21b-scratch/u1-gate.log`) |
+| U1 | `unit/20261021b-u1` | `ekr-w21b-u1` | `<tree>/target` | `<home>/.cache/ekr-w21b-scratch` | implementor `bb5b5b05`, correction 1 `d11b3acd`, corrections 2 and 3 `a0544302`; branch pushed; tree finished and archived at the pause |
 
 ## Reviews
 
@@ -45,17 +45,24 @@ Coordinator changes to the adversary files in correction 2: `cargo fmt` and one
 
 ## Next (state for a session that resumes here)
 
-State at the stop (2026-10-21): the first full gate (`u1-gate.log`) failed 4 meta-tests (public
-surface of `profiled_set`, `with_strict_sets`, `read_under`; a direct `serde_yaml_ng` reader in the
-SDK). Correction 3 fixed them, uncommitted in `ekr-w21b-u1` beside correction 2; its runs exit 0
-(`<home>/.cache/ekr-w21b-scratch/u1/c3-*.log`). Open check: correction 3 adds the variant
-`DocumentError::Read(String)` to the SDK's exhaustive public `DocumentError` (main has five
-variants); every 0.0.x release is semver-incompatible to Cargo, and the CHANGELOG names it, but
-say so to the orchestrator before the PR. The full gate must be rerun on corrections 2 and 3
-(`sh <home>/.cache/ekr-w21b-scratch/u1-gate.sh <log>`).
+State at the pause (2026-10-21, session `ekr`, on `b10x-chef-orchestrator`'s pause of that day;
+the operator's words: "pause ... on a good snapshot"): corrections 2 and 3 are commit `a0544302`
+on `unit/20261021b-u1`, pushed. Correction 3 answered the first full gate's 4 failed meta-tests
+(public surface of `profiled_set`, `with_strict_sets`, `read_under`; a direct `serde_yaml_ng`
+reader in the SDK). It adds `DocumentError::Read(String)` to the SDK's exhaustive `DocumentError`;
+no local checkout of the organization's repositories depends on `ekr-sdk` (searched 2026-10-21), the CHANGELOG names the variant, and
+the orchestrator accepted it on 2026-10-21. The full gate on corrections 2 and 3 was stopped by the
+pause: fmt, clippy, `task spec-check`, `task conform-fresh` and `task doc-check` exited 0, and the
+workspace test step had reported 168 suites ok and none failed. That run is not a passing gate.
+The three stories of this wave and wave 2026-10-21c are scoped (store commit `987aa90d`), with the
+scoper's open points decided in each `## Scope`. No tree is held; the U1 tree is archived.
 
-1. U1: when the rerun gate shows every step 0, commit corrections 2 and 3 in `ekr-w21b-u1` through the bot;
-   merge `unit/20261021b-u1` into `wave/20261021b` in this tree; commit the store (review outcomes,
+First step on resume: a new managed tree from `unit/20261021b-u1` at `a0544302`, then the full gate
+(`sh <home>/.cache/ekr-w21b-scratch/u1-gate.sh <log>`, every step 0), then step 1 below from the
+merge onward.
+
+1. U1: when the rerun gate shows every step 0, merge `unit/20261021b-u1` into `wave/20261021b` in
+   a tree of `wave/20261021b`; commit the store (review outcomes,
    this page, the story's verification evidence); push `wave/20261021b`; open a PR; on green CI,
    bot fast-forward of `main` to the head; finish `ekr-w21b-u1` with `--discard-cache --archive`.
 2. Send `b10x-chef-orchestrator` "ready for respawn" at that idle point (its request of
