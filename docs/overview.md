@@ -173,7 +173,7 @@ stateDiagram-v2
 last, one `Evidence` link per cited evidence id. Each names the retained record behind it by hash;
 with `--documents` the `Evidence` link also carries the retained bytes as `payload` (base64) and as
 `text`. An assertion that was later superseded adds a `Lifecycle` link and
-then the replacement's own chain. [The guide](guide.md#ask-why-explain) shows both.
+then the replacement's own chain. [The guide](guide.md#7-ask-why-explain) shows both.
 
 ## The intended end state
 
