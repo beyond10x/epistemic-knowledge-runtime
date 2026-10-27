@@ -111,6 +111,7 @@
 //!
 //! let graph = CanonicalGraph {
 //!     attachments: Default::default(),
+//!     superseded: Default::default(),
 //!     root: GraphRoot {
 //!         id: root_id,
 //!         space: Space::Canonical,
@@ -147,6 +148,7 @@ pub mod evidence;
 pub mod node;
 pub mod root;
 pub mod snapshot;
+pub mod supersession;
 pub mod transient;
 pub mod value;
 
@@ -171,6 +173,10 @@ pub use evidence::{
 pub use node::Node;
 pub use root::{GraphRoot, Root, Space};
 pub use snapshot::GraphSnapshot;
+pub use supersession::{
+    supersession_records_read, MergeLineage, MergedEnds, RetiredEdges, RewrittenAssertion,
+    Superseded, SupersededNode,
+};
 pub use transient::{LocalRef, Resolved, TransientGraph, TransientRef};
 pub use value::{CanonicalValue, InadmissibleValue};
 /// Frozen original-format data; decoding grants no canonical authority.

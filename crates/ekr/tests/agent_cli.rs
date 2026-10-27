@@ -44,10 +44,10 @@ fn names<E: ValueEnum>() -> Vec<String> {
         .collect()
 }
 
-/// `GraphOperation` has seventeen variants (the eleven of design § 19 and amendment 87, plus
-/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias`, `AttachEvidence` and
-/// `CiteEvidence`).
-const KIND_COUNT: usize = 17;
+/// `GraphOperation` has eighteen variants (the eleven of design § 19 and amendment 87, plus
+/// `SupersedeAssertion`, `AddEvidence`, `WidenEdgeType`, `AddAlias`, `AttachEvidence`,
+/// `CiteEvidence` and `SupersedeNode`).
+const KIND_COUNT: usize = 18;
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -1263,8 +1263,10 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
 
 // Correction round 1 -------------------------------------------------------------------------
 
-/// The one kind the kernel applies under no profile, refused as `unsupported-operation`.
-const NOT_APPLIED: [&str; 1] = ["MergeEntity"];
+/// The kinds the kernel applies under no profile, refused as `unsupported-operation`: none since
+/// `story:merge-entity-applies` made `MergeEntity` apply (design § 111). [`marking`] still reads
+/// the mark, so a kind marked not applied fails the listed-order case below.
+const NOT_APPLIED: [&str; 0] = [];
 
 /// The four schema kinds: applied under validation profile v2 or v3 in a schema-only transaction
 /// that names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
@@ -1302,6 +1304,17 @@ fn cited(example: &str) -> Vec<String> {
         }
         GraphOperation::AttachEvidence(attachment) => vec![attachment.evidence.to_string()],
         GraphOperation::CiteEvidence(evidence) => vec![evidence.to_string()],
+        GraphOperation::SupersedeNode(supersession) => supersession
+            .evidence
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        GraphOperation::MergeEntity(merge) => merge
+            .evidence
+            .iter()
+            .flatten()
+            .map(ToString::to_string)
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -1327,9 +1340,10 @@ fn issue_codes(value: &Value) -> BTreeSet<String> {
 
 /// Every example the kernel applies under the example host (profile v1) commits, in the order
 /// `ekr operations` lists them, one transaction each, against a store seeded from
-/// `ekr example ekr-seed/2`. `MergeEntity` is marked not applied, the four schema kinds are
-/// marked as schema changes, each on its list line and page, and under v1 validation refuses
-/// exactly those four with the code the marks name.
+/// `ekr example ekr-seed/2`. `MergeEntity` is applied, its example merging the organization the
+/// `CreateNode` example creates; the four schema kinds are marked as schema changes, each on its
+/// list line and page, and under v1 validation refuses exactly those four with the code the marks
+/// name.
 #[test]
 fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
     let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
@@ -2072,7 +2086,7 @@ fn proposed_and_validated(world: &World, name: &str, body: &str) -> (String, Val
 /// transaction that names a minted `schema_version`, validates and commits; each one produces the
 /// next schema version, whose parent is the one before. Without `schema_version` it is
 /// `schema-version-missing`; beside the `CreateNode` example it is `mixed-schema-transaction`;
-/// `MergeEntity` stays `unsupported-operation` under v2 too.
+/// `MergeEntity` in its bare P1 shape stays `unsupported-operation` under v2 too.
 #[test]
 fn every_schema_example_commits_alone_under_validation_profile_v2() {
     let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
@@ -2142,19 +2156,25 @@ fn every_schema_example_commits_alone_under_validation_profile_v2() {
         }
         assert_eq!(number, SCHEMA_KINDS.len(), "{backend}");
 
+        // The bare P1 shape of the example seed's two persons.
         let (_, merge) = proposed_and_validated(
             &world,
             "merge.yaml",
             &document(
                 &minted("transaction"),
                 &operator,
-                &[example_operation("MergeEntity")],
+                &[
+                    "- !MergeEntity\n  absorbed: 00000000-0000-4000-8000-000000000302\n  into: \
+                   00000000-0000-4000-8000-000000000301"
+                        .to_owned(),
+                ],
                 &[],
             ),
         );
-        assert!(
-            issue_codes(&merge).contains("unsupported-operation"),
-            "{backend}: MergeEntity under v2: {merge}"
+        assert_eq!(
+            issue_codes(&merge),
+            BTreeSet::from(["unsupported-operation".to_owned()]),
+            "{backend}: a bare MergeEntity under v2: {merge}"
         );
     }
 }
@@ -2321,7 +2341,9 @@ fn guide_says_how_to_change_the_schema() {
         "ekr ontology --at <revision>",
         "Under profile v1 validation rejects DefineNodeType, DefineEdgeType, ModifyProperty and \
          WidenEdgeType with the issue code unsupported-operation",
-        "MergeEntity is not applied under either profile",
+        "MergeEntity is applied under every profile",
+        "without reason and evidence, validation rejects it with the issue code \
+         unsupported-operation",
         "No operation removes a type or a property",
     ] {
         assert!(

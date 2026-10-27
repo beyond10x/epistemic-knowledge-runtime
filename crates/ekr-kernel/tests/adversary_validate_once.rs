@@ -801,6 +801,79 @@ fn validate_counted(session: &Runtime, w: &World, clock: &Clock, against: u64) -
     (candidates_built() - views, edge_indexes_built() - indexes)
 }
 
+/// `story:supersede-node-review-fixes` T6: the per-validation counts on a head that holds a
+/// supersession. An edge with an assertion about it, then its source superseded, retiring the
+/// edge with it: a validation against that head builds one candidate view, no edge index — the
+/// supersession shares its predecessor's — and reads the one supersession record once, under
+/// every profile on both providers.
+#[test]
+fn a_validation_on_a_head_holding_a_supersession_builds_one_view_and_no_index() {
+    for (profile, authority) in profiles() {
+        for file in [true, false] {
+            let at = how(profile, file);
+            let directory = tempfile::tempdir().unwrap();
+            let clock = Clock::new();
+            let w = world_with_edge_claims();
+            let session = open(directory.path(), file, &authority);
+            session.seed(w.document.clone(), || clock.tick()).unwrap();
+            let retired = EdgeId::mint();
+            let superseding = GraphTransaction {
+                id: TransactionId::mint(),
+                proposer: context().operator,
+                operations: vec![GraphOperation::SupersedeNode(NodeSupersession {
+                    node: node(1),
+                    by: node(2),
+                    reason: "recorded twice".into(),
+                    evidence: BTreeSet::from([w.evidence]),
+                })],
+                evidence: BTreeSet::from([w.evidence]),
+                schema_version: None,
+            };
+            for (number, tx) in [
+                transaction(
+                    TransactionId::mint(),
+                    vec![
+                        w.create_edge(retired, w.rel, node(1), node(0)),
+                        w.about(AssertionId::mint(), Subject::Edge(retired)),
+                    ],
+                ),
+                superseding,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                session
+                    .propose(&encode(&tx), context().operator, || clock.tick())
+                    .unwrap();
+                let verdict = session
+                    .validate(tx.id, RevisionNumber::new(number as u64), || clock.tick())
+                    .unwrap();
+                assert!(
+                    matches!(verdict, ValidationCommandResult::Validated(_)),
+                    "{at}: {verdict:?}"
+                );
+                let committed = session
+                    .commit(tx.id, context().operator, || clock.tick())
+                    .unwrap();
+                assert!(matches!(committed, CommitCommandResult::Committed(_)));
+            }
+            let head = session.snapshot().unwrap();
+            assert!(
+                head.superseded[&node(1)].edges.contains_key(&retired),
+                "{at}"
+            );
+            let records = ekr_graph::supersession_records_read();
+            let (views, indexes) = validate_counted(&session, &w, &clock, 2);
+            assert_eq!((views, indexes), (1, 0), "{at}: views and edge indexes");
+            assert_eq!(
+                ekr_graph::supersession_records_read() - records,
+                1,
+                "{at}: supersession records read"
+            );
+        }
+    }
+}
+
 /// A revision's edge index is released with its graph. Revision 7 of an eight-commit session no
 /// longer holds its graph, so a validation against it reconstructs the graph, and every candidate
 /// view that command builds reads a graph whose index it builds: one index per view. An index kept

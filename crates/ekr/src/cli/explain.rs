@@ -289,6 +289,15 @@ fn rendered(
     if links.len() != explained.links.len() {
         return Err(Failure::fault("an explanation's links are not its chain's"));
     }
+    if !read.graph.superseded.is_empty() {
+        for (link, rendered) in explained.links.iter().zip(links.iter_mut()) {
+            if let (ExplanationLink::Assertion(assertion), Some(fields)) =
+                (link, rendered.as_object_mut())
+            {
+                pointers(&read.graph, assertion, fields);
+            }
+        }
+    }
     let keep: Vec<bool> = match v3 {
         Some(Scope::Cited) => {
             let cited_ids: BTreeSet<&str> = links
@@ -403,6 +412,35 @@ fn rendered(
         }
     }
     Ok((value, omitted))
+}
+
+/// The pointers an Assertion link names (`story:supersede-node`, ADR 0017 decision 3):
+/// `subject_superseded_by` for a subject node a supersession of the revision holds, or a subject
+/// edge retired with one, and `object_superseded_by` for such a Node object, each the node it is
+/// superseded by. Neither is written for an assertion that names no superseded node, so an
+/// explanation of a revision without a supersession is the bytes it was.
+fn pointers(
+    graph: &ekr_graph::CanonicalGraph,
+    assertion: &ekr_graph::Assertion,
+    fields: &mut Map<String, Value>,
+) {
+    let subject = match &assertion.subject {
+        ekr_graph::Subject::Node(node) => graph.superseded_by(node.id()),
+        ekr_graph::Subject::Edge(edge) => graph.retired_with(edge.id()).map(|(_, by)| by),
+        ekr_graph::Subject::Type(_) => None,
+    };
+    let object = match &assertion.object {
+        Object::Node(node) => graph.superseded_by(node.id()),
+        Object::Value(_) | Object::Type(_) => None,
+    };
+    for (key, by) in [
+        ("subject_superseded_by", subject),
+        ("object_superseded_by", object),
+    ] {
+        if let Some(by) = by {
+            fields.insert(key.to_owned(), Value::String(by.to_string()));
+        }
+    }
 }
 
 /// A commit's receipt into `fields`, as `receipt`; with `trim`, without its `proposal` (the

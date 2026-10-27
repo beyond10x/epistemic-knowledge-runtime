@@ -218,6 +218,7 @@ fn accepted(rng: &mut Rng) -> Assessment {
 fn basis(rng: &mut Rng) -> CanonicalGraph {
     let mut graph = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: root(1),
             space: Space::Canonical,
@@ -439,6 +440,8 @@ fn operation(rng: &mut Rng) -> GraphOperation {
                 GraphOperation::MergeEntity(EntityMerge {
                     absorbed: node(rng.below(NODES)),
                     into: node(rng.below(NODES)),
+                    reason: None,
+                    evidence: None,
                 })
             } else {
                 GraphOperation::Invoke {
@@ -581,6 +584,7 @@ impl World {
     fn new() -> Self {
         let mut graph = CanonicalGraph {
             attachments: Default::default(),
+            superseded: Default::default(),
             root: GraphRoot {
                 id: root(1),
                 space: Space::Canonical,

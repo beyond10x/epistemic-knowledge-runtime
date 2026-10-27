@@ -56,6 +56,7 @@
 //! let (root_id, schema, decision) = (GraphRootId::mint(), SchemaVersionId::mint(), TypeId::mint());
 //! let graph = CanonicalGraph {
 //!     attachments: Default::default(),
+//!     superseded: Default::default(),
 //!     root: GraphRoot {
 //!         id: root_id,
 //!         space: Space::Canonical,
@@ -110,6 +111,7 @@ pub mod commit;
 pub mod document;
 mod explain;
 pub mod issue;
+mod merge;
 pub mod migrate;
 mod read;
 pub mod records;
@@ -169,8 +171,8 @@ pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMIT
 pub use stage::StageListing;
 pub use transaction::{
     AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment,
-    GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,
-    Retraction, Supersession, ValidatedTransaction,
+    GraphOperation, GraphTransaction, NodeDraft, NodeSupersession, PropertyModification,
+    PropertyMutation, Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

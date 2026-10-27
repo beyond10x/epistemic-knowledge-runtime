@@ -6359,3 +6359,287 @@ version's distinct root, and the document round trip), the kernel conformance sc
 and reads `schema_version_evidence` back. That no retained store moves is held, beyond the pinned
 roots, by `crates/ekr-kernel/tests/attachment_base_store.rs`, which reopens a store written at an
 earlier base and compares every root.
+
+# 110. A Node Is Superseded by Another (2026-10-19)
+
+`story:supersede-node`, under `architecture-decision-record:0017-a-node-is-superseded-by-another`
+(option A, accepted 2026-10-19). A consumer's ingestion wrote duplicate nodes: a second node for an
+entity the store already held, under another type or with a differently shaped alias (a `Tag`
+beside an adopted `Tag`; a `MergeRequest` beside a `WorkItem` for the same tracker key
+`group/app!18`). Rebuilding the store would replace its revision history (AGENTS.md invariant 5),
+and `MergeEntity` (§ 19) is refused at commit until its merge rules land, and for the cross-type
+case needs a retype besides. This amendment adds one operation that retires a node in favour of the
+node that replaces it; `MergeEntity` is later built on it.
+
+## 110.1 The operation
+
+`SupersedeNode { node, by, reason, evidence }` is `ekr.kernel.OperationKind` index 17, after
+`CiteEvidence` (16), and `ekr.kernel.NodeSupersession` in the domain. It is encoded as variant 17
+and the four fields in that order, the evidence as a set. Appending the variant renumbers nothing,
+so no `validation_hash` or transaction address a store retains moves. It is data, not a schema
+change, and is applied under every validation profile, as `AddAlias` and `AttachEvidence` are.
+
+The evidence is part of what the transaction rests on, so each id is in `GraphTransaction.evidence`,
+which the structural validator holds equal to what its assertions cite, its attachments attach,
+its citations cite and its supersessions rest on. The message of `evidence-set-mismatch` names
+supersessions only for a transaction that carries one; every other transaction is refused in the
+words it was refused with before.
+
+## 110.2 What commit does
+
+Applying it (`ekr.p1-apply/1` and `ekr.p2-apply/1` alike) removes `node` from
+`CanonicalGraph.nodes`, moves every edge with `node` at either end out of `CanonicalGraph.edges`,
+and holds both, whole, in `CanonicalGraph.superseded`, a collection of its own keyed by the node's
+id: `ekr.graph.SupersededNode`, the node as it was, the edges retired with it, `by`, the revision the
+commit produces, the reason and the evidence. An edge between two nodes one transaction
+supersedes is held once, in the record of its source; the record of its target does not hold it
+(`crates/ekr-kernel/tests/supersede_node.rs`,
+`an_edge_between_two_nodes_superseded_together_is_held_by_its_sources_record`). Every existing record whose `by` is `node` is
+repointed to the new `by` in the same revision, and keeps the revision that made it, so a reader
+follows at most one pointer and a record always names a node the head holds. Assertions are not
+changed: an assertion about the node or one of its edges keeps its bytes, evidence and lifecycle.
+
+Creations apply before supersessions, as they apply before every other change, so a `CreateEdge`
+from `by` in the same transaction is applied as any `CreateEdge` is. Edges are retired rather than
+moved to `by`: moving them would have to hold each edge's endpoint types against `by`'s type and
+settle cardinality and duplicate edges, which is `MergeEntity`'s work under its own rules.
+
+## 110.3 What validation decides
+
+Refused, as named issues of a Rejected transaction:
+
+| case | validator | code |
+|---|---|---|
+| `node` is not held at the head (one the same transaction creates included) | Reference | `supersede-unknown-node` |
+| `node` is already superseded; the message names its `by` | Reference | `node-already-superseded` |
+| `node` and `by` are one node | Structural | `supersede-into-itself` |
+| `by` is neither held nor created by the same transaction | Reference | `supersede-by-unknown-node` |
+| `by` is superseded; the message names its `by` | Reference | `supersede-by-superseded-node` |
+| the reason is empty or only whitespace | Structural | `supersession-without-reason` |
+| no evidence | Structural | `supersession-without-evidence` |
+| evidence neither retained nor added by an `AddEvidence` of the transaction | Reference | `supersession-evidence-unknown` |
+| another operation of the transaction names `node` or one of its edges (an edge endpoint, `UpdateProperty`, `AddAlias`, `Invoke`, `MergeEntity`, `DeleteEdge`, an `AddAssertion` subject or object), `node` is superseded twice, or `by` is superseded by the same transaction | Structural | `superseded-node-named-in-transaction` |
+| `transaction.evidence` leaves a supersession's evidence out | Structural | `evidence-set-mismatch` |
+
+After the commit, every operation that names a superseded node or an edge retired with one — an
+edge endpoint, `UpdateProperty`, `AddAlias`, `Invoke`, `MergeEntity`, `DeleteEdge`, an `AddAssertion`
+subject or object, a `NodeRef` value — is `node-superseded` (Reference), naming the node it is
+superseded by, where it was `unresolved-node` or `unresolved-edge` before. A `RetractAssertion` of an
+assertion about a superseded node names no node and commits. The reference validator's refusal of
+an assertion about an edge no revision holds skips an edge held in a supersession record, so a
+transaction after a supersession is not refused for the assertions it kept. A validation looks
+retired edges up in one index of the records, built by its first lookup, so it reads each record
+once however many edges it looks up, and answers each lookup as a scan of the records would.
+
+The structural validator counts a superseded node among the nodes that hold an id and an alias:
+a `CreateNode` reusing its id, or a `CreateEdge` reusing a retired edge's, is
+`identity-already-exists` under every profile; the cross-kind reuses (a `CreateNode` taking a
+retired edge's id, a `CreateEdge` taking a superseded node's) are refused under profile v3 only,
+until `story:supersession-verdict-fixes-replay-safe`; and a `CreateNode` or `AddAlias` giving a
+node of its type one of its aliases is `alias-already-exists`, so the next ingestion run cannot
+recreate the duplicate. A transaction
+without a `SupersedeNode` reads none of this and is validated exactly as before, so no retained
+rejection of a store that never superseded replays differently.
+
+## 110.4 Roots, checkpoints and the graph document
+
+The knowledge root of § 34 encodes nodes, edges and assertions, then the attachments as a tagged
+`Some` when there are any (§ 103.3). The supersession records are encoded **only when the
+collection is non-empty**: then the attachments are written as an option in either case — `Some`
+when there are any, `None` otherwise — followed by the records as a tagged `Some`. A graph without a
+supersession encodes to exactly the bytes it encoded to before the collection existed, so every root
+a store records stays what it was, and no graph with records shares an encoding with one without.
+
+`ekr.graph-document/2` — a replay checkpoint's head graph, `ekr snapshot`'s `graph` — gains
+`superseded`, an optional key omitted when empty, so every document written for a graph without a
+supersession is byte for byte the one written before; an earlier binary refuses a document that
+carries it, which does not know the key. A seed's graph holds no record: a seed whose `superseded`
+is not empty is refused as `seed-superseded`, since a supersession is made by a commit, as an
+attachment is. Replay applies the operation exactly as commit does, so a reopen from a checkpoint,
+a `--full-replay` and a migrated store give every revision the same roots.
+
+## 110.5 What reads it
+
+Every head read builds from `CanonicalGraph.nodes` and `.edges`, so none shows a superseded node or
+a retired edge without a filter of its own, and a reader nobody updated fails closed.
+
+- **Resolution.** `ekr_integrate::resolve` and `resolve_indexed` take a superseded node of the
+  reference's exact type holding one of its aliases as the node its record names: its type and
+  aliases are kept in the record, `ekr_graph::AliasIndex::of` files those aliases, under that type,
+  to `by`, and the scan reads the records too, so both answer alike. A reference to the old key
+  resolves to the kept node even when the two types differ.
+- **Views.** `ekr_views::Index::build` and the projection skip an assertion whose subject is a
+  superseded node or an edge held in a record, where they refused the whole revision as
+  `Inconsistent` before; any other unheld subject is still `Inconsistent`. Skipped, it is listed
+  under nothing — not under its subject, and not under its Node object's `referencing` in
+  `ekr.node-detail/1`, which counts only what it lists — and the overview's roles date no node from
+  it, as the overview's timeline counts nothing from it. The overview's assertion totals
+  (`meta.assertion_count` and each revision's `assertions`) count every assertion the revision
+  holds, these included, while the projection's `assertion_count` and the timeline count what they
+  list, so for a revision holding a supersession the two differ by those assertions. `DescribeNode` (both
+  formats) and `ExpandNeighbourhood` of a superseded id answer `ekr.views.NodeSuperseded`, naming
+  `by`, on every surface (`ekr view`'s `/node/` and `/expand`, the session and MCP reads), and
+  `not_found` in the reader metrics; at a revision before the supersession the node reads as it was.
+  `ChangesSince` lists a supersession as a `NodeSuperseded` change of the node, carrying its type,
+  name and evidence and, in `target`, the node it is superseded by — `target` is an existing field
+  of `ekr.graph-changes/1` typed as a node, so no format moves — and `ChangesListed` counts them in
+  `nodes_superseded`. A range holding no supersession answers exactly as before. `DrawFactSample`
+  still samples an assertion about a superseded node: its type and names are read from the
+  record, and `subject_superseded_by` names the node it is superseded by — for a subject edge
+  retired with a superseded node, the node that record names. Every rendered assertion whose Node
+  object is superseded carries `object_superseded_by` (`ekr.views.ProjectedAssertion`, so the
+  projection, `ekr.node-detail/1` and the sample), and an `ekr explain` Assertion link both
+  pointers; each is omitted where nothing is superseded, so no document of a revision without a
+  supersession moves (ADR 0017 decision 3). `ekr.node-detail/2` renders no assertion whole: its
+  relation groups are built from the head's nodes, so it omits a relation to or from a superseded
+  node, as every read omits the node, and carries no pointer. A `NodeRef` inside a `!Value` object
+  keeps naming the superseded id and carries no pointer either; a reader that follows it is
+  answered `NodeSuperseded`, naming `by`. `ProjectTimeline` of a superseded `subject` is
+  `NodeSuperseded`, as `DescribeNode` is. `ekr compare` lists a seventh category, `superseded`,
+  only where either store holds a record.
+- **Extraction.** `ekr apply-extraction` decides whether a `replaces: true` fact has a value to
+  replace on the nodes `ekr resolve` answers, a superseded key's kept node included. A fact is
+  checked against the type of the node its key resolves to: a key a record resolves to a kept node
+  of another type takes that type's properties and edge ends — the SDK's
+  `ekr_sdk::extraction::apply` and the engine's reader checked against the head
+  (`ExtractionDocument::check_facts_at`) alike — so a fact valid for the kept node is applied
+  there, and one its type does not admit is refused before anything is written, and no node is
+  created for it. A key is checked alone, and again as the group of keys it is resolved with;
+  under `strict` either refusal refuses the document. A refusal names the superseded node, its
+  type and the kept node only where that end caused it: the property the kept node's type does
+  not declare, or the end of a relation whose kept node's type its edge type does not connect —
+  the same refusal from the verb and from the SDK.
+- **In the same transaction.** A `NodeRef` value of any operation naming a node the transaction
+  supersedes is `superseded-node-named-in-transaction`, as an endpoint is; an operation naming an
+  edge the transaction retires is refused by that code alone, not also as `unresolved-edge`.
+- **The CLI and the SDK.** `ekr operations` lists `SupersedeNode` as applied; the SDK's
+  transaction document builds it, its evidence in the manifest; `ekr snapshot` prints the records
+  under `superseded`.
+
+## 110.6 Result, and what is not changed
+
+`crates/ekr-kernel/tests/supersede_node.rs` holds the story's acceptance on both providers under
+every profile — the revision and its record, the retired edges, the repointing, the alias held,
+every refusal by name and the roots of a reopen, a full replay and a migration;
+`crates/ekr-views/tests/supersession.rs` the head reads, the refusal and the earlier revision;
+`crates/ekr-integrate/tests/resolve.rs` that both resolvers agree; `crates/ekr/tests/resolve_cli.rs`
+and `crates/ekr/tests/mcp.rs` the same through the binary; seven authored `ekr-kernel` scenarios and
+one `ekr-views` scenario, beside the three generated `node-superseded` outcomes (`ExpandNeighbourhood`,
+`DescribeNode` and `ProjectTimeline`), the same through the conformance suites; and the worked example of `docs/cli.md` supersedes a duplicate and resolves its
+alias on both providers. A store that never supersedes keeps its roots and checkpoint bytes: the
+pinned root and store fixtures are unedited. Not changed:
+assertions about a superseded node are not rewritten to `by`, edges are not moved, a node is not
+retyped, no predicate supersedes many nodes at once, duplicates are not detected, and nothing undoes
+a supersession — `story:merge-entity-applies` and `story:retype-node` build on this.
+
+# 111. Merge Applies (2026-10-20)
+
+`story:merge-entity-applies`, under `architecture-decision-record:0018-merge-and-split-identity`
+(option A and the default of each of its six open questions, accepted 2026-10-19), amending § 46.
+§ 46 asks a merge to preserve alias and historical lineage rather than rewriting identity blindly.
+§ 110 retires a duplicate node in favour of another and keeps it in a supersession record; this
+amendment makes `MergeEntity` (§ 19) a supersession whose references are rewritten in place, with
+the lineage a later split needs.
+
+## 111.1 The operation
+
+`MergeEntity { absorbed, into, reason, evidence }` is `ekr.kernel.OperationKind` index 9, as it
+always was, and `ekr.kernel.EntityMerge` in the domain. `reason` and `evidence` are new and
+optional: a merge that writes neither is the **bare shape**, which is P1's. It parses, encodes as
+the two ids it always encoded as, and is refused as it was — `unsupported-operation`, "MergeEntity is
+not supported in P1" — under every validation profile and by that issue alone, so every retained
+rejection of one replays (the base-era store of `crates/ekr-kernel/tests/base_era_v1_replay.rs`
+holds one). A merge that writes either is the shape that applies, under every profile, as
+`SupersedeNode` is. It is encoded as variant 9, the two ids, then `reason` and `evidence` each as an
+option, the evidence as a set: a tagged `Some` or `None` that no operation's variant tag and no
+transaction's evidence set opens with. The evidence is part of what the transaction rests on, so
+each id is in `GraphTransaction.evidence`; the message of `evidence-set-mismatch` names merges only
+for a transaction that carries one.
+
+## 111.2 What commit does
+
+Applying it (`ekr.p1-apply/1` and `ekr.p2-apply/1` alike), after every other operation of the
+transaction, supersessions included:
+
+1. `absorbed` leaves `CanonicalGraph.nodes` into a supersession record under its id, whole, as
+   § 110.2 retires a node: the record names `into` as `by`, the revision, the reason and the
+   evidence, and every record whose `by` is `absorbed` is repointed to `into`, so a reader follows
+   one pointer. Its aliases stay its own under its type and resolve to `into`. No lifecycle state is
+   added to a node: an absorbed node is a node held in a record that carries merge lineage.
+2. Each edge with `absorbed` at an end: one joining `absorbed` and `into` is retired into the
+   record, whole; one with the type, direction and other end of an edge `into` holds, and equal
+   properties — compared once every `NodeRef` to `absorbed` names `into` — collapses onto the
+   lowest such id, retired into the record and mapped to it, and the assertions about it are
+   rewritten to it; every other keeps its id, the end or ends that named `absorbed` naming `into`.
+3. Every `NodeRef` naming `absorbed`, at any depth, in a property of a node or an edge of the head
+   names `into`.
+4. A property `absorbed` holds and `into` does not moves to `into`; one both hold equally stays.
+5. Every assertion whose subject or object names `absorbed` — a `!Node` object, or a `NodeRef`
+   inside a `!Value` object at any depth — names `into`, and every assertion about a collapsed edge
+   names the edge it collapsed onto. Its id, evidence, proposer, assessment, lifecycle, valid time
+   and transaction time are unchanged; at every earlier revision it reads as it was.
+6. `into` keeps its id, its type and its name.
+
+The record's `merge` lineage (`ekr.graph.MergeLineageRecord`) holds (a) each rewritten edge with
+the end or ends that named `absorbed`, (b) each collapsed edge's id with the edge it collapsed onto,
+(c) each retired joining edge, (d) each rewritten assertion with each rewritten field and what it
+held before, (e) each moved property, and each rewritten property of a node or an edge with its
+values before. The record's `edges` hold the collapsed and the joining edges whole, so
+`retired_with` answers for each as for an edge a supersession retired. `SplitEntity`, its record and
+its read of the lineage are a later story (ADR 0018, decision 4).
+
+## 111.3 What validation decides
+
+Refused, as named issues of a Rejected transaction:
+
+| case | validator | code |
+|---|---|---|
+| `absorbed` and `into` are one node | Structural | `merge-into-itself` |
+| a node neither held nor created by the transaction, or an `absorbed` the transaction creates | Reference | `unresolved-node` |
+| `absorbed` or `into` already superseded or absorbed; the message names its `by` | Reference | `node-superseded` |
+| no reason, or one only whitespace | Structural | `merge-without-reason` |
+| no evidence | Structural | `merge-without-evidence` |
+| evidence neither retained nor added by an `AddEvidence` of the transaction | Reference | `merge-evidence-unknown` |
+| the two types are unrelated: neither conforms to the other through `parents`, siblings included; the message names `SupersedeNode` | Type | `merge-types-unrelated` |
+| a property `absorbed` holds, or an active assertion gives it, that `into`'s type does not declare | Type | `merge-undeclared-property` |
+| a property both hold with different values | Structural | `merge-property-conflict` |
+| an edge of `absorbed` duplicating one of `into` with different properties, naming both | Structural | `merge-duplicate-edge-conflict` |
+| an active relation assertion joining `absorbed` and `into`, either way, which would relate `into` to itself; a retracted or superseded one does not block | Structural | `merge-self-relation` |
+| a rewritten edge end, or the rewritten end of an active relation assertion, of a type the edge type does not allow | Type | `edge-endpoint-type` |
+| a rewritten or moved value its declaration does not admit | Type | `wrong-type` |
+| an edge type of cardinality `One` that `into` would hold twice once duplicates collapse, naming the edges; a moved property past its cardinality | Cardinality | `edge-cardinality`, `property-cardinality` |
+| another operation naming `absorbed` or an edge at it, `absorbed` or `into` retired by another operation, a supersession by `absorbed`, an edge at `absorbed` joining a node the transaction supersedes, or a second `MergeEntity` | Structural | `superseded-node-named-in-transaction` |
+| `transaction.evidence` leaves a merge's evidence out | Structural | `evidence-set-mismatch` |
+
+Preparation — clearing a property, deleting an edge, retracting an assertion — goes in an earlier
+revision. Only active assertions are held to the node kept's type, so a retracted one never blocks
+a merge. A transaction without a merge in the shape that applies reads none of this and is
+validated exactly as before, so no rejection a store retains replays differently.
+
+## 111.4 Roots, checkpoints and the graph document
+
+A supersession record encodes its `merge` lineage only when it has one, after its six fields, as a
+tagged `Some`: a record without one encodes as § 110.4 wrote it, so a store that never merges keeps
+every root and checkpoint byte. `ekr.graph-document/2` gains `merge` on a record, an optional key
+omitted when absent. Replay applies a merge exactly as commit does, so a reopen from a checkpoint, a
+`--full-replay` and a migrated store give every revision the same roots.
+
+## 111.5 What reads it
+
+An absorbed node reads as a superseded node does (§ 110.5): every head read omits it, a read of its
+id at the head is `ekr.views.NodeSuperseded` naming `into`, `ekr resolve` of its type and one of its
+aliases answers `into`, and at an earlier revision it reads as it was. The references the merge
+rewrote read as `into`'s. `ChangesSince` lists a merge as a `NodeMerged` change of the absorbed
+node, after `NodeSuperseded` in the declared order, carrying its type, name and evidence and, in
+`target`, the node it was merged into; `ChangesListed` counts them in `nodes_merged`, and a range
+holding no merge answers exactly as before. `ekr operations` lists `MergeEntity` as applied; the
+SDK's `EntityMerge::new` builds the shape that applies and reads a record's `merge`.
+
+## 111.6 Result, and what is not changed
+
+`crates/ekr-kernel/tests/merge_entity.rs` holds the story's acceptance on both providers under every
+profile; `crates/ekr-views/tests/merge.rs` the reads and the change; eight authored `ekr-kernel`
+scenarios and one `ekr-views` scenario the same through the conformance suites; and the worked
+example of `docs/cli.md` merges a duplicate author on both providers. Not changed: `SplitEntity`,
+`RetypeNode`, more than one pair per operation, bulk or predicate merges, duplicate detection, and
+`ekr.integrate.Merge`.

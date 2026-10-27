@@ -5,7 +5,9 @@ use std::{collections::BTreeSet, fs, path::Path, path::PathBuf, process::ExitCod
 use clap::{Parser, Subcommand};
 
 const HTML: &str = include_str!("../../../website/index.html");
+const NOT_FOUND: &str = include_str!("../../../website/404.html");
 const CSS: &str = include_str!("../../../website/styles.css");
+const ICON: &str = include_str!("../../../website/favicon.svg");
 const BASE: &str = "/epistemic-knowledge-runtime/";
 
 #[derive(Parser)]
@@ -38,7 +40,8 @@ fn attributes<'a>(html: &'a str, name: &str) -> Vec<&'a str> {
 
 // The authored source uses double-quoted attributes and no executable content.
 // This deliberately validates that small format rather than accepting arbitrary HTML.
-fn check(html: &str) -> Result<(), String> {
+// The index names its canonical URL; the not-found page is served at any path and names none.
+fn check(html: &str, canonical: bool) -> Result<(), String> {
     if !html.starts_with("<!doctype html>")
         || !html.contains("lang=\"en\"")
         || !html.contains("name=\"viewport\"")
@@ -55,17 +58,34 @@ fn check(html: &str) -> Result<(), String> {
             if !unique.contains(anchor) {
                 return Err(format!("missing anchor: {anchor}"));
             }
-        } else if !href.starts_with("https://") && href != format!("{BASE}styles.css") {
+        } else if !href.starts_with("https://")
+            && ![
+                BASE.to_owned(),
+                format!("{BASE}styles.css"),
+                format!("{BASE}favicon.svg"),
+            ]
+            .contains(&href.to_owned())
+        {
             return Err(format!("unexpected route: {href}"));
         }
     }
     if html.to_ascii_lowercase().contains("<script") {
         return Err("the public documentation must remain script-free".into());
     }
-    if !html.contains(&format!(
+    let declares = html.contains(&format!(
         "rel=\"canonical\" href=\"https://beyond10x.github.io{BASE}\""
-    )) {
+    ));
+    if canonical != declares || (!canonical && html.contains("rel=\"canonical\"")) {
         return Err("wrong canonical URL".into());
+    }
+    Ok(())
+}
+
+fn check_site() -> Result<(), String> {
+    check(HTML, true)?;
+    check(NOT_FOUND, false).map_err(|error| format!("404.html: {error}"))?;
+    if !ICON.starts_with("<svg ") || ICON.to_ascii_lowercase().contains("<script") {
+        return Err("favicon.svg must be a script-free SVG document".into());
     }
     Ok(())
 }
@@ -80,7 +100,9 @@ fn build(out: &Path, commit: &str) -> Result<(), String> {
     let write = || -> std::io::Result<()> {
         fs::create_dir_all(out.join(".well-known"))?;
         fs::write(out.join("index.html"), HTML)?;
+        fs::write(out.join("404.html"), NOT_FOUND)?;
         fs::write(out.join("styles.css"), CSS)?;
+        fs::write(out.join("favicon.svg"), ICON)?;
         fs::write(out.join(".nojekyll"), "")?;
         // All fields are constants except the strictly hexadecimal commit above.
         fs::write(
@@ -94,7 +116,7 @@ fn build(out: &Path, commit: &str) -> Result<(), String> {
 }
 
 fn run(cli: Cli) -> Result<(), String> {
-    check(HTML)?;
+    check_site()?;
     match cli.command {
         Action::Check => println!("EKR documentation: anchors, routes and document valid"),
         Action::Build { out, commit } => {
@@ -121,15 +143,46 @@ mod tests {
 
     #[test]
     fn authored_document_is_valid() {
-        check(HTML).expect("valid public documentation");
+        check_site().expect("valid public documentation");
     }
 
     #[test]
     fn broken_links_duplicate_anchors_and_scripts_are_refused() {
-        assert!(check(&HTML.replace("id=\"quickstart\"", "id=\"missing\"")).is_err());
-        assert!(check(&HTML.replace("id=\"quickstart\"", "id=\"main\"")).is_err());
-        assert!(check(&HTML.replace(&format!("{BASE}styles.css"), "/styles.css")).is_err());
-        assert!(check(&format!("{HTML}<script></script>")).is_err());
+        assert!(check(&HTML.replace("id=\"quickstart\"", "id=\"missing\""), true).is_err());
+        assert!(check(&HTML.replace("id=\"quickstart\"", "id=\"main\""), true).is_err());
+        assert!(check(
+            &HTML.replace(&format!("{BASE}styles.css"), "/styles.css"),
+            true
+        )
+        .is_err());
+        assert!(check(&format!("{HTML}<script></script>"), true).is_err());
+        assert!(check(
+            &NOT_FOUND.replace(&format!("{BASE}favicon.svg"), "favicon.svg"),
+            false
+        )
+        .is_err());
+        assert!(check(&format!("{NOT_FOUND}<SCRIPT></SCRIPT>"), false).is_err());
+    }
+
+    #[test]
+    fn only_the_index_names_the_canonical_url() {
+        assert!(check(HTML, false).is_err());
+        assert!(check(NOT_FOUND, true).is_err());
+    }
+
+    #[test]
+    fn build_writes_the_not_found_page_and_icon() {
+        let out = std::env::temp_dir().join(format!("ekr-docs-build-{}", std::process::id()));
+        build(&out, &"a".repeat(40)).expect("build");
+        for (name, bytes) in [
+            ("index.html", HTML),
+            ("404.html", NOT_FOUND),
+            ("favicon.svg", ICON),
+            ("styles.css", CSS),
+        ] {
+            assert_eq!(fs::read_to_string(out.join(name)).expect(name), bytes);
+        }
+        fs::remove_dir_all(&out).expect("remove build output");
     }
 
     #[test]

@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ekr_core::{EdgeId, NodeId, PropertyId, TypeId};
 use ekr_graph::{
     Assertion, AssertionLifecycle, Assessment, CanonicalDependency, CanonicalValue, Edge,
-    EvidenceKind, Object, Predicate, Subject,
+    EvidenceKind, Object, Predicate, Subject, Superseded,
 };
 use ekr_ontology::Ontology;
 use serde::Serialize;
@@ -124,6 +124,11 @@ pub(crate) struct ProjectedAssertion {
     object_value: Option<ProjectedValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     object_ref: Option<String>,
+    /// For a Node object a supersession of the revision holds, the node it is superseded by
+    /// (`story:supersede-node`, ADR 0017 decision 3); omitted otherwise, so a document of a
+    /// revision without one is the bytes it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    object_superseded_by: Option<String>,
     assessment: ProjectedAssessment,
     lifecycle: ProjectedLifecycle,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -198,24 +203,31 @@ pub(crate) struct ProjectedEdge {
 
 impl ProjectedEdge {
     /// `edge` with the assertions `about` it, which rule (1) orders by id.
-    pub(crate) fn of(edge: &Edge, about: Option<&Vec<&Assertion>>) -> Self {
+    pub(crate) fn of(
+        edge: &Edge,
+        about: Option<&Vec<&Assertion>>,
+        superseded: &Superseded,
+    ) -> Self {
         Self {
             id: edge.id.to_string(),
             source: edge.source.id().to_string(),
             target: edge.target.id().to_string(),
             type_id: edge.type_id.to_string(),
             props: props(&edge.properties),
-            assertions: listed_under(about),
+            assertions: listed_under(about, superseded),
         }
     }
 }
 
 /// The projected assertions `claims`, ascending by id.
-pub(crate) fn listed_under(claims: Option<&Vec<&Assertion>>) -> Vec<ProjectedAssertion> {
+pub(crate) fn listed_under(
+    claims: Option<&Vec<&Assertion>>,
+    superseded: &Superseded,
+) -> Vec<ProjectedAssertion> {
     let mut projected: Vec<ProjectedAssertion> = claims
         .into_iter()
         .flatten()
-        .map(|claim| assertion(claim))
+        .map(|claim| assertion(claim, superseded))
         .collect();
     projected.sort_by(|a, b| a.id.cmp(&b.id));
     projected
@@ -340,7 +352,9 @@ fn lifecycle(lifecycle: &AssertionLifecycle) -> ProjectedLifecycle {
     projected
 }
 
-pub(crate) fn assertion(assertion: &Assertion) -> ProjectedAssertion {
+/// `assertion` as a document renders it; `superseded` is the revision's supersession records,
+/// which name the pointer of a Node object they hold.
+pub(crate) fn assertion(assertion: &Assertion, superseded: &Superseded) -> ProjectedAssertion {
     let (predicate_kind, predicate) = match assertion.predicate {
         Predicate::Property(property) => ("Property", property.to_string()),
         Predicate::Relation(type_id) => ("Relation", type_id.to_string()),
@@ -350,6 +364,12 @@ pub(crate) fn assertion(assertion: &Assertion) -> ProjectedAssertion {
         Object::Node(node) => ("Node", None, Some(node.id().to_string())),
         Object::Type(type_id) => ("Type", None, Some(type_id.to_string())),
     };
+    let object_superseded_by = match &assertion.object {
+        Object::Node(node) => superseded
+            .get(&node.id())
+            .map(|record| record.by.node().to_string()),
+        Object::Value(_) | Object::Type(_) => None,
+    };
     ProjectedAssertion {
         id: assertion.id.to_string(),
         predicate_kind,
@@ -357,6 +377,7 @@ pub(crate) fn assertion(assertion: &Assertion) -> ProjectedAssertion {
         object_kind,
         object_value,
         object_ref,
+        object_superseded_by,
         assessment: self::assessment(&assertion.assessment),
         lifecycle: self::lifecycle(&assertion.lifecycle),
         valid_from: assertion.valid_time.from.map(|at| at.millis()),
@@ -406,7 +427,19 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
     let mut by_edge: BTreeMap<EdgeId, Vec<&Assertion>> = BTreeMap::new();
     let mut by_type: BTreeMap<TypeId, Vec<&Assertion>> = BTreeMap::new();
     let mut listed = 0_u64;
+    // An assertion about a superseded node, or an edge retired with one, is listed under nothing
+    // (`story:supersede-node`); any other subject the revision does not hold is inconsistent.
+    let retired: BTreeSet<EdgeId> = graph
+        .superseded
+        .values()
+        .flat_map(|record| record.edges.keys().copied())
+        .collect();
     for claim in graph.assertions.values() {
+        match claim.subject {
+            Subject::Node(node) if graph.superseded.contains_key(&node.id()) => continue,
+            Subject::Edge(edge) if retired.contains(&edge.id()) => continue,
+            _ => {}
+        }
         let held = match claim.subject {
             Subject::Node(node) if graph.nodes.contains_key(&node.id()) => {
                 by_node.entry(node.id()).or_default().push(claim);
@@ -437,13 +470,13 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         node_types,
         edge_types,
         properties,
-    } = project_ontology(&graph.ontology, &by_type);
+    } = project_ontology(&graph.ontology, &by_type, &graph.superseded);
 
     let mut nodes: Vec<ProjectedNode> = graph
         .nodes
         .values()
         .map(|node| ProjectedNode {
-            assertions: listed_under(by_node.get(&node.id)),
+            assertions: listed_under(by_node.get(&node.id), &graph.superseded),
             id: node.id.to_string(),
             name: node.canonical_name.clone(),
             type_id: node.type_id.to_string(),
@@ -457,7 +490,7 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         .edges
         .values()
         .map(|edge| ProjectedEdge {
-            assertions: listed_under(by_edge.get(&edge.id)),
+            assertions: listed_under(by_edge.get(&edge.id), &graph.superseded),
             id: edge.id.to_string(),
             source: edge.source.id().to_string(),
             target: edge.target.id().to_string(),
@@ -600,6 +633,7 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
 pub(crate) fn project_ontology(
     resolved: &Ontology,
     by_type: &BTreeMap<TypeId, Vec<&Assertion>>,
+    superseded: &Superseded,
 ) -> ProjectedOntology {
     let ontology = resolved.to_document();
     let mut node_types: Vec<ProjectedNodeType> = ontology
@@ -609,7 +643,7 @@ pub(crate) fn project_ontology(
             id: declared.id.to_string(),
             name: declared.name.clone(),
             properties: sorted(declared.properties.keys()),
-            assertions: listed_under(by_type.get(&declared.id)),
+            assertions: listed_under(by_type.get(&declared.id), superseded),
         })
         .collect();
     node_types.sort_by(|a, b| a.id.cmp(&b.id));
@@ -622,7 +656,7 @@ pub(crate) fn project_ontology(
             source_types: sorted(&declared.source_types),
             target_types: sorted(&declared.target_types),
             properties: sorted(declared.properties.keys()),
-            assertions: listed_under(by_type.get(&declared.id)),
+            assertions: listed_under(by_type.get(&declared.id), superseded),
         })
         .collect();
     edge_types.sort_by(|a, b| a.id.cmp(&b.id));

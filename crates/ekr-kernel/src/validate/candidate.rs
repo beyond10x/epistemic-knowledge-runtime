@@ -23,11 +23,20 @@ pub(super) struct Candidate<'g> {
     pub(super) edges: BTreeMap<EdgeId, Edge>,
     /// The edges the operation set creates; see [`Candidate::available`].
     created_edges: BTreeSet<EdgeId>,
+    /// The edges of canonical state a `SupersedeNode` of the operation set retires with its
+    /// node; see [`Candidate::retires`].
+    retired_edges: BTreeSet<EdgeId>,
+    /// The edges canonical state's supersession records hold, indexed on first use; see
+    /// [`Candidate::retired_with`].
+    retired_index: OnceCell<ekr_graph::RetiredEdges<'g>>,
     /// The value count of each property of each node the operation set creates or updates.
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
     /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
     asserted_edges: Index<'g>,
     pub(super) aliases: Option<&'g super::aliases::AliasHolders>,
+    /// What each merge of the operation set would do, read on first use; see
+    /// [`Candidate::merge_checks`].
+    merges: OnceCell<Vec<super::merge::MergeCheck>>,
 }
 
 /// Existing node types stay in the verified graph; only creations belong to this candidate.
@@ -114,11 +123,14 @@ impl<'g> Candidate<'g> {
                 })
                 .collect(),
             created_edges: BTreeSet::new(),
+            retired_edges: BTreeSet::new(),
+            retired_index: OnceCell::new(),
             // Only a created node's counts are ever read, and creating a node replaces whatever
             // canonical state held under its id, so canonical state's counts are not copied.
             property_counts: BTreeMap::new(),
             asserted_edges: Index::Own(OnceCell::new()),
             aliases: None,
+            merges: OnceCell::new(),
         };
         for operation in &proposal.operations {
             match operation {
@@ -161,7 +173,61 @@ impl<'g> Candidate<'g> {
                 _ => {}
             }
         }
+        // A supersession retires every edge of canonical state at its node (design § 110.2):
+        // one pass over the edges, and only for a transaction that supersedes. The node itself
+        // stays, so that an operation naming it is refused once, by the structural check that
+        // owns that question (`superseded-node-named-in-transaction`).
+        let retiring: BTreeSet<NodeId> = proposal
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                GraphOperation::SupersedeNode(supersession) => Some(supersession.node),
+                _ => None,
+            })
+            .collect();
+        if !retiring.is_empty() {
+            for edge in graph.edges.values() {
+                if retiring.contains(&edge.source.node()) || retiring.contains(&edge.target.node())
+                {
+                    result.retired_edges.insert(edge.id);
+                    result.edges.remove(&edge.id);
+                }
+            }
+        }
         result
+    }
+
+    /// Whether a `SupersedeNode` of the operation set retires `edge`, an edge of canonical state.
+    pub(super) fn retires(&self, edge: &EdgeId) -> bool {
+        self.retired_edges.contains(edge)
+    }
+
+    /// What each merge of `proposal` in the shape that applies would do, read off `snapshot` once
+    /// for the validation this view is shared by, by the first validator that asks (design
+    /// § 111.3). Empty, having read nothing, for an operation set without such a merge.
+    /// `snapshot` and `proposal` must be the ones this view was built from.
+    pub(super) fn merge_checks(
+        &self,
+        snapshot: &GraphSnapshot<'_>,
+        proposal: &GraphTransaction,
+    ) -> &[super::merge::MergeCheck] {
+        self.merges
+            .get_or_init(|| super::merge::checks(snapshot, proposal, self))
+    }
+
+    /// The superseded node `edge` was retired with, and the node that one is superseded by, if a
+    /// supersession record of canonical state holds the edge: the answer
+    /// [`CanonicalGraph::retired_with`] gives, looked up in one index of the records built by the
+    /// first lookup of this validation, so a validation reads each record once however many
+    /// edges it looks up (`story:supersede-node-review-fixes`, D9). A graph with no record builds
+    /// none.
+    pub(super) fn retired_with(&self, edge: EdgeId) -> Option<(NodeId, NodeId)> {
+        if self.basis.superseded.is_empty() {
+            return None;
+        }
+        self.retired_index
+            .get_or_init(|| self.basis.retired_edges())
+            .retired_with(edge)
     }
 
     /// [`Candidate::of`], reading the [`AssertedEdges`] kept with the snapshot's graph, `kept`,
@@ -254,6 +320,7 @@ mod tests {
                 edges: BTreeMap::new(),
                 assertions: BTreeMap::new(),
                 attachments: BTreeMap::new(),
+                superseded: BTreeMap::new(),
                 evidence: BTreeMap::new(),
             };
             for at in 0..size {

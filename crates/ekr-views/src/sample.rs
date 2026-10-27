@@ -12,7 +12,7 @@
 
 use std::collections::BTreeSet;
 
-use ekr_core::{AssertionId, RevisionNumber, TypeId};
+use ekr_core::{AssertionId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{AssertionLifecycle, CanonicalDependency, Object, Predicate, Subject};
 use ekr_kernel::{CommitError, Runtime, VerifiedRead};
 use ekr_ontology::Ontology;
@@ -137,10 +137,20 @@ struct SampledFact {
     subject_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     subject_name: Option<String>,
+    /// For a node subject a supersession of the revision holds, the node it is superseded by,
+    /// and for an edge subject retired with a superseded node, the node that one is superseded
+    /// by (`story:supersede-node`); omitted otherwise, so a sample of a revision without one is
+    /// the bytes it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subject_superseded_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     predicate_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     object_name: Option<String>,
+    /// For a Node object a supersession of the revision holds, the node it is superseded by;
+    /// omitted otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    object_superseded_by: Option<String>,
     assertion: ProjectedAssertion,
     evidence: Vec<SampledEvidence>,
 }
@@ -191,13 +201,32 @@ pub fn draw_sample(
     sample(&read, request)
 }
 
-/// The type a subject is of: a node's type, an edge's type, or a Type subject's own id.
-fn subject_type(read: &VerifiedRead, subject: &Subject) -> Option<TypeId> {
+/// The type a subject is of: a node's type, an edge's type — one the revision holds, or one
+/// retired with a superseded node, looked up in `retired`, the read's one index of the records
+/// (`story:supersede-node-review-fixes`, D9) — or a Type subject's own id.
+fn subject_type(
+    graph: &ekr_graph::CanonicalGraph,
+    retired: &ekr_graph::RetiredEdges<'_>,
+    subject: &Subject,
+) -> Option<TypeId> {
     match subject {
-        Subject::Node(node) => read.graph.nodes.get(&node.id()).map(|node| node.type_id),
-        Subject::Edge(edge) => read.graph.edges.get(&edge.id()).map(|edge| edge.type_id),
+        Subject::Node(node) => held_node(graph, node.id()).map(|node| node.type_id),
+        Subject::Edge(edge) => graph
+            .edges
+            .get(&edge.id())
+            .or_else(|| retired.edge(edge.id()))
+            .map(|edge| edge.type_id),
         Subject::Type(type_id) => Some(*type_id),
     }
+}
+
+/// The node `node` names in `graph`: one it holds, or a superseded one as its supersession record
+/// holds it (`story:supersede-node`), so a fact about it still names its type and name.
+fn held_node(graph: &ekr_graph::CanonicalGraph, node: NodeId) -> Option<&ekr_graph::Node> {
+    graph
+        .nodes
+        .get(&node)
+        .or_else(|| graph.superseded.get(&node).map(|record| &record.node))
 }
 
 /// The name the ontology gives the type `type_id`, a node type's or an edge type's.
@@ -274,14 +303,16 @@ pub fn sample(
     request: &SampleRequest,
 ) -> Result<Answer<FactSampleDrawn>, ProjectError> {
     let graph = &read.graph;
+    // Built once for the read, and only where a record holds an edge to look up.
+    let retired = graph.retired_edges();
     let mut ranked: Vec<(String, String, &ekr_graph::Assertion)> = graph
         .assertions
         .values()
         .filter(|assertion| matches!(assertion.lifecycle, AssertionLifecycle::Active))
         .filter(|assertion| {
-            request
-                .type_id
-                .is_none_or(|wanted| subject_type(read, &assertion.subject) == Some(wanted))
+            request.type_id.is_none_or(|wanted| {
+                subject_type(graph, &retired, &assertion.subject) == Some(wanted)
+            })
         })
         .map(|assertion| {
             (
@@ -305,29 +336,34 @@ pub fn sample(
                 Subject::Node(node) => (
                     "Node",
                     node.id().to_string(),
-                    graph
-                        .nodes
-                        .get(&node.id())
-                        .map(|node| node.canonical_name.clone()),
+                    held_node(graph, node.id()).map(|node| node.canonical_name.clone()),
                 ),
                 Subject::Edge(edge) => ("Edge", edge.id().to_string(), None),
                 Subject::Type(type_id) => {
                     ("Type", type_id.to_string(), type_name(ontology, *type_id))
                 }
             };
-            let of_type = subject_type(read, &assertion.subject);
+            let of_type = subject_type(graph, &retired, &assertion.subject);
             let predicate_name = match assertion.predicate {
                 Predicate::Property(property) => {
                     of_type.and_then(|type_id| property_name(ontology, type_id, property))
                 }
                 Predicate::Relation(edge_type) => type_name(ontology, edge_type),
             };
-            let object_name = match &assertion.object {
-                Object::Node(node) => graph
-                    .nodes
-                    .get(&node.id())
-                    .map(|node| node.canonical_name.clone()),
-                Object::Value(_) | Object::Type(_) => None,
+            // The pointer of a superseded subject node, or of the node a retired subject edge was
+            // retired with; and of a superseded object node (ADR 0017 decision 3).
+            let subject_superseded_by = match &assertion.subject {
+                Subject::Node(node) => graph.superseded_by(node.id()),
+                Subject::Edge(edge) => retired.retired_with(edge.id()).map(|(_, by)| by),
+                Subject::Type(_) => None,
+            }
+            .map(|by| by.to_string());
+            let (object_name, object_superseded_by) = match &assertion.object {
+                Object::Node(node) => (
+                    held_node(graph, node.id()).map(|node| node.canonical_name.clone()),
+                    graph.superseded_by(node.id()).map(|by| by.to_string()),
+                ),
+                Object::Value(_) | Object::Type(_) => (None, None),
             };
             let mut evidence: Vec<SampledEvidence> = assertion
                 .evidence
@@ -360,9 +396,11 @@ pub fn sample(
                     .map(|type_id| type_id.to_string())
                     .unwrap_or_default(),
                 subject_name,
+                subject_superseded_by,
                 predicate_name,
                 object_name,
-                assertion: document::assertion(assertion),
+                object_superseded_by,
+                assertion: document::assertion(assertion, &graph.superseded),
                 evidence,
             }
         })

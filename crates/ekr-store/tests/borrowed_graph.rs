@@ -131,6 +131,7 @@ fn graph() -> CanonicalGraph {
         assertions,
         evidence: BTreeMap::from([(evidence.id, evidence)]),
         attachments: BTreeMap::new(),
+        superseded: BTreeMap::new(),
     }
 }
 
@@ -155,6 +156,60 @@ fn borrowed_graph_matches_owned_bytes_for_every_value_and_retained_record_field(
         assert_eq!(actual, expected);
         assert_eq!(GraphDocument::from_bytes(&actual).unwrap(), owned);
         let value: serde_json::Value = serde_json::from_slice(&actual).unwrap();
+        assert_eq!(value["graph"].get("attachments").is_some(), attached);
+        let mut yaml = Vec::new();
+        GraphDocument::serialize_graph(&graph, &mut serde_yaml_ng::Serializer::new(&mut yaml))
+            .unwrap();
+        assert_eq!(yaml, serde_yaml_ng::to_string(&owned).unwrap().into_bytes());
+    }
+}
+
+/// `story:supersede-node-review-fixes` T7: the borrowed writer and the owned document agree byte
+/// for byte on a graph holding a supersession record — the node as it was, every value kind on
+/// its retired edge, `by`, the revision, the reason and the evidence — with and without
+/// attachments, in JSON and in YAML, and the owned document reads the bytes back.
+#[test]
+fn borrowed_graph_matches_owned_bytes_with_a_supersession_record() {
+    let mut graph = graph();
+    let mut retired = graph.nodes[&id(4)].clone();
+    retired.id = id(20);
+    retired.aliases = vec!["retired".into()];
+    let mut edge = graph.edges[&id(7)].clone();
+    edge.id = id(21);
+    edge.source = CanonicalRef::new(retired.id);
+    graph.superseded.insert(
+        retired.id,
+        SupersededNode {
+            node: retired,
+            edges: BTreeMap::from([(edge.id, edge)]),
+            by: CanonicalRef::new(id(4)),
+            revision: RevisionNumber::new(7),
+            reason: "recorded \"twice\"\n".into(),
+            evidence: BTreeSet::from([CanonicalRef::new(id(9)), CanonicalRef::new(id(22))]),
+            merge: None,
+        },
+    );
+    for attached in [false, true] {
+        if attached {
+            graph.attachments.insert(
+                id(100),
+                BTreeSet::from([AttachedEvidence {
+                    evidence: CanonicalRef::new(id(9)),
+                    revision: RevisionNumber::new(6),
+                }]),
+            );
+        }
+        let owned = GraphDocument::of(&graph);
+        let expected = owned.to_bytes().unwrap();
+        let mut actual = Vec::new();
+        GraphDocument::serialize_graph(&graph, &mut serde_json::Serializer::new(&mut actual))
+            .unwrap();
+        assert_eq!(actual, expected, "attached={attached}");
+        assert_eq!(GraphDocument::from_bytes(&actual).unwrap(), owned);
+        let value: serde_json::Value = serde_json::from_slice(&actual).unwrap();
+        assert!(value["graph"]["superseded"]
+            .get(id::<NodeId>(20).to_string())
+            .is_some());
         assert_eq!(value["graph"].get("attachments").is_some(), attached);
         let mut yaml = Vec::new();
         GraphDocument::serialize_graph(&graph, &mut serde_yaml_ng::Serializer::new(&mut yaml))

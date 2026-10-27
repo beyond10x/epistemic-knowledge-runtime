@@ -275,7 +275,10 @@ head. Committing a transaction that is not `Validated` is refused as
 Prints the graph at the head, or at `--at N`: `root` (with `revision`), and `graph.graph` with
 `nodes`, `edges`, `assertions` and `evidence`, each a map keyed by id, and `attachments` when
 any assertion has evidence attached: assertion id → a list of `{evidence, revision}` in evidence id
-order, absent when there is none. A plain snapshot returns every
+order, absent when there is none, and `superseded` when any node is superseded
+([A node superseded by another](#a-node-superseded-by-another)): node id → `{node, edges, by,
+revision, reason, evidence}`, the node and the edges retired with it as they were, absent when there
+is none; a superseded node is in `superseded` and not in `nodes`. A plain snapshot returns every
 assertion, including retracted and superseded ones, with `matching_assertions: null`. With
 `--valid-at` (milliseconds since the Unix epoch, or `YYYY-MM-DD` for midnight UTC),
 `matching_assertions` lists the ids of the assertions believed at that instant: accepted, not
@@ -364,8 +367,10 @@ typed-reference`):
   `aliases`; order and repeats do not matter, and an empty alias identifies nothing.
 
 A node is a candidate when its `type_id` is exactly the reference's and one of its aliases is one
-of the reference's. Its `canonical_name` is never compared: a name is not an identity. The
-result is one JSON document; read `kind`:
+of the reference's. Its `canonical_name` is never compared: a name is not an identity. A
+[superseded node](#a-node-superseded-by-another) that matches the same way stands for the node it
+is superseded by, whatever that node's type, so a reference to a retired duplicate's key answers
+the node kept. The result is one JSON document; read `kind`:
 
 | `kind` | when | what to do |
 |---|---|---|
@@ -442,6 +447,13 @@ bad fact too, as the reader's first refusal in document order. Then, in order:
    two nodes by an edge of that type. An edge validation refuses (its endpoint types, its type's
    cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
    those relations as assertions only; applying the document again holds them and adds no edge.
+   A fact's property and a relation's ends are checked against the type of the node its subject
+   or object resolves to: a key [superseded](#a-node-superseded-by-another) by a node of another
+   type takes the kept node's properties and edge ends, by the reader and again before anything
+   is resolved, so a fact the kept node's type admits is applied to it, and one it does not is
+   refused before anything is written — `extraction-property-undeclared` or
+   `extraction-relation-ends`, naming the superseded node, its type and the node kept — and no node
+   is created for it.
    A `!Property` fact marked `replaces: true` also supersedes every active assertion of its
    subject and property — the store's, or an earlier committed fact's — with a
    `!SupersedeAssertion` from the new assertion's valid time on, in the same transaction, so
@@ -701,7 +713,8 @@ It prints the `ekr.store-comparison/1` document (`ekr.cli.CompareStores` in
 ```
 
 `categories` lists six, in this order (one is shown above): `types`, `properties`, `nodes`,
-`edges`, `assertions` and `evidence`. `left` and `right` count the ids each store holds there;
+`edges`, `assertions` and `evidence`, then `superseded` where either store holds a
+[supersession record](#a-node-superseded-by-another). `left` and `right` count the ids each store holds there;
 `differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
 `presence` is `left` or `right` for an id only one store holds, and `both` for one both hold
 differently, with `fields` naming the fields that differ. `equal` is `true` exactly when every
@@ -715,6 +728,7 @@ category's is.
 | `edges` | edge id | `type_id`, `source`, `target`, `properties` |
 | `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
 | `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
+| `superseded` | superseded node id | `node` and `edges` (as `nodes` and `edges` compare them), `by`, `revision`, `reason`, `evidence`, and a merged node's `merge` lineage; listed only where either store holds a record |
 
 Nothing a commit's clock or its transaction decides is compared: not an assertion's
 `transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
@@ -1093,7 +1107,11 @@ Each item carries the assertion as the projection renders it, its subject (`subj
 `subject_name` (a node's canonical name or a type's name), `predicate_name` (the property's or the
 relation's name), `object_name` (a node object's canonical name), each left out where there is
 none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
-else `base64`. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
+else `base64`. An assertion about a [superseded node](#a-node-superseded-by-another) is still
+sampled: its names are the node's as its record holds them, and `subject_superseded_by` names the
+node it is superseded by (for an edge subject retired with a superseded node, that node's), and
+`object_superseded_by` the node a superseded `!Node` object is superseded by, each left out where
+there is none. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
 hold as `ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
 
 ### `ekr fact-quality`
@@ -1152,12 +1170,13 @@ how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the seventeen operation kinds, one per line, marking the four schema
-changes (`[schema change: …]`), the citation that travels with them (`[schema citation: …]`)
-and the one kind that is not applied (`[not applied: …]`). With a kind
-(`ekr operations AddAssertion`), prints its fields and an example operation.
-The `AttachEvidence` example requires committing the `AddEvidence` example first, as its page
-states; its assertion comes from the example seed and its evidence comes from that commit.
+Without an argument, lists the eighteen operation kinds, one per line, marking the four schema
+changes (`[schema change: …]`) and the citation that travels with them (`[schema citation: …]`);
+every other kind is applied. With a kind (`ekr operations AddAssertion`), prints its fields and an
+example operation. The `AttachEvidence` example requires committing the `AddEvidence` example
+first, as its page states; its assertion comes from the example seed and its evidence comes from
+that commit. The `MergeEntity` example likewise merges the organization the `CreateNode` example
+creates into the example seed's Acme.
 
 ### `ekr example`
 
@@ -1380,7 +1399,8 @@ A `since_revision` below 0 is 400 `ekr.views.SinceMalformed`, and a bound outsid
 `ekr.views.LimitExceeded`, both before the store is read; a node or seed the revision does not
 hold is 404 `ekr.views.NodeNotFound` (for an `ekr.node-detail/2` request whose id is a node
 type or edge type of the revision's ontology, 404 `ekr.views.NodeIsAType`, whose message names the
-type), a `/search` `type` that is neither the id nor the name of a node type of the revision 404
+type; for a node or seed a supersession of the revision holds, in either format, 404
+`ekr.views.NodeSuperseded`, whose message names the node it is superseded by), a `/search` `type` that is neither the id nor the name of a node type of the revision 404
 `ekr.views.NodeTypeNotFound`, and a revision the store does not hold — an `at`, or a
 `since_revision` beyond the head — 404 `ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a
 store never seeded), each a whole JSON refusal decided before any byte of an answer is sent.
@@ -1450,16 +1470,20 @@ carries no property group and no same-name list, and an `edge_type` that names n
 answers no group. `meta.truncated` says whether the answer left anything out.
 
 <a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
-every node and edge created, every assertion added, superseded or retracted, and every evidence
-entry added by an `!AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)). Each change
-carries the revision that made it and that revision's `recorded_at`, its `change`
-(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded`, `AssertionRetracted` or
-`EvidenceAdded`), the `id` of the node, edge, assertion or evidence entry, the node's `type` and
-`name`, the edge's `type`, `source` and `target`, the assertion's `subject_kind` and `subject` (and
-`by` for a supersession), its `valid_time`, the evidence entry's `locator` (its source identity:
-the `identity` of its `!HumanStatement`) and `content_hash` (the address of its payload), and
-`evidence`: the evidence ids the assertion cites, or for a node or an edge those the same
-revision's assertions about it cite, and empty for an evidence entry. The seed's own evidence is
+every node and edge created, every assertion added, superseded or retracted, every evidence
+entry added by an `!AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)), every
+node superseded by a `!SupersedeNode` ([A node superseded by another](#a-node-superseded-by-another))
+and every node merged by a `!MergeEntity` ([Two nodes merged into one](#two-nodes-merged-into-one)).
+Each change carries the revision that made it and that revision's `recorded_at`, its `change`
+(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded`, `AssertionRetracted`,
+`EvidenceAdded`, `NodeSuperseded` or `NodeMerged`), the `id` of the node, edge, assertion or
+evidence entry, the node's `type` and `name`, the edge's `type`, `source` and `target`, the
+assertion's `subject_kind` and `subject` (and `by` for a supersession), its `valid_time`, the
+evidence entry's `locator` (its source identity: the `identity` of its `!HumanStatement`) and
+`content_hash` (the address of its payload), a superseded or merged node's `target` (the node it is
+superseded by or merged into), and `evidence`: the evidence ids the assertion cites, or for a node
+or an edge those the same revision's assertions about it cite, empty for an evidence entry, and for
+a superseded or merged node those its supersession or merge rests on. The seed's own evidence is
 not a change. The changes are ordered by revision, then change kind in that order, then id:
 
 - `since_revision=N` chooses the changes of the revisions after `N`; one at or after `at` chooses
@@ -1704,7 +1728,8 @@ the newest. What `ekr view` refuses with a JSON `{"refusal", "message"}` body a 
 `ekr.views.NotSeeded`; a revision the store does not hold `ekr.views.RevisionNotFound`; a node
 or seed the revision does not hold, or a `describe` id that is no node id,
 `ekr.views.NodeNotFound` (`ekr.views.NodeIsAType` for an `ekr.node-detail/2`
-`describe` of a type id); and a `search --type` naming no node type of the revision
+`describe` of a type id, `ekr.views.NodeSuperseded` for a superseded node or seed, naming the node
+it is superseded by); and a `search --type` naming no node type of the revision
 `ekr.views.NodeTypeNotFound`. A query `ekr view` answers `invalid-query` — a bound that is not an
 optional `-` and ASCII digits, a revision that is not ASCII digits (so `+5` is neither), a seed,
 `timeline --type` or `--subject` that is not an id, a `--bucket` other than `day` or `week`, no
@@ -1817,7 +1842,8 @@ no authentication of its own. Without `--metrics` the path answers 404.
 `/expand`, `/timeline`, `/projection`, `/roles` and `/find` their own names. The same read
 through either server moves the same series. `outcome` is `ok`, `invalid_input` (`invalid-query`,
 `ekr.views.LimitExceeded`, `ekr.views.SinceMalformed`, a -32602 and other input refusals),
-`not_seeded`, `not_found` (every `…NotFound` refusal and `ekr.views.NodeIsAType`), `unavailable`
+`not_seeded`, `not_found` (every `…NotFound` refusal, `ekr.views.NodeIsAType` and
+`ekr.views.NodeSuperseded`), `unavailable`
 (`store-replaced`, a store not admitted, a full request queue, an exceeded deadline) or `store_error` (a 500 or a -32603). A request that is
 no read — health, readiness, `/metrics`, the page, an MCP message that is not `tools/call`, an
 unknown tool — or that is refused before its read (Host, Origin, framing, method) is counted
@@ -1923,7 +1949,9 @@ a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold �
 `changes_since` an `at`, then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
 (`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
 revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`, and for
-`describe_node` without `full` a `node` that is a node type or edge type id `ekr.views.NodeIsAType`; a `search`
+`describe_node` without `full` a `node` that is a node type or edge type id `ekr.views.NodeIsAType`;
+a `node` or seed a supersession of the revision holds `ekr.views.NodeSuperseded`, naming the node
+it is superseded by; a `search`
 `type` naming no node type of the revision `ekr.views.NodeTypeNotFound`; an assertion
 the head does not hold `ekr.kernel.AssertionNotFound`; and for `resolve`,
 `reference-without-identity`, `reference-type-undeclared` and `reference-type-has-subtypes`
@@ -2400,14 +2428,15 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are seventeen kinds. Eleven are applied under every validation profile. Four are **schema
+There are eighteen kinds. Thirteen are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One,
 `CiteEvidence`, is a **schema citation**: it travels with schema changes, under the same profiles,
 and names evidence the version they make rests on
-([Evolve the schema, step 6](#6-cite-the-evidence-a-version-rests-on)). One, `MergeEntity`, parses
-but is **refused** under either profile, with the same code.
+([Evolve the schema, step 6](#6-cite-the-evidence-a-version-rests-on)). `MergeEntity` is applied
+when it gives a `reason` and `evidence`; written as the bare `{absorbed, into}` the first releases
+parsed, it is still refused under every profile, with the same code.
 
 | kind | applied | what it does |
 |---|---|---|
@@ -2422,12 +2451,13 @@ but is **refused** under either profile, with the same code.
 | `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
 | `AddAlias` | applied | appends one alias to a node that exists, so that [`ekr resolve`](#ekr-resolve) finds it by that alias from the next revision on: `node` (a node id from `ekr snapshot`, or one a `CreateNode` of the same transaction creates) and `alias` (a non-empty string). Refused: an alias that node or another node of its type already holds (`alias-already-exists`), one alias given twice for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`), a node that does not exist (`unresolved-node`). No operation removes an alias |
 | `AttachEvidence` | applied | attaches evidence to an assertion the store holds, accepted and active, leaving the assertion unchanged: `assertion` (an assertion id from `ekr snapshot`) and `evidence` (an evidence id the store retains, or one an `AddEvidence` of the same transaction adds), listed in `transaction.evidence`. [Rules below](#evidence-attached-to-a-held-assertion) |
+| `SupersedeNode` | applied | retires a duplicate node in favour of the node that replaces it: `node` (the node retired), `by` (the node kept, which the store holds or the same transaction creates), `reason` (why, not empty) and `evidence` (at least one evidence id, listed in `transaction.evidence`). The node and every edge at it leave the head; its aliases resolve to `by`. [Rules below](#a-node-superseded-by-another) |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
 | `WidenEdgeType` | schema change | adds declared node types to an edge type's ends: `edge_type`, and `source_types` and `target_types` written whole, each holding every type it holds now plus the ones added ([below](#4-widen-an-edge-type)) |
 | `CiteEvidence` | schema citation | names evidence the schema version the transaction makes rests on, which the version records and `ekr ontology` prints: `!CiteEvidence <evidence id>`, an id the store retains or an `AddEvidence` of the same transaction adds, listed in `transaction.evidence`. Only beside schema changes ([below](#6-cite-the-evidence-a-version-rests-on)) |
-| `MergeEntity` | refused | would merge two nodes |
+| `MergeEntity` | applied | merges a duplicate node into the node it duplicates: `absorbed` (the duplicate), `into` (the node kept, of the same type or of a type related to it through `parents`), `reason` (why, not empty) and `evidence` (at least one evidence id, listed in `transaction.evidence`). The duplicate leaves the head as a superseded node does, and every edge, assertion and `NodeRef` naming it is rewritten to `into`. [Rules below](#two-nodes-merged-into-one) |
 
 ### Assertions
 
@@ -2568,6 +2598,151 @@ named issues:
 | `assertion-not-active` | Structural | the assertion is not accepted and active, or the same transaction retracts or supersedes it |
 | `evidence-already-attached` | Structural | the assertion already cites the evidence or has it attached, or the transaction attaches it twice |
 | `evidence-set-mismatch` | Structural | `transaction.evidence` leaves the attached id out |
+
+### A node superseded by another
+
+`!SupersedeNode` retires a node the store holds — a duplicate an ingestion wrote beside a node the
+store already had, under another type or with a differently shaped alias — in favour of the node
+that replaces it. Nothing is deleted and no revision is rewritten: the supersession is a revision of
+its own, with its reason and its evidence.
+
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000797        # a fresh transaction id: ekr mint transaction
+  proposer: 00000000-0000-4000-a000-000000000011  # the host operator
+  operations:
+  - !SupersedeNode
+    node: 00000000-0000-4000-a000-000000000306    # the duplicate: a node id from ekr snapshot
+    by: 00000000-0000-4000-a000-000000000301      # the node kept
+    reason: catalogued twice, once as a book; the field naturalist is the author
+    evidence:
+    - 00000000-0000-4000-a000-000000000401
+  evidence:
+  - 00000000-0000-4000-a000-000000000401          # a supersession's evidence is listed, as cited evidence is
+```
+
+Committing it moves the node, and every edge with it at either end, out of the head and into a
+record of its own under the node's id: the node as it was, its edges, `by`, the revision, the
+reason and the evidence. [`ekr snapshot`](#ekr-snapshot) lists the record under `superseded`;
+every other head read — `ekr view`, the session and MCP reads, [`/changes`](#changes-since) aside —
+reads the head's nodes and edges and so no longer shows it. A read of its id at the head
+(`/node/<id>` in either format, `/expand`, `/timeline` with that `subject`, the MCP `describe_node`,
+`expand` and `timeline`, the session's
+`describe`, `expand` and `timeline`) is refused as `ekr.views.NodeSuperseded`, naming `by` — by
+`ekr view` with 404, by the MCP tools as a tool error and by the session as a named failure; at a
+revision before the supersession it reads as it was. A read that reaches an assertion naming it — the
+assertion is kept — names the pointer too: a rendered assertion whose `!Node` object is
+superseded carries `object_superseded_by` (`/node/<id>`, the projection, `ekr sample`), an
+`ekr explain` Assertion link carries `subject_superseded_by` and `object_superseded_by`, and a
+sampled fact about it, or about an edge retired with it, `subject_superseded_by`; each is left out
+where nothing is superseded. [`ekr compare`](#ekr-compare) compares the records. `/changes` lists the supersession as a
+`NodeSuperseded` change of the node, with its `type` and `name` and, in `target`, the node kept.
+Its aliases stay its own under its type: [`ekr resolve`](#ekr-resolve) of that type and one of them
+answers `by`, even when `by` is of another type, and a later `!CreateNode` or `!AddAlias` that would
+give a node of its type one of them is `alias-already-exists`, so the next run that resolves the
+old key lands on the node kept. Assertions about it are not changed, and one may still be
+retracted. An edge the kept node needs is a `!CreateEdge` from `by`, in the same transaction or a
+later one. A supersession of `by` itself later repoints every record that names it, so a record
+always names a node the head holds. [Step 9 of the worked example](#9-retire-a-duplicate) runs one.
+
+Validation refuses, as named issues:
+
+| issue | validator | when |
+|---|---|---|
+| `supersede-unknown-node` | Reference | the store holds no such `node`; a node the same transaction creates is not held yet |
+| `node-already-superseded` | Reference | `node` is already superseded; the message names its `by` |
+| `supersede-into-itself` | Structural | `node` and `by` are the same node |
+| `supersede-by-unknown-node` | Reference | `by` is neither held nor created by the same transaction |
+| `supersede-by-superseded-node` | Reference | `by` is itself superseded; the message names its `by`, the node to supersede by instead |
+| `supersession-without-reason` | Structural | `reason` is empty or only whitespace |
+| `supersession-without-evidence` | Structural | `evidence` is empty |
+| `supersession-evidence-unknown` | Reference | an evidence id is neither retained nor added by an `!AddEvidence` of the transaction |
+| `superseded-node-named-in-transaction` | Structural | another operation of the transaction names `node` or an edge at it, `node` is superseded twice, or `by` is superseded by the same transaction |
+| `evidence-set-mismatch` | Structural | `transaction.evidence` leaves a supersession's evidence out |
+
+After the commit, an operation that names a superseded node, or an edge retired with one, is
+`node-superseded` (Reference), naming the node to use instead.
+
+### Two nodes merged into one
+
+`!MergeEntity` joins a duplicate to the node it duplicates and keeps every fact about it: the
+absorbed node leaves the head into a record naming the node kept, as a
+[superseded node](#a-node-superseded-by-another) does, and every reference to it is rewritten to
+the node kept instead of being retired. The two nodes are of one type, or one's type conforms to the
+other's through `parents`; the node kept keeps its id, its type and its name.
+
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000798        # a fresh transaction id: ekr mint transaction
+  proposer: 00000000-0000-4000-a000-000000000011  # the host operator
+  operations:
+  - !MergeEntity
+    absorbed: 00000000-0000-4000-a000-000000000307  # the duplicate: a node id from ekr snapshot
+    into: 00000000-0000-4000-a000-000000000301      # the node kept
+    reason: the field naturalist was catalogued twice
+    evidence:
+    - 00000000-0000-4000-a000-000000000401
+  evidence:
+  - 00000000-0000-4000-a000-000000000401            # a merge's evidence is listed, as cited evidence is
+```
+
+Committing it, in a revision of its own:
+
+- every edge at the absorbed node keeps its id, the end that named it naming the node kept; one
+  that joins the two nodes is retired into the record; one with the type, direction and other end
+  of an edge the node kept holds, and equal properties, collapses onto that edge — retired into the
+  record, and the assertions about it rewritten to the edge kept;
+- every assertion about the absorbed node, or naming it as its `!Node` object or in a `NodeRef`
+  inside its value, names the node kept; its id, evidence, assessment, lifecycle and times do not
+  change, and at every earlier revision it reads as it was;
+- every `NodeRef` naming it in a node's or an edge's properties names the node kept;
+- a property the absorbed node holds and the node kept does not moves to the node kept;
+- the record — under `superseded` in [`ekr snapshot`](#ekr-snapshot) — holds the absorbed node and
+  the retired edges whole, `by`, the revision, the reason, the evidence, and under `merge` what
+  moved: `edges` (each rewritten edge, with the end or ends rewritten), `collapsed` (each collapsed
+  edge, with the edge it collapsed onto), `retired` (each joining edge), `assertions` (each
+  rewritten assertion, with what each rewritten field held before), `moved_properties` (each moved
+  property), `node_values` and `edge_values` (each rewritten property, with its values before).
+
+The absorbed node then reads as a superseded node does: every head read omits it, a read of its id
+is refused as `ekr.views.NodeSuperseded` naming the node kept, `ekr resolve` of its type and one of
+its aliases answers the node kept, and a later operation naming it is `node-superseded`. `/changes`
+lists the merge as a `NodeMerged` change of the absorbed node, with its `type` and `name` and, in
+`target`, the node kept. A later merge of the node kept repoints the record, as a supersession of
+`by` does. [Step 10 of the worked example](#10-merge-a-duplicate) runs one.
+
+Preparation goes in an earlier revision: clear a property the node kept's type does not declare or
+whose value differs (`!UpdateProperty` with `values: []`), delete an edge whose duplicate differs or
+whose end the node kept's type may not take (`!DeleteEdge`), retract an assertion the node kept's
+type cannot carry, or a relation joining the two nodes (`merge-self-relation`). A retracted assertion
+is rewritten but never blocks a merge.
+
+The bare shape `{absorbed, into}`, without `reason` and `evidence`, is the one the first releases
+parsed and refused; it is refused as it was, with `unsupported-operation`, under every profile.
+
+Validation refuses, as named issues:
+
+| issue | validator | when |
+|---|---|---|
+| `merge-into-itself` | Structural | `absorbed` and `into` are the same node |
+| `unresolved-node` | Reference | a node the store does not hold and the transaction does not create, or an `absorbed` the same transaction creates |
+| `node-superseded` | Reference | `absorbed` or `into` is already superseded or merged; the message names its `by` |
+| `merge-without-reason` | Structural | `reason` is absent, empty or only whitespace |
+| `merge-without-evidence` | Structural | `evidence` is absent or empty |
+| `merge-evidence-unknown` | Reference | an evidence id is neither retained nor added by an `!AddEvidence` of the transaction |
+| `merge-types-unrelated` | Type | neither node's type conforms to the other's through `parents`, two children of one parent included; the message names `SupersedeNode` |
+| `merge-undeclared-property` | Type | the absorbed node holds, or an active assertion gives it, a property the node kept's type does not declare |
+| `merge-property-conflict` | Structural | both nodes hold a property with different values |
+| `merge-duplicate-edge-conflict` | Structural | an edge of the absorbed node duplicates one of the node kept with different properties; the message names both |
+| `merge-self-relation` | Structural | an active relation assertion joins the absorbed node and the node kept, either way, so the merge would relate the node kept to itself; the message names the assertion |
+| `edge-endpoint-type` | Type | a rewritten edge end, or a rewritten end of an active relation assertion, is of a type the edge type does not allow |
+| `wrong-type` | Type | a rewritten or moved value its property's `value_type` does not admit, such as a `NodeRef` allowed only to the absorbed node's type |
+| `edge-cardinality` | Cardinality | the node kept would hold two edges of a `cardinality: One` edge type once duplicates collapse; the message names them |
+| `property-cardinality` | Cardinality | a moved property holds more values than the node kept's type allows |
+| `superseded-node-named-in-transaction` | Structural | another operation names the absorbed node or an edge at it, the absorbed node or the node kept is retired by another operation, a `!SupersedeNode` is `by` the absorbed node, an edge at the absorbed node joins a node the transaction supersedes, or the transaction carries a second `!MergeEntity` |
+| `evidence-set-mismatch` | Structural | `transaction.evidence` leaves a merge's evidence out |
 
 ### Relations: assertion, edge or both
 
@@ -3219,6 +3394,154 @@ propose a `!CreateNode` of type `…0103`. Neither run changes the store. A refe
 `Publication` (`…0101`) is refused with `reference-type-has-subtypes`: it is abstract, so name
 `Book`.
 
+### 9. Retire a duplicate
+
+An import that did not resolve first catalogued the field naturalist a second time, as a `Book`
+titled with the author's name and known as `the-field-naturalist`:
+
+```yaml ekr.transaction-document/2 file=duplicate.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000704
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !CreateNode
+    id: 00000000-0000-4000-a000-000000000306
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000102
+    canonical_name: The Field Naturalist
+    properties:
+      00000000-0000-4000-a000-000000000201:
+      - value_kind: String
+        value: The Field Naturalist
+    aliases:
+    - the-field-naturalist
+  evidence: []
+```
+
+Rebuilding the store would replace its history. Supersede the duplicate by the author instead, for
+a reason and on the evidence that says who wrote the book
+([A node superseded by another](#a-node-superseded-by-another)):
+
+```yaml ekr.transaction-document/2 file=supersede.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000705
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !SupersedeNode
+    node: 00000000-0000-4000-a000-000000000306
+    by: 00000000-0000-4000-a000-000000000301
+    reason: catalogued twice, once as a book; the field naturalist is the author
+    evidence:
+    - 00000000-0000-4000-a000-000000000401
+  evidence:
+  - 00000000-0000-4000-a000-000000000401
+```
+
+The book `…0306` leaves every head read, and revision 3, before the supersession, still describes
+it. The next run that looks the duplicate's key up lands on the author, though the author is not a
+`Book`:
+
+```yaml typed-reference file=duplicate-key.yaml outcome=Resolved:00000000-0000-4000-a000-000000000301
+type_id: 00000000-0000-4000-a000-000000000102
+aliases:
+- the-field-naturalist
+```
+
+```console
+ekr resolve duplicate-key.yaml   # "kind": "Resolved", "node_id": "…0301"
+ekr snapshot                     # graph.graph.superseded holds …0306, "by": "…0301"
+```
+
+A `!CreateNode` of a `Book` known as `the-field-naturalist` is now refused with
+`alias-already-exists`: the alias stays the duplicate's, and resolves to the author.
+
+### 10. Merge a duplicate
+
+Another import catalogued the field naturalist a second time, as an `Author` known as
+`f-naturalist`, with the same `WROTE` edge to the field guide and the claim behind it:
+
+```yaml ekr.transaction-document/2 file=second-author.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000706
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !CreateNode
+    id: 00000000-0000-4000-a000-000000000307
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000103
+    canonical_name: F. Naturalist
+    properties: {}
+    aliases:
+    - f-naturalist
+  - !CreateEdge
+    id: 00000000-0000-4000-a000-000000000602
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000104
+    source: 00000000-0000-4000-a000-000000000307
+    target: 00000000-0000-4000-a000-000000000302
+    properties:
+      00000000-0000-4000-a000-000000000213:
+      - value_kind: Enum
+        value: sole
+  - !AddAssertion
+    id: 00000000-0000-4000-a000-000000000503
+    root_id: 00000000-0000-4000-a000-000000000002
+    subject: !Node 00000000-0000-4000-a000-000000000307
+    predicate: !Relation 00000000-0000-4000-a000-000000000104
+    object: !Node 00000000-0000-4000-a000-000000000302
+    evidence:
+    - 00000000-0000-4000-a000-000000000401
+    proposed_by: 00000000-0000-4000-a000-000000000011
+    assessment: Proposed
+    lifecycle: Active
+    valid_time:
+      from: 1554076800000
+      to: null
+    transaction_time:
+      recorded_from: 0
+      recorded_to: null
+  evidence:
+  - 00000000-0000-4000-a000-000000000401
+```
+
+This duplicate is an `Author`, as the author is, so it can be merged rather than retired: every
+reference to it moves to the author ([Two nodes merged into one](#two-nodes-merged-into-one)):
+
+```yaml ekr.transaction-document/2 file=merge.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000707
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !MergeEntity
+    absorbed: 00000000-0000-4000-a000-000000000307
+    into: 00000000-0000-4000-a000-000000000301
+    reason: the field naturalist was catalogued twice
+    evidence:
+    - 00000000-0000-4000-a000-000000000401
+  evidence:
+  - 00000000-0000-4000-a000-000000000401
+```
+
+The duplicate's `WROTE` edge `…0602` runs, as `…0601` does, from the author to the field guide
+with the same `contribution`, so it collapses onto `…0601`; the claim `…0503` keeps its id and now
+says the author wrote the book. `ekr snapshot` lists `…0307` under `superseded`, `"by": "…0301"`,
+with `merge.collapsed` mapping `…0602` to `…0601` and `merge.assertions` naming `…0503`. The
+duplicate's key resolves to the author:
+
+```yaml typed-reference file=merged-key.yaml outcome=Resolved:00000000-0000-4000-a000-000000000301
+type_id: 00000000-0000-4000-a000-000000000103
+aliases:
+- f-naturalist
+```
+
+```console
+ekr resolve merged-key.yaml      # "kind": "Resolved", "node_id": "…0301"
+```
+
 ## Evolve the schema
 
 A store seeded under **validation profile v2** can change its schema after seeding: a committed
@@ -3694,8 +4017,8 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
 | `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
-| `unsupported-operation` | validation issue | 0 | a `MergeEntity` operation under either profile, or a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `WidenEdgeType` operation under validation profile v1 | none for `MergeEntity`; a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
-| `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | none: `MergeEntity` is not applied under either profile |
+| `unsupported-operation` | validation issue | 0 | a `MergeEntity` in the bare `{absorbed, into}` shape, without `reason` and `evidence`, under any profile, or a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `WidenEdgeType` operation under validation profile v1 | give the `MergeEntity` a `reason` and `evidence` ([Two nodes merged into one](#two-nodes-merged-into-one)); a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
+| `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | name the node kept as `into` |
 | `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |
 | `schema-version-without-schema-change` | validation issue | 0 | a `schema_version` on a transaction none of whose operations changes the schema | remove it |
 | `mixed-schema-transaction` | validation issue | 0 | a schema change and an operation of another kind in one transaction (profile v2); `!CiteEvidence` and the `!AddEvidence` of an entry it cites are not another kind | propose the schema change alone, with only the evidence it cites, commit it, then the rest |
@@ -3721,8 +4044,8 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `inadmissible-value` | validation issue | 0 | a `Float` value anywhere | use `Integer` or `Decimal` |
 | `missing-required-property` | validation issue | 0 | a required property with no value | supply it |
 | `property-cardinality` | validation issue | 0 | more values than a `cardinality: One` property allows | one value, or a `Many` property |
-| `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
-| `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
+| `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source, including one a `!MergeEntity` would move to `into` | delete the old edge first, or use `Many` |
+| `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type, including an end a `!MergeEntity` would rewrite to `into` | check the edge type's `source_types` and `target_types`; before a merge, delete the edge or retract the assertion |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
 | `unresolved-evidence` | validation issue | 0 | an assertion cites, an `AttachEvidence` attaches or a `CiteEvidence` cites evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite or attach retained evidence, or add it with `!AddEvidence` |
 | `assertion-not-active` | validation issue | 0 | an `AttachEvidence` names an assertion that is not accepted and active, or one the same transaction retracts or supersedes | attach only to current assertions; check `lifecycle` in `ekr snapshot` |
@@ -3734,7 +4057,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `conflicting-assertion-lifecycle` | validation issue | 0 | one transaction retracts or supersedes the same assertion twice | one lifecycle change per assertion per transaction |
 | `invalid-supersession` | validation issue | 0 | a [supersession rule](#supersession) fails, most often a replacement `valid_time.from` that is not exactly `effective_from` | set the replacement's `from` to `effective_from` |
 | `supersession-cycle` | validation issue | 0 | supersessions would lead back to the assertion they started from | supersede toward a new assertion |
-| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite, the `AttachEvidence` operations attach and the `CiteEvidence` operations cite | list exactly those ids |
+| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite, the `AttachEvidence` operations attach, the `CiteEvidence` operations cite and the `SupersedeNode` and `MergeEntity` operations rest on | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
@@ -3742,9 +4065,27 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
 | `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
-| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds, or an `AddAlias` gives a node an alias that it or another node of its type already holds | resolve the reference and use that node instead of creating one or aliasing another |
+| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds, or an `AddAlias` gives a node an alias that it or another node of its type already holds; a superseded node keeps holding its aliases | resolve the reference and use that node instead of creating one or aliasing another; a superseded node's alias resolves to the node kept |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` or `AddAlias` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node, once |
 | `empty-alias` | validation issue | 0 | an `AddAlias` gives the empty alias, which identifies nothing | give the alias a typed reference names |
+| `supersede-unknown-node` | validation issue | 0 | a `!SupersedeNode` whose `node` the store does not hold, a node the same transaction creates included | take the id from `ekr snapshot`; supersede a node in a later transaction than the one that creates it |
+| `node-already-superseded` | validation issue | 0 | a `!SupersedeNode` of a node already superseded; the message names its `by` | nothing to do: the node is retired, and its record names the node kept |
+| `supersede-into-itself` | validation issue | 0 | a `!SupersedeNode` whose `node` and `by` are the same node | name the node kept as `by` |
+| `supersede-by-unknown-node` | validation issue | 0 | a `!SupersedeNode` whose `by` the store does not hold and the transaction does not create | take `by` from `ekr snapshot`, or create it earlier in the same transaction |
+| `supersede-by-superseded-node` | validation issue | 0 | a `!SupersedeNode` whose `by` is itself superseded; the message names its `by` | supersede by the node the message names |
+| `supersession-without-reason` | validation issue | 0 | a `!SupersedeNode` whose `reason` is empty or only whitespace | say why the node is retired |
+| `supersession-without-evidence` | validation issue | 0 | a `!SupersedeNode` with no `evidence` | cite at least one retained evidence id, or add one with `!AddEvidence` |
+| `supersession-evidence-unknown` | validation issue | 0 | a `!SupersedeNode` rests on evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite retained evidence, or add it with `!AddEvidence` |
+| `superseded-node-named-in-transaction` | validation issue | 0 | another operation of the transaction names the node a `!SupersedeNode` retires or a `!MergeEntity` absorbs, or an edge at it; a node is superseded or merged twice; a `by` or an `into` is retired by the same transaction; or the transaction carries a second `!MergeEntity` | supersede or merge first and write the rest against the node kept in a later transaction; a `!CreateEdge` from `by` may travel with the supersession |
+| `node-superseded` | validation issue | 0 | an operation names a node a committed `!SupersedeNode` retired or `!MergeEntity` absorbed, or an edge retired with it; the message names the node it is superseded by | use the node the message names |
+| `merge-without-reason` | validation issue | 0 | a `!MergeEntity` with `evidence` and no `reason`, or one empty or only whitespace | say why the two nodes are one |
+| `merge-without-evidence` | validation issue | 0 | a `!MergeEntity` with a `reason` and no `evidence`, or an empty list | cite at least one retained evidence id, or add one with `!AddEvidence` |
+| `merge-evidence-unknown` | validation issue | 0 | a `!MergeEntity` rests on evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite retained evidence, or add it with `!AddEvidence` |
+| `merge-types-unrelated` | validation issue | 0 | a `!MergeEntity` of two nodes neither of whose types conforms to the other's through `parents`, two children of one parent included | retire the duplicate with `!SupersedeNode` instead |
+| `merge-undeclared-property` | validation issue | 0 | the node a `!MergeEntity` absorbs holds, or an active assertion gives it, a property the type of `into` does not declare | clear the property with an `!UpdateProperty` of no values, or retract the assertion, in an earlier revision |
+| `merge-property-conflict` | validation issue | 0 | both nodes of a `!MergeEntity` hold a property with different values | make them equal, or clear it on one node, in an earlier revision |
+| `merge-duplicate-edge-conflict` | validation issue | 0 | an edge at the absorbed node has the type, direction and other end of an edge `into` holds, with different properties | make their properties equal, or delete one, in an earlier revision |
+| `merge-self-relation` | validation issue | 0 | an active relation assertion joins the two nodes of a `!MergeEntity`, either way, so the merge would relate the node kept to itself; the message names it | retract the assertion in an earlier revision; a retracted one does not block |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, moves one node's lifecycle twice, declares one property of one type in two `ModifyProperty`, or widens one edge type in two `WidenEdgeType` | one write per property, one state move per node, one declaration per property and one widening per edge type per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |

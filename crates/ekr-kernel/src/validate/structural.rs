@@ -198,12 +198,15 @@ impl Check for SchemaStructural {
 /// A node's aliases identify it within its exact type: `ekr_integrate::resolve` matches a typed
 /// reference to the nodes of the root whose `type_id` equals the reference's and that hold one of
 /// its non-empty aliases, byte for byte. A `CreateNode` or an `AddAlias` that gave a `(type,
-/// alias)` another node already identifies by would make every reference to either `Ambiguous`,
-/// and no operation removes an alias to repair that, so it is refused: against canonical state as
+/// alias)` another node already identifies by would make a reference to either `Ambiguous`, and
+/// no operation removes an alias to repair that, so it is refused: against canonical state as
 /// `alias-already-exists`, and against another operation of the same transaction as
-/// `duplicate-alias`. The empty alias identifies nothing: a `CreateNode` may carry it and it is not
-/// checked, a repeat inside one draft is one alias, and an `AddAlias` of it adds nothing and is
-/// `empty-alias`.
+/// `duplicate-alias`. A superseded node keeps holding its aliases (design § 110.3), so an alias it
+/// holds is taken too, though a reference to it resolves to the node it is superseded by and is
+/// not `Ambiguous` — not even when the node given it is that one: the alias stays the superseded
+/// node's, which is what stops the next ingestion run recreating the duplicate. The empty alias
+/// identifies nothing: a `CreateNode` may carry it and it is not checked, a repeat inside one
+/// draft is one alias, and an `AddAlias` of it adds nothing and is `empty-alias`.
 ///
 /// The `CreateNode` checks run first and say what they said before `AddAlias` existed, so a
 /// transaction without one is refused exactly as it was: replay compares every retained
@@ -409,7 +412,10 @@ fn alias_holders<'tx>(
         return holders;
     }
     let state = graph.graph();
-    for node in state.nodes.values() {
+    // A superseded node keeps its aliases under its type in its record and keeps holding them
+    // (design § 110.3), so it is a holder as a node of the head is: the lowest id of either.
+    let superseded = state.superseded.values().map(|record| &record.node);
+    for node in state.nodes.values().chain(superseded) {
         #[cfg(test)]
         ALIAS_NODES_VISITED.with(|count| count.set(count.get() + 1));
         if node.root_id != state.root.id {
@@ -420,7 +426,7 @@ fn alias_holders<'tx>(
         };
         for alias in &node.aliases {
             if let Some(holder) = wanted.get_mut(alias.as_str()) {
-                holder.get_or_insert(node.id);
+                *holder = Some(holder.map_or(node.id, |held| held.min(node.id)));
             }
         }
     }
@@ -685,9 +691,11 @@ impl HeldIdentities {
     }
 
     /// Records the nodes and edges `tx` creates as first held at `revision`, the revision that
-    /// committing it produces. What a committed transaction creates is everything a revision
-    /// holds that its predecessor did not, because applying one removes edges and adds nothing
-    /// else.
+    /// committing it produces. What a committed transaction creates is every node and edge
+    /// identity a revision holds that its predecessor did not, because applying one otherwise
+    /// only takes identities away from the head: a deletion removes an edge, and a supersession
+    /// moves a node and the edges at it into a record, which keeps holding their ids (design
+    /// § 110.3).
     pub(crate) fn hold<V: ValueSpace>(
         &mut self,
         revision: RevisionNumber,
@@ -779,7 +787,7 @@ impl Check for IdentityStructural {
         candidate: &Candidate<'g>,
     ) -> Result<(), Vec<ValidationIssue>> {
         let mut issues = check(graph, tx, candidate, true).err().unwrap_or_default();
-        once_held(graph, &self.held, tx, &mut issues);
+        once_held(graph, candidate, &self.held, tx, &mut issues);
         finish(issues)
     }
 }
@@ -791,6 +799,7 @@ impl Check for IdentityStructural {
 /// (`identity-previously-held`). The same-kind cases are [`check`]'s and are not repeated here.
 fn once_held(
     graph: &GraphSnapshot<'_>,
+    candidate: &Candidate<'_>,
     history: &HeldIdentities,
     tx: &GraphTransaction,
     issues: &mut Vec<ValidationIssue>,
@@ -825,9 +834,11 @@ fn once_held(
             Some(_) => continue,
             None => {}
         }
-        let current = if state.nodes.contains_key(&NodeId::from_uuid(uuid)) {
+        // A superseded node and a retired edge are held still, in a supersession record.
+        let (node, edge) = (NodeId::from_uuid(uuid), EdgeId::from_uuid(uuid));
+        let current = if state.nodes.contains_key(&node) || state.superseded.contains_key(&node) {
             Some(Held::Node)
-        } else if state.edges.contains_key(&EdgeId::from_uuid(uuid)) {
+        } else if state.edges.contains_key(&edge) || candidate.retired_with(edge).is_some() {
             Some(Held::Edge)
         } else {
             None
@@ -890,6 +901,8 @@ fn check(
     let mut cited: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut citations: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut attached = false;
+    let mut superseding = false;
+    let mut merging = false;
     let declared = |type_id: TypeId| {
         state.ontology.node_type(type_id).is_some() || state.ontology.edge_type(type_id).is_some()
     };
@@ -898,19 +911,17 @@ fn check(
         // minted earlier in this transaction, and does canonical state already hold it. The
         // arms are exhaustive so that an operation added to `ekr.kernel.OperationKind` has to
         // be placed on one side of that rule rather than falling into a catch-all.
+        // A superseded node, and an edge retired with one, is held still: in its record, which
+        // nothing removes (design § 110.3), so its id is never taken again.
         let (created, held) = match operation {
             GraphOperation::CreateNode(draft) => (
                 (!nodes.insert(draft.id)).then(|| format!("node {}", draft.id)),
-                state
-                    .nodes
-                    .contains_key(&draft.id)
+                (state.nodes.contains_key(&draft.id) || state.superseded.contains_key(&draft.id))
                     .then(|| format!("node {}", draft.id)),
             ),
             GraphOperation::CreateEdge(draft) => (
                 (!edges.insert(draft.id)).then(|| format!("edge {}", draft.id)),
-                state
-                    .edges
-                    .contains_key(&draft.id)
+                (state.edges.contains_key(&draft.id) || candidate.retired_with(draft.id).is_some())
                     .then(|| format!("edge {}", draft.id)),
             ),
             GraphOperation::AddAssertion(assertion) => {
@@ -958,6 +969,13 @@ fn check(
                         ),
                     ));
                 }
+                // What a merge in the shape that applies rests on is part of what the transaction
+                // rests on, as a supersession's is (design § 111.1). The bare P1 shape rests on
+                // nothing, and is counted as it always was.
+                if !merge.is_bare() {
+                    cited.extend(merge.evidence.iter().flatten().copied());
+                    merging = true;
+                }
                 (None, None)
             }
             // Brings no identity into existence: `ModifyProperty` redeclares a property of a
@@ -1001,6 +1019,13 @@ fn check(
             | GraphOperation::RetractAssertion(_)
             | GraphOperation::SupersedeAssertion(_)
             | GraphOperation::Invoke { .. } => (None, None),
+            // Names two nodes and creates none; what it rests on is part of what the transaction
+            // rests on, so its evidence is in the manifest too (design § 110.1).
+            GraphOperation::SupersedeNode(supersession) => {
+                cited.extend(supersession.evidence.iter().copied());
+                superseding = true;
+                (None, None)
+            }
         };
         if let Some(named) = created {
             issues.push(issue(
@@ -1030,11 +1055,23 @@ fn check(
     // Replay compares every retained rejection's message with what this ruleset says now, so a
     // transaction with no attachment and no citation is refused in the words it always was, and
     // one with an attachment and no citation in the words of design § 103. Only a transaction
-    // with a citation, which no store retained before design § 109, reads the third form.
-    let cite = match (attached, citations.is_empty()) {
-        (false, true) => "its assertions cite",
-        (true, true) => "its assertions cite or its attachments attach",
-        (_, false) => "its assertions cite, its attachments attach or its citations cite",
+    // with a citation, which no store retained before design § 109, reads the third form, only one
+    // with a supersession, which none retained before design § 110, the fourth, and only one with
+    // a merge in the shape that applies, which none retained before design § 111, the fifth.
+    let cite = match (attached, citations.is_empty(), superseding, merging) {
+        (_, _, _, true) => {
+            "its assertions cite, its attachments attach, its citations cite or its \
+             supersessions and merges rest on"
+        }
+        (_, _, true, false) => {
+            "its assertions cite, its attachments attach, its citations cite or its \
+             supersessions rest on"
+        }
+        (false, true, false, false) => "its assertions cite",
+        (true, true, false, false) => "its assertions cite or its attachments attach",
+        (_, false, false, false) => {
+            "its assertions cite, its attachments attach or its citations cite"
+        }
     };
     if cited != tx.evidence {
         issues.push(issue(
@@ -1094,9 +1131,9 @@ fn check(
     }
 
     // Keep malformed-operation diagnostics precise. A structurally sound operation is not
-    // thereby implemented: entity merge has no application path, and under v1 neither has schema
-    // evolution. The v1 message is P1's, unchanged, because retained v1 rejections replay
-    // against it.
+    // thereby implemented: under v1 schema evolution has no application path, and neither has
+    // the bare P1 shape of an entity merge under any profile (design § 111.1). The message is
+    // P1's, unchanged, because retained rejections replay against it.
     if issues.is_empty() {
         for operation in &tx.operations {
             let name = match operation {
@@ -1106,7 +1143,8 @@ fn check(
                 GraphOperation::WidenEdgeType(_) if !admits_schema => "WidenEdgeType",
                 GraphOperation::CiteEvidence(_) if !admits_schema => "CiteEvidence",
                 GraphOperation::MergeEntity(merge)
-                    if node_types.contains_key(&merge.absorbed)
+                    if merge.is_bare()
+                        && node_types.contains_key(&merge.absorbed)
                         && node_types.contains_key(&merge.into) =>
                 {
                     "MergeEntity"
@@ -1124,5 +1162,7 @@ fn check(
 
     issues.extend(super::lifecycle::check(graph, tx));
     issues.extend(super::attachment::check(graph, tx));
+    issues.extend(super::supersession::check(graph, tx));
+    issues.extend(super::merge::structural(graph, tx, candidate));
     finish(issues)
 }

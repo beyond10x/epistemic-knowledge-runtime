@@ -6,22 +6,32 @@
   <meta name="description" content="Beyond graph storage: governed acceptance, retained evidence, revisable claims and measurable knowledge quality. Explore what EKR ships today and what comes next.">
   <title>EKR — Knowledge you can explain</title>
   <link rel="canonical" href="https://beyond10x.github.io/epistemic-knowledge-runtime/">
+  <meta name="color-scheme" content="light dark">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="beyond10x">
+  <meta property="og:title" content="EKR — Knowledge you can explain">
+  <meta property="og:description" content="Governed acceptance, retained evidence and revisable claims for people and agents.">
+  <meta property="og:url" content="https://beyond10x.github.io/epistemic-knowledge-runtime/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="EKR — Knowledge you can explain">
+  <meta name="twitter:description" content="Governed acceptance, retained evidence and revisable claims for people and agents.">
+  <link rel="icon" href="/epistemic-knowledge-runtime/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/epistemic-knowledge-runtime/styles.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="topbar">
   <a class="wordmark" href="#main"><span class="mark" aria-hidden="true">E</span> EKR <span class="byline">by beyond10x</span></a>
-  <nav aria-label="Main navigation"><a href="#why-ekr">Why EKR</a><a href="#capabilities">Available now</a><a href="#scope">What’s next</a><a href="#quickstart">Get started</a><a href="https://github.com/beyond10x/epistemic-knowledge-runtime">GitHub ↗</a></nav>
+  <nav aria-label="Main navigation"><a href="#why-ekr">Why EKR</a><a href="#capabilities">Available now</a><a href="#scope">What’s next</a><a href="#quickstart">Get started</a><a href="https://github.com/beyond10x/epistemic-knowledge-runtime">GitHub <span class="ext" aria-hidden="true"></span></a></nav>
 </header>
 <main id="main">
   <section class="hero" aria-labelledby="hero-title">
     <div>
       <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Epistemic Knowledge Runtime</p>
-      <h1 id="hero-title">Knowledge you<br>can <em>explain.</em></h1>
+      <h1 id="hero-title">Knowledge you can <em>explain.</em></h1>
       <p class="lede">A graph tells you what is connected. EKR also records why a claim was accepted, what supports it and how it changed. Give people and agents shared knowledge they can inspect, challenge and revise.</p>
-      <div class="actions"><a class="button" href="#quickstart">Try the first example <span aria-hidden="true">→</span></a><a class="text-button" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/overview.md">Read the overview ↗</a></div>
-      <p class="quiet">Built in Rust · File or SQLite storage · Apache-2.0</p>
+      <div class="actions"><a class="button" href="#quickstart">Try the first example <span aria-hidden="true">→</span></a><a class="text-button" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/overview.md">Read the overview <span class="ext" aria-hidden="true"></span></a></div>
+      <p class="quiet">Built in Rust · File, SQLite or PostgreSQL storage · Apache-2.0</p>
     </div>
     <figure class="knowledge-card" aria-label="Illustrative assertion with its evidence and history">
       <figcaption><span class="eyebrow">An assertion, with its context</span><span class="state">Accepted</span></figcaption>
@@ -51,12 +61,12 @@
   <section id="quickstart" class="section">
     <div class="section-heading"><p class="eyebrow">03 / A first store</p><h2>From an example<br>to an explained fact.</h2><p>Build the CLI, then use its matching example documents to seed a store and commit an assertion. Run the example in a fresh directory.</p></div>
     <div class="quickstart-grid">
-      <div><h3>Build and install</h3><p>With Git and Rust installed, the repository’s pinned toolchain builds the <code>ekr</code> binary.</p><pre tabindex="0" aria-label="Build and install EKR"><code>git clone https://github.com/beyond10x/epistemic-knowledge-runtime.git
+      <div><h3>Build and install</h3><p>With Git and Rust installed, the repository’s pinned toolchain builds the <code>ekr</code> binary.</p><pre tabindex="0" aria-label="Build and install EKR" data-lang="shell"><code>git clone https://github.com/beyond10x/epistemic-knowledge-runtime.git
 cd epistemic-knowledge-runtime
 cargo build --locked --release -p ekr
 install -Dm755 target/release/ekr "$HOME/.local/bin/ekr"
-export PATH="$HOME/.local/bin:$PATH"</code></pre><p class="aside">For configuration and storage options, see the <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#install">installation guide</a>.</p></div>
-      <div><h3>Record, validate, explain</h3><pre tabindex="0" aria-label="Create a store and explain an assertion"><code id="quickstart-commands">ekr example ekr.cli-host/1 &gt; host.json
+export PATH="$HOME/.local/bin:$PATH"</code></pre><p class="aside">For storage options, see <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#configuration">configuration</a> and <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#hosted-postgresql">hosted PostgreSQL</a>.</p></div>
+      <div><h3>Record, validate, explain</h3><p>Seed a store from the example documents, then record and explain one assertion.</p><pre tabindex="0" aria-label="Create a store and explain an assertion" data-lang="shell"><code id="quickstart-commands">ekr example ekr.cli-host/1 &gt; host.json
 ekr example ekr-seed/2 &gt; seed.yaml
 ekr example ekr.transaction-document/2 &gt; change.yaml
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
@@ -71,39 +81,39 @@ ekr explain 00000000-0000-4000-8000-000000000501</code></pre><p class="aside">Th
   </section>
 
   <section id="capabilities" class="section">
-    <div class="section-heading"><p class="eyebrow">04 / Available now</p><h2>More than storage.<br>Already in the runtime.</h2><p>These capabilities are shipped, including evidence attachment in <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.27">0.0.27</a> and extraction application in 0.0.26.</p></div>
+    <div class="section-heading"><p class="eyebrow">04 / Available now</p><h2>More than storage.<br>Already in the runtime.</h2><p>These capabilities are shipped. The current release, <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.41">0.0.41</a>, adds entity merge; evidence attachment arrived in <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/releases/tag/0.0.27">0.0.27</a> and extraction application in 0.0.26.</p></div>
     <div class="cards">
-      <article><span class="step-label">Shipped / Support that grows</span><h3>New evidence, same assertion</h3><p>Attach evidence to an accepted, active assertion. The attachment has its own revision; earlier snapshots stay unchanged, and superseding the claim leaves its support with the original.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#evidence-attached-to-a-held-assertion">Evidence attachment ↗</a></article>
-      <article><span class="step-label">Shipped / Extraction application</span><h3>Repeat an import, not its facts</h3><p><code>apply-extraction</code> applies a consumer’s structured extraction through validated transactions. Reapplying the same document adds nothing; ambiguous references are reported rather than guessed.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#ekr-apply-extraction">Extraction and progress reports ↗</a></article>
-      <article><span class="step-label">Shipped / Typed identity</span><h3>Names are not identities</h3><p>Resolve typed references and aliases to stable IDs, a proposed new entity or an explicit ambiguity. A shared name is not permission to silently merge two entities.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#ekr-resolve">Identity resolution ↗</a></article>
-      <article><span class="step-label">Shipped / Two views of time</span><h3>Then, and what we knew then</h3><p>Use <code>--at</code> to read a stored revision and <code>--valid-at</code> to filter by a claim’s valid time. Immutable history and replay preserve how the store arrived at its current state.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/guide.md">Temporal reads and corrections ↗</a></article>
-      <article><span class="step-label">Shipped / Measurable quality</span><h3>Sample, judge, report uncertainty</h3><p>Draw reproducible fact samples, supply your own judge and report the pass rate with a Wilson confidence interval. Inspect evidence coverage separately: having a source is not the same as being correct.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#ekr-fact-quality">Fact quality assessment ↗</a></article>
-      <article><span class="step-label">Shipped / Explicit schema evolution</span><h3>The vocabulary has history too</h3><p>Grow the schema through explicit, versioned transactions under supported validation profiles. Inspect the schema at a revision alongside the knowledge it described.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/schema-evolution.md">Schema evolution ↗</a></article>
+      <article><span class="step-label">Shipped / Support that grows</span><h3>New evidence, same assertion</h3><p>Attach evidence to an accepted, active assertion. The attachment has its own revision; earlier snapshots stay unchanged, and superseding the claim leaves its support with the original.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#evidence-attached-to-a-held-assertion">Evidence attachment <span class="ext" aria-hidden="true"></span></a></article>
+      <article><span class="step-label">Shipped / Extraction application</span><h3>Repeat an import, not its facts</h3><p><code>apply-extraction</code> applies a consumer’s structured extraction through validated transactions. Reapplying the same document adds nothing; ambiguous references are reported rather than guessed.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#ekr-apply-extraction">Extraction and progress reports <span class="ext" aria-hidden="true"></span></a></article>
+      <article><span class="step-label">Shipped / Typed identity</span><h3>Names are not identities</h3><p>Resolve typed references and aliases to stable IDs, a proposed new entity or an explicit ambiguity. A shared name is not permission to merge two entities; an explicit merge with a reason and evidence joins duplicates and keeps the lineage.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#ekr-resolve">Identity resolution <span class="ext" aria-hidden="true"></span></a></article>
+      <article><span class="step-label">Shipped / Two views of time</span><h3>Then, and what we knew then</h3><p>Use <code>--at</code> to read a stored revision and <code>--valid-at</code> to filter by a claim’s valid time. Immutable history and replay preserve how the store arrived at its current state.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/guide.md">Temporal reads and corrections <span class="ext" aria-hidden="true"></span></a></article>
+      <article><span class="step-label">Shipped / Measurable quality</span><h3>Sample, judge, report uncertainty</h3><p>Draw reproducible fact samples, supply your own judge and report the pass rate with a Wilson confidence interval. Inspect evidence coverage separately: having a source is not the same as being correct.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md#ekr-fact-quality">Fact quality assessment <span class="ext" aria-hidden="true"></span></a></article>
+      <article><span class="step-label">Shipped / Explicit schema evolution</span><h3>The vocabulary has history too</h3><p>Grow the schema through explicit, versioned transactions under supported validation profiles. Inspect the schema at a revision alongside the knowledge it described.</p><a class="feature-link" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/schema-evolution.md">Schema evolution <span class="ext" aria-hidden="true"></span></a></article>
     </div>
-    <div class="notice"><strong>Use it from your own tools.</strong><p>The JSON CLI, persistent session and typed Rust SDK share the core. Read-only MCP lets agents explore and explain knowledge; the local graph viewer and OCEL export make it inspectable. File and SQLite providers use the same validation boundary.</p></div>
+    <div class="notice"><strong>Use it from your own tools.</strong><p>The JSON CLI, persistent session and typed Rust SDK share the core. Read-only MCP lets agents explore and explain knowledge; the local graph viewer and OCEL export make it inspectable. File, SQLite and PostgreSQL providers use the same validation boundary.</p></div>
   </section>
 
   <section id="scope" class="section">
     <div class="section-heading"><p class="eyebrow">05 / Planned, not yet shipped</p><h2>From a governed core<br>to a learning loop.</h2><p>The direction is a runtime that notices gaps, preserves unresolved observations and proposes improvements. These loops are roadmap work, not promises of today’s CLI.</p></div>
     <div class="roadmap-grid">
-      <article class="scope-panel"><span class="step-label">Planned / Incubation and disagreement</span><h3>Keep what does not fit yet</h3><p>An incubation forest would hold observations in local schemas until they can be integrated. Contradictory claims become explicit disputes; entity merge and split preserve lineage.</p></article>
+      <article class="scope-panel"><span class="step-label">Planned / Incubation and disagreement</span><h3>Keep what does not fit yet</h3><p>An incubation forest would hold observations in local schemas until they can be integrated. Contradictory claims become explicit disputes; splitting a merged entity would preserve lineage.</p></article>
       <article class="scope-panel"><span class="step-label">Planned / Evidence-led schema discovery</span><h3>Let observations challenge the model</h3><p>Discover schema changes from parked knowledge, with migration plans and approvals matched to risk. Explicit schema evolution already works; discovery and these approval loops are ahead.</p></article>
       <article class="scope-panel"><span class="step-label">Planned / Observation and attention</span><h3>Choose what to learn next</h3><p>A knowledge frontier would prioritize gaps, source refreshes and questions for people. Scheduled observation uses explicit budgets and stop conditions; source connectors belong in consumers.</p></article>
       <article class="scope-panel"><span class="step-label">Planned / Maintenance</span><h3>Retire knowledge deliberately</h3><p>Retention, consolidation, decay and erasure would account for dependent claims. The aim is maintained knowledge whose changes remain explainable, including what loses its support.</p></article>
     </div>
-    <p class="comparison-note"><a class="text-button" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/roadmap.md">Read the phased roadmap ↗</a></p>
+    <p class="comparison-note"><a class="text-button" href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/roadmap.md">Read the phased roadmap <span class="ext" aria-hidden="true"></span></a></p>
     <p class="aside">Today, consumers supply extraction, source integration and model judges. Some declared operations remain unsupported and return named refusals; consult the <a href="https://github.com/beyond10x/epistemic-knowledge-runtime#status">current status</a> for the exact boundary.</p>
   </section>
 
   <section id="guides" class="section">
     <div class="section-heading"><p class="eyebrow">06 / Go deeper</p><h2>Follow the question<br>you came with.</h2></div>
     <div class="guide-grid">
-      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/overview.md"><strong>Understand the model <span aria-hidden="true">↗</span></strong><span>The pipeline, transaction lifecycle and system boundaries.</span></a>
-      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/guide.md"><strong>Work with a store <span aria-hidden="true">↗</span></strong><span>Record, change and explain claims; handle rejected or stale work.</span></a>
-      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md"><strong>Look up a command <span aria-hidden="true">↗</span></strong><span>Configuration, formats, examples and named refusals.</span></a>
-      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/sdk.md"><strong>Build a Rust consumer <span aria-hidden="true">↗</span></strong><span>Typed replies, document builders and a persistent session.</span></a>
-      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/schema-evolution.md"><strong>Evolve the schema <span aria-hidden="true">↗</span></strong><span>Validation profiles, schema versions and supported changes.</span></a>
-      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/tree/main/systems/ekr"><strong>Inspect the specification <span aria-hidden="true">↗</span></strong><span>ESS domains and conformance contracts for the runtime.</span></a>
+      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/overview.md"><strong>Understand the model <span class="ext" aria-hidden="true"></span></strong><span>The pipeline, transaction lifecycle and system boundaries.</span></a>
+      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/guide.md"><strong>Work with a store <span class="ext" aria-hidden="true"></span></strong><span>Record, change and explain claims; handle rejected or stale work.</span></a>
+      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/cli.md"><strong>Look up a command <span class="ext" aria-hidden="true"></span></strong><span>Configuration, formats, examples and named refusals.</span></a>
+      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/sdk.md"><strong>Build a Rust consumer <span class="ext" aria-hidden="true"></span></strong><span>Typed replies, document builders and a persistent session.</span></a>
+      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/blob/main/docs/schema-evolution.md"><strong>Evolve the schema <span class="ext" aria-hidden="true"></span></strong><span>Validation profiles, schema versions and supported changes.</span></a>
+      <a href="https://github.com/beyond10x/epistemic-knowledge-runtime/tree/main/systems/ekr"><strong>Inspect the specification <span class="ext" aria-hidden="true"></span></strong><span>ESS domains and conformance contracts for the runtime.</span></a>
     </div>
   </section>
 </main>

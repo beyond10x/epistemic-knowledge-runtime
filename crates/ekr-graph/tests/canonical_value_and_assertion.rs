@@ -25,8 +25,9 @@ use ekr_core::{
 };
 use ekr_graph::{
     Assertion, AssertionLifecycle, Assessment, CanonicalRef, CanonicalValue, Confidence, Edge,
-    Evidence, EvidenceSource, InadmissibleValue, Node, Object, Observation, ObservationContent,
-    Predicate, RetractionReason, Subject, Support, TemporalRange, TransactionTime,
+    Evidence, EvidenceSource, InadmissibleValue, MergedEnds, Node, Object, Observation,
+    ObservationContent, Predicate, RetractionReason, Subject, Support, TemporalRange,
+    TransactionTime,
 };
 use ekr_ontology::Value;
 
@@ -1356,6 +1357,14 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         ),
     ];
 
+    // `story:merge-entity-applies`: which end of an edge a merge rewrote. No variant carries a
+    // payload, so each appears once.
+    let merged_ends = vec![
+        (0, MergedEnds::Source),
+        (1, MergedEnds::Target),
+        (2, MergedEnds::Both),
+    ];
+
     let mut fixtures = vec![
         ("Subject", encodings(subjects)),
         ("Predicate", encodings(predicates)),
@@ -1365,6 +1374,7 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         ("CanonicalValue", encodings(values)),
         ("EvidenceSource", encodings(sources)),
         ("ObservationContent", encodings(contents)),
+        ("MergedEnds", encodings(merged_ends)),
     ];
     fixtures.extend(legacy_sum_type_fixtures());
     fixtures
@@ -1777,6 +1787,7 @@ fn the_declaration_order_of_every_sum_type_equals_its_numbering() {
             "Assessment".to_owned(),
             "CanonicalValue".to_owned(),
             "EvidenceSource".to_owned(),
+            "MergedEnds".to_owned(),
             "Object".to_owned(),
             "ObservationContent".to_owned(),
             "Predicate".to_owned(),

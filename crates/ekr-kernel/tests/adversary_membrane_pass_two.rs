@@ -93,6 +93,7 @@ impl World {
         Self {
             graph: CanonicalGraph {
                 attachments: Default::default(),
+                superseded: Default::default(),
                 root: GraphRoot {
                     id: root_id,
                     space: Space::Canonical,
@@ -393,6 +394,8 @@ fn a_node_is_not_merged_into_itself() {
             .outcome(vec![GraphOperation::MergeEntity(ekr_kernel::EntityMerge {
                 absorbed: world.open,
                 into: world.open,
+                reason: None,
+                evidence: None,
             })])
             .is_some(),
         "a MergeEntity naming one node as both the absorbed record and the surviving one passed \

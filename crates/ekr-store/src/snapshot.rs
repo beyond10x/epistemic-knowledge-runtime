@@ -10,7 +10,8 @@ use ekr_core::{
 };
 use ekr_graph::{
     Assertion, AttachedEvidence, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence,
-    GraphRoot, InadmissibleValue, Node, Object, Space, Subject,
+    GraphRoot, InadmissibleValue, MergeLineage, Node, Object, RewrittenAssertion, Space, Subject,
+    Superseded, SupersededNode,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -43,6 +44,11 @@ pub struct GraphDocument {
     /// a graph without attachments is written as the bytes it was written as before the field
     /// existed. An attachment carries no value, so it has no transient instantiation either.
     pub attachments: Attachments,
+    /// The nodes superseded by another, by the superseded node's id (`story:supersede-node`),
+    /// each with the edges retired with it, in the transient instantiation as nodes and edges
+    /// are. Omitted from the document when empty, so a graph without a supersession is written as
+    /// the bytes it was written as before the field existed.
+    pub superseded: BTreeMap<NodeId, SupersededNode<Value>>,
 }
 
 // The remote derive preserves the useful in-memory graph shape while requiring a complete,
@@ -66,6 +72,12 @@ struct GraphFields {
         deserialize_with = "unique_attachments"
     )]
     attachments: Attachments,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "ekr_core::decode::unique_map"
+    )]
+    superseded: BTreeMap<NodeId, SupersededNode<Value>>,
 }
 
 // Keep the map and each nested set strict without changing their serialized shape.
@@ -117,6 +129,8 @@ struct BorrowedGraphFields<'a> {
     evidence: &'a BTreeMap<EvidenceId, Evidence>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     attachments: &'a Attachments,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    superseded: &'a Superseded,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +182,7 @@ impl GraphDocument {
             assertions,
             evidence,
             attachments,
+            superseded,
         } = graph;
         BorrowedGraphEnvelope {
             format: GraphFormat::Current,
@@ -179,6 +194,7 @@ impl GraphDocument {
                 assertions,
                 evidence,
                 attachments,
+                superseded,
             },
         }
         .serialize(serializer)
@@ -211,6 +227,11 @@ impl GraphDocument {
                 .collect(),
             evidence: graph.evidence.clone(),
             attachments: graph.attachments.clone(),
+            superseded: graph
+                .superseded
+                .iter()
+                .map(|(id, record)| (*id, widen_superseded(record)))
+                .collect(),
         }
     }
 
@@ -393,6 +414,71 @@ fn widen_edge(edge: &Edge<CanonicalValue>) -> Edge<Value> {
             .properties
             .iter()
             .map(|(id, value)| (*id, value.iter().cloned().map(Value::from).collect()))
+            .collect(),
+    }
+}
+
+/// A supersession record, as a candidate's shape: its node and edges widened as any are, and its
+/// two references losing their type on the way out, as an edge's ends do.
+fn widen_superseded(record: &SupersededNode<CanonicalValue>) -> SupersededNode<Value> {
+    SupersededNode {
+        node: widen_node(&record.node),
+        edges: record
+            .edges
+            .iter()
+            .map(|(id, edge)| (*id, widen_edge(edge)))
+            .collect(),
+        by: record.by.node(),
+        revision: record.revision,
+        reason: record.reason.clone(),
+        evidence: record.evidence.iter().map(|held| held.id()).collect(),
+        merge: record.merge.as_ref().map(widen_lineage),
+    }
+}
+
+/// A merge's lineage, as a candidate's shape: its values widened and its references losing their
+/// type on the way out, as an assertion's do.
+fn widen_lineage(lineage: &MergeLineage<CanonicalValue>) -> MergeLineage<Value> {
+    let values = |held: &BTreeMap<PropertyId, Vec<CanonicalValue>>| {
+        held.iter()
+            .map(|(id, values)| (*id, values.iter().cloned().map(Value::from).collect()))
+            .collect()
+    };
+    MergeLineage {
+        edges: lineage.edges.clone(),
+        collapsed: lineage.collapsed.clone(),
+        retired: lineage.retired.clone(),
+        assertions: lineage
+            .assertions
+            .iter()
+            .map(|(id, rewritten)| {
+                (
+                    *id,
+                    RewrittenAssertion {
+                        subject: rewritten.subject.map(|subject| match subject {
+                            Subject::Node(node) => Subject::Node(node.node()),
+                            Subject::Edge(edge) => Subject::Edge(edge.id()),
+                            Subject::Type(type_id) => Subject::Type(type_id),
+                        }),
+                        object: rewritten.object.as_ref().map(|object| match object {
+                            Object::Value(value) => Object::Value(Value::from(value.clone())),
+                            Object::Node(node) => Object::Node(node.node()),
+                            Object::Type(type_id) => Object::Type(*type_id),
+                        }),
+                    },
+                )
+            })
+            .collect(),
+        moved_properties: lineage.moved_properties.clone(),
+        node_values: lineage
+            .node_values
+            .iter()
+            .map(|(id, held)| (*id, values(held)))
+            .collect(),
+        edge_values: lineage
+            .edge_values
+            .iter()
+            .map(|(id, held)| (*id, values(held)))
             .collect(),
     }
 }

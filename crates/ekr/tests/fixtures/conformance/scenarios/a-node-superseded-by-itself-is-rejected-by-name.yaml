@@ -1,0 +1,44 @@
+# story:supersede-node, acceptance a-supersession-is-refused-by-name, a node superseded by itself.
+#
+# The target has committed revision 1 before the first act. The fixture
+# `supersede-node-itself.yaml` supersedes Bob (0302) by Bob. A supersession retires one node in
+# favour of another, so validation rejects it with exactly one issue, which the Structural
+# validator raises under the name supersede-into-itself.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-node-superseded-by-itself-is-rejected-by-name
+summary: A supersession of a node by itself is rejected with one issue, supersede-into-itself, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: supersession
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: supersede-into-itself

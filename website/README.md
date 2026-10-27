@@ -1,6 +1,8 @@
 # Public project site
 
-`index.html` and `styles.css` are the authored, script-free introduction to EKR.
+`index.html` and `styles.css` are the authored, script-free introduction to EKR, with
+`404.html` for unknown paths and `favicon.svg`. The stylesheet follows the reader's light or
+dark preference.
 Detailed guides remain under `docs/`. Change the product documentation there when
 behavior changes, and keep this shorter entry point consistent with it.
 

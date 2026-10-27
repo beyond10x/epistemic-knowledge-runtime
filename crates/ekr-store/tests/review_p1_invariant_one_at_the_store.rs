@@ -52,6 +52,7 @@ fn ontology() -> Ontology {
 fn graph(ontology: &Ontology) -> CanonicalGraph {
     CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root: GraphRoot {
             id: GraphRootId::mint(),
             space: Space::Canonical,

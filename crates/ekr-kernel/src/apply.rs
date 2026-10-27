@@ -1,14 +1,14 @@
 //! Pure unordered application, reachable only with the kernel's private validated capability.
 use crate::replay::Revision;
 use crate::{GraphOperation, ValidatedTransaction};
-use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, Timestamp};
+use ekr_core::{AgentId, ContentHash, EdgeId, NodeId, RevisionId, RevisionNumber, Timestamp};
 use ekr_graph::{
     AssertionLifecycle, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, Edge, Node,
-    Root, TransactionTime,
+    Root, SupersededNode, TransactionTime,
 };
 use ekr_store::{evidence_root, knowledge_root, StoreError};
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, Weak};
 
 /// The root the last [`apply`] on this thread computed, with every input it is a function of.
@@ -110,7 +110,8 @@ fn append_only(tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>) -> bool 
             | GraphOperation::DefineEdgeType(_)
             | GraphOperation::ModifyProperty(_)
             | GraphOperation::WidenEdgeType(_)
-            | GraphOperation::CiteEvidence(_) => false,
+            | GraphOperation::CiteEvidence(_)
+            | GraphOperation::SupersedeNode(_) => false,
         })
 }
 
@@ -322,6 +323,79 @@ fn applied_graph(
     apply_to_graph(graph, revision, tx, validators, at)
 }
 
+/// Every `SupersedeNode` of `tx`, applied to `graph` at its revision (design § 110.2): each node
+/// leaves `nodes`, every edge with it at either end leaves `edges`, and both are held in a record
+/// under the node's id naming `by`; every earlier record naming a node superseded now is
+/// repointed to that node's `by`, so a record names a node the head holds. Validation held each
+/// node held and superseded once, each `by` held and not superseded, and no other operation
+/// naming either, so the order of the operations does not matter. An edge between two nodes the
+/// transaction supersedes is retired with its source.
+fn supersede(
+    graph: &mut CanonicalGraph,
+    tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>,
+) -> Result<(), StoreError> {
+    let supersessions: BTreeMap<NodeId, &crate::NodeSupersession> = tx
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            GraphOperation::SupersedeNode(supersession) => Some((supersession.node, supersession)),
+            _ => None,
+        })
+        .collect();
+    if supersessions.is_empty() {
+        return Ok(());
+    }
+    let at = |edge: &Edge| {
+        let (source, target) = (edge.source.node(), edge.target.node());
+        if supersessions.contains_key(&source) {
+            Some(source)
+        } else {
+            supersessions.contains_key(&target).then_some(target)
+        }
+    };
+    let retiring: Vec<(EdgeId, NodeId)> = graph
+        .edges
+        .values()
+        .filter_map(|edge| at(edge).map(|node| (edge.id, node)))
+        .collect();
+    let mut retired: BTreeMap<NodeId, BTreeMap<EdgeId, Edge>> = BTreeMap::new();
+    for (id, node) in retiring {
+        if let Some(edge) = graph.edges.remove(&id) {
+            retired.entry(node).or_default().insert(id, edge);
+        }
+    }
+    for record in graph.superseded.values_mut() {
+        if let Some(supersession) = supersessions.get(&record.by.node()) {
+            record.by = CanonicalRef::new(supersession.by);
+        }
+    }
+    let revision = graph.revision;
+    for (id, supersession) in supersessions {
+        let node = graph
+            .nodes
+            .remove(&id)
+            .ok_or_else(|| StoreError::Document("admitted-node-missing".into()))?;
+        graph.superseded.insert(
+            id,
+            SupersededNode {
+                node,
+                edges: retired.remove(&id).unwrap_or_default(),
+                by: CanonicalRef::new(supersession.by),
+                revision,
+                reason: supersession.reason.clone(),
+                evidence: supersession
+                    .evidence
+                    .iter()
+                    .copied()
+                    .map(CanonicalRef::new)
+                    .collect(),
+                merge: None,
+            },
+        );
+    }
+    Ok(())
+}
+
 fn apply_to_graph(
     mut graph: CanonicalGraph,
     revision: RevisionNumber,
@@ -483,9 +557,12 @@ fn apply_to_graph(
                     effective_from: change.effective_from,
                 };
             }
-            GraphOperation::MergeEntity(_) => {
+            // The bare P1 shape is refused under every profile, so admitting one is unreachable.
+            GraphOperation::MergeEntity(merge) if merge.is_bare() => {
                 return Err(StoreError::Document("unsupported-operation".into()));
             }
+            // Applied below, after every other change, supersessions included (design § 111.2).
+            GraphOperation::MergeEntity(_) => {}
             // Applied together below: a schema change is one new version, not three.
             GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
@@ -497,8 +574,13 @@ fn apply_to_graph(
             | GraphOperation::AttachEvidence(_)
             | GraphOperation::AddEvidence(_)
             | GraphOperation::CiteEvidence(_) => {}
+            // Applied together below, after every other change: one pass over the edges retires
+            // those of every node the transaction supersedes.
+            GraphOperation::SupersedeNode(_) => {}
         }
     }
+    supersede(&mut graph, tx)?;
+    crate::merge::apply(&mut graph, tx)?;
     // `ekr.p2-apply/1`: a schema change replaces the ontology with the version it names, derived
     // from the prior one with `number + 1`, `parent` = the prior version, and the commit time as
     // its `created_at`. `GraphRoot.schema_version_id` stays the seed's: it is the root's identity,

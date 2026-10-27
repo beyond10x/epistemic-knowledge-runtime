@@ -1,0 +1,102 @@
+# story:supersede-node, acceptance a-read-of-a-superseded-id-names-its-successor and
+# a-superseded-node-reads-at-an-earlier-revision.
+#
+# The store `superseded`: the seed holds alpha (…0110) and beta (…0111), an edge from alpha to
+# beta and an assertion about it; revision 1 creates `beta, kept` (…f20001) and an assertion about
+# beta; revision 2 supersedes beta by `beta, kept`.
+#
+# What is held:
+#   - at the head, DescribeNode of beta under /1 and /2, and an expansion seeded with beta, are
+#     each refused as NodeSuperseded naming `beta, kept` and revision 2;
+#   - at revision 1, DescribeNode of beta describes it.
+# That every other head read omits beta, and that the refusal reaches every surface by that name,
+# is held in crates/ekr-views/tests/supersession.rs and crates/ekr/tests/mcp.rs.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-superseded-node-is-refused-naming-the-node-it-is-superseded-by
+summary: A superseded node is refused as NodeSuperseded naming the node it is superseded by, in either detail format and as a seed; the revision before describes it.
+
+timeline:
+  - at: 2027-01-16T12:00:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: superseded
+      at: null
+      node: 00000000-0000-4000-8000-000000000111
+      format: null
+      limit: null
+      edge_type: null
+      after: null
+    outcome: node-superseded
+    error:
+      name: ekr.views.NodeSuperseded
+      fields:
+        node: 00000000-0000-4000-8000-000000000111
+        by: 00000000-0000-4000-8000-000000f20001
+        revision: 2
+    no_events:
+      - ekr.views.NodeDescribed
+
+  - at: 2027-01-16T12:01:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: superseded
+      at: null
+      node: 00000000-0000-4000-8000-000000000111
+      format: ekr.node-detail/2
+      limit: null
+      edge_type: null
+      after: null
+    outcome: node-superseded
+    error:
+      name: ekr.views.NodeSuperseded
+      fields:
+        node: 00000000-0000-4000-8000-000000000111
+        by: 00000000-0000-4000-8000-000000f20001
+        revision: 2
+    no_events:
+      - ekr.views.NodeDetailed
+
+  - at: 2027-01-16T12:02:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: superseded
+      at: null
+      seeds:
+        - 00000000-0000-4000-8000-000000000111
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+      format: null
+    outcome: node-superseded
+    error:
+      name: ekr.views.NodeSuperseded
+      fields:
+        node: 00000000-0000-4000-8000-000000000111
+        by: 00000000-0000-4000-8000-000000f20001
+        revision: 2
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-16T12:03:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: superseded
+      at: 1
+      node: 00000000-0000-4000-8000-000000000111
+      format: null
+      limit: null
+      edge_type: null
+      after: null
+    outcome: described
+    events:
+      - event: ekr.views.NodeDescribed
+        payload:
+          revision: 1
+          node: 00000000-0000-4000-8000-000000000111
+          edges: 1

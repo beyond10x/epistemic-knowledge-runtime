@@ -97,6 +97,7 @@ impl Fixture {
             },
             graph: GraphDocument {
                 attachments: Default::default(),
+                superseded: Default::default(),
                 root: GraphRoot {
                     id: root,
                     space: Space::Canonical,

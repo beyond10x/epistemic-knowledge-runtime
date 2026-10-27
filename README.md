@@ -36,9 +36,9 @@ authentication service. See [hosted PostgreSQL](docs/cli.md#hosted-postgresql).
 
 | available | not yet supported |
 |---|---|
-| a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
+| a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | a split of a merged node; a `MergeEntity` without a `reason` and `evidence`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
-| propose → validate → commit of nodes, edges, property updates, assertions, retractions, supersessions and named operations, up to 10,000 operations in one `ekr.transaction-document/2` of at most 8 MiB | evidence from observations after seeding: `AddEvidence` adds human statements of up to 16,384 bytes; larger payloads still enter through the seed with `ekr seed --evidence` |
+| propose → validate → commit of nodes, edges, property updates, assertions, retractions, supersessions, merges and named operations, up to 10,000 operations in one `ekr.transaction-document/2` of at most 8 MiB | evidence from observations after seeding: `AddEvidence` adds human statements of up to 16,384 bytes; larger payloads still enter through the seed with `ekr seed --evidence` |
 | reads: snapshots at any revision, the schema at any revision, what is believed at a valid time, and the full explanation of an assertion | property constraints, operation preconditions and emitted events: declared, but writes touching them are refused |
 | file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema discovery from evidence and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
 | hosted PostgreSQL with verified TLS, bounded connection pools and a preserving initial copy from SQLite | PostgreSQL source copies and atomic incremental suffix publication |

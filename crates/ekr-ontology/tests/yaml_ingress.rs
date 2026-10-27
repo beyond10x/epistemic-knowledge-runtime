@@ -488,7 +488,7 @@ fn classified() -> Inventory {
         (
             "crates/ekr-kernel/src/replay.rs",
             &[
-                ("serde_yaml_ng : : to_string", 2),
+                ("serde_yaml_ng : : to_string", 3),
                 ("serde_yaml_ng : : Value", 1),
                 ("serde_yaml_ng : : from_slice", 1),
                 ("serde_yaml_ng : : from_value", 1),

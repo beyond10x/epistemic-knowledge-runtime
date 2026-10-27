@@ -1209,6 +1209,9 @@ fn answer(mut stream: TcpStream, engine: &Engine, log: &Mutex<Vec<String>>) {
         QueryError::NodeIsAType { node, .. } => {
             refusal(stream, 404, "NodeIsAType", &node.to_string());
         }
+        QueryError::NodeSuperseded { node, .. } => {
+            refusal(stream, 404, "NodeSuperseded", &node.to_string());
+        }
         QueryError::Project(error) => refusal(stream, 500, "Read", &error.to_string()),
     };
     match path {

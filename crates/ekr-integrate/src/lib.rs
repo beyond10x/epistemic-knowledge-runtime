@@ -10,6 +10,9 @@
 //! A candidate is a node of the snapshot's canonical root whose `type_id` equals the reference's
 //! `type_id` exactly and whose `aliases` hold one of the reference's aliases, compared byte for
 //! byte. `canonical_name` is never compared: AGENTS.md invariant 3, names are not identities.
+//! A superseded node of that root matching the same way (`story:supersede-node`) is a candidate
+//! as the node its record names, whatever that node's type, so a reference to the old key
+//! resolves to the node kept; candidates are deduplicated, and a superseded node is never one.
 //!
 //! | Candidates | Outcome |
 //! |---|---|
@@ -71,6 +74,7 @@
 //!
 //! let graph = CanonicalGraph {
 //!     attachments: Default::default(),
+//!     superseded: Default::default(),
 //!     root: GraphRoot {
 //!         id: root_id,
 //!         space: Space::Canonical,
@@ -133,7 +137,7 @@ pub struct TypedReference {
 pub(crate) use ekr_core::decode::strings;
 
 /// The one canonical node a reference resolved to: `ekr.integrate.ResolvedReference`
-/// (`integrate.yaml`, lines 42–46).
+/// (`integrate.yaml`, lines 48–52).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedReference {
@@ -142,7 +146,7 @@ pub struct ResolvedReference {
 }
 
 /// Every candidate a reference matched, in id order, with none chosen:
-/// `ekr.integrate.AmbiguousReference` (`integrate.yaml`, lines 49–53).
+/// `ekr.integrate.AmbiguousReference` (`integrate.yaml`, lines 55–59).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AmbiguousReference {
@@ -151,7 +155,7 @@ pub struct AmbiguousReference {
 }
 
 /// Why a reference cannot be resolved at all: `ekr.integrate.ResolutionRefusalCode`
-/// (`integrate.yaml`, lines 56–61).
+/// (`integrate.yaml`, lines 62–67).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ResolutionRefusalCode {
     /// The reference holds no alias but the empty string, so nothing identifies the node it means.
@@ -177,7 +181,7 @@ impl ResolutionRefusalCode {
     }
 }
 
-/// A refused reference and why: `ekr.integrate.ResolutionRefusal` (`integrate.yaml`, lines 63–69).
+/// A refused reference and why: `ekr.integrate.ResolutionRefusal` (`integrate.yaml`, lines 69–75).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolutionRefusal {
@@ -188,7 +192,7 @@ pub struct ResolutionRefusal {
 }
 
 /// What resolving one typed reference answers: `ekr.integrate.ResolutionOutcome`
-/// (`integrate.yaml`, lines 73–80), tagged by `kind`.
+/// (`integrate.yaml`, lines 79–86), tagged by `kind`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum ResolutionOutcome {
@@ -207,16 +211,24 @@ pub enum ResolutionOutcome {
 pub fn resolve(snapshot: GraphSnapshot<'_>, reference: &TypedReference) -> ResolutionOutcome {
     let graph = snapshot.graph();
     outcome(snapshot, reference, |type_id, aliases| {
-        graph
-            .nodes
-            .values()
-            .filter(|node| node.root_id == graph.root.id && node.type_id == type_id)
-            .filter(|node| {
-                node.aliases
+        let matches = |node: &&ekr_graph::Node| {
+            node.root_id == graph.root.id
+                && node.type_id == type_id
+                && node
+                    .aliases
                     .iter()
                     .any(|alias| aliases.binary_search(alias).is_ok())
-            })
-            .map(|node| node.id)
+        };
+        // A superseded node that matches is the node its record names (`story:supersede-node`).
+        let held = graph.nodes.values().filter(matches).map(|node| node.id);
+        let kept = graph
+            .superseded
+            .values()
+            .filter(|record| matches(&&record.node))
+            .map(|record| record.by.node());
+        held.chain(kept)
+            .collect::<BTreeSet<NodeId>>()
+            .into_iter()
             .collect()
     })
 }

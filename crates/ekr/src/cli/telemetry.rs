@@ -128,12 +128,12 @@ impl Outcome {
     }
 
     /// The class of the named refusal `name`, as `views.yaml` assigns it: `not_seeded`,
-    /// `not_found` for every `…NotFound` and `ekr.views.NodeIsAType`, `unavailable` for
-    /// `store-replaced`, and `invalid_input` for every other.
+    /// `not_found` for every `…NotFound`, `ekr.views.NodeIsAType` and `ekr.views.NodeSuperseded`,
+    /// `unavailable` for `store-replaced`, and `invalid_input` for every other.
     pub(super) fn of_refusal(name: &str) -> Self {
         match name {
             "ekr.views.NotSeeded" | "ekr.kernel.NotSeeded" => Self::NotSeeded,
-            "ekr.views.NodeIsAType" => Self::NotFound,
+            "ekr.views.NodeIsAType" | "ekr.views.NodeSuperseded" => Self::NotFound,
             super::session::STORE_REPLACED => Self::Unavailable,
             name if name.ends_with("NotFound") => Self::NotFound,
             _ => Self::InvalidInput,
@@ -666,6 +666,7 @@ mod tests {
             ("ekr.views.RevisionNotFound", Outcome::NotFound),
             ("ekr.views.NodeNotFound", Outcome::NotFound),
             ("ekr.views.NodeIsAType", Outcome::NotFound),
+            ("ekr.views.NodeSuperseded", Outcome::NotFound),
             ("ekr.views.NodeTypeNotFound", Outcome::NotFound),
             ("ekr.kernel.AssertionNotFound", Outcome::NotFound),
             ("ekr.kernel.RevisionNotFound", Outcome::NotFound),

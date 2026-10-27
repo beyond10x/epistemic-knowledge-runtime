@@ -201,6 +201,8 @@ fn a_revision_since_lists_exactly_the_changes_of_the_revisions_after_it() {
                 assertions_superseded: 1,
                 assertions_retracted: 1,
                 evidence_added: 0,
+                nodes_superseded: 0,
+                nodes_merged: 0,
                 first_revision: Some(1),
                 last_revision: Some(3),
                 format: ekr_views::CHANGES_FORMAT,

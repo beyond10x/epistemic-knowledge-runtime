@@ -377,6 +377,86 @@ types:
       # before the field existed (story:evidence-attaches-to-a-held-assertion).
       - name: attachments
         type: Optional<Map<String, List<ekr.graph.AttachedEvidenceRecord>>>
+      # Keyed by the superseded node's id (story:supersede-node). Omitted, never empty, when no
+      # node is superseded, so a graph without a supersession is the document it was before the
+      # field existed.
+      - name: superseded
+        type: Optional<Map<String, ekr.graph.SupersededNodeRecord>>
+
+  # One node a SupersedeNode retired (story:supersede-node, design § 110): the node as the head
+  # held it before, the edges retired with it keyed by their ids, the node it is superseded by,
+  # the revision whose commit retired it, the reason and the evidence, in evidence-id order.
+  # Filed under the node's id in GraphDocumentBodyProjection.superseded.
+  - name: ekr.graph.SupersededNodeRecord
+    kind: struct
+    fields:
+      - name: node
+        type: ekr.graph.NodeRecord
+      - name: edges
+        type: Map<String, ekr.graph.EdgeRecord>
+      - name: by
+        type: ekr.graph.NodeId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: reason
+        type: String
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+      # Present only on the record of a node an ekr.kernel MergeEntity absorbed
+      # (story:merge-entity-applies, design § 111): what the merge moved, rewrote and retired.
+      # Omitted, never null, otherwise, so a supersession record is the document it was before
+      # the field existed, and encoded after the six fields above only when present, so its
+      # knowledge root is too.
+      - name: merge
+        type: Optional<ekr.graph.MergeLineageRecord>
+
+  # Which end or ends of an edge named the node a merge absorbed: an edge from it to itself is
+  # Both.
+  - name: ekr.graph.MergedEnds
+    kind: enum
+    variants: [Source, Target, Both]
+
+  # What a merge rewrote in one assertion: each field it rewrote, with what that field held before
+  # — the subject, the absorbed node or an edge of it that collapsed onto an edge of the node
+  # kept; the object, the absorbed node or a value holding a NodeRef to it at any depth. A field
+  # the merge left alone is omitted.
+  - name: ekr.graph.RewrittenAssertionRecord
+    kind: struct
+    fields:
+      - name: subject
+        type: Optional<ekr.graph.SubjectProjection>
+      - name: object
+        type: Optional<ekr.graph.ObjectProjection>
+
+  # The lineage of one merge (architecture-decision-record:0018-merge-and-split-identity,
+  # decision 5), which a split that reverts the merge reads: (a) `edges`, each edge rewritten in
+  # place, keyed by its id, with the end or ends that named the absorbed node; (b) `collapsed`,
+  # each edge of the absorbed node that collapsed onto an edge the node kept already held — same
+  # type, direction and other end, equal properties — keyed by its id, with that edge's id; (c)
+  # `retired`, each edge joining the absorbed node and the node kept; (d) `assertions`, each
+  # rewritten assertion, keyed by its id; (e) `moved_properties`, each property that moved from
+  # the absorbed node to the node kept; and `node_values` and `edge_values`, each property of a
+  # node or an edge of the head that held a NodeRef to the absorbed node, keyed by the node's or
+  # the edge's id and then the property's, with its values before. The collapsed and the retired
+  # edges are held whole in the record's `edges`, the absorbed node, every value included, in its
+  # `node`. Every list in id order.
+  - name: ekr.graph.MergeLineageRecord
+    kind: struct
+    fields:
+      - name: edges
+        type: Map<String, ekr.graph.MergedEnds>
+      - name: collapsed
+        type: Map<String, ekr.graph.EdgeId>
+      - name: retired
+        type: List<ekr.graph.EdgeId>
+      - name: assertions
+        type: Map<String, ekr.graph.RewrittenAssertionRecord>
+      - name: moved_properties
+        type: List<ekr.ontology.PropertyId>
+      - name: node_values
+        type: Map<String, Map<String, List<ekr.graph.TypedValue>>>
+      - name: edge_values
+        type: Map<String, Map<String, List<ekr.graph.TypedValue>>>
 
   # One piece of evidence attached to an assertion after the assertion was added: the evidence,
   # and the revision whose commit attached it. Filed under the assertion's id in
@@ -434,6 +514,11 @@ entities:
         target: ekr.graph.Assertion
         cardinality: many
         via: root_id
+      - name: superseded
+        kind: owns
+        target: ekr.graph.SupersededNode
+        cardinality: many
+        via: root_id
     lifecycle:
       initial: Active
       states: [Active]
@@ -473,6 +558,80 @@ entities:
       initial: Present
       states: [Present]
       terminal: [Present]
+
+  # A node retired in favour of the node that replaces it (story:supersede-node, design § 110,
+  # architecture-decision-record:0017-a-node-is-superseded-by-another). What creates one: an
+  # ekr.kernel SupersedeNode operation of a committed transaction (ekr.kernel.NodeSupersession);
+  # `revision` is the revision that commit produced, `reason` and `evidence` its own, `evidence`
+  # naming at least one entry canonical state retains. The record holds the node whole, with its
+  # root_id, type and aliases, and the edges retired with it, by id in `edges`, each held whole:
+  # every edge that had it at either end, which leave the head's nodes and edges, so a reader that
+  # builds from those omits the node without a filter of its own. An edge between two nodes one
+  # commit supersedes is retired once, into the record of its source; the record of its target
+  # does not hold it. Assertions about it are not changed. `by` is a node the head
+  # holds, never a superseded one: a supersession of the node a record names repoints that record
+  # to the new `by` in the same revision, so a reader follows at most one pointer (many records to
+  # one kept node, referenced, not owned). Nothing removes a record. The canonical graph keeps the
+  # records as a collection of its own beside nodes and edges, keyed by the superseded node's id;
+  # the knowledge root encodes that collection only when it holds one, after the attachments, so a
+  # graph without a supersession has the root it had before they existed. A typed reference
+  # matching the superseded node's exact type and one of its aliases resolves to `by`
+  # (ekr.integrate), and those aliases stay taken under its type (ekr.kernel alias-already-exists).
+  # An ekr.kernel MergeEntity of a committed transaction creates one too (ekr.kernel.EntityMerge,
+  # story:merge-entity-applies, design § 111): the absorbed node, retired as a supersession retires
+  # one, `by` the node it was merged into; no lifecycle state is added to ekr.graph.Node, and an
+  # absorbed node is one held in a record that carries merge lineage. A merge retires only the
+  # edges joining the absorbed node and the node kept and those that collapse onto an edge of the
+  # node kept, into `edges`; every other edge at the absorbed node stays in the head, rewritten to
+  # the node kept and keeping its id, as does every assertion naming it. `merged_edges` names the
+  # edges of the head the merge rewrote or collapsed edges onto, and `merged_assertions` the
+  # assertions it rewrote, both empty for a supersession; the record's lineage
+  # (ekr.graph.MergeLineageRecord) says what each held before.
+  - name: ekr.graph.SupersededNode
+    identity:
+      name: node_id
+      type: ekr.graph.NodeId
+    fields:
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: by
+        type: ekr.graph.NodeId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: reason
+        type: String
+      - name: edges
+        type: List<ekr.graph.EdgeId>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+      - name: merged_edges
+        type: List<ekr.graph.EdgeId>
+      - name: merged_assertions
+        type: List<ekr.graph.AssertionId>
+    relations:
+      - name: kept
+        kind: references
+        target: ekr.graph.Node
+        cardinality: one
+        via: by
+      # The edges of the head a merge rewrote, each keeping its id, or collapsed an edge of the
+      # absorbed node onto. They outlive the record's making and may later be deleted:
+      # references, many.
+      - name: rewritten_edges
+        kind: references
+        target: ekr.graph.Edge
+        cardinality: many
+        via: merged_edges
+      # The assertions a merge rewrote in place, each keeping its id: references, many.
+      - name: rewritten_assertions
+        kind: references
+        target: ekr.graph.Assertion
+        cardinality: many
+        via: merged_assertions
+    lifecycle:
+      initial: Superseded
+      states: [Superseded]
+      terminal: [Superseded]
 
   # Design § 12.
   - name: ekr.graph.Edge

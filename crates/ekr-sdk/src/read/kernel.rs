@@ -89,6 +89,66 @@ pub struct SnapshotGraph {
     /// in evidence-id order. Empty, and absent from the document, when there is none.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub attachments: BTreeMap<AssertionId, Vec<SnapshotAttachment>>,
+    /// The nodes superseded by another, by the superseded node's id: each with the edges retired
+    /// with it. Empty, and absent from the document, when there is none.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub superseded: BTreeMap<NodeId, SnapshotSupersededNode>,
+}
+
+/// A node a `SupersedeNode` retired or a `MergeEntity` absorbed, as its supersession record holds
+/// it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotSupersededNode {
+    /// The node, as the head held it before.
+    pub node: SnapshotNode,
+    /// The edges retired with it, by id: for a merge, the edges joining it to the node kept and
+    /// those that collapsed onto an edge of the node kept.
+    pub edges: BTreeMap<EdgeId, SnapshotEdge>,
+    /// The node it is superseded by, which the revision holds.
+    pub by: NodeId,
+    /// The revision that superseded it.
+    pub revision: u64,
+    /// Why.
+    pub reason: String,
+    /// The evidence the supersession rests on, in id order.
+    pub evidence: Vec<EvidenceId>,
+    /// What a merge moved, rewrote and retired, for a node a `MergeEntity` absorbed; absent from
+    /// the document for one a `SupersedeNode` retired (design § 111).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub merge: Option<SnapshotMergeLineage>,
+}
+
+/// What a merge moved, rewrote and retired, as the absorbed node's record holds it (design
+/// § 111.2).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotMergeLineage {
+    /// Each edge rewritten in place, with the end or ends that named the absorbed node: `Source`,
+    /// `Target` or `Both`.
+    pub edges: BTreeMap<EdgeId, String>,
+    /// Each edge that collapsed onto an edge of the node kept, with that edge's id.
+    pub collapsed: BTreeMap<EdgeId, EdgeId>,
+    /// Each edge joining the absorbed node and the node kept, retired.
+    pub retired: Vec<EdgeId>,
+    /// Each rewritten assertion, with what each rewritten field held before.
+    pub assertions: BTreeMap<AssertionId, SnapshotRewrittenAssertion>,
+    /// Each property that moved to the node kept.
+    pub moved_properties: Vec<PropertyId>,
+    /// Each rewritten property of a node, by node and property, with its values before, each as
+    /// its tagged JSON.
+    pub node_values: BTreeMap<NodeId, BTreeMap<PropertyId, Vec<Value>>>,
+    /// The same for each rewritten property of an edge.
+    pub edge_values: BTreeMap<EdgeId, BTreeMap<PropertyId, Vec<Value>>>,
+}
+
+/// What a merge rewrote in one assertion: each field it rewrote, with what it held before.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotRewrittenAssertion {
+    /// The subject before, when the merge rewrote it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<SnapshotSubject>,
+    /// The object before, when the merge rewrote it: `{"Value": …}` or `{"Node": <id>}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object: Option<Value>,
 }
 
 /// One piece of evidence attached to an assertion after it was added.
@@ -161,6 +221,14 @@ pub struct SnapshotAssertion {
     pub valid_time: ValidTime,
     /// When it was recorded.
     pub transaction_time: RecordedTime,
+    /// In an explanation's Assertion link only: the node a superseded subject node, or the node
+    /// a retired subject edge was retired with, is superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_superseded_by: Option<NodeId>,
+    /// In an explanation's Assertion link only: the node a superseded Node object is
+    /// superseded by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_superseded_by: Option<NodeId>,
 }
 
 /// A canonical evidence entry.

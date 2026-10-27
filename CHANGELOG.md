@@ -4,6 +4,92 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.41] — 2026-10-21
+
+### Added
+
+- `!MergeEntity {absorbed, into, reason, evidence}` applies (story:merge-entity-applies, design
+  § 111, ADR 0018): it joins a duplicate node to the node it duplicates — of one type, or of types
+  related through `parents` — in a revision of its own. The absorbed node leaves the head into a
+  supersession record naming `into`, as a `SupersedeNode` retires a node, and every reference to it
+  is rewritten in place: each edge at it keeps its id and runs to `into`, an edge joining the two is
+  retired into the record, and one duplicating an edge `into` holds, with equal properties,
+  collapses onto it; each assertion about it, naming it as its object or in a `NodeRef` inside its
+  value, names `into`, every other byte unchanged; each `NodeRef` naming it in a node's or an edge's
+  properties names `into`; and a property only it holds moves to `into`. The record's `merge`
+  lineage — under `superseded` in `ekr snapshot` — says what moved. The absorbed node reads as a
+  superseded node does; `/changes` lists the merge as a `NodeMerged` change, counted in
+  `nodes_merged`, with `into` in `target`. Applied under every validation profile. Refused by name:
+  `merge-into-itself`, `unresolved-node`, `node-superseded`, `merge-without-reason`,
+  `merge-without-evidence`, `merge-evidence-unknown`, `merge-types-unrelated`,
+  `merge-undeclared-property`, `merge-property-conflict`, `merge-duplicate-edge-conflict`,
+  `merge-self-relation` (an active relation assertion joining the two nodes, either way: retract
+  it first), `edge-endpoint-type`, `wrong-type`, `edge-cardinality`, `property-cardinality` and
+  `superseded-node-named-in-transaction`. The bare `{absorbed, into}` shape is refused as before,
+  `unsupported-operation`, under every profile, so retained rejections replay; a store that never
+  merges keeps its roots and checkpoint bytes. `ekr compare` compares a merged node's lineage in
+  its `superseded` category. The SDK builds the bare shape with `EntityMerge::bare`, reads
+  `SnapshotSupersededNode::merge` and `ChangeKind::NodeMerged`, and `Resolver::observe` drops every
+  cached answer naming a node a committed merge absorbs.
+
+### Changed
+
+- **Breaking: the SDK's `EntityMerge::new(absorbed, into, reason, evidence)`** takes the reason
+  and the evidence, no longer only the two nodes, and builds the shape that applies; a caller that
+  wrote `EntityMerge::new(absorbed, into)` for the bare P1 shape writes `EntityMerge::bare(absorbed,
+  into)`, which every profile still refuses.
+- **Breaking: `EntityMerge` is no longer `Copy`**, in the SDK (`ekr_sdk`) and in the kernel
+  (`ekr_kernel`): each gained `reason: Option<String>` and `evidence: Option<BTreeSet<EvidenceId>>`.
+  A caller that copied one clones it.
+
+## [0.0.40] — 2026-10-20
+
+### Fixed
+
+- `SupersedeNode` review fixes (story:supersede-node-review-fixes). `describe_node` /1 of a live
+  node no longer lists or counts, under `referencing`, an assertion whose subject is a superseded
+  node or an edge retired with one, and the overview's roles date no node from one, as its
+  timeline already did. `Resolver::observe` drops every cached answer naming a node a committed
+  `SupersedeNode` retires. `ekr apply-extraction` and `ekr_sdk::extraction::apply` check a fact
+  against the type of the node its key resolves to: a key superseded by a node of another type
+  takes the kept node's properties and edge ends, a fact the kept type does not admit is refused
+  before anything is written — no node is created for it — and a refusal names the supersession
+  only where that end caused it. A validation and a sample look retired edges up in one index of
+  the supersession records instead of scanning them per lookup; no verdict changes. Documents:
+  design § 110 and `graph.yaml` say an edge between two nodes superseded
+  together is held in its source's record; `docs/cli.md` says only `ekr view` answers the refusal
+  with 404; `views.yaml` says overview totals count every held assertion while projections and the
+  timeline omit those about superseded or retired subjects.
+
+## [0.0.39] — 2026-10-19
+
+### Added
+
+- `!SupersedeNode {node, by, reason, evidence}` retires a duplicate node in favour of the node
+  that replaces it, in a revision of its own (story:supersede-node, design § 110). The node and
+  every edge at it leave the head and are kept in a supersession record — the node and its edges
+  as they were, `by`, the revision, the reason and the evidence — which `ekr snapshot` lists under
+  `superseded`; assertions about it are not changed, and every earlier revision still reads it.
+  Every head read omits it. `ekr resolve` of its type and one of its aliases answers `by`, even when
+  `by` is of another type, and those aliases stay taken (`alias-already-exists`). A read of its id
+  at the head — `/node/<id>` in either format, `/expand`, the MCP `describe_node` and `expand`, the
+  session's — is refused as `ekr.views.NodeSuperseded`, naming `by`; `/changes` lists the
+  supersession as a `NodeSuperseded` change, with the node kept in `target`. Refused by name:
+  `supersede-unknown-node`, `node-already-superseded`, `supersede-into-itself`,
+  `supersede-by-unknown-node`, `supersede-by-superseded-node`, `supersession-without-reason`,
+  `supersession-without-evidence`, `supersession-evidence-unknown` and
+  `superseded-node-named-in-transaction`; a later operation naming a superseded node or a retired
+  edge is `node-superseded`, naming `by`. Applied under every validation profile. The SDK builds
+  it (`NodeSupersession`) and reads `SnapshotGraph::superseded` and `ChangeKind::NodeSuperseded`.
+  A store that never supersedes keeps its roots and checkpoint bytes. A read that reaches an
+  assertion naming a superseded node names its pointer: `subject_superseded_by` and
+  `object_superseded_by` in `ekr sample` and `ekr explain`, `object_superseded_by` on every rendered
+  assertion (SDK `SampledFact`, `ViewAssertion`, `SnapshotAssertion`). `/timeline` of a superseded
+  `subject` is `ekr.views.NodeSuperseded`; `ekr compare` compares the records as a `superseded`
+  category, listed only where either store holds one. `ekr apply-extraction` replaces a value
+  under a superseded key on the node kept, and a fact refused after resolving through a
+  supersession to a node of another type names it.
+
 ## [0.0.38] — 2026-10-17
 
 ### Added

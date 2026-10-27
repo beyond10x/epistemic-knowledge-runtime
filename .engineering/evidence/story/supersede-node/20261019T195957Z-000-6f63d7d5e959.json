@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-19T19:59:57Z",
+  "actor": "agent:claude-ekr-session",
+  "artifact": "story:supersede-node",
+  "kind": "story",
+  "revision": 13,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "new behaviour the base cannot express: resolve_cli a_superseded_alias_resolves_to_the_kept_node_of_another_type, supersede_node a_supersession_replays_to_identical_roots, adversary2 cli cases, on a3d900185",
+    "reference": "base 5b358cfaa has no SupersedeNode (apply.rs refuses MergeEntity only; ekr operations lists 17 kinds) vs a3d900185 (18 kinds, cases green)"
+  }
+}

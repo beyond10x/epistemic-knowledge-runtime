@@ -233,14 +233,14 @@ let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yam
 `TransactionBuilder::new(proposer)` starts a transaction under a minted id, and
 `TransactionBuilder::push` appends an operation. Every payload type converts into its
 `Operation` (`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`,
-`AliasAddition` into `!AddAlias`, `EvidenceAttachment` into `!AttachEvidence`, …), so a
-push reads `.push(draft.into())`. `!DeleteEdge` carries only an `EdgeId`, which has no such
+`AliasAddition` into `!AddAlias`, `EvidenceAttachment` into `!AttachEvidence`,
+`NodeSupersession` into `!SupersedeNode`, …), so a push reads `.push(draft.into())`. `!DeleteEdge` carries only an `EdgeId`, which has no such
 conversion: push `Operation::DeleteEdge(edge_id)`. The proposer is the host's `context.operator`.
 
 `TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
-list is exactly the set the `!AddAssertion`s cite, the `!AttachEvidence`s attach and the
-`!CiteEvidence`s cite, and a schema change names a minted `schema_version`
-(`TransactionBuilder::with_schema_version` sets a given one). It refuses:
+list is exactly the set the `!AddAssertion`s cite, the `!AttachEvidence`s attach, the
+`!CiteEvidence`s cite and the `!SupersedeNode`s rest on, and a schema change names a minted
+`schema_version` (`TransactionBuilder::with_schema_version` sets a given one). It refuses:
 
 | refusal | when |
 |---|---|
@@ -456,7 +456,8 @@ The cache stays correct in three ways:
   that holds the alias. `observe(&report, &groups)` records a consumer's own `Batcher` commits.
   Their revisions count as the SDK's, and every alias that a committed `CreateNode` or `AddAlias`
   gives is invalidated. An `AddAlias` invalidates the alias under every type, because the resolver
-  does not know the node's type.
+  does not know the node's type. A committed `SupersedeNode` drops every cached answer naming the
+  node it retires, since `ekr resolve` answers each such key with the node kept from then on.
 - **The cache is dropped when `head` shows a commit the SDK did not make.** Each flush reads
   `ekr head` first. If any revision since the last check is not one the resolver committed or
   observed, the resolver drops its cache and resolves every queued reference again. If another
@@ -689,7 +690,9 @@ into these read-side types; the document builders keep the strict `Cardinality`,
 `Predicate`, which have no `Other`. An
 `Other` writes back as `Other`, not as the kind `ekr` printed, and `TransactionState::Other` is
 no state `transactions` can filter by. `ChangeKind::EvidenceAdded`, evidence an `AddEvidence`
-brought after the seed, is modelled, with its `locator` and `content_hash`. A value holding no
+brought after the seed, is modelled, with its `locator` and `content_hash`, and so is
+`ChangeKind::NodeSuperseded`, a node a `SupersedeNode` retired, with the node kept in `target`;
+`SnapshotGraph::superseded` holds each supersession record. A value holding no
 `Other` writes back exactly the document it was read from. `crates/ekr-sdk/tests/read.rs`
 checks this against every document that the `ekr-views` conformance fixture stores render and
 against real `ekr` output, so if a format gains a field or a kind without an SDK update, that

@@ -106,6 +106,7 @@ fn a_reference_to_evidence_resolves_to_evidence_and_never_to_a_node() {
     };
     let with_both = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         root,
         revision: RevisionNumber::SEED,
         ontology: ontology(),
@@ -116,6 +117,7 @@ fn a_reference_to_evidence_resolves_to_evidence_and_never_to_a_node() {
     };
     let nodes_only = CanonicalGraph {
         attachments: Default::default(),
+        superseded: Default::default(),
         evidence: BTreeMap::new(),
         ..with_both.clone()
     };

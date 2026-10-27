@@ -19,9 +19,9 @@ use ekr_graph::{
 };
 use ekr_kernel::{
     Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EdgeWidening,
-    EvidenceAddition, EvidenceAttachment, GraphOperation, GraphTransaction, NodeDraft,
-    PropertyModification, PropertyMutation, Retraction, Runtime, SeedDocument, Supersession,
-    ValidationCommandResult, ValidationProfileV1,
+    EntityMerge, EvidenceAddition, EvidenceAttachment, GraphOperation, GraphTransaction, NodeDraft,
+    NodeSupersession, PropertyModification, PropertyMutation, Retraction, Runtime, SeedDocument,
+    Supersession, ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
@@ -461,7 +461,25 @@ pub enum Fixture {
     /// A seed only: Services whose names and aliases exercise each of `ekr.node-matches/3`'s
     /// match kinds, case-exact and case-folded ([`match_kinds_seed`]).
     MatchKinds,
+    /// `story:supersede-node`: the seed holds alpha and beta, an edge from alpha to beta with an
+    /// assertion about it, and an assertion about alpha; revision 1 creates `beta, kept`
+    /// ([`SUPERSEDED_KEPT`]) and an assertion about beta ([`SUPERSEDED_CLAIM`]); revision 2
+    /// supersedes beta by `beta, kept`, retiring the edge with it.
+    Superseded,
+    /// The seed of [`Fixture::SeedOnly`] with [`DESCRIBED`], the node the generated
+    /// `DescribeNode` scenarios name, and one evidence entry; revision 1 supersedes it by alpha:
+    /// the generated `node-superseded` scenarios' state.
+    DescribedSuperseded,
+    /// `story:merge-entity-applies`: [`Fixture::Superseded`]'s seed and revision 1; revision 2
+    /// merges beta into `beta, kept` ([`SUPERSEDED_KEPT`]), so the edge from alpha runs to `beta,
+    /// kept` and the assertion about beta ([`SUPERSEDED_CLAIM`]) is about it.
+    Merged,
 }
+
+/// `beta, kept`, the node [`Fixture::Superseded`] supersedes beta by.
+pub const SUPERSEDED_KEPT: u64 = 0xf2_0001;
+/// [`Fixture::Superseded`]'s assertion about beta, added at revision 1.
+pub const SUPERSEDED_CLAIM: u64 = 0xf2_0011;
 
 impl Fixture {
     /// The fixture a scenario's `store` input names.
@@ -490,6 +508,8 @@ impl Fixture {
             "bounded-detail" => Self::BoundedDetail,
             "search" => Self::Search,
             "match-kinds" => Self::MatchKinds,
+            "superseded" => Self::Superseded,
+            "merged" => Self::Merged,
             _ => return None,
         })
     }
@@ -536,6 +556,47 @@ impl Fixture {
             Self::Hub => writer.seed(hub()),
             Self::Search => writer.seed(search_seed()),
             Self::MatchKinds => writer.seed(match_kinds_seed()),
+            Self::Superseded | Self::Merged => {
+                writer.seed(seed(1, true, true, 2));
+                let kept = NodeDraft {
+                    id: id(SUPERSEDED_KEPT),
+                    root_id: id(2),
+                    type_id: id(SUBJECT),
+                    canonical_name: "beta, kept".into(),
+                    properties: BTreeMap::new(),
+                    aliases: vec!["beta-kept".into()],
+                };
+                writer.commit(
+                    vec![
+                        GraphOperation::CreateNode(kept),
+                        GraphOperation::AddAssertion(Box::new(claim(
+                            SUPERSEDED_CLAIM,
+                            Subject::Node(id(BETA)),
+                            LABEL,
+                            "beta",
+                            &[0],
+                        ))),
+                    ],
+                    None,
+                );
+                if self == Self::Merged {
+                    writer.commit(merge(BETA, SUPERSEDED_KEPT), None);
+                } else {
+                    writer.commit(supersession(BETA, SUPERSEDED_KEPT), None);
+                }
+            }
+            Self::DescribedSuperseded => {
+                let mut document = seed(1, false, false, 1);
+                let described = Node::<Value>::new(
+                    id(DESCRIBED),
+                    document.graph.root.id,
+                    id(SUBJECT),
+                    "described",
+                );
+                document.graph.nodes.insert(described.id, described);
+                writer.seed(document);
+                writer.commit(supersession(DESCRIBED, ALPHA), None);
+            }
             Self::Timeline => {
                 writer.seed(timeline_seed());
                 writer.commit(
@@ -1507,6 +1568,81 @@ pub fn build_shared_id(runtime: &Runtime) {
     );
 }
 
+/// [`build_superseded_referencing`]'s Relation assertion `beta links alpha`, valid from
+/// [`REFERENCING_VALID_MS`].
+pub const REFERENCING_RELATION: u64 = 0xf3_0011;
+/// [`build_superseded_referencing`]'s assertion about the seeded edge from alpha to beta: its
+/// `about` is alpha, valid from [`REFERENCING_VALID_MS`].
+pub const REFERENCING_EDGE_CLAIM: u64 = 0xf3_0012;
+/// The NodeRef property `about` that [`build_superseded_referencing`] gives the `links` edge type.
+const ABOUT: u64 = 0xf3_0021;
+/// When both of [`build_superseded_referencing`]'s assertions hold from: an hour after the seeded
+/// claim about alpha.
+pub const REFERENCING_VALID_MS: i64 = 500 + 3_600_000;
+
+/// `story:supersede-node-review-fixes`, D1 and D3: the `edge-assertion` seed with two subjects
+/// and the seeded claim about alpha, its `links` edge type given a NodeRef property `about`; at
+/// revision 1, `beta, kept` ([`SUPERSEDED_KEPT`]), a Relation assertion `beta links alpha`
+/// ([`REFERENCING_RELATION`]) and an assertion that the seeded edge from alpha to beta is `about`
+/// alpha ([`REFERENCING_EDGE_CLAIM`]), both naming alpha as their object; at revision 2, beta
+/// superseded by `beta, kept`, retiring the seeded edge with it. Both assertions are kept, their
+/// subjects superseded or retired, and alpha is still their object.
+pub fn build_superseded_referencing(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS,
+        transactions: TRANSACTIONS,
+    };
+    let mut document = seed(1, true, true, 2);
+    let mut about = PropertyDefinition::new(
+        id(ABOUT),
+        "about",
+        ValueType::NodeRef {
+            allowed_types: BTreeSet::from([id(SUBJECT)]),
+        },
+    );
+    about.cardinality = Cardinality::One;
+    document
+        .ontology
+        .edge_types
+        .iter_mut()
+        .find(|declared| declared.id == id(LINKS))
+        .expect("the links edge type")
+        .properties
+        .insert(about.id, about);
+    writer.seed(document);
+    writer.commit(
+        vec![
+            GraphOperation::CreateNode(NodeDraft {
+                id: id(SUPERSEDED_KEPT),
+                root_id: id(2),
+                type_id: id(SUBJECT),
+                canonical_name: "beta, kept".into(),
+                properties: BTreeMap::new(),
+                aliases: vec!["beta-kept".into()],
+            }),
+            GraphOperation::AddAssertion(Box::new(fact(
+                REFERENCING_RELATION,
+                Subject::Node(id(BETA)),
+                Predicate::Relation(id(LINKS)),
+                Object::Node(id(ALPHA)),
+                Some(REFERENCING_VALID_MS),
+                evidence_id(0),
+            ))),
+            GraphOperation::AddAssertion(Box::new(fact(
+                REFERENCING_EDGE_CLAIM,
+                Subject::Edge(id(SEEDED_EDGE)),
+                Predicate::Property(id(ABOUT)),
+                Object::Node(id(ALPHA)),
+                Some(REFERENCING_VALID_MS),
+                evidence_id(0),
+            ))),
+        ],
+        None,
+    );
+    writer.commit(supersession(BETA, SUPERSEDED_KEPT), None);
+}
+
 struct Writer<'a> {
     runtime: &'a Runtime,
     clock: i64,
@@ -1534,6 +1670,8 @@ impl Writer<'_> {
                 GraphOperation::AttachEvidence(attachment) => {
                     Some(BTreeSet::from([attachment.evidence]))
                 }
+                GraphOperation::SupersedeNode(supersession) => Some(supersession.evidence.clone()),
+                GraphOperation::MergeEntity(merge) => merge.evidence.clone(),
                 _ => None,
             })
             .flatten()
@@ -2309,6 +2447,26 @@ fn claim(
         valid_time: TemporalRange::since(Timestamp::from_millis(500)),
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     }
+}
+
+/// `node` superseded by `by`, on the fixture's first evidence entry.
+fn supersession(node: u64, by: u64) -> Vec<GraphOperation> {
+    vec![GraphOperation::SupersedeNode(NodeSupersession {
+        node: id(node),
+        by: id(by),
+        reason: "recorded twice".into(),
+        evidence: BTreeSet::from([evidence_id(0)]),
+    })]
+}
+
+/// `absorbed` merged into `into`, on the fixture's first evidence entry.
+fn merge(absorbed: u64, into: u64) -> Vec<GraphOperation> {
+    vec![GraphOperation::MergeEntity(EntityMerge {
+        absorbed: id(absorbed),
+        into: id(into),
+        reason: Some("recorded twice".into()),
+        evidence: Some(BTreeSet::from([evidence_id(0)])),
+    })]
 }
 
 fn retraction(assertion: u64) -> Vec<GraphOperation> {
