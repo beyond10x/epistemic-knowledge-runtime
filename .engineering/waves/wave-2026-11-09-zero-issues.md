@@ -90,12 +90,12 @@ scratch root for this repository.
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261109-zero-issues` | `ekr-zero-issues-int` | none | `<scratch>/int` | store writes |
-| A | `unit/20261109-a-search-live` | `ekr-zi-ua` | `<trees>/ekr-zi-ua/target` | `<scratch>/unit-a` | implementor green at `3b2c2f7a1` (30 of 30 loop runs); docs line `ab9ea16ae` by coordinator; adversary queued |
+| A | `unit/20261109-a-search-live` | `ekr-zi-ua` | `<trees>/ekr-zi-ua/target` | `<scratch>/unit-a` | implementor green at `3b2c2f7a1` (30 of 30 loop runs); docs line `ab9ea16ae` by coordinator; adversary not run (wind-down) |
 | B | `unit/20261109-b-explain-merge` | `ekr-zi-ub` | `<trees>/ekr-zi-ub/target` | `<scratch>/unit-b` | tree and brief ready; not yet dispatched |
 | E | `unit/20261109-e-sdk-yaml` | `ekr-zi-ue` | `<trees>/ekr-zi-ue/target` | `<scratch>/unit-e` | tree and brief ready; not yet dispatched |
 | F | `unit/20261109-f-held-payload` | `ekr-zi-uf` | `<trees>/ekr-zi-uf/target` | `<scratch>/unit-f` | first implementor paused before any change; to be re-dispatched |
-| H | `unit/20261109-h-view-changes` | `ekr-zi-uh` | `<trees>/ekr-zi-uh/target` | `<scratch>/unit-h` | implementor dispatched (coordinator 2) |
-| verify | `verify/20261109-dg` | `ekr-zi-verify` | `<trees>/ekr-zi-verify/target` | `<scratch>/verify` | coordinator runs D, G, C |
+| H | `unit/20261109-h-view-changes` | `ekr-zi-uh` | `<trees>/ekr-zi-uh/target` | `<scratch>/unit-h` | implementor told to stop at its next commit (wind-down) |
+| verify | `verify/20261109-dg` | `ekr-zi-verify` | `<trees>/ekr-zi-verify/target` | `<scratch>/verify` | D, G, C verified at `d48cf0320`; evidence recorded |
 
 ## Approvals
 
@@ -110,4 +110,13 @@ scratch root for this repository.
 
 ## Gate
 
-Not yet run.
+Not run. The run was wound down on 2026-11-09 on the operator's correction ("the goal applies to ess only"): no pull request, no merge, no issue closed. See *Wind-down* below.
+
+## Wind-down (2026-11-09)
+
+Operator correction, relayed by the caller: "the goal applies to ess only". Nothing new is
+dispatched. Branches pushed as b10x-bot: `wave/20261109-zero-issues`, `unit/20261109-a-search-live`
+(unit A green, no adversary pass yet), and unit H's branch at whatever its implementor committed.
+No story moved to `implemented`; C, D and G carry their verification evidence and wait for the
+close. Next owner: merge A after one adversary pass; finish H; run B, E, F, I, J, K from the briefs
+in the run's scratch.
