@@ -90,10 +90,18 @@ scratch root for this repository.
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261109-zero-issues` | `ekr-zero-issues-int` | none | `<scratch>/int` | store writes |
+| A | `unit/20261109-a-search-live` | `ekr-zi-ua` | `<trees>/ekr-zi-ua/target` | `<scratch>/unit-a` | implementor dispatched |
+| B | `unit/20261109-b-explain-merge` | `ekr-zi-ub` | `<trees>/ekr-zi-ub/target` | `<scratch>/unit-b` | tree and brief ready; not yet dispatched |
+| E | `unit/20261109-e-sdk-yaml` | `ekr-zi-ue` | `<trees>/ekr-zi-ue/target` | `<scratch>/unit-e` | tree and brief ready; not yet dispatched |
+| F | `unit/20261109-f-held-payload` | `ekr-zi-uf` | `<trees>/ekr-zi-uf/target` | `<scratch>/unit-f` | first implementor paused before any change; to be re-dispatched |
+| H | `unit/20261109-h-view-changes` | `ekr-zi-uh` | `<trees>/ekr-zi-uh/target` | `<scratch>/unit-h` | implementor dispatched (coordinator 2) |
+| verify | `verify/20261109-dg` | `ekr-zi-verify` | `<trees>/ekr-zi-verify/target` | `<scratch>/verify` | coordinator runs D, G, C |
 
 ## Approvals
 
 - `approval-record:zero-issues-acceptance-2026-11-09` — the acceptance of the eleven artifacts.
+- `approval-record:zero-issues-wave-1-proposal-2026-11-09` — the plan and wave 1.
+- `approval-record:zero-issues-wave-2-proposal-2026-11-09` — wave 2 and the dispatch order of the taking-over coordinator (one sub-agent at a time; H first, then B, E, F, C, I, J, K).
 
 ## Reviews
 
