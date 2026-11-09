@@ -8,6 +8,7 @@ relations:
 - informed_by: task:held-bytes-notice-deleted-blobs
 - informed_by: story:viewer-evidence-reuses-admitted-revision
 - serves: vision:o2
+- decomposes: epic:zero-open-issues-2026-11
 revision: 1
 ---
 ## Observation

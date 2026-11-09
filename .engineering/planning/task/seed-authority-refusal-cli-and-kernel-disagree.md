@@ -8,6 +8,7 @@ relations:
 - derived_from: story:store-open-semantics
 - serves: vision:o5
 - decomposes: epic:p6-maintenance-observability
+- decomposes: epic:zero-open-issues-2026-11
 revision: 1
 ---
 ## Context

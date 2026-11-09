@@ -7,6 +7,7 @@ title: The seed and head race test names the signal a process ended by
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o5
+- decomposes: epic:zero-open-issues-2026-11
 revision: 2
 ---
 ## What is wrong

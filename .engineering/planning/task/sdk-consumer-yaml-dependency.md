@@ -7,6 +7,7 @@ title: The released SDK builds in an external consumer without a workspace patch
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
+- decomposes: epic:zero-open-issues-2026-11
 revision: 1
 ---
 # The released SDK builds in an external consumer

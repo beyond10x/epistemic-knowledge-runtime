@@ -7,6 +7,7 @@ title: A changes query by recorded time costs what the same query by revision co
 relations:
 - serves: vision:o5
 - decomposes: epic:read-and-storage-cost
+- decomposes: epic:zero-open-issues-2026-11
 revision: 3
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-14T07:25:55Z", actor: "agent:claude-ekr-controller", revision: 2}
