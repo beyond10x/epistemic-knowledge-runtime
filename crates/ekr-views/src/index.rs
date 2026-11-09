@@ -23,9 +23,11 @@ use ekr_graph::{CanonicalValue, Object, Predicate, Subject};
 use ekr_kernel::Runtime;
 use ekr_ontology::{EdgeType, Ontology, OntologyDocument, PropertyDefinition};
 
+use crate::changes::{ChangesError, ChangesListed, ChangesRequest};
 use crate::document;
+use crate::names::ChangesFormat;
 use crate::query::{
-    ModifiedProperty, OverviewParts, OverviewRevision, OverviewRoles, OverviewSchema,
+    Answer, ModifiedProperty, OverviewParts, OverviewRevision, OverviewRoles, OverviewSchema,
     OverviewSchemaVersion, OverviewTimeline, SchemaMember, TimelineBucket, TypeCount, TypeTiming,
     WidenedEnd,
 };
@@ -1118,5 +1120,47 @@ impl IndexCache {
             index.change_lists = Arc::clone(&held.change_lists);
         }
         Ok(self.insert(Arc::new(index)))
+    }
+
+    /// `ChangesSince` up to revision `at` of `runtime`'s store (its head when `None`), in the
+    /// format `format` names, answered from the head's index ([`Self::index`]): the revisions up
+    /// to `at` and their change lists are the ones an index of `at` holds, and `names` is read
+    /// from the ontology `at` was valid against, so a revision before the head costs what the head
+    /// costs and loads no index of its own (`views.yaml`, the cost of ChangesSince; issue #96).
+    /// The answer is byte for byte [`Index::changes_as`]'s on a freshly loaded index of `at`. Only
+    /// when the head's index cannot tell `at`'s ontology by its schema version is the index of
+    /// `at` loaded and answered from instead.
+    ///
+    /// # Errors
+    ///
+    /// What [`Self::index`] refuses — [`ProjectError::NotSeeded`], or
+    /// [`ProjectError::RevisionNotFound`] for an `at` beyond the head — then what
+    /// [`Index::changes_as`] refuses.
+    pub fn changes_as(
+        &mut self,
+        runtime: &Runtime,
+        at: Option<RevisionNumber>,
+        request: &ChangesRequest,
+        format: ChangesFormat,
+    ) -> Result<Answer<ChangesListed>, ChangesError> {
+        // An unseeded store echoes the `at` asked for, as the index of `at` would.
+        let head = self.index(runtime, None).map_err(|error| match error {
+            ProjectError::NotSeeded { .. } => ProjectError::NotSeeded { requested: at },
+            other => other,
+        })?;
+        let revision = at.unwrap_or_else(|| head.revision());
+        if revision > head.revision() {
+            return Err(ProjectError::RevisionNotFound {
+                requested: revision,
+                head: head.revision(),
+            }
+            .into());
+        }
+        match head.ontology_at(revision) {
+            Some(ontology) => head.changes_through(runtime, revision, ontology, request, format),
+            None => self
+                .index(runtime, Some(revision))?
+                .changes_as(runtime, request, format),
+        }
     }
 }

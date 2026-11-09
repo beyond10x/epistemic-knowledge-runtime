@@ -350,14 +350,41 @@ pub(super) struct Job<T, R> {
     pub(super) request: T,
     pub(super) reply: SyncSender<R>,
     pub(super) deadline: Instant,
+    /// The connection the answer goes to, when the queue watches its client: a job whose client
+    /// has gone is not started ([`alive`]). `None` watches nothing.
+    pub(super) client: Option<TcpStream>,
 }
 type Queue<T, R> = (SyncSender<Job<T, R>>, Receiver<Job<T, R>>);
 
 pub(super) fn queue<T, R>(capacity: usize) -> Queue<T, R> {
     sync_channel(capacity)
 }
+/// Whether a queued job is still to be started: its deadline has not passed, and its client,
+/// when the queue watches it, still waits ([`waiting`]). A job that is not is dropped unstarted,
+/// which ends its connection's wait at once (story:view-historical-changes-and-cancelled-reads).
 pub(super) fn alive<T, R>(job: &Job<T, R>, now: Instant) -> bool {
-    now < job.deadline
+    now < job.deadline && job.client.as_ref().is_none_or(waiting)
+}
+
+/// Whether the client on `stream` still waits for its answer. Nothing past its request is read
+/// from the stream, so a peek finds the end of the stream once the client has closed the
+/// connection or its sending half, and an error once the connection was reset; a client that
+/// sent more bytes still waits. The peek does not block: `stream` is non-blocking only for it,
+/// while the connection's own thread waits on its reply channel and uses no stream. A stream
+/// whose mode cannot be set is taken as waiting.
+fn waiting(stream: &TcpStream) -> bool {
+    if stream.set_nonblocking(true).is_err() {
+        return true;
+    }
+    let waiting = match stream.peek(&mut [0_u8; 1]) {
+        Ok(read) => read > 0,
+        Err(error) => matches!(
+            error.kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
+        ),
+    };
+    let _ = stream.set_nonblocking(false);
+    waiting
 }
 struct Count(Arc<AtomicUsize>);
 impl Drop for Count {
@@ -511,6 +538,8 @@ fn connection(
             request,
             reply,
             deadline,
+            // Its client is not watched (views.yaml, the store's queue of `ekr view`).
+            client: None,
         })
         .map_err(|_| unavailable(queued, "request queue is full"))?;
         let answer = receiver
@@ -572,6 +601,7 @@ mod tests {
                 request: (),
                 reply,
                 deadline: now,
+                client: None,
             })
             .unwrap();
         }
@@ -580,7 +610,8 @@ mod tests {
             .try_send(Job {
                 request: (),
                 reply,
-                deadline: now
+                deadline: now,
+                client: None,
             })
             .is_err());
         let mut executed = 0;
@@ -595,7 +626,8 @@ mod tests {
             .try_send(Job {
                 request: (),
                 reply,
-                deadline: now + WAIT_TIMEOUT
+                deadline: now + WAIT_TIMEOUT,
+                client: None,
             })
             .is_ok());
     }
@@ -612,6 +644,7 @@ mod tests {
                     .request,
                 reply,
                 deadline: Instant::now() + WAIT_TIMEOUT,
+                client: None,
             })
             .unwrap();
         }
@@ -664,6 +697,7 @@ mod tests {
                     .request,
                 reply,
                 deadline: Instant::now() + WAIT_TIMEOUT,
+                client: None,
             })
             .unwrap();
         }
