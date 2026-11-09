@@ -2,14 +2,17 @@
 format: aep.planning-md/3
 id: epic:zero-open-issues-2026-11
 kind: epic
-status: draft
+status: active
 title: Every open GitHub issue and every open defect in the store is fixed or blocked by name
 summary: 'One epic, one pull request: GitHub issues #96 and #104 and the store''s open defects.'
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - serves: vision:o2
 - serves: vision:o5
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-11-09T21:54:58Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 2}
+- {from: "proposed", to: "active", at: "2026-11-09T21:54:58Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 3}
 ---
 ## Outcome
 
