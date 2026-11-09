@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-09T22:35:21Z",
+  "actor": "agent:claude-ekr-zero-issues-coordinator",
+  "artifact": "task:migration-marker-cannot-be-evidence",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-kernel --test adversary_w20261007c_c_capture at d48cf0320: test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out, an_interrupted_stage_copy_cannot_be_captured_on_sqlite ok (asserts migrate-incomplete; the postgres case skips without EKR_TEST_POSTGRES_CONFIG)",
+    "reference": "<scratch>/verify/d2.log"
+  }
+}

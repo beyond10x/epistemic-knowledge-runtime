@@ -15,7 +15,7 @@ scope:
   path: crates/ekr-views/tests/changes_by_time_cost.rs
 - confidence: cited
   path: crates/ekr-views/tests/support/fixtures.rs
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-14T07:25:55Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-14T07:25:55Z", actor: "agent:claude-ekr-controller", revision: 3}
@@ -62,3 +62,22 @@ Derived 2026-11-09 by `story-scoper`. Every line is **cited** (read from the sto
 - **Confidence:** medium — the tree shows the resolution site and an existing cost test, but the cause of the PostgreSQL timeout is unestablished and may sit outside `ekr-views`
 - **Would collide with:** any unit touching `crates/ekr-views/src/changes.rs` (notably `story:changes-since-small-default-and-cached`, which references this story) or `tests/support/fixtures.rs` — cited
 - **Safety fact:** `since_recorded` resolves from `loaded.revisions` already held by the index, so changing the resolution alters no stored bytes or wire field (`meta.since_recorded` is echoed at `changes.rs:777-788`) — step 2, unproven
+
+## Diagnosis
+
+Measured 2026-11-09 by the coordinator of `epic:zero-open-issues-2026-11` on the integration
+branch at `d48cf0320`, no code changed:
+
+`cargo test --locked -p ekr-views --test changes_by_time_cost -- --nocapture --test-threads 1`
+printed `test result: ok. 2 passed; 0 failed` (File and SQLite). Per provider, for windows of 1, 10
+and 40 revisions, `since_recorded` and `since_revision` choosing the same revisions printed the same
+counts: `tenant-log reads 2`, `revision-stream reads 1`, `object-stream reads 1`,
+`replays from the seed 0`, `changes built` equal to the window. The one probe that differs is a
+`since_recorded` before the seed (revisions 0..=40), which no `since_revision` can choose:
+`replays from the seed 1`, `revision-stream reads 2`, `tenant-log reads 3`, `changes built 43`.
+
+So the counted acceptance holds on both providers this crate tests. Inferred, not measured: the
+2026-10-04 PostgreSQL timeout is still unreproduced (no PostgreSQL configuration here; the
+PostgreSQL tests skip with `EKR_TEST_POSTGRES_CONFIG` unset), and the probe above names one
+candidate for it — a one-week window on a store seeded within that week chooses the seed and pays
+a replay from the seed, which a `since_revision` request never does.

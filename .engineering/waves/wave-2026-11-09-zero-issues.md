@@ -90,7 +90,7 @@ scratch root for this repository.
 | unit | branch | worktree id | build dir | scratch | state |
 |---|---|---|---|---|---|
 | integration | `wave/20261109-zero-issues` | `ekr-zero-issues-int` | none | `<scratch>/int` | store writes |
-| A | `unit/20261109-a-search-live` | `ekr-zi-ua` | `<trees>/ekr-zi-ua/target` | `<scratch>/unit-a` | implementor dispatched |
+| A | `unit/20261109-a-search-live` | `ekr-zi-ua` | `<trees>/ekr-zi-ua/target` | `<scratch>/unit-a` | implementor green at `3b2c2f7a1` (30 of 30 loop runs); docs line `ab9ea16ae` by coordinator; adversary queued |
 | B | `unit/20261109-b-explain-merge` | `ekr-zi-ub` | `<trees>/ekr-zi-ub/target` | `<scratch>/unit-b` | tree and brief ready; not yet dispatched |
 | E | `unit/20261109-e-sdk-yaml` | `ekr-zi-ue` | `<trees>/ekr-zi-ue/target` | `<scratch>/unit-e` | tree and brief ready; not yet dispatched |
 | F | `unit/20261109-f-held-payload` | `ekr-zi-uf` | `<trees>/ekr-zi-uf/target` | `<scratch>/unit-f` | first implementor paused before any change; to be re-dispatched |

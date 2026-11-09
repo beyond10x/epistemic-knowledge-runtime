@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-09T22:35:23Z",
+  "actor": "agent:claude-ekr-zero-issues-coordinator",
+  "artifact": "story:changes-since-by-time-within-deadline",
+  "kind": "story",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-views --test changes_by_time_cost -- --nocapture at d48cf0320: 2 passed (File, SQLite); for windows of 1, 10 and 40 revisions since_recorded and since_revision cost identically (tenant-log reads 2, revision-stream reads 1, object-stream reads 1, replays from the seed 0); only a since_recorded before the seed, which no since_revision can choose, costs one replay from the seed (tenant-log reads 3, revision-stream reads 2, changes built 43)",
+    "reference": "<scratch>/verify/c2.log"
+  }
+}
