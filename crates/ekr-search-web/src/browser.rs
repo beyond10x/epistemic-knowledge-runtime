@@ -3,7 +3,8 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::{
-    AbortController, Document, Element, Event, HtmlInputElement, Request, RequestInit, Response,
+    AbortController, Document, Element, Event, HtmlInputElement, InputEvent, Request, RequestInit,
+    Response,
 };
 
 const DEBOUNCE_MS: i32 = 180;
@@ -53,17 +54,29 @@ pub fn start() -> Result<(), JsValue> {
     }));
     listen(input.as_ref(), "input", {
         let search = search.clone();
-        move |_| {
-            change(&search, false);
+        move |event| {
+            let composing = event
+                .dyn_ref::<InputEvent>()
+                .is_some_and(InputEvent::is_composing);
+            if composing {
+                compose(&search);
+            } else {
+                change(&search, false);
+            }
         }
     })?;
     listen(input.as_ref(), "compositionstart", {
         let search = search.clone();
+        move |_| compose(&search)
+    })?;
+    // A composition opened before this module attached fired its `compositionstart` unheard;
+    // its next update is the first sign of it.
+    listen(input.as_ref(), "compositionupdate", {
+        let search = search.clone();
         move |_| {
-            let mut state = search.borrow_mut();
-            state.composing = true;
-            state.invalidate();
-            state.message("composing", "Composing search…");
+            if !search.borrow().composing {
+                compose(&search);
+            }
         }
     })?;
     listen(input.as_ref(), "compositionend", {
@@ -89,6 +102,12 @@ pub fn start() -> Result<(), JsValue> {
     }
     input.set_attribute("data-live-search", "ready")?;
     Ok(())
+}
+fn compose(search: &Rc<RefCell<Search>>) {
+    let mut state = search.borrow_mut();
+    state.composing = true;
+    state.invalidate();
+    state.message("composing", "Composing search…");
 }
 fn window() -> web_sys::Window {
     web_sys::window().expect("browser window")
