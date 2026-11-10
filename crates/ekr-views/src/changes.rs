@@ -47,6 +47,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use ekr_core::{AssertionId, ContentHash, EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{Assertion, CanonicalGraph, Subject};
 use ekr_kernel::{GraphOperation, Runtime, TransactionDocument};
+use ekr_ontology::Ontology;
 use serde::Serialize;
 
 use crate::index::Index;
@@ -663,8 +664,47 @@ impl Index {
         request: &ChangesRequest,
         format: ChangesFormat,
     ) -> Result<Answer<ChangesListed>, ChangesError> {
+        self.changes_through(
+            runtime,
+            self.revision(),
+            &self.loaded.graph.ontology,
+            request,
+            format,
+        )
+    }
+
+    /// The ontology revision `at` was valid against, when this index's loaded revisions list
+    /// `at` and hold that ontology: this index's own at its revision, and otherwise the schema
+    /// version `at` names, only when its content hash is the ontology root `at`'s root names —
+    /// `None` for a schema version whose first revision held another ontology under its id.
+    pub(crate) fn ontology_at(&self, at: RevisionNumber) -> Option<&Ontology> {
+        if at == self.revision() {
+            return Some(&self.loaded.graph.ontology);
+        }
+        let entry = self
+            .loaded
+            .revisions
+            .iter()
+            .find(|entry| entry.number == at)?;
+        let (_, ontology) = self.loaded.schemas.get(&entry.schema_version)?;
+        (ContentHash::of(ontology) == entry.root.ontology_root).then_some(ontology)
+    }
+
+    /// `ChangesSince` up to `at`, a revision at or before this index's, with `names` read from
+    /// `ontology`, the one `at` was valid against ([`Self::ontology_at`]): the page an index of
+    /// `at` answers, byte for byte. The revisions up to `at` this index lists are the ones an
+    /// index of `at` lists, and a change list is the same whichever later revision's graph it is
+    /// derived against (the module's cost paragraph), so a host holding the head's index answers
+    /// a historical `at` without loading one (issue #96).
+    pub(crate) fn changes_through(
+        &self,
+        runtime: &Runtime,
+        at: RevisionNumber,
+        ontology: &Ontology,
+        request: &ChangesRequest,
+        format: ChangesFormat,
+    ) -> Result<Answer<ChangesListed>, ChangesError> {
         let loaded = &self.loaded;
-        let at = self.revision();
         let since = request.since();
         let first = match request.kind() {
             SinceKind::Revision => {
@@ -796,7 +836,7 @@ impl Index {
             names: None,
         };
         if format.is_named() {
-            document.names = Some(names_of(&loaded.graph.ontology, &document)?);
+            document.names = Some(names_of(ontology, &document)?);
         }
         let bytes = encode(&document)?;
         let count =

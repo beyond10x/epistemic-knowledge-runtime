@@ -18,7 +18,9 @@
 //!
 //! How long one connection holds one of the 64 places: a head not complete 5 s after accept is
 //! refused; the wait for the store thread, which answers one request at a time, ends 35 s after
-//! accept. The queue holds at most 64 jobs, and expired jobs are discarded before execution.
+//! accept. The queue holds at most 64 jobs, and a job whose deadline has passed, or whose client
+//! has closed or reset its connection while it waited, is discarded before execution: the next
+//! one starts instead. A job the store thread has started runs to its end.
 //! A whole answer writes within 5 s; a stream within 60 s. A full queue returns 503 immediately.
 //! `/healthz` and the embedded page bypass the store queue. Store admission is lazy by default,
 //! so health remains available while a configured store is unavailable or incomplete. `/readyz` succeeds
@@ -35,9 +37,9 @@
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
 //! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`] and checks
 //! what it holds against [`ekr_views::Lineage`], which reads [`Runtime::transactions`]),
-//! [`ekr_views::Index::changes`] (which reads [`Runtime::head`], [`Runtime::transactions`] and
-//! [`Runtime::replay`]), [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is
-//! not an outward write (design § 82, § 83).
+//! [`IndexCache::changes_as`] (which answers from the head's index whatever `at` names, and reads
+//! [`Runtime::head`], [`Runtime::transactions`] and [`Runtime::replay`]), [`Runtime::snapshot`]
+//! and [`Runtime::content`]. A local read-only page is not an outward write (design § 82, § 83).
 //!
 //! Before each request of a path that reads the store, the store at the configured path is checked
 //! (`session.rs`): one that replaced the store opened — by a rename, say — is opened and answered
@@ -74,7 +76,7 @@
 //! | `GET /node/<node id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, or with `F` `ekr.node-detail/2` [`ekr_views::Index::detail_v2`]'s: at most `L` (1 to 500, 10 when absent) values per property and neighbours per relation group, each group from neighbour `A` (0 when absent), only the edge type `E` names (its id or name) when given; `L`, `E` or `A` on a /1 request is 400 `invalid-query`, and a /2 request for a type id 404 `ekr.views.NodeIsAType`, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]` | [`ekr_views::Index::search_as`]'s bytes in the format `F` names, `ekr.node-matches/1` when absent and `ekr.node-matches/2` or `ekr.node-matches/3` (each match's kind, a whole name or alias first) when named (`L` is [`SEARCH_LIMIT`] when absent); `T` (a node type's id or name), `A` and `B` (milliseconds or `YYYY-MM-DD`) are /2's and /3's, read by [`search_filter`]: with /1, or malformed, they are 400 `invalid-query`, and a `T` naming no node type is 404 `ekr.views.NodeTypeNotFound`. `application/json` |
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N][&format=F]` | [`ekr_views::Index::timeline_as`]'s bytes, `ekr.graph-timeline/1` unless `F` names `ekr.graph-timeline/2` (with `names`): one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
-//! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A][&format=F]` | [`ekr_views::Index::changes_as`]'s bytes, `ekr.graph-changes/1` unless `F` names `ekr.graph-changes/2` (with `names`): the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
+//! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A][&format=F]` | [`ekr_views::IndexCache::changes_as`]'s bytes, read from the head's index whatever `at` names, `ekr.graph-changes/1` unless `F` names `ekr.graph-changes/2` (with `names`): the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
 //! The bounded read endpoints read their query with [`Query`]: `name=value` pairs, each name one the path takes
 //! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. Then, in
@@ -236,16 +238,13 @@ pub(super) fn run(
         help,
         ..Memory::default()
     };
-    for job in store_thread {
-        if !super::http::alive(&job, Instant::now()) {
-            continue;
-        }
+    store_loop(store_thread, |asked| {
         if held.is_none() {
             held = Held::open(store.clone()).ok();
         }
         let answered = match held.as_mut() {
-            Some(held) => answer_configured(held, &mut memory, &authorities, &job.request),
-            None => Answered::Whole(if let Some(query) = find_query(&job.request.target) {
+            Some(held) => answer_configured(held, &mut memory, &authorities, asked),
+            None => Answered::Whole(if let Some(query) = find_query(&asked.target) {
                 find(None, &mut memory.indexes, &memory.help, query).unwrap_or_else(|reply| reply)
             } else {
                 Reply::text(503, "store is not admitted, seeded and available")
@@ -256,9 +255,21 @@ pub(super) fn run(
                 telemetry.head(head);
             }
         }
-        let _ = job.reply.try_send(answered);
-    }
+        answered
+    });
     Err(Failure::fault("the accept loop stopped"))
+}
+
+/// The store thread's loop: each queued job in turn, answered by `answer` and handed back to the
+/// connection that queued it — unless, when its turn comes, it is no longer alive
+/// ([`super::http::alive`]): then it is dropped unstarted, and the next one starts.
+fn store_loop(jobs: impl IntoIterator<Item = Job>, mut answer: impl FnMut(&Asked) -> Answered) {
+    for job in jobs {
+        if !super::http::alive(&job, Instant::now()) {
+            continue;
+        }
+        let _ = job.reply.try_send(answer(&job.request));
+    }
 }
 
 /// One connection in flight: counted while it lives, released when its thread ends, however it
@@ -376,6 +387,8 @@ fn connection(
                         request: asked,
                         reply: reply_to,
                         deadline,
+                        // Watched while the job waits: one whose client has gone is not started.
+                        client: stream.try_clone().ok(),
                     })
                     .is_err()
                 {
@@ -1755,11 +1768,10 @@ fn changes(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<R
         .transpose()?
         .flatten();
     let request = ChangesRequest::new(kind, since, limit, after).map_err(changes_refused)?;
-    let index = indexes
-        .index(runtime, at)
-        .map_err(|error| refused("changes", error))?;
-    let answer = index
-        .changes_as(runtime, &request, format)
+    // From the head's index whatever `at` names: a revision before the head loads no index of
+    // its own (issue #96).
+    let answer = indexes
+        .changes_as(runtime, at, &request, format)
         .map_err(changes_refused)?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
@@ -2122,6 +2134,189 @@ mod tests {
     #[test]
     fn evidence_reads_reuse_the_admitted_historical_revision_without_seed_replay() {
         cached_evidence_replays(0);
+    }
+
+    /// The seed replays the kernel of `held`'s store has begun since it was opened.
+    fn seed_replays(held: &mut Held) -> u64 {
+        match held.current().expect("the store is current") {
+            Checked::Same(runtime) | Checked::Reopened(runtime) => runtime.seed_replays(),
+        }
+    }
+
+    /// Issue #96: a `/changes` read naming a revision before the head costs the work the same
+    /// read naming the head costs — counted in seed replays and indexes held, never in time —
+    /// and answers the bytes a freshly loaded index of that revision answers.
+    #[test]
+    fn a_historical_changes_read_costs_what_the_head_read_costs() {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded_with_a_commit(directory.path(), backend, "store");
+            let path = store.store.clone();
+            for (transaction, alias) in [
+                ("00000000-0000-4000-8000-00000000f9a2", "InitechTwo"),
+                ("00000000-0000-4000-8000-00000000f9a3", "InitechThree"),
+            ] {
+                add_alias(directory.path(), &path, backend, transaction, alias);
+            }
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            let cost = |held: &mut Held, memory: &mut Memory, target: &str| {
+                let before = seed_replays(held);
+                let reply = get(held, memory, target);
+                assert_eq!(
+                    reply.status,
+                    200,
+                    "{backend:?} {target}: {}",
+                    String::from_utf8_lossy(&reply.body)
+                );
+                (
+                    reply.body,
+                    seed_replays(held) - before,
+                    memory.indexes.len(),
+                )
+            };
+            // The reader is warm: it has answered a read at the head.
+            cost(&mut held, &mut memory, "/changes?since_revision=0");
+            let (_, head, head_held) =
+                cost(&mut held, &mut memory, "/changes?since_revision=0&at=3");
+            let mut historical = Vec::new();
+            for (at, format) in [(2, 1), (1, 1), (0, 1), (2, 2), (1, 2)] {
+                let target =
+                    format!("/changes?since_revision=0&at={at}&format=ekr.graph-changes/{format}");
+                let (body, replays, held_now) = cost(&mut held, &mut memory, &target);
+                historical.push((at, format, body, replays, held_now));
+            }
+            let costs: Vec<(u64, u64, u64, usize)> = historical
+                .iter()
+                .map(|(at, format, _, replays, held_now)| (*at, *format, *replays, *held_now))
+                .collect();
+            assert!(
+                costs
+                    .iter()
+                    .all(|(_, _, replays, held_now)| *replays <= head && *held_now <= head_held),
+                "{backend:?}: the head read began {head} seed replays holding {head_held} \
+                 indexes; (at, format, seed replays, indexes held) of the historical reads: \
+                 {costs:?}"
+            );
+            let (Checked::Same(runtime) | Checked::Reopened(runtime)) = held.current().unwrap();
+            let request = ChangesRequest::new(SinceKind::Revision, 0, None, None).unwrap();
+            for (at, format, body, _, _) in historical {
+                let format = if format == 1 {
+                    ChangesFormat::V1
+                } else {
+                    ChangesFormat::V2
+                };
+                let expected = Index::load(runtime, Some(RevisionNumber::new(at)))
+                    .unwrap()
+                    .changes_as(runtime, &request, format)
+                    .unwrap()
+                    .bytes;
+                assert_eq!(
+                    String::from_utf8_lossy(&body),
+                    String::from_utf8_lossy(&expected),
+                    "{backend:?} at={at} {format:?}: not what a freshly loaded index answers"
+                );
+            }
+        }
+    }
+
+    /// Issue #96: a queued read whose client has gone is dropped before it starts, and the read
+    /// queued behind it is answered. The store thread is held inside a first read until the
+    /// departed client's read and the one behind it are both queued, so the test fixes the order
+    /// and no clock decides it; `GUARD` bounds a hang and nothing else.
+    #[test]
+    fn a_read_whose_client_has_gone_is_not_started_and_the_read_behind_it_is_answered() {
+        // A hang guard only: no assertion reads a duration.
+        const GUARD: Duration = Duration::from_secs(120);
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback listener");
+        let address = listener.local_addr().unwrap();
+        let authorities = super::super::http::Authorities::loopback(address.port());
+        let (connections, relayed) = sync_channel::<Job>(IN_FLIGHT_LIMIT);
+        let (jobs, store_queue) = super::super::http::queue::<Asked, Answered>(IN_FLIGHT_LIMIT);
+        let (heard, queued_targets) = std::sync::mpsc::channel::<String>();
+        // Every job a connection queues goes on to the store's queue, and then the test hears of
+        // it: a read the test has heard of is queued.
+        std::thread::spawn(move || {
+            for job in relayed {
+                let target = job.request.target.clone();
+                if jobs.send(job).is_err() || heard.send(target).is_err() {
+                    return;
+                }
+            }
+        });
+        std::thread::spawn(move || {
+            accept(
+                &listener,
+                &connections,
+                &authorities,
+                &super::super::agent_help::Config::default(),
+                &Arc::new(Telemetry::off("view")),
+            );
+        });
+        let (started, first_started) = std::sync::mpsc::channel::<()>();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let (ran, executed) = std::sync::mpsc::channel::<String>();
+        std::thread::spawn(move || {
+            store_loop(store_queue, |asked| {
+                let _ = ran.send(asked.target.clone());
+                if asked.target.ends_with("since_revision=1") {
+                    let _ = started.send(());
+                    let _ = released.recv_timeout(GUARD);
+                }
+                Answered::Whole(Reply::ok(JSON, asked.target.clone().into_bytes()))
+            });
+        });
+        let ask = |target: &str| {
+            let mut client = TcpStream::connect(address).expect("the listener accepts");
+            client.set_read_timeout(Some(GUARD)).unwrap();
+            write!(
+                client,
+                "GET {target} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
+            client
+        };
+        let queued = |what: &str| {
+            queued_targets
+                .recv_timeout(GUARD)
+                .unwrap_or_else(|_| panic!("hang guard: {what} was never queued"))
+        };
+        let answer = |mut client: TcpStream, what: &str| {
+            let mut raw = String::new();
+            client
+                .read_to_string(&mut raw)
+                .unwrap_or_else(|error| panic!("hang guard: {what} got no answer: {error}"));
+            raw
+        };
+
+        let first = ask("/changes?since_revision=1");
+        assert_eq!(queued("the first read"), "/changes?since_revision=1");
+        first_started
+            .recv_timeout(GUARD)
+            .expect("hang guard: the first read never started");
+        let gone = ask("/changes?since_revision=2");
+        assert_eq!(
+            queued("the departed client's read"),
+            "/changes?since_revision=2"
+        );
+        drop(gone);
+        let behind = ask("/changes?since_revision=3");
+        assert_eq!(queued("the read behind it"), "/changes?since_revision=3");
+        release.send(()).unwrap();
+
+        let answered = answer(behind, "the read behind");
+        assert!(
+            answered.starts_with("HTTP/1.1 200 ")
+                && answered.ends_with("/changes?since_revision=3"),
+            "the read behind the departed client's: {answered}"
+        );
+        assert!(answer(first, "the first read").starts_with("HTTP/1.1 200 "));
+        let ran: Vec<String> = executed.try_iter().collect();
+        assert_eq!(
+            ran,
+            ["/changes?since_revision=1", "/changes?since_revision=3"],
+            "the reads the store thread started"
+        );
     }
 
     #[test]
