@@ -2,17 +2,18 @@
 format: aep.planning-md/3
 id: task:migration-marker-cannot-be-evidence
 kind: task
-status: active
+status: implemented
 title: Evidence whose bytes equal a migration marker commits
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:migrate-reads-a-current-store
 - decomposes: epic:zero-open-issues-2026-11
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-11-09T21:54:59Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 3}
 - {from: "proposed", to: "active", at: "2026-11-09T21:54:59Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 4}
+- {from: "active", to: "implemented", at: "2026-11-10T02:23:29Z", actor: "agent:claude-integrate-20261110", revision: 5, decided_on: {"recorded":{"test_result":2}}}
 ---
 ## What is wrong
 

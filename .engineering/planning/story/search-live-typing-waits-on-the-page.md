@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:search-live-typing-waits-on-the-page
 kind: story
-status: active
+status: implemented
 title: The live-typing browser case waits on the page, not on elapsed time
 refs:
 - provider: github
@@ -17,10 +17,11 @@ scope:
   path: crates/ekr/assets/search.wasm
 - confidence: cited
   path: crates/ekr/tests/search_live.rs
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-11-09T21:54:59Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 3}
 - {from: "proposed", to: "active", at: "2026-11-09T21:54:59Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 4}
+- {from: "active", to: "implemented", at: "2026-11-10T02:23:26Z", actor: "agent:claude-integrate-20261110", revision: 8, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

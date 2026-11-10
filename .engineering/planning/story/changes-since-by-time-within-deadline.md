@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:changes-since-by-time-within-deadline
 kind: story
-status: active
+status: implemented
 title: A changes query by recorded time costs what the same query by revision costs
 relations:
 - serves: vision:o5
@@ -15,10 +15,11 @@ scope:
   path: crates/ekr-views/tests/changes_by_time_cost.rs
 - confidence: cited
   path: crates/ekr-views/tests/support/fixtures.rs
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-14T07:25:55Z", actor: "agent:claude-ekr-controller", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-14T07:25:55Z", actor: "agent:claude-ekr-controller", revision: 3}
+- {from: "active", to: "implemented", at: "2026-11-10T02:23:28Z", actor: "agent:claude-integrate-20261110", revision: 9, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

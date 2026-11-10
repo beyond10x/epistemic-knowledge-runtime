@@ -2,16 +2,17 @@
 format: aep.planning-md/3
 id: task:seed-race-test-names-its-signal
 kind: task
-status: active
+status: implemented
 title: The seed and head race test names the signal a process ended by
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o5
 - decomposes: epic:zero-open-issues-2026-11
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-11-09T21:55:01Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 4, decided_on: {"recorded":{"review_outcome":1}}}
 - {from: "proposed", to: "active", at: "2026-11-09T21:55:01Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 5, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "active", to: "implemented", at: "2026-11-10T02:23:29Z", actor: "agent:claude-integrate-20261110", revision: 6, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## What is wrong
 

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:view-historical-changes-and-cancelled-reads
 kind: story
-status: active
+status: implemented
 title: ekr view answers /changes at a historical revision at the head's cost, and a disconnected read is cancelled
 refs:
 - provider: github
@@ -25,10 +25,11 @@ scope:
   path: crates/ekr/tests/view_cli.rs
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 11
+revision: 12
 transitions:
 - {from: "draft", to: "proposed", at: "2026-11-09T21:54:58Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 3}
 - {from: "proposed", to: "active", at: "2026-11-09T21:54:58Z", actor: "agent:claude-ekr-zero-issues-coordinator", revision: 4}
+- {from: "active", to: "implemented", at: "2026-11-10T02:23:27Z", actor: "agent:claude-integrate-20261110", revision: 12, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 
