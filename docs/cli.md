@@ -1291,7 +1291,8 @@ Names and aliases are shortened to 256 characters for display; matching uses the
 The graph remains at `/` and the JSON API remains at `/search`.
 
 With browser scripting enabled, the local Rust/WebAssembly client updates just the results and
-revision region while you type. It waits 180 ms after input, defers composed input until committed,
+revision region while you type. It waits 180 ms after input, defers composed input until committed
+(a composition already open when the client loads is deferred from its next update on),
 and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
 in the search field. A query typed before the client has loaded is searched once it has. Clearing
 the field or a failed read clears old results; failures retain the
