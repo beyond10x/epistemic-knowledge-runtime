@@ -101,7 +101,7 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TryRecvError};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -263,11 +263,28 @@ pub(super) fn run(
 /// The store thread's loop: each queued job in turn, answered by `answer` and handed back to the
 /// connection that queued it — unless, when its turn comes, it is no longer alive
 /// ([`super::http::alive`]): then it is dropped unstarted, and the next one starts.
-fn store_loop(jobs: impl IntoIterator<Item = Job>, mut answer: impl FnMut(&Asked) -> Answered) {
-    for job in jobs {
+///
+/// Only a client that waited can have given up waiting, so only a job that waited behind another
+/// read — one already queued when the store thread came back for it — has its client watched. A
+/// job that reaches an idle store thread starts at once, whatever its client did with the
+/// sending half of its connection after the request (story:view-historical-changes-and-cancelled-reads).
+fn store_loop(jobs: Receiver<Job>, mut answer: impl FnMut(&Asked) -> Answered) {
+    loop {
+        let mut job = match jobs.try_recv() {
+            Ok(job) => job,
+            Err(TryRecvError::Disconnected) => return,
+            Err(TryRecvError::Empty) => match jobs.recv() {
+                Ok(mut job) => {
+                    job.client = None;
+                    job
+                }
+                Err(_) => return,
+            },
+        };
         if !super::http::alive(&job, Instant::now()) {
             continue;
         }
+        job.client = None;
         let _ = job.reply.try_send(answer(&job.request));
     }
 }

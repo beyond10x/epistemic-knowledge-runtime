@@ -2886,11 +2886,14 @@ types:
   # #96). Every request that reads the store is answered on the one thread that opened it, one at
   # a time, in the order the requests were queued; at most 64 wait. Before a queued read starts it
   # is dropped, reading no store and answering nothing, when its deadline (35 s after accept) has
-  # passed or when its client has gone: the connection it came on has ended or been reset, as it is
-  # when a client that gave up waiting closes it. A client that closes only its sending half after
-  # its request has gone too. The next queued read then starts in its place, so reads queued
-  # behind a departed client's read wait for none of its work. A read already started runs to its
-  # end on the store's thread, and its answer is not written to a client that has gone.
+  # passed or, if it waited behind another read, when its client has gone: the connection it came
+  # on has ended or been reset, as it is when a client that gave up waiting closes it. A read that
+  # reaches an idle store thread waited for nothing and starts at once, so a client that closes only
+  # its sending half after its request is answered then; one that waited is taken as gone, since
+  # the end of a sending half and of a whole connection read alike. The next queued read then
+  # starts in its place, so reads queued behind a departed client's read wait for none of its
+  # work. A read already started runs to its end on the store's thread, and its answer is not
+  # written to a client that has gone.
   # `ekr mcp-http` keeps its own queue, which drops a request past its deadline and does not watch
   # its client.
 
