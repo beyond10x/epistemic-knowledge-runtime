@@ -82,6 +82,11 @@ pub fn start() -> Result<(), JsValue> {
             }
         }
     })?;
+    // The document takes input before this module arrives, and no `input` event repeats what
+    // was typed meanwhile: search what the field already holds, then announce readiness.
+    if input.value() != input.default_value() {
+        change(&search, false);
+    }
     input.set_attribute("data-live-search", "ready")?;
     Ok(())
 }

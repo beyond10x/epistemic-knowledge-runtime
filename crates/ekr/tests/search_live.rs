@@ -446,6 +446,8 @@ impl Browser {
             .unwrap()
             .to_owned()
     }
+    /// Waits for the page to show `expected`; the page's own state ends the wait. The bound is a
+    /// hang guard, not an expectation of how long the page takes.
     fn until(&mut self, expected: &str) -> String {
         let start = Instant::now();
         loop {
@@ -455,7 +457,7 @@ impl Browser {
             }
             assert!(
                 start.elapsed() < Duration::from_secs(30),
-                "DOM never contained {expected}: {html}"
+                "hang guard: after 30 s the DOM still did not contain {expected}: {html}"
             );
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -537,6 +539,8 @@ fn live_typing_preserves_focus_and_caret_without_navigation() {
     };
     let world = World::new();
     browser.navigate(&format!("{}/find?revision=0", world.origin));
+    // The load event does not wait for the live module (issue #104): type once it listens.
+    browser.until("data-live-search=\"ready\"");
     browser.focus();
     browser.type_text("Aice");
     browser.until("No matches");
@@ -559,6 +563,41 @@ fn live_typing_preserves_focus_and_caret_without_navigation() {
         "Alxice",
         "caret must stay where typing left it"
     );
+}
+
+/// Issue #104: the document's load event does not wait for the live module, so a query can be
+/// typed before the module has attached its `input` listener. The module is held back here until
+/// the query is in the field, which a loaded machine does by itself now and then; the page must
+/// search what the field holds once the module arrives, not wait for another keystroke.
+#[test]
+fn a_query_typed_before_the_live_module_attaches_is_searched_once_it_does() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    browser.call(
+        "Fetch.enable",
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/assets/search_bg.wasm","requestStage":"Request"}),
+        ]),
+    );
+    browser.navigate(&format!("{}/find?revision=0", world.origin));
+    let module = browser.paused("/assets/search_bg.wasm");
+    let html = browser.html();
+    assert!(
+        !html.contains("data-live-search"),
+        "the live module attached while its bytes were held back: {html}"
+    );
+    browser.focus();
+    browser.type_text("Aice");
+    assert_eq!(browser.query_value(), "Aice");
+    browser.call(
+        "Fetch.continueRequest",
+        json!({"requestId":module["requestId"]}),
+    );
+    browser.until("data-live-search=\"ready\"");
+    browser.until("No matches");
+    assert_eq!(browser.query_value(), "Aice");
 }
 
 impl Browser {

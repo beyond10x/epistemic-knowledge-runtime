@@ -1293,7 +1293,8 @@ The graph remains at `/` and the JSON API remains at `/search`.
 With browser scripting enabled, the local Rust/WebAssembly client updates just the results and
 revision region while you type. It waits 180 ms after input, defers composed input until committed,
 and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
-in the search field. Clearing the field or a failed read clears old results; failures retain the
+in the search field. A query typed before the client has loaded is searched once it has. Clearing
+the field or a failed read clears old results; failures retain the
 query and offer an explicit retry, with no background retry loop. Enter searches immediately.
 Without scripting, the same GET form continues to work. Both paths use the same Rust renderer,
 ranking, bounds and revision-pinned links.
