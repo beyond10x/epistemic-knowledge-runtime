@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.42] — 2026-11-10
+
 ### Fixed
 
 - `ekr view`: `/changes` with a historical `at=` is answered from the head's index, at the cost
