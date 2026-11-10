@@ -446,6 +446,8 @@ impl Browser {
             .unwrap()
             .to_owned()
     }
+    /// Waits for the page to show `expected`; the page's own state ends the wait. The bound is a
+    /// hang guard, not an expectation of how long the page takes.
     fn until(&mut self, expected: &str) -> String {
         let start = Instant::now();
         loop {
@@ -455,7 +457,7 @@ impl Browser {
             }
             assert!(
                 start.elapsed() < Duration::from_secs(30),
-                "DOM never contained {expected}: {html}"
+                "hang guard: after 30 s the DOM still did not contain {expected}: {html}"
             );
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -537,6 +539,8 @@ fn live_typing_preserves_focus_and_caret_without_navigation() {
     };
     let world = World::new();
     browser.navigate(&format!("{}/find?revision=0", world.origin));
+    // The load event does not wait for the live module (issue #104): type once it listens.
+    browser.until("data-live-search=\"ready\"");
     browser.focus();
     browser.type_text("Aice");
     browser.until("No matches");
@@ -559,6 +563,141 @@ fn live_typing_preserves_focus_and_caret_without_navigation() {
         "Alxice",
         "caret must stay where typing left it"
     );
+}
+
+/// Issue #104: the document's load event does not wait for the live module, so a query can be
+/// typed before the module has attached its `input` listener. The module is held back here until
+/// the query is in the field, which a loaded machine does by itself now and then; the page must
+/// search what the field holds once the module arrives, not wait for another keystroke.
+#[test]
+fn a_query_typed_before_the_live_module_attaches_is_searched_once_it_does() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    browser.call(
+        "Fetch.enable",
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/assets/search_bg.wasm","requestStage":"Request"}),
+        ]),
+    );
+    browser.navigate(&format!("{}/find?revision=0", world.origin));
+    let module = browser.paused("/assets/search_bg.wasm");
+    let html = browser.html();
+    assert!(
+        !html.contains("data-live-search"),
+        "the live module attached while its bytes were held back: {html}"
+    );
+    browser.focus();
+    browser.type_text("Aice");
+    assert_eq!(browser.query_value(), "Aice");
+    browser.call(
+        "Fetch.continueRequest",
+        json!({"requestId":module["requestId"]}),
+    );
+    browser.until("data-live-search=\"ready\"");
+    browser.until("No matches");
+    assert_eq!(browser.query_value(), "Aice");
+}
+
+/// Adversary, issue #104: the module searches what the field holds when it attaches only when
+/// the reader changed it. A page the server rendered for its own query already shows that
+/// query's results; attaching must leave them standing instead of reading them again. The
+/// module sets `data-search-state` the moment it starts a read, before it announces readiness,
+/// so readiness without that attribute is the page's own proof that no read began.
+#[test]
+fn adversary_a_page_rendered_for_its_query_is_not_read_again_when_the_module_attaches() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    browser.navigate(&format!("{}/find?q=Alice&revision=0", world.origin));
+    let html = browser.until("data-live-search=\"ready\"");
+    assert!(
+        !html.contains("data-search-state"),
+        "the module re-read the query the page was rendered for: {html}"
+    );
+    assert!(
+        html.contains("class=\"result\""),
+        "the server-rendered results are missing: {html}"
+    );
+}
+
+/// Adversary, issue #104: `docs/cli.md` says the client defers composed input until it is
+/// committed. A composition the reader starts before the module attaches is still uncommitted
+/// when it does; the module must not read the partial text then. Its read would set
+/// `data-search-state="loading"` before readiness is announced.
+#[test]
+#[ignore = "an idle composition opened before the module attaches is not detectable from Rust; story:search-live-composition-open-at-attach"]
+fn adversary_a_composition_open_when_the_module_attaches_is_not_read() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    browser.call(
+        "Fetch.enable",
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/assets/search_bg.wasm","requestStage":"Request"}),
+            json!({"urlPattern":"*/find?q=*","requestStage":"Request"}),
+        ]),
+    );
+    browser.navigate(&format!("{}/find?revision=0", world.origin));
+    let module = browser.paused("/assets/search_bg.wasm");
+    browser.focus();
+    browser.call(
+        "Input.imeSetComposition",
+        json!({"text":"Ali","selectionStart":3,"selectionEnd":3}),
+    );
+    browser.call(
+        "Fetch.continueRequest",
+        json!({"requestId":module["requestId"]}),
+    );
+    let html = browser.until("data-live-search=\"ready\"");
+    assert!(
+        !html.contains("data-search-state=\"loading\""),
+        "the module read an uncommitted composition: {html}"
+    );
+}
+
+/// Issue #104 follow-up: a composition opened before the module attaches fires no
+/// `compositionstart` the module can hear, but its next update does reach it. That update must
+/// put the client into the composing state, not read the partial text, and the committed text
+/// must then be read.
+#[test]
+fn a_composition_continued_after_the_module_attaches_is_deferred_until_committed() {
+    let Some(mut browser) = Browser::new() else {
+        return;
+    };
+    let world = World::new();
+    browser.call(
+        "Fetch.enable",
+        viewer_libraries::patterns_with(&[
+            json!({"urlPattern":"*/assets/search_bg.wasm","requestStage":"Request"}),
+            json!({"urlPattern":"*/find?q=*","requestStage":"Request"}),
+        ]),
+    );
+    browser.navigate(&format!("{}/find?revision=0", world.origin));
+    let module = browser.paused("/assets/search_bg.wasm");
+    browser.focus();
+    browser.call(
+        "Input.imeSetComposition",
+        json!({"text":"Ali","selectionStart":3,"selectionEnd":3}),
+    );
+    browser.call(
+        "Fetch.continueRequest",
+        json!({"requestId":module["requestId"]}),
+    );
+    browser.until("data-live-search=\"ready\"");
+    browser.call(
+        "Input.imeSetComposition",
+        json!({"text":"Alic","selectionStart":4,"selectionEnd":4}),
+    );
+    browser.until("data-search-state=\"composing\"");
+    browser.type_text("Alice");
+    let request = browser.paused("q=Alice");
+    let (_, alice) = world.get("/find?q=Alice");
+    browser.fulfill(&request, 200, &alice);
+    browser.until("class=\"result\"");
 }
 
 impl Browser {

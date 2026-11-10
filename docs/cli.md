@@ -1291,9 +1291,11 @@ Names and aliases are shortened to 256 characters for display; matching uses the
 The graph remains at `/` and the JSON API remains at `/search`.
 
 With browser scripting enabled, the local Rust/WebAssembly client updates just the results and
-revision region while you type. It waits 180 ms after input, defers composed input until committed,
+revision region while you type. It waits 180 ms after input, defers composed input until committed
+(a composition already open when the client loads is deferred from its next update on),
 and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
-in the search field. Clearing the field or a failed read clears old results; failures retain the
+in the search field. A query typed before the client has loaded is searched once it has. Clearing
+the field or a failed read clears old results; failures retain the
 query and offer an explicit retry, with no background retry loop. Enter searches immediately.
 Without scripting, the same GET form continues to work. Both paths use the same Rust renderer,
 ranking, bounds and revision-pinned links.
@@ -1346,7 +1348,9 @@ Any other method is 405 and any other path 404. A request that announces a body 
 head that does not parse, or is not complete within 16 KiB or 5 seconds of the connection being
 accepted, is 400. At most 64 connections are served at once; one more is answered 503 (`busy`) at
 once and closed. At most 64 requests wait for the store thread; a full queue returns 503. Each
-wait ends 35 seconds after accept, and expired jobs are discarded before execution. Whole
+wait ends 35 seconds after accept, and expired jobs are discarded before execution, as is the job
+of a client that closed its connection (or its sending half) while it waited: the next queued
+request starts instead. A request the store thread has started runs to its end. Whole
 responses have a total write deadline of 5 seconds. Health and the embedded page bypass the
 store queue. With the default authority policy, a request whose `Host` header is not exactly `127.0.0.1:<port>` or
 `localhost:<port>` (on port 80 also `127.0.0.1` or `localhost` alone), or that has none, is 421
@@ -1521,7 +1525,9 @@ the 64 connections; each write waits at most 5 seconds and the whole stream at m
 client that closes the connection ends it and frees its place.
 
 A revision is loaded once. The first request of a revision to `/overview`, `/expand`, `/node`,
-`/search`, `/timeline`, `/changes`, `/projection` or `/roles` loads and indexes it; every later request of
+`/search`, `/timeline`, `/projection` or `/roles` loads and indexes it, and so does `/changes` at the
+head; `/changes` with an `at` before the head is answered from the head's index, so it costs
+what the same request at the head costs and loads no index of `at`. Every later request of
 that revision, whichever path, reads the store's head and answers from that index, so it costs its
 answer (a revision's first `/timeline` also ranks its row types once; `/changes` also reads the
 store's retained transaction records and parses the transactions of the revisions it chooses,

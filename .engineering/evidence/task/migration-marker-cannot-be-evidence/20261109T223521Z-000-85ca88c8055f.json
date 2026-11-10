@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-09T22:35:21Z",
+  "actor": "agent:claude-ekr-zero-issues-coordinator",
+  "artifact": "task:migration-marker-cannot-be-evidence",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr-kernel --test adversary_c7_m -- --include-ignored at d48cf0320: test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out, evidence_whose_payload_is_the_migration_marker_commits ok (no #[ignore] on it)",
+    "reference": "<scratch>/verify/d.log"
+  }
+}

@@ -8,6 +8,7 @@ relations:
 - decomposes: epic:p3-incubation-integration
 - serves: vision:o2
 - depends_on: story:merge-entity-applies
+- decomposes: epic:zero-open-issues-2026-11
 revision: 1
 ---
 ## Context

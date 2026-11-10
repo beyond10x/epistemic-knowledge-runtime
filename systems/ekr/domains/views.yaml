@@ -139,6 +139,12 @@ summary: >-
   held: a second request choosing the same revisions parses no transaction document, and a
   request after a later commit parses only the revisions that commit added. Holding a change list
   changes no answer: every answer is byte for byte the one a freshly loaded index gives.
+  A request whose `at` names a revision before the head costs the work the same request naming
+  the head costs (issue #96): `ekr view` answers it from the head's index, whose revisions up to
+  `at` and their change lists are the ones an index of `at` holds, with ekr.graph-changes/2's
+  `names` read from the ontology `at` was valid against. It loads no index of `at` and begins no
+  replay of the store's history that the same request naming the head does not, and its answer is
+  byte for byte the one a freshly loaded index of `at` gives.
 
   The MCP tools (`ekr mcp`, `ekr mcp-http`) bind these commands' inputs by name, and take a few
   inputs under a second name as well (ekr-mcp-fixes-20261015 #8): describe_node's `node` also as
@@ -2876,6 +2882,21 @@ types:
       - name: upper
         type: Decimal
 
+  # The store's queue of `ekr view` (story:view-historical-changes-and-cancelled-reads, issue
+  # #96). Every request that reads the store is answered on the one thread that opened it, one at
+  # a time, in the order the requests were queued; at most 64 wait. Before a queued read starts it
+  # is dropped, reading no store and answering nothing, when its deadline (35 s after accept) has
+  # passed or, if it waited behind another read, when its client has gone: the connection it came
+  # on has ended or been reset, as it is when a client that gave up waiting closes it. A read that
+  # reaches an idle store thread waited for nothing and starts at once, so a client that closes only
+  # its sending half after its request is answered then; one that waited is taken as gone, since
+  # the end of a sending half and of a whole connection read alike. The next queued read then
+  # starts in its place, so reads queued behind a departed client's read wait for none of its
+  # work. A read already started runs to its end on the store's thread, and its answer is not
+  # written to a client that has gone.
+  # `ekr mcp-http` keeps its own queue, which drops a request past its deadline and does not watch
+  # its client.
+
   # story:readers-emit-metrics-and-request-logs. The read servers `ekr view` and `ekr mcp-http`
   # count each read they dispatch and log each request they answer. Both take the count at their
   # own dispatch, under one registry and one set of names, so one read through either moves the
@@ -2901,7 +2922,8 @@ types:
   # ekr.kernel.AssertionNotFound and
   # `ekr view`'s 404 for evidence; `unavailable` for `store-replaced` and a store not admitted
   # (503), and a read refused 503 because the request queue is full or its deadline passed, on
-  # either server; `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
+  # either server, or, on `ekr view`, because its client had gone before it started;
+  # `invalid_input` for every other refusal: `invalid-query`, ekr.views.LimitExceeded,
   # ekr.views.SinceMalformed, an MCP -32602 and the explain and resolve verbs' other named
   # refusals. `store_error` is a read that failed on the store (`ekr view`'s 500, an MCP -32603),
   # which is no refusal: it also moves ekr_store_query_errors_total.
@@ -3675,8 +3697,9 @@ commands:
   # malformed input. `at` is the last revision read, the head when absent. `limit` is 1 to 2,000
   # changes per page, when absent 500 for `ekr view` and the session verb and 100 for the MCP tool
   # (the domain summary's defaults per surface); `after` a cursor from an earlier page's `next`,
-  # 0 or more. Each chosen revision's change list is parsed once while the host's indexes are held
-  # (the domain summary's cost of ChangesSince).
+  # 0 or more. Each chosen revision's change list is parsed once while the host's indexes are held,
+  # and on `ekr view` an `at` before the head loads no index of its own (the domain summary's cost
+  # of ChangesSince).
   # A revision since at or after `at` that the store holds chooses no change and is no refusal;
   # one beyond the head is not-found, decided after `at` is.
   # `format` selects the answer: ekr.graph-changes/1 (`changes`) or ekr.graph-changes/2

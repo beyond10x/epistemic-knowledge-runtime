@@ -8,6 +8,7 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:sqlite-store-replaced-in-place
+- decomposes: epic:zero-open-issues-2026-11
 revision: 1
 ---
 ## What is wrong

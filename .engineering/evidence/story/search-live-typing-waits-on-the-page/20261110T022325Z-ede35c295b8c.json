@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-10T02:23:25Z",
+  "actor": "agent:claude-integrate-20261110",
+  "artifact": "story:search-live-typing-waits-on-the-page",
+  "kind": "story",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test --locked -p ekr --test search_live at 85f62c6fb: 14 passed, 0 failed, 1 ignored (adversary_a_composition_open_when_the_module_attaches_is_not_read, story:search-live-composition-open-at-attach); a_query_typed_before_the_live_module_attaches_is_searched_once_it_does red on 572446405 with its assets, green on head; xtask search-web --check: two locked builds agree (804811 bytes)",
+    "reference": "branch adv/20261110-a"
+  }
+}

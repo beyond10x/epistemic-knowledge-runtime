@@ -19,8 +19,8 @@ mod support;
 use ekr_core::RevisionNumber;
 use ekr_kernel::Runtime;
 use ekr_views::{
-    ChangesError, ChangesListed, ChangesRequest, Index, IndexCache, LimitExceeded, ProjectError,
-    SinceKind, SinceMalformed,
+    ChangesError, ChangesFormat, ChangesListed, ChangesRequest, Index, IndexCache, LimitExceeded,
+    ProjectError, SinceKind, SinceMalformed,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -502,6 +502,132 @@ fn a_second_changes_request_parses_no_transaction_document() {
                 assert_eq!(held, fresh, "{provider:?}: {asked:?}, {pass} pass");
             }
         }
+    }
+}
+
+// ---- the cost of a historical `at`: no index of its own (issue #96) ---------------------------
+
+/// Issue #96: [`IndexCache::changes_as`] answers a request naming a revision before the head from
+/// the head's index. Once the same requests were read at the head, every revision of the store,
+/// every since kind and both formats are read at no seed replay, no transaction document parsed
+/// and no index more, counted and never timed; and each answer is byte for byte what a freshly
+/// loaded index of that revision answers, on fixtures whose schema changes between revisions, so
+/// `names` is read from the ontology of `at`.
+#[test]
+fn a_historical_at_is_read_from_the_heads_index_with_a_loaded_indexs_bytes() {
+    let asked = [
+        request(SinceKind::Revision, 0, None, None),
+        request(SinceKind::Revision, 1, Some(2), Some(1)),
+        request(SinceKind::TransactionTime, i64::MIN, None, None),
+        request(SinceKind::ValidTime, 1_000, None, None),
+    ];
+    for provider in PROVIDERS {
+        for fixture in [Fixture::Changes, Fixture::Evolved, Fixture::SchemaChanges] {
+            let work = tempfile::tempdir().expect("work directory");
+            let runtime = fixtures::open(work.path(), provider);
+            fixture.build(&runtime);
+            let head = runtime
+                .head()
+                .expect("the head reads")
+                .expect("seeded")
+                .revision
+                .get();
+            let mut indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+            // The head's reads: they derive every change list, the seed's included.
+            for request in &asked {
+                for format in [ChangesFormat::V1, ChangesFormat::V2] {
+                    indexes
+                        .changes_as(&runtime, None, request, format)
+                        .expect("the changes are read at the head");
+                }
+            }
+            // The head's index shares its change lists, and their count, with every index it holds.
+            let held = indexes.index(&runtime, None).expect("the head indexes");
+            let parsed = || held.transaction_documents_parsed();
+            let mut answered = Vec::new();
+            for at in 0..=head {
+                for request in &asked {
+                    for format in [ChangesFormat::V1, ChangesFormat::V2] {
+                        let before = (runtime.seed_replays(), parsed());
+                        let bytes = indexes
+                            .changes_as(&runtime, Some(RevisionNumber::new(at)), request, format)
+                            .expect("the changes are read")
+                            .bytes;
+                        assert_eq!(
+                            (
+                                runtime.seed_replays() - before.0,
+                                parsed() - before.1,
+                                indexes.len()
+                            ),
+                            (0, 0, 1),
+                            "{provider:?} {fixture:?} at {at} {request:?} {format:?}: \
+                             (seed replays begun, transaction documents parsed, indexes held)"
+                        );
+                        answered.push((at, request, format, bytes));
+                    }
+                }
+            }
+            // Fresh indexes are loaded only after every counted read.
+            for (at, request, format, bytes) in answered {
+                let fresh = Index::load(&runtime, Some(RevisionNumber::new(at)))
+                    .expect("the revision indexes")
+                    .changes_as(&runtime, request, format)
+                    .expect("the changes are read")
+                    .bytes;
+                assert_eq!(
+                    String::from_utf8_lossy(&bytes),
+                    String::from_utf8_lossy(&fresh),
+                    "{provider:?} {fixture:?} at {at} {request:?} {format:?}"
+                );
+            }
+        }
+    }
+}
+
+/// [`IndexCache::changes_as`] refuses as the index of `at` does: an `at` beyond the head is
+/// RevisionNotFound naming the head, and an unseeded store NotSeeded.
+#[test]
+fn a_historical_at_beyond_the_head_is_not_found_naming_the_head() {
+    for provider in PROVIDERS {
+        let (_work, runtime) = built(provider);
+        let head = runtime.head().expect("reads").expect("seeded").revision;
+        let mut indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+        let beyond = RevisionNumber::new(head.get() + 1);
+        let refused = indexes
+            .changes_as(
+                &runtime,
+                Some(beyond),
+                &request(SinceKind::Revision, 0, None, None),
+                ChangesFormat::V1,
+            )
+            .expect_err("beyond the head");
+        assert!(
+            matches!(
+                refused,
+                ChangesError::Project(ProjectError::RevisionNotFound { requested, head: named })
+                    if requested == beyond && named == head
+            ),
+            "{provider:?}: {refused:?}"
+        );
+        let unseeded = tempfile::tempdir().expect("work directory");
+        let empty = fixtures::open(unseeded.path(), provider);
+        let refused = IndexCache::new(1)
+            .changes_as(
+                &empty,
+                Some(RevisionNumber::SEED),
+                &request(SinceKind::Revision, 0, None, None),
+                ChangesFormat::V1,
+            )
+            .expect_err("unseeded");
+        assert!(
+            matches!(
+                refused,
+                ChangesError::Project(ProjectError::NotSeeded {
+                    requested: Some(RevisionNumber::SEED)
+                })
+            ),
+            "{provider:?}: {refused:?}"
+        );
     }
 }
 

@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-10T02:23:25Z",
+  "actor": "agent:claude-integrate-20261110",
+  "artifact": "story:view-historical-changes-and-cancelled-reads",
+  "kind": "story",
+  "revision": 11,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "at 303afe984 plus the store_loop fix: ekr --lib 76 passed (a_read_whose_client_has_gone_is_not_started_and_the_read_behind_it_is_answered among them), ekr-views changes 12, adversary_h_historical_changes 2 (historical bytes equal a fresh index of at across a merge, every at and since, V1 and V2), view_cli 18, adversary_h_view_cancelled_reads 1, hosted_http 15, view_stream 8, mcp 19, session 14, docs_cli 18, ekr conformance 7, views conformance 4; spec-check and conform-fresh with ess 0.36.0 exit 0",
+    "reference": "branch adv/20261110-h"
+  }
+}

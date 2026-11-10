@@ -4,6 +4,25 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.42] — 2026-11-10
+
+### Fixed
+
+- `ekr view`: `/changes` with a historical `at=` is answered from the head's index, at the cost
+  of the same request at the head, instead of building an index of `at` on every request (#96,
+  story:view-historical-changes-and-cancelled-reads). Its answer is byte for byte what an index
+  of `at` gives, superseded and merged nodes included.
+- `ekr view`: a queued read whose client closed its connection while it waited behind another
+  read is dropped before it starts, and the next queued read starts in its place (#96). A read
+  that reaches an idle server starts at once, so a client that closes only its sending half after
+  its request is still answered. A read already started runs to its end
+  (story:view-started-read-stops-when-its-client-goes).
+- Search page: a query typed before the live search client has loaded is searched once it has,
+  instead of waiting for the next keystroke (#104,
+  story:search-live-typing-waits-on-the-page). A composition the reader opened before the client
+  loaded is deferred from its next update until it is committed; one still open and idle when the
+  client loads is read once (story:search-live-composition-open-at-attach).
+
 ## [0.0.41] — 2026-10-21
 
 ### Added

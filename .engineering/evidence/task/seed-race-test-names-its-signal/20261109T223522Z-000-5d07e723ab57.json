@@ -1,0 +1,13 @@
+{
+  "at": "2026-11-09T22:35:22Z",
+  "actor": "agent:claude-ekr-zero-issues-coordinator",
+  "artifact": "task:seed-race-test-names-its-signal",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "98 consecutive runs of cargo test --locked -p ekr --test adversary2_p5_01_store_open -- --exact sqlite_head_racing_the_first_seed_answers_only_documented_states at d48cf0320, no failure, 50 of them at 1-minute load average above 30 (first 55.75); an earlier 50-run loop at load 16.22-38.65 also passed 50 of 50",
+    "reference": "<scratch>/verify/g2.log, <scratch>/verify/g.log"
+  }
+}
