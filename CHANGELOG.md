@@ -4,6 +4,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.42] — 2026-11-22
+
+### Changed
+
+- The public docs site (`ekr-docs`, `website/`) is revised: the hero and the tools notice name
+  PostgreSQL beside file and SQLite, the Planned card lists split only (entity merge shipped in
+  0.0.41), the storage link goes to the configuration and hosted PostgreSQL sections, code blocks
+  wrap instead of clipping, and a dark palette follows `prefers-color-scheme`. The builder also
+  writes `404.html` and `favicon.svg` and checks both. The site stays script-free.
+- `docs/overview.md` links the guide's "ask why" section by its generated anchor.
+- Documents and planning pages name the v1 predecessor in neutral terms and drop downstream names
+  and private references. No runtime behaviour changes in this release.
+
 ## [0.0.41] — 2026-10-21
 
 ### Added
