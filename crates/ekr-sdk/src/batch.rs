@@ -11,6 +11,11 @@
 //! [`Batcher::commit_with_evidence`] adds the entries of an [`EvidenceSet`] the groups cite, each
 //! in the group of its first citing assertion within every transaction proposed, until one
 //! commits it (`story:sdk-evidence-attachment`).
+//!
+//! A pinned run, the crate's extraction routine's, validates every transaction against the
+//! revision its caller planned from (`validate --against`), advanced by each of its own commits;
+//! a `Stale` commit there is not proposed again but ends the run, naming the groups not tried, so
+//! the caller can plan them again against the head (`story:extraction-write-integrity`).
 
 use std::collections::BTreeSet;
 
@@ -225,14 +230,40 @@ enum Attempt {
     Refused(Rejection),
     /// Refused as a whole: stop the run.
     Stop(Rejection),
+    /// Validated against the revision a pinned run expects, and found the head moved past it at
+    /// commit: nothing was applied, and the run stops.
+    Moved(TransactionId),
 }
 
-/// Where a run is: what it did, the commit it has sent without an answer yet, and the evidence
-/// its groups introduce.
+/// Why a submission ended the run.
+enum Halt {
+    /// A refusal of the transaction as a whole.
+    Refused(Rejection),
+    /// A pinned run found the head moved.
+    Moved,
+}
+
+/// Where a pinned run ([`Batcher::commit_pinned`]) left the head: the revision its own last
+/// commit published, or the one it was pinned to, and the groups it did not try because another
+/// writer moved the head past that revision.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Pinned {
+    /// The revision the run's knowledge reaches: the one it was pinned to, advanced by each of
+    /// its own commits.
+    pub(crate) revision: u64,
+    /// Set when another writer moved the head: the transaction whose commit found it moved, and
+    /// every group not committed or rejected, in input order.
+    pub(crate) moved: Option<(TransactionId, Vec<usize>)>,
+}
+
+/// Where a run is: what it did, the commit it has sent without an answer yet, the evidence its
+/// groups introduce, and, for a pinned run, the revision it validates against.
 struct Run<'a> {
     report: BatchReport,
     in_flight: Option<UnknownOutcome>,
     evidence: &'a mut EvidenceSet,
+    against: Option<u64>,
+    moved: Option<TransactionId>,
 }
 
 impl Batcher {
@@ -286,16 +317,51 @@ impl Batcher {
         groups: &[Vec<Operation>],
         evidence: &mut EvidenceSet,
     ) -> Result<BatchReport, Box<BatchError>> {
+        self.run(transport, groups, evidence, None)
+            .map(|(report, _)| report)
+    }
+
+    /// [`Self::commit_with_evidence`], every transaction validated against `against`, the
+    /// revision the caller planned `groups` from, advanced by each of the run's own commits
+    /// (`story:extraction-write-integrity`). A commit that finds the head moved — another writer
+    /// committed after that revision — is not proposed again: the run stops there, and
+    /// [`Pinned::moved`] lists the groups it did not try, for the caller to plan again against
+    /// the head.
+    ///
+    /// # Errors
+    /// As [`Self::commit`].
+    pub(crate) fn commit_pinned<T: Transport + ?Sized>(
+        &self,
+        transport: &mut T,
+        groups: &[Vec<Operation>],
+        evidence: &mut EvidenceSet,
+        against: u64,
+    ) -> Result<(BatchReport, Pinned), Box<BatchError>> {
+        self.run(transport, groups, evidence, Some(against))
+            .map(|(report, pinned)| (report, pinned.expect("a pinned run")))
+    }
+
+    /// The run of [`Self::commit_with_evidence`], pinned to `against` when it is set.
+    fn run<T: Transport + ?Sized>(
+        &self,
+        transport: &mut T,
+        groups: &[Vec<Operation>],
+        evidence: &mut EvidenceSet,
+        against: Option<u64>,
+    ) -> Result<(BatchReport, Option<Pinned>), Box<BatchError>> {
         let plan = self.plan(groups, evidence);
         let mut run = Run {
             report: BatchReport::default(),
             in_flight: None,
             evidence,
+            against,
+            moved: None,
         };
+        let mut moved = None;
         for (batch, members) in plan.iter().enumerate() {
             match self.submit(transport, groups, members, batch, &mut run) {
                 Ok(None) => {}
-                Ok(Some(rejection)) => {
+                Ok(Some(halt)) => {
                     let done: std::collections::BTreeSet<usize> = run
                         .report
                         .committed
@@ -309,11 +375,19 @@ impl Batcher {
                         .copied()
                         .filter(|group| !done.contains(group))
                         .collect();
-                    run.report.refused = Some(RefusedBatch {
-                        batch,
-                        groups: remaining,
-                        rejection,
-                    });
+                    match halt {
+                        Halt::Refused(rejection) => {
+                            run.report.refused = Some(RefusedBatch {
+                                batch,
+                                groups: remaining,
+                                rejection,
+                            });
+                        }
+                        Halt::Moved => {
+                            let transaction = run.moved.expect("a moved run names its commit");
+                            moved = Some((transaction, remaining));
+                        }
+                    }
                     break;
                 }
                 Err(cause) => {
@@ -325,7 +399,8 @@ impl Batcher {
                 }
             }
         }
-        Ok(run.report)
+        let pinned = run.against.map(|revision| Pinned { revision, moved });
+        Ok((run.report, pinned))
     }
 
     /// The groups packed into batches, in order, under the caps. Each group's size counts the
@@ -366,7 +441,8 @@ impl Batcher {
     }
 
     /// Submit `members` as one transaction; if it is refused, each half again, down to one group.
-    /// `Some` is a refusal of the transaction as a whole, which stops the run.
+    /// `Some` stops the run: a refusal of the transaction as a whole, or a pinned run that found
+    /// the head moved.
     fn submit<T: Transport + ?Sized>(
         &self,
         transport: &mut T,
@@ -374,7 +450,7 @@ impl Batcher {
         members: &[usize],
         batch: usize,
         run: &mut Run,
-    ) -> Result<Option<Rejection>, CallError> {
+    ) -> Result<Option<Halt>, CallError> {
         let mut attached = BTreeSet::new();
         let built = members
             .iter()
@@ -401,7 +477,7 @@ impl Batcher {
             }
             Ok(document) if self.within(&document) => {
                 let mut sent = None;
-                let attempt = self.attempt(transport, document, &mut sent);
+                let attempt = self.attempt(transport, document, run.against, &mut sent);
                 if let Some(transaction) = sent {
                     run.in_flight = Some(UnknownOutcome {
                         transaction,
@@ -432,13 +508,22 @@ impl Batcher {
                     stale,
                 });
                 run.evidence.extend_committed(attached);
+                // A pinned commit was validated against the head, so it published the next
+                // revision: the run's knowledge reaches it.
+                if run.against.is_some() {
+                    run.against = Some(revision);
+                }
             }
-            Attempt::Stop(rejection) => return Ok(Some(rejection)),
+            Attempt::Stop(rejection) => return Ok(Some(Halt::Refused(rejection))),
+            Attempt::Moved(transaction) => {
+                run.moved = Some(transaction);
+                return Ok(Some(Halt::Moved));
+            }
             Attempt::Refused(_) if members.len() > 1 => {
                 let (left, right) = members.split_at(members.len() / 2);
                 for half in [left, right] {
-                    if let Some(stop) = self.submit(transport, groups, half, batch, run)? {
-                        return Ok(Some(stop));
+                    if let Some(halt) = self.submit(transport, groups, half, batch, run)? {
+                        return Ok(Some(halt));
                     }
                 }
             }
@@ -482,12 +567,15 @@ impl Batcher {
     }
 
     /// Propose, validate and commit `document`, proposing it again under a new id while its
-    /// commit finds the head moved. `sent` holds the id of a commit sent and not answered with an
-    /// outcome, a refusal or a usage message, which may have been applied.
+    /// commit finds the head moved — unless it is validated `against` a revision the caller
+    /// pinned, when a moved head ends the attempt as [`Attempt::Moved`]. `sent` holds the id of a
+    /// commit sent and not answered with an outcome, a refusal or a usage message, which may have
+    /// been applied.
     fn attempt<T: Transport + ?Sized>(
         &self,
         transport: &mut T,
         mut document: TransactionDocument,
+        against: Option<u64>,
         sent: &mut Option<TransactionId>,
     ) -> Result<Attempt, CallError> {
         let mut stale = Vec::new();
@@ -505,7 +593,11 @@ impl Batcher {
                 }
                 answer => return Err(unanswered(&propose, answer)),
             }
-            let validate = Request::new(["validate", id.as_str()]);
+            let mut argv = vec!["validate".to_owned(), id.clone()];
+            if let Some(revision) = against {
+                argv.extend(["--against".to_owned(), revision.to_string()]);
+            }
+            let validate = Request::new(argv);
             match call(transport, &validate)? {
                 Answer::Outcome(Outcome::Validated(_)) => {}
                 Answer::Outcome(Outcome::Rejected(record)) => {
@@ -556,6 +648,9 @@ impl Batcher {
                         revision,
                         stale,
                     });
+                }
+                Answer::Outcome(Outcome::Stale(_)) if against.is_some() => {
+                    return Ok(Attempt::Moved(transaction));
                 }
                 Answer::Outcome(Outcome::Stale(_)) => {
                     stale.push(transaction);

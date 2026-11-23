@@ -57,7 +57,8 @@
 //!   subtype of one, at that end of its edge type;
 //! * `fact-without-evidence` — a fact citing no evidence item;
 //! * `fact-evidence-unlisted` — a fact citing an id no evidence item of the document carries;
-//! * `duplicate-identity` — two evidence items under one id;
+//! * `duplicate-identity` — two evidence items under one id: two of the document, or, checked
+//!   against a graph, one of the document and another the graph retains under its id;
 //! * `extraction-evidence-kind-unsupported` — an evidence item whose source is neither a
 //!   `!HumanStatement` nor a `!Url`, the two sources the kernel admits as evidence;
 //! * `evidence-payload-mismatch` — an evidence item whose payload does not hash to its entry.
@@ -863,6 +864,15 @@ impl ExtractionDocument {
             }
             if ContentHash::of_bytes(&item.payload) != item.evidence.content_hash {
                 return Err(refusal(Code::EvidencePayloadMismatch, id.to_string()));
+            }
+            // The store cites an id it retains instead of adding it again, so an item that is not
+            // the retained one would lend its facts the retained item's source and time
+            // (`story:extraction-write-integrity`, finding 1). The same item again is a retry.
+            if graph
+                .and_then(|graph| graph.evidence.get(&id))
+                .is_some_and(|retained| *retained != item.evidence)
+            {
+                return Err(refusal(Code::DuplicateIdentity, id.to_string()));
             }
         }
         Ok(refused)
