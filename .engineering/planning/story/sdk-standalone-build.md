@@ -7,6 +7,7 @@ title: The SDK builds in a standalone application
 summary: ekr-core depends on a YAML crate that carries the API it uses, checked by a standalone build outside the test step (review 0.0.42 finding 34)
 relations:
 - serves: vision:o5
+- delivers: task:sdk-consumer-yaml-dependency
 revision: 3
 transitions:
 - {from: "draft", to: "proposed", at: "2026-11-23T20:20:13Z", actor: "human:timo", revision: 2}

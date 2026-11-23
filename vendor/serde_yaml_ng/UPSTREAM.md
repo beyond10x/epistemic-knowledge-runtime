@@ -53,11 +53,26 @@ allowance is added to the source or build configuration.
 
 ## Locked compatibility checks
 
-The original standalone manifest is unchanged. A standalone `Cargo.lock` pins
-its test dependencies independently of the consuming workspace. The root
-workspace excludes this directory from membership and selects it with a local
-`patch.crates-io` entry. The root lock changes only this package's source; its
-version and dependency list remain unchanged.
+A standalone `Cargo.lock` pins its test dependencies independently of the
+consuming workspace. The root workspace excludes this directory from membership.
+
+## Package name
+
+The package is named `ekr-serde-yaml-ng`; its library keeps the name
+`serde_yaml_ng`, so every `use serde_yaml_ng::...` in EKR and in the retained
+upstream tests is unchanged. The root workspace depends on it by path under the
+dependency key `serde_yaml_ng` (`package = "ekr-serde-yaml-ng"`). The normalized
+manifest changes only the package name, the description and the library name;
+`Cargo.toml.orig` is the upstream original.
+
+Until 0.0.42 the root workspace selected this directory with a
+`patch.crates-io` entry for `serde_yaml_ng`. Cargo applies only the root
+workspace's patch, so an application that depended on `ekr-sdk` by release tag
+resolved the registry `serde_yaml_ng`, which has no `observation` module, and
+did not build. A path dependency travels with the tag; the distinct name keeps it
+apart from the registry crate of the same version in an application's graph.
+`task sdk-standalone-check` (`scripts/sdk-standalone-check.sh`) builds the SDK
+from a workspace of its own to hold this.
 
 Run the original upstream suite and the additional observation tests with:
 

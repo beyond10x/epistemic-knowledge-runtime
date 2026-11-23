@@ -48,7 +48,7 @@ rusqlite = { version = "=0.40.2", features = ["bundled", "serialize"] }
 rustix = { version = "1.1", features = ["fs", "process"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
-serde_yaml_ng = "0.10"
+serde_yaml_ng = { package = "ekr-serde-yaml-ng", version = "0.10.0", path = "vendor/serde_yaml_ng" }
 sha2 = "0.11"
 ring = "0.17.14"
 tempfile = "3"
@@ -63,9 +63,6 @@ uuid = { version = "1", features = ["v7"] }
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
-
-[patch.crates-io]
-serde_yaml_ng = { path = "vendor/serde_yaml_ng" }
 
 [profile.dev]
 debug = false

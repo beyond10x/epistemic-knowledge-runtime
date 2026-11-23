@@ -11,6 +11,7 @@ tasks:
       - task: bench-check
       - task: doc-check
       - task: vendor-check
+      - task: sdk-standalone-check
       - task: spec-check
       - task: conform-fresh
       - task: plan-check
@@ -84,6 +85,11 @@ tasks:
       RUSTDOCFLAGS: -D warnings
     cmds:
       - cargo doc --manifest-path vendor/serde_yaml_ng/Cargo.toml --no-deps --locked --target-dir "${CARGO_TARGET_DIR:-target}/vendor-serde_yaml_ng"
+
+  sdk-standalone-check:
+    desc: An application outside this workspace builds ekr-sdk from its declared dependencies alone, offline
+    cmds:
+      - sh scripts/sdk-standalone-check.sh
 
   spec-check:
     desc: the runtime's own ESS contract validates
