@@ -107,18 +107,18 @@ log(\"it is\", \"alpha\"); // don't
     );
 }
 
-/// The fastest of three runs of `work`. Each comparison below sets two such measurements, taken in
+/// The fastest of nine runs of `work`. Each comparison below sets two such measurements, taken in
 /// one process moments apart, against each other: a ratio, not a wall-clock bound, so load moves
 /// both sides together.
 fn fastest(mut work: impl FnMut()) -> Duration {
-    (0..3)
+    (0..9)
         .map(|_| {
             let started = Instant::now();
             work();
             started.elapsed()
         })
         .min()
-        .expect("three runs")
+        .expect("nine runs")
 }
 
 /// Linear work grows four times when its input does; quadratic work grows sixteen times. Eight
