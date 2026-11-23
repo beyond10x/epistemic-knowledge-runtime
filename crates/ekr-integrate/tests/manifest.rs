@@ -144,7 +144,7 @@ fn the_crate_declares_no_string_similarity_dependency() {
         "serde",
         "proptest",
         "serde_json",
-        "serde_yaml_ng",
+        "ekr-serde-yaml-ng",
         "tempfile",
     ]
     .into_iter()

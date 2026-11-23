@@ -12,6 +12,7 @@ tasks:
       - task: compile-fail-check
       - task: doc-check
       - task: vendor-check
+      - task: sdk-standalone-check
       - task: spec-check
       - task: conform-fresh
       - task: plan-check
@@ -38,7 +39,7 @@ tasks:
   fmt-check:
     desc: rustfmt, check only
     cmds:
-      - cargo fmt --all -- --check
+      - cargo fmt -- --check
 
   clippy:
     desc: clippy over every target, warnings are errors
@@ -91,6 +92,11 @@ tasks:
     cmds:
       - cargo doc --manifest-path vendor/serde_yaml_ng/Cargo.toml --no-deps --locked --target-dir "${CARGO_TARGET_DIR:-target}/vendor-serde_yaml_ng"
 
+  sdk-standalone-check:
+    desc: An application outside this workspace builds ekr-sdk from its declared dependencies alone, offline
+    cmds:
+      - sh scripts/sdk-standalone-check.sh
+
   spec-check:
     desc: the runtime's own ESS contract validates
     preconditions:
@@ -133,4 +139,4 @@ tasks:
   fmt:
     desc: rustfmt, in place
     cmds:
-      - cargo fmt --all
+      - cargo fmt
