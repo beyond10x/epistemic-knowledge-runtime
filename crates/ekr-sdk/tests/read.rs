@@ -1073,6 +1073,39 @@ fn a_reader_in_one_session_sees_another_sessions_commits_on_its_next_call() {
     ));
 }
 
+/// story:mcp-list-nodes-by-type: `search_v3_page` continues a /3 search at `meta.next`. The
+/// seeded store and Globex hold four nodes; pages of two at revision 1 answer each once.
+#[test]
+fn search_v3_page_continues_a_search_at_its_next() {
+    let world = World::new();
+    let mut session = world.seeded();
+    World::commit_globex(&mut session);
+    let mut reader = Reader::new(RecordingTransport::record(&mut session));
+    let first = reader.search_v3("", Some(2), Some(1)).unwrap();
+    matches_v3_hold(&first, 2);
+    assert_eq!(first.meta.total, 4);
+    assert_eq!(first.matches.len(), 2);
+    assert_eq!(first.meta.next, Some(2));
+    let again = reader.search_v3_page("", Some(2), 0, Some(1)).unwrap();
+    assert_eq!(again, first, "after 0 is the first page");
+    let second = reader.search_v3_page("", Some(2), 2, Some(1)).unwrap();
+    matches_v3_hold(&second, 2);
+    assert_eq!(second.meta.total, 4);
+    assert_eq!(second.meta.next, None);
+    let mut ids: Vec<NodeId> = first
+        .matches
+        .iter()
+        .chain(&second.matches)
+        .map(|m| m.id)
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), 4, "two pages of two answer four distinct nodes");
+    let end = reader.search_v3_page("", Some(2), 4, Some(1)).unwrap();
+    assert!(end.matches.is_empty());
+    assert_eq!(end.meta.next, None);
+}
+
 /// Every views read of a real session is the document the session printed, read exactly; a
 /// refusal is typed by its name.
 #[test]
