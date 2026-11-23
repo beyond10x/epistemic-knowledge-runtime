@@ -4,6 +4,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Fixed
+
+- An application that depends on `ekr-sdk` by release tag builds it with the SDK's declared
+  dependencies alone (story:sdk-standalone-build, finding 34 of the EKR 0.0.42 review). Its
+  `cargo check` failed with `unresolved import serde_yaml_ng::observation`: `ekr-core` needs the
+  observation facade of the YAML crate under `vendor/serde_yaml_ng`, which only this workspace's
+  `[patch.crates-io]` selected, and Cargo ignores a dependency's patch. That crate is now the
+  package `ekr-serde-yaml-ng` (library name still `serde_yaml_ng`), a path dependency that travels
+  with the tag. An application that copied the workaround `serde_yaml_ng` patch into its own
+  manifest can drop it. `task check` runs a new step, `task sdk-standalone-check`, that builds the
+  SDK from a workspace of its own, offline.
+
 ## [0.0.43] — 2026-11-23
 
 ### Added

@@ -7,6 +7,8 @@
 //!   reads is code to it.
 //! - The runner settings: no debug info in test builds, a test over 60 s killed, the step run
 //!   through `scripts/test-step.sh`, and the workflow that runs the classifier.
+//! - No `[patch]` in the root manifest, and the gate step that builds `ekr-sdk` from a workspace
+//!   of its own (`story:sdk-standalone-build`).
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -316,4 +318,39 @@ fn test_builds_carry_no_debug_info_and_the_runner_holds_the_budgets() {
     );
     assert!(step.contains("cargo nextest run --workspace --locked --no-fail-fast"));
     assert!(step.contains("cargo test --workspace --locked --doc"));
+}
+
+/// `story:sdk-standalone-build`: Cargo applies only the root workspace's `[patch]`, so a crate
+/// this workspace selects through one is missing for an application that depends on `ekr-sdk`
+/// by release tag. The gate builds the SDK from a workspace of its own, outside the test step.
+#[test]
+fn the_sdk_needs_no_workspace_patch_and_the_gate_builds_it_standalone() {
+    let root = workspace_root();
+    let manifest = read(&root.join("Cargo.toml"));
+    assert!(
+        !manifest
+            .lines()
+            .any(|line| line.trim_start().starts_with("[patch")),
+        "the root manifest selects no crate through [patch]: an application building ekr-sdk \
+         does not get it"
+    );
+    assert!(
+        manifest.contains(
+            "serde_yaml_ng = { package = \"ekr-serde-yaml-ng\", version = \"0.10.0\", path = \
+             \"vendor/serde_yaml_ng\" }\n"
+        ),
+        "the YAML crate with the observation facade is a path dependency, which travels with a tag"
+    );
+    let taskfile = read(&root.join("Taskfile.yml"));
+    assert!(
+        taskfile.contains("      - task: sdk-standalone-check\n")
+            && taskfile.contains("      - sh scripts/sdk-standalone-check.sh\n"),
+        "task check runs scripts/sdk-standalone-check.sh"
+    );
+    let script = read(&root.join("scripts/sdk-standalone-check.sh"));
+    assert!(
+        script.contains("cargo check --offline --manifest-path \"$consumer/Cargo.toml\"")
+            && script.contains("'[workspace]'"),
+        "the check builds a consumer workspace of its own, offline"
+    );
 }

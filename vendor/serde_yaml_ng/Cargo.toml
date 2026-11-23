@@ -12,10 +12,10 @@
 [package]
 edition = "2021"
 rust-version = "1.64"
-name = "serde_yaml_ng"
+name = "ekr-serde-yaml-ng"
 version = "0.10.0"
 authors = ["Antoine Catton <devel@antoine.catton.fr>"]
-description = "YAML data format for Serde"
+description = "serde_yaml_ng 0.10.0 with the observation facade EKR reads YAML through"
 documentation = "https://docs.rs/serde_yaml_ng/"
 readme = "README.md"
 keywords = [
@@ -35,6 +35,7 @@ rustdoc-args = ["--generate-link-to-definition"]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [lib]
+name = "serde_yaml_ng"
 doc-scrape-examples = false
 
 [dependencies.indexmap]
