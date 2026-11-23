@@ -1733,7 +1733,7 @@ impl Run<'_> {
                 ));
             }
         }
-        if let (Some(replacing), Some(slot)) = (replacing, slot) {
+        if let (Some(replacing), Some(_)) = (replacing, slot) {
             let refusal = match cited.valid_time.from {
                 None => Some(format!("{}: {item}", code::WITHOUT_EVIDENCE)),
                 Some(_) if active.is_empty() => {
