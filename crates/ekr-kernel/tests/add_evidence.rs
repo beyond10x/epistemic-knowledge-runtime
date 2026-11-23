@@ -433,27 +433,103 @@ fn an_assertion_citing_evidence_no_revision_holds_is_refused_as_unresolved_evide
 }
 
 #[test]
-fn evidence_from_a_source_other_than_a_human_statement_is_refused_by_name() {
+fn evidence_from_a_source_other_than_a_human_statement_or_a_url_is_refused_by_name() {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
         let seed = seeded();
         let runtime = open(directory.path(), file);
         runtime.seed(seed.document.clone(), at(10)).unwrap();
-        let payload = b"https://example.invalid/page".to_vec();
+        let payload = b"section 2 of the annual report".to_vec();
+        for source in [
+            EvidenceSource::Document {
+                document_id: "annual-report".into(),
+                section: Some("2".into()),
+            },
+            EvidenceSource::DatabaseRecord {
+                database: "crm".into(),
+                table: "accounts".into(),
+                key: "7".into(),
+            },
+            EvidenceSource::Observation(ObservationId::mint()),
+        ] {
+            assert!(!source.admissible(), "{source:?}");
+            let mut evidence = human_evidence(EvidenceId::mint(), &payload);
+            evidence.source = source;
+            let result = verdict(
+                &runtime,
+                &transaction(vec![add_evidence(evidence, &payload)]),
+                20,
+            );
+            assert_eq!(
+                refused(&result),
+                vec![(
+                    "evidence-unsupported-source".to_owned(),
+                    ValidatorName::Provenance
+                )]
+            );
+        }
+    }
+}
+
+/// `story:extraction-admits-url-evidence`: a page's retained bytes, cited by the URL they were
+/// fetched from, are admitted under the same rule as a statement's, and explain ends at them.
+#[test]
+fn evidence_from_a_url_with_its_retained_bytes_commits_and_explain_ends_at_it() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let payload = b"<html>Acme hired Bob as CEO.</html>".to_vec();
         let mut evidence = human_evidence(EvidenceId::mint(), &payload);
-        evidence.source = EvidenceSource::Url("https://example.invalid/page".into());
+        evidence.source = EvidenceSource::Url("https://example.invalid/acme/news".into());
+        assert!(evidence.source.admissible());
+
+        // A payload that is not the page's retained bytes is refused as for any source.
+        let mut wrong = evidence.clone();
+        wrong.id = EvidenceId::mint();
         let result = verdict(
             &runtime,
-            &transaction(vec![add_evidence(evidence, &payload)]),
-            20,
+            &transaction(vec![add_evidence(wrong, b"other bytes")]),
+            15,
         );
         assert_eq!(
             refused(&result),
             vec![(
-                "evidence-unsupported-source".to_owned(),
+                "evidence-payload-mismatch".to_owned(),
                 ValidatorName::Provenance
             )]
         );
+
+        let claim = assertion(&seed, evidence.id, "from the page");
+        let tx = transaction(vec![
+            add_evidence(evidence.clone(), &payload),
+            GraphOperation::AddAssertion(Box::new(claim.clone())),
+        ]);
+        let receipt = committed(&runtime, &tx, 20);
+        assert_eq!(receipt.result.revision, RevisionNumber::new(1));
+        assert_eq!(
+            runtime.snapshot().unwrap().evidence.get(&evidence.id),
+            Some(&evidence)
+        );
+
+        let explained = runtime.read(None).unwrap().explain(claim.id).unwrap();
+        let cited: Vec<_> = explained
+            .links
+            .iter()
+            .filter_map(|link| match link {
+                ExplanationLink::Evidence(entry) => Some(entry.source.locator()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(cited, ["https://example.invalid/acme/news"]);
+        drop(runtime);
+
+        // A full replay from the seed admits it again.
+        let mut reopened = open(directory.path(), file);
+        reopened.set_full_replay(true);
+        assert_eq!(reopened.head().unwrap().unwrap(), receipt.result);
+        assert!(reopened.read(None).unwrap().explain(claim.id).is_ok());
     }
 }
 

@@ -236,7 +236,7 @@ pub struct SnapshotAssertion {
 pub struct SnapshotEvidence {
     /// Its id.
     pub id: EvidenceId,
-    /// Where it came from: `{"HumanStatement": {…}}`, …
+    /// Where it came from: `{"HumanStatement": {…}}`, `{"Url": "…"}`, …
     pub source: Value,
     /// Its payload's content hash.
     pub content_hash: ContentHash,

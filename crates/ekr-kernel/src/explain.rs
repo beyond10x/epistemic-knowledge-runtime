@@ -25,8 +25,7 @@ use ekr_core::{
     TransactionId,
 };
 use ekr_graph::{
-    Assertion, AssertionLifecycle, CanonicalGraph, CanonicalRef, Evidence, EvidenceSource,
-    GraphSnapshot, Root,
+    Assertion, AssertionLifecycle, CanonicalGraph, CanonicalRef, Evidence, GraphSnapshot, Root,
 };
 use ekr_store::{evidence_root, knowledge_root, GraphDocument};
 use serde::Serialize;
@@ -339,8 +338,9 @@ impl VerifiedRead {
     /// evidence-id order, each with its commit (design § 103.4). The chain ends in the union, by
     /// [`EvidenceId`], of each selected assertion's evidence, the evidence attached to it, and
     /// the complete evidence sets of the included ordinary origin and lifecycle transactions, each
-    /// payload verified at its content address. HumanStatement
-    /// evidence terminates; any other source refuses rather than fabricating a further step.
+    /// payload verified at its content address. HumanStatement and Url evidence terminate, the
+    /// retained bytes being what the source said; any other source refuses rather than
+    /// fabricating a further step.
     ///
     /// The chain is looked up, not found by reading every committed document. Replay records in
     /// each assertion of the verified graph the instant of the commit that added it (its
@@ -529,10 +529,7 @@ impl VerifiedRead {
             let Some(evidence) = self.graph.evidence.get(&id) else {
                 return unverified("evidence-missing");
             };
-            require(
-                matches!(evidence.source, EvidenceSource::HumanStatement { .. }),
-                "evidence-source-unexplained",
-            )?;
+            require(evidence.source.admissible(), "evidence-source-unexplained")?;
             let Some(bytes) = self.content(&evidence.content_hash) else {
                 return unverified("evidence-payload-missing");
             };

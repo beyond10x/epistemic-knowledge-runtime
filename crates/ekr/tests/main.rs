@@ -227,6 +227,8 @@ mod store_comparison;
 mod store_fault_reopens;
 #[path = "store_open.rs"]
 mod store_open;
+#[path = "store_outcome_kinds.rs"]
+mod store_outcome_kinds;
 #[path = "story_contract.rs"]
 mod story_contract;
 #[path = "temporal_reads.rs"]

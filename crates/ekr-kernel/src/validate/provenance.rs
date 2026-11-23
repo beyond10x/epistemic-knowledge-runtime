@@ -50,15 +50,19 @@
 //!
 //! `AddEvidence` (`decision-blocker:evidence-entry-after-seed`, option 1) brings an evidence entry
 //! and its payload together, and this validator holds them to the provenance profile
-//! `retained-admissible-evidence/1` the seed is held to (design § 91.1), under the same rules:
+//! `retained-admissible-evidence/1` the seed is held to (design § 91.1), under the same rules
+//! but one source more:
 //!
 //! * the payload is the bytes the entry names — `ContentHash::of_bytes(payload)`, the
 //!   `ekr.payload.v1` address `ekr hash` prints, equals `content_hash` — or the issue is
 //!   `evidence-payload-mismatch`, naming both hashes, as the seed's
 //!   `seed-evidence-payload-mismatch` does;
-//! * the source is a `HumanStatement`, the one source kind the seed admits and the one
-//!   `ekr.kernel.Explain` terminates at, or the issue is `evidence-unsupported-source`, as the
-//!   seed's `seed-unsupported-source` is. An `Observation` source waits on a retained observation
+//! * the source is a `HumanStatement` or a `Url` (`EvidenceSource::admissible`), the two kinds
+//!   `ekr.kernel.Explain` terminates at, or the issue is `evidence-unsupported-source`. A `Url`
+//!   is held to exactly the rule above and no other: the payload is the bytes fetched from it,
+//!   `observed_at` the time they were fetched, and the runtime never fetches the URL itself
+//!   (`story:extraction-admits-url-evidence`). The seed admits a `HumanStatement` only
+//!   (`seed-unsupported-source`). An `Observation` source waits on a retained observation
 //!   (`decision-blocker:observation-retention-path`); a `GraphAssertion` source would name an
 //!   assertion by a canonical reference no validator has resolved.
 //!
@@ -66,7 +70,7 @@
 //! it is for an assertion's `proposed_by` (`ekr.kernel.ProposalAttribution`).
 
 use ekr_core::ContentHash;
-use ekr_graph::{Assessment, EvidenceSource, GraphSnapshot};
+use ekr_graph::{Assessment, GraphSnapshot};
 
 use super::{finish, issue, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
@@ -81,7 +85,7 @@ const ASSERTION_STATES_ITS_OWN_VERDICT: &str = "assertion-states-its-own-verdict
 /// Evidence added with a payload whose bytes do not hash to the entry's `content_hash`.
 const EVIDENCE_PAYLOAD_MISMATCH: &str = "evidence-payload-mismatch";
 
-/// Evidence added from a source other than a `HumanStatement`.
+/// Evidence added from a source other than a `HumanStatement` or a `Url`.
 const EVIDENCE_UNSUPPORTED_SOURCE: &str = "evidence-unsupported-source";
 
 /// Validator 6: provenance.
@@ -119,14 +123,14 @@ impl Validator for Provenance {
                         ),
                     ));
                 }
-                if !matches!(evidence.source, EvidenceSource::HumanStatement { .. }) {
+                if !evidence.source.admissible() {
                     issues.push(issue(
                         tx,
                         ValidatorName::Provenance,
                         EVIDENCE_UNSUPPORTED_SOURCE,
                         format!(
                             "evidence {} has a {:?} source; evidence is added from a \
-                             HumanStatement source only",
+                             HumanStatement or a Url source only",
                             evidence.id,
                             evidence.source.kind()
                         ),

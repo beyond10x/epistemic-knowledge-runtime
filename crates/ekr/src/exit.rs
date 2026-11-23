@@ -2,12 +2,28 @@
 //!
 //! Every declared command outcome — including a recorded Validate rejection and a recorded Commit
 //! staleness — is a success and exits 0 with its actual retained record. A named refusal exits 2
-//! with its name on stderr and writes nothing. An operational or configuration fault exits 1.
+//! with its name on stderr and writes nothing. An operational or configuration fault exits 1. A
+//! publication whose outcome the store cannot say exits 3 with its own name on stderr
+//! ([`PUBLICATION_OUTCOME_UNKNOWN`]): the write may have landed (`story:store-outcome-kinds`).
 
 use std::fmt;
 
 use ekr_kernel::{CommitError, DocumentError, PersistenceError, ProjectionError, SeedError};
 use ekr_views::ProjectError;
+
+/// The refusal name of a store that has no seed, for every command that meets one: the name
+/// `ekr.views` already declares for its reads, so one name and one exit status (2) cover them all
+/// (`story:store-outcome-kinds`). A history whose first record is not a seed is not this: that is
+/// a damaged lineage, a fault.
+pub const NOT_SEEDED: &str = "ekr.views.NotSeeded";
+
+/// The name of a publication whose outcome is unknown (`StoreError::UnknownCommit`): it may or may
+/// not have taken effect, so a caller reads the store before writing it again. Exit
+/// [`UNKNOWN_OUTCOME_EXIT`].
+pub const PUBLICATION_OUTCOME_UNKNOWN: &str = "publication-outcome-unknown";
+
+/// The exit status of [`PUBLICATION_OUTCOME_UNKNOWN`].
+pub const UNKNOWN_OUTCOME_EXIT: u8 = 3;
 
 /// Why a command produced no result.
 #[derive(Debug)]
@@ -30,6 +46,14 @@ pub enum Failure {
         /// longer the one it opened (`PersistenceError::Replaced`, `store-replaced`); a
         /// long-running reader opens it again on this too.
         replaced: bool,
+    },
+    /// A write the store published or not, and cannot say which: `publication-outcome-unknown`.
+    /// Exit 3, and unlike a refusal, it may have been recorded.
+    Uncertain {
+        /// Always [`PUBLICATION_OUTCOME_UNKNOWN`].
+        name: &'static str,
+        /// The store's own description.
+        message: String,
     },
     /// Command-line arguments clap refused; clap's own usage exit status, 2.
     Usage {
@@ -59,11 +83,18 @@ impl Failure {
     }
 
     /// What a store's refusal is. A refusal of a stage command, or of a verb joined to a stage, is
-    /// a named refusal under its `ekr.store` refusal name (`stage_refusal`). Anything else is a
+    /// a named refusal under its `ekr.store` refusal name (`stage_refusal`). A publication whose
+    /// outcome is unknown is [`Self::Uncertain`], its message unchanged. Anything else is a
     /// fault: [`Self::diverged`] for `PersistenceError::Diverged` and [`Self::replaced`] for
     /// `PersistenceError::Replaced`.
     #[must_use]
     pub fn store(error: PersistenceError) -> Self {
+        if matches!(error, PersistenceError::UnknownCommit) {
+            return Self::Uncertain {
+                name: PUBLICATION_OUTCOME_UNKNOWN,
+                message: error.to_string(),
+            };
+        }
         if let Some(name) = stage_refusal(&error) {
             let text = error.to_string();
             let reason = text
@@ -121,6 +152,7 @@ impl Failure {
         match self {
             Self::Refused { .. } | Self::Usage { .. } => 2,
             Self::Fault { .. } => 1,
+            Self::Uncertain { .. } => UNKNOWN_OUTCOME_EXIT,
         }
     }
 
@@ -162,7 +194,9 @@ fn stage_refusal(error: &PersistenceError) -> Option<&'static str> {
 impl fmt::Display for Failure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Refused { name, message } => write!(formatter, "ekr: {name}: {message}"),
+            Self::Refused { name, message } | Self::Uncertain { name, message } => {
+                write!(formatter, "ekr: {name}: {message}")
+            }
             Self::Fault { message, .. } => write!(formatter, "ekr: {message}"),
             Self::Usage { message } => formatter.write_str(message),
         }
@@ -212,7 +246,8 @@ impl From<CommitError> for Failure {
             CommitError::Store(PersistenceError::ReadOnly(why)) => crate::cli::read_only(&why),
             // `Store` is transparent: the store's own refusal, with its text.
             CommitError::Store(error) => Self::store(error),
-            error @ CommitError::NotSeeded => Self::fault(error),
+            // An empty lineage: the one name every command that meets one refuses it under.
+            error @ CommitError::NotSeeded => Self::refused(NOT_SEEDED, error),
         }
     }
 }

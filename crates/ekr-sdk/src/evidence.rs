@@ -183,11 +183,15 @@ impl EvidenceSet {
     }
 
     /// Hold an entry built elsewhere — an extraction document's evidence item — under its own
-    /// id, so an assertion citing that id introduces it. Returns the id.
+    /// id, so an assertion citing that id introduces it. Returns the id. A `!HumanStatement` entry
+    /// with an identity is keyed as [`Self::cite`] keys an item; a `!Url` entry is cited by its id
+    /// alone.
     pub(crate) fn hold(&mut self, addition: EvidenceAddition) -> EvidenceId {
         let id = addition.evidence.id;
-        let EvidenceSource::HumanStatement { identity } = &addition.evidence.source;
-        if let Some(identity) = identity {
+        if let EvidenceSource::HumanStatement {
+            identity: Some(identity),
+        } = &addition.evidence.source
+        {
             let key = (
                 identity.clone(),
                 addition.evidence.observed_at,

@@ -297,10 +297,14 @@ impl Assertion {
     }
 }
 
-/// Where a statement came from. `HumanStatement` is the one source the kernel admits today.
+/// Where a statement came from: the two sources the kernel admits after the seed,
+/// `HumanStatement` and `Url`. A seed admits `HumanStatement` only.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum EvidenceSource {
+    /// `!Url <url>`: the page the retained bytes were fetched from, at `observed_at`. The runtime
+    /// never fetches it; the bytes are the evidence.
+    Url(String),
     /// `!HumanStatement {identity}`: who or what said it.
     HumanStatement {
         /// Who or what said it.

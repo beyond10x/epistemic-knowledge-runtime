@@ -2031,9 +2031,9 @@ types:
   #   - AssertionAdded, AssertionSuperseded and AssertionRetracted: `subject_kind` and `subject`,
   #     the assertion's subject; AssertionSuperseded also `by`, the replacing assertion;
   #   - EvidenceAdded: `locator`, the entry's source identity as ekr.graph.Evidence's locator
-  #     (an AddEvidence admits only a HumanStatement, so it is the statement's identity, empty
-  #     when the statement records none), and `content_hash`, the address of the payload bytes
-  #     the AddEvidence brought and its commit retained;
+  #     (an AddEvidence admits a HumanStatement or a Url, so it is the statement's identity,
+  #     empty when the statement records none, or the URL), and `content_hash`, the address of
+  #     the payload bytes the AddEvidence brought and its commit retained;
   #   - NodeSuperseded: `type` and `name`, the superseded node's type and canonical_name as its
   #     supersession record holds them, and `target`, the node it is superseded by as the
   #     supersession named it (a later supersession of that node repoints the record, not this
