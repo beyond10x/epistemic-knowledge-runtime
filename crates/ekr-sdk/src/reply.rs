@@ -10,7 +10,8 @@ use serde_json::Value;
 /// One request's answer: what the one-shot verb would have exited with and printed.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Reply {
-    /// The exit status: 0 an outcome, 1 a fault, 2 a named refusal or a usage error.
+    /// The exit status: 0 an outcome, 1 a fault, 2 a named refusal or a usage error, 3 a write
+    /// whose publication outcome is unknown.
     pub exit: i32,
     /// The JSON document the verb printed on stdout, or `None` when it printed nothing.
     pub document: Option<Value>,
@@ -27,7 +28,8 @@ pub enum Answer {
     Refusal(Refusal),
     /// Exit 2 with anything else on stderr: clap's usage message, whole.
     Usage(String),
-    /// Exit 1, or any status other than 0 and 2: a fault.
+    /// Exit 1, or any status other than 0 and 2 (3 among them, `publication-outcome-unknown`): a
+    /// fault.
     Fault(Fault),
 }
 
@@ -58,7 +60,8 @@ pub struct Refusal {
 /// A fault: the verb could not answer (a provider, verification, input or configuration failure).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fault {
-    /// The exit status, 1 for every fault `ekr` declares.
+    /// The exit status: 1 for every fault `ekr` declares, 3 for `publication-outcome-unknown`, a
+    /// write the store cannot say it published or not.
     pub exit: i32,
     /// What the verb wrote to stderr, without its trailing newline.
     pub message: String,

@@ -408,8 +408,9 @@ types:
   # never a refusal or a fault. A document the reader refuses is refused before anything is
   # written — among them an entity whose type is abstract or has a subtype once the document's
   # ontology is applied, a subtype redeclaring a property an ancestor declares otherwise, and an
-  # evidence item whose source is not a HumanStatement. A fact the reader refuses alone is listed
-  # under `rejected` and the rest applies; nothing only it names is created or added.
+  # evidence item whose source is neither a HumanStatement nor a Url. A fact the reader refuses
+  # alone is listed under `rejected` and the rest applies; nothing only it names is created or
+  # added.
   - name: ekr.integrate.ExtractionReport
     kind: struct
     fields:

@@ -288,7 +288,8 @@ impl Check for Reference {
                     }
                 }
                 // Names no graph identity but its own, which is new (`Structural`). Its source
-                // is a `HumanStatement` or refused by `Provenance`, so it names no assertion.
+                // is a `HumanStatement` or a `Url`, or refused by `Provenance`, so it names no
+                // assertion.
                 GraphOperation::AddEvidence(_)
                 | GraphOperation::DefineNodeType(_)
                 | GraphOperation::DefineEdgeType(_)

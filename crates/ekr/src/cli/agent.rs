@@ -242,10 +242,10 @@ ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes
   together (`ekr operations AddEvidence`). An AddAssertion in the same or a later transaction
   cites its id. The payload must hash to the entry's content_hash (evidence-payload-mismatch),
-  the id must be new (identity-already-exists), the source must be !HumanStatement
-  (evidence-unsupported-source) and extracted_by the host operator (propose refuses otherwise,
-  as ekr.kernel.ProposalAttribution). The commit stores the payload; explain --documents
-  prints it.
+  the id must be new (identity-already-exists), the source must be !HumanStatement or
+  !Url <the page the payload was fetched from> (evidence-unsupported-source) and extracted_by
+  the host operator (propose refuses otherwise, as ekr.kernel.ProposalAttribution). The commit
+  stores the payload; explain --documents prints it.
   Evidence for an assertion the store already holds is attached with AttachEvidence
   (`ekr operations AttachEvidence`) rather than by superseding the assertion: the assertion is
   unchanged, and explain lists the attachment from the revision that made it on.
@@ -273,9 +273,12 @@ ADDING EVIDENCE TO A SEED
 EXIT CODES
   exit 0  a declared outcome, JSON on stdout. A validation that rejects and a commit that finds
           the head moved (Stale) are outcomes too: read `kind`.
-  exit 1  a fault: provider, verification, unreadable input, host configuration, not seeded,
+  exit 1  a fault: provider, verification, unreadable input, host configuration,
           store-not-found.
   exit 2  a named refusal (its ekr.kernel.* name on stderr, nothing recorded) or a usage error.
+          A store with no seed is ekr.views.NotSeeded, for every verb.
+  exit 3  publication-outcome-unknown: the store cannot say whether a write took effect. Read
+          `ekr head` or `ekr transactions --state Committed` before writing it again.
 
 OUTPUT
   guide, operations and example print text; every other verb prints one JSON document.
@@ -639,8 +642,8 @@ impl OperationKind {
                 "add an evidence entry and the bytes it rests on, for assertions to cite",
                 "  evidence      an evidence entry, as a seed's graph.evidence holds one:
     id            EvidenceId   new: ekr mint evidence (identity-already-exists if held)
-    source        !HumanStatement {identity: <who said it>}; any other source is refused
-                  (evidence-unsupported-source)
+    source        !HumanStatement {identity: <who said it>}, or !Url <the page the payload
+                  was fetched from>; any other source is refused (evidence-unsupported-source)
     content_hash  ContentHash  ekr hash <file> of the payload
     extracted_by  AgentId      the host operator
     observed_at   ms

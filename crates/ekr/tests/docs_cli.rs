@@ -1278,6 +1278,21 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
             );
             ran
         }
+        "ekr.views.NotSeeded" => {
+            // A seeded store, read under a host whose tenant has no seed: one name and one exit
+            // status from every verb (`story:store-outcome-kinds`).
+            let lab = Lab::seeded(page);
+            lab.edit(
+                "host.json",
+                "other.json",
+                "\"tenant\": \"",
+                "\"tenant\": \"never-seeded-",
+            );
+            ["head", "quality", "snapshot", "ontology", "transactions"]
+                .into_iter()
+                .map(|verb| ran(&lab, "other.json", &[verb]))
+                .collect()
+        }
         "stage-tenant-reserved" => {
             let lab = Lab::new(page);
             lab.edit(
@@ -1375,7 +1390,7 @@ const ANY_STORE_VERB: &str = "any store verb";
 const ANY_JOINED_VERB: &str = "any joined verb";
 
 /// Verbs that open the store.
-const STORE_VERBS: [&str; 11] = [
+const STORE_VERBS: [&str; 12] = [
     "seed",
     "propose",
     "validate",
@@ -1387,6 +1402,7 @@ const STORE_VERBS: [&str; 11] = [
     "ontology",
     "resolve",
     "stage",
+    "quality",
 ];
 
 /// Whether `stderr` is `form` followed by `": "` or the end of the line: the refusal's whole name,

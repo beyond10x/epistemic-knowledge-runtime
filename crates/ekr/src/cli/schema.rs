@@ -51,8 +51,8 @@ fn extraction_document() -> schemars::Schema {
              citing an evidence id no evidence item of the document carries \
              (`fact-evidence-unlisted`), two evidence items under one id (`duplicate-identity`), \
              a payload that does not hash to its entry's content_hash \
-             (`evidence-payload-mismatch`), an evidence item whose source is not a human \
-             statement (`extraction-evidence-kind-unsupported`), a property a document type \
+             (`evidence-payload-mismatch`), an evidence item whose source is neither a human \
+             statement nor a URL (`extraction-evidence-kind-unsupported`), a property a document type \
              redeclares differently from an ancestor (`extraction-property-conflict`) and a \
              reference to a node type that has subtypes (`reference-type-has-subtypes`). A fact \
              citing no evidence, an empty or repeated Enum \

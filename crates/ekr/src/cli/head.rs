@@ -13,7 +13,8 @@ pub(super) struct Head {
     root: Root,
 }
 
-/// The verified current root. An unseeded store is the kernel's `NotSeeded`, a fault.
+/// The verified current root. An unseeded store is the named refusal `ekr.views.NotSeeded`, exit
+/// 2, as every verb refuses it (`story:store-outcome-kinds`).
 pub(super) fn root(runtime: &Runtime) -> Result<Root, Failure> {
     runtime
         .head()

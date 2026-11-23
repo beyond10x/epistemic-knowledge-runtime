@@ -3333,4 +3333,70 @@ mod tests {
             );
         }
     }
+
+    /// `story:extraction-admits-url-evidence`: a fact `ekr apply-extraction --strict` applied
+    /// from a page cites the page, and the viewer shows the URL as the evidence's source, with
+    /// the retained bytes behind it.
+    #[test]
+    fn the_viewer_shows_the_url_an_extracted_fact_cites() {
+        const URL: &str = "https://example.org/news/globex";
+        let document = "format: ekr.extraction-document/1
+facts:
+- !Property
+  subject: {node_type: Organization, aliases: [Globex]}
+  property: legal_name
+  value: {value_kind: String, value: Globex Corporation}
+  evidence: [00000000-0000-4000-8000-000000000403]
+evidence:
+- evidence:
+    id: 00000000-0000-4000-8000-000000000403
+    source: !Url https://example.org/news/globex
+    content_hash: 7afeb9c852d895a2cdf8d7717a49354badd8b8dc79049925137b1f95f4651af5
+    extracted_by: 00000000-0000-4000-8000-000000000101
+    observed_at: 1773273600000
+    confidence: 10000
+  payload: [67, 97, 114, 111, 108, 44, 32, 67, 69, 79, 32, 111, 102, 32, 71, 108, 111, 98, 101, 120, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 44, 32, 108, 101, 97, 100, 115, 32, 112, 114, 111, 106, 101, 99, 116, 32, 65, 112, 111, 108, 108, 111, 46]
+";
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().unwrap();
+            let store = seeded(directory.path(), backend, "store");
+            let path = directory.path().join("extraction.yaml");
+            std::fs::write(&path, document).unwrap();
+            let clock = || ekr_core::Timestamp::from_millis(1_790_000_000_000);
+            let writer = Store {
+                access: super::super::Access::Write,
+                ..store.clone()
+            };
+            let report =
+                super::super::extraction::run(&path, true, &mut std::io::empty(), writer, &clock)
+                    .unwrap();
+            assert!(report.rejected.is_empty(), "{backend:?}: {report:?}");
+            assert!(!report.committed.is_empty(), "{backend:?}: {report:?}");
+
+            let mut held = Held::open(store).unwrap();
+            let mut memory = Memory::default();
+            let reply = get(&mut held, &mut memory, "/projection");
+            assert_eq!(reply.status, 200, "{backend:?}");
+            let projection: serde_json::Value = serde_json::from_slice(&reply.body).unwrap();
+            let cited = projection["evidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| entry["id"] == "00000000-0000-4000-8000-000000000403")
+                .unwrap_or_else(|| panic!("{backend:?}: {projection}"));
+            assert_eq!(cited["kind"], "Url", "{backend:?}: {cited}");
+            assert_eq!(cited["locator"], URL, "{backend:?}: {cited}");
+            assert_eq!(cited["retained"], true, "{backend:?}: {cited}");
+            let bytes = get(
+                &mut held,
+                &mut memory,
+                "/evidence/00000000-0000-4000-8000-000000000403",
+            );
+            assert_eq!(bytes.status, 200, "{backend:?}");
+            assert!(
+                bytes.body.starts_with(b"Carol, CEO of Globex"),
+                "{backend:?}"
+            );
+        }
+    }
 }

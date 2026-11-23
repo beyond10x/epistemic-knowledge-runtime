@@ -782,8 +782,9 @@ entities:
   # AddEvidence operation of a committed transaction, which carries the entry with its payload and
   # whose commit stores the payload as a Provenance object (ekr.kernel.EvidenceAdditionProjection,
   # decision-blocker:evidence-entry-after-seed, option 1). Either way the entry's content_hash is
-  # the address of retained bytes, its source is HumanStatement and its extracted_by is the agent
-  # that submitted it. Its id is never taken again (identity-already-exists), and it is never
+  # the address of retained bytes, its source is HumanStatement (or Url, for an AddEvidence: the
+  # page the bytes were fetched from) and its extracted_by is the agent that submitted it. Its id
+  # is never taken again (identity-already-exists), and it is never
   # removed: Retained is its only state.
   - name: ekr.graph.Evidence
     identity:

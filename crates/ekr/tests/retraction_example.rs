@@ -380,9 +380,15 @@ fn operational_and_configuration_faults_exit_one() {
             .unwrap();
         assert_eq!(output.status.code(), Some(1), "{backend}");
         assert!(world.runtime().head().unwrap().is_none());
-        // A command before any seed has no lineage to act on.
+        // A command before any seed has no lineage to act on: the named refusal every verb gives
+        // an unseeded store (`story:store-outcome-kinds`), not a fault.
         let output = world.run(&["commit", T_ALICE]);
-        assert_eq!(output.status.code(), Some(1), "{backend}");
+        assert_eq!(output.status.code(), Some(2), "{backend}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .starts_with("ekr: ekr.views.NotSeeded: the lineage has no seed"),
+            "{backend}"
+        );
     }
 }
 
