@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [dependencies]
 ekr-core.workspace = true
@@ -36,6 +37,10 @@ required-features = ["bench"]
 [[test]]
 name = "index_time"
 required-features = ["bench"]
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
 
 [lints]
 workspace = true

@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [dependencies]
 hex.workspace = true
@@ -23,6 +24,10 @@ sha2.workspace = true
 
 [features]
 schema = ["dep:schemars"]
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
 
 [lints]
 workspace = true

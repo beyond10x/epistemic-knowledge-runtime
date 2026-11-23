@@ -579,29 +579,55 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
     );
 }
 
+// One test per provider, profile and seed: each mixed history alone stays under the 60 s a test may
+// take (AGENTS.md, "The gate"); the three tests that looped over all four ran over it.
 #[test]
-fn adversary_checkpoint_cadence_mixed_history_v1() {
-    for file in [false, true] {
-        for seed_value in [7, 1_001] {
-            mixed_history(file, Profile::V1, seed_value);
-        }
-    }
+fn adversary_checkpoint_cadence_mixed_history_v1_sqlite_seed_7() {
+    mixed_history(false, Profile::V1, 7);
 }
 #[test]
-fn adversary_checkpoint_cadence_mixed_history_v2() {
-    for file in [false, true] {
-        for seed_value in [7, 1_001] {
-            mixed_history(file, Profile::V2, seed_value);
-        }
-    }
+fn adversary_checkpoint_cadence_mixed_history_v1_sqlite_seed_1001() {
+    mixed_history(false, Profile::V1, 1_001);
 }
 #[test]
-fn adversary_checkpoint_cadence_mixed_history_v3() {
-    for file in [false, true] {
-        for seed_value in [7, 1_001] {
-            mixed_history(file, Profile::V3, seed_value);
-        }
-    }
+fn adversary_checkpoint_cadence_mixed_history_v1_file_seed_7() {
+    mixed_history(true, Profile::V1, 7);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v1_file_seed_1001() {
+    mixed_history(true, Profile::V1, 1_001);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v2_sqlite_seed_7() {
+    mixed_history(false, Profile::V2, 7);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v2_sqlite_seed_1001() {
+    mixed_history(false, Profile::V2, 1_001);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v2_file_seed_7() {
+    mixed_history(true, Profile::V2, 7);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v2_file_seed_1001() {
+    mixed_history(true, Profile::V2, 1_001);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v3_sqlite_seed_7() {
+    mixed_history(false, Profile::V3, 7);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v3_sqlite_seed_1001() {
+    mixed_history(false, Profile::V3, 1_001);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v3_file_seed_7() {
+    mixed_history(true, Profile::V3, 7);
+}
+#[test]
+fn adversary_checkpoint_cadence_mixed_history_v3_file_seed_1001() {
+    mixed_history(true, Profile::V3, 1_001);
 }
 
 /// Seeds and commits `commits` small transactions through one-shot handles.

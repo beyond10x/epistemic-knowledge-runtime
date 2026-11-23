@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [dependencies]
 ekr-core.workspace = true
@@ -24,6 +25,10 @@ ekr-views.workspace = true
 jsonschema = { version = "0.58", default-features = false }
 signal-hook = "0.3"
 toml = "1"
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
 
 [lints]
 workspace = true

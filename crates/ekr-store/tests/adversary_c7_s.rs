@@ -470,7 +470,7 @@ fn no_replacement_check_releases_the_writer_process_lock_on_the_shm() {
     let child = std::process::Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
-            "another_process_takes_the_shm_exclusively",
+            crate::case_name(module_path!(), "another_process_takes_the_shm_exclusively").as_str(),
             "--nocapture",
         ])
         .env(SHM_CHILD, &shm)

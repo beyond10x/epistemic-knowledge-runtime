@@ -300,7 +300,8 @@ fn a_read_only_open_beside_a_live_writer_changes_nothing_under_the_store_path() 
         let mut child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "writer_process_beside_the_read_only_opens",
+                crate::case_name(module_path!(), "writer_process_beside_the_read_only_opens")
+                    .as_str(),
                 "--include-ignored",
                 "--nocapture",
                 "--test-threads=1",

@@ -42,7 +42,12 @@ fn child() -> bool {
 fn retry_in_child(path: &Path, plan: &Plan, test: &str) -> (Outcome, Outcome) {
     std::fs::write(path.join("plan.json"), serde_json::to_vec(plan).unwrap()).unwrap();
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args([test, "--exact", "--nocapture", "--test-threads=1"])
+        .args([
+            crate::case_name(module_path!(), test).as_str(),
+            "--exact",
+            "--nocapture",
+            "--test-threads=1",
+        ])
         .env(CHILD, path)
         .output()
         .unwrap();

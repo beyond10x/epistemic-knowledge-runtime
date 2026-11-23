@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [[bin]]
 name = "ekr"
@@ -41,6 +42,10 @@ assert_cmd.workspace = true
 jsonschema = { version = "0.58", default-features = false }
 rusqlite = { workspace = true, features = ["backup"] }
 tempfile.workspace = true
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
 
 [lints]
 workspace = true

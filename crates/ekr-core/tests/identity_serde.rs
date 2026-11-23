@@ -130,7 +130,12 @@ mod adversary_input08 {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
                     "--exact",
-                    "every_ess_id_type_exists_in_the_crate",
+                    // The case is a test of this file, one module above `adversary_input08`.
+                    crate::case_name(
+                        module_path!().trim_end_matches("::adversary_input08"),
+                        "every_ess_id_type_exists_in_the_crate",
+                    )
+                    .as_str(),
                     "--nocapture",
                 ])
                 .env("CARGO_MANIFEST_DIR", self.0.join("crates/ekr-core"))
@@ -340,7 +345,7 @@ fn an_unknown_domain_filename_with_a_missing_identity_fails_the_actual_scan() {
         std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "every_ess_id_type_exists_in_the_crate",
+                crate::case_name(module_path!(), "every_ess_id_type_exists_in_the_crate").as_str(),
                 "--nocapture",
             ])
             .env("CARGO_MANIFEST_DIR", &manifest)

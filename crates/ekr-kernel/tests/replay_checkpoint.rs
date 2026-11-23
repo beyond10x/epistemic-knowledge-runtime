@@ -700,47 +700,55 @@ fn document_bytes_after(path: &Path, file: bool, after: u64) -> u64 {
 
 /// A commit whose retained document, with those committed since the retained checkpoint, reaches
 /// [`REPLAY_CHECKPOINT_BYTES`] writes a checkpoint however few commits came before it (design
-/// § 99.5).
+/// § 99.5). One provider per test: both in one test ran over the 60 s a test may take (AGENTS.md,
+/// "The gate").
 #[test]
-fn a_commit_that_reaches_the_byte_bound_writes_a_checkpoint() {
+fn a_commit_that_reaches_the_byte_bound_writes_a_checkpoint_sqlite() {
+    a_commit_that_reaches_the_byte_bound_writes_a_checkpoint(false);
+}
+
+#[test]
+fn a_commit_that_reaches_the_byte_bound_writes_a_checkpoint_file() {
+    a_commit_that_reaches_the_byte_bound_writes_a_checkpoint(true);
+}
+
+fn a_commit_that_reaches_the_byte_bound_writes_a_checkpoint(file: bool) {
     const { assert!(ekr_kernel::REPLAY_CHECKPOINT_COMMITS > 4) };
     let bound = ekr_kernel::REPLAY_CHECKPOINT_BYTES;
-    for file in [false, true] {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path();
-        let seed = build(path, file, 0);
-        let seeded = pointers(&open(path, file)).pop().unwrap();
-        assert_eq!(checkpoint_revision(path, file, &seeded), 0);
-        // One handle, as a session: revisions 1 to 3 bring the documents since the seed's
-        // checkpoint to just under the bound, each under the `/2` input cap.
-        let runtime = open(path, file);
-        let third = (bound - 300_000) / 3;
-        for revision in 1..=3 {
-            commit_bytes(&runtime, &seed, revision, third);
-        }
-        let under = document_bytes_after(path, file, 0);
-        assert!(under < bound, "file={file}: {under} bytes");
-        let newest = pointers(&open(path, file)).pop().unwrap();
-        assert_eq!(
-            newest["checkpoint_hash"], seeded["checkpoint_hash"],
-            "file={file}: {under} bytes of documents since the checkpoint write none"
-        );
-        commit_bytes(&runtime, &seed, 4, 300_000);
-        drop(runtime);
-        let over = document_bytes_after(path, file, 0);
-        assert!(over >= bound, "file={file}: {over} bytes");
-        let newest = pointers(&open(path, file)).pop().unwrap();
-        assert_eq!(
-            checkpoint_revision(path, file, &newest),
-            4,
-            "file={file}: {over} bytes of documents since the checkpoint write one"
-        );
-        assert_eq!(
-            answers(&open(path, file)),
-            answers(&open_in_full(path, file)),
-            "file={file}"
-        );
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    let seed = build(path, file, 0);
+    let seeded = pointers(&open(path, file)).pop().unwrap();
+    assert_eq!(checkpoint_revision(path, file, &seeded), 0);
+    // One handle, as a session: revisions 1 to 3 bring the documents since the seed's
+    // checkpoint to just under the bound, each under the `/2` input cap.
+    let runtime = open(path, file);
+    let third = (bound - 300_000) / 3;
+    for revision in 1..=3 {
+        commit_bytes(&runtime, &seed, revision, third);
     }
+    let under = document_bytes_after(path, file, 0);
+    assert!(under < bound, "file={file}: {under} bytes");
+    let newest = pointers(&open(path, file)).pop().unwrap();
+    assert_eq!(
+        newest["checkpoint_hash"], seeded["checkpoint_hash"],
+        "file={file}: {under} bytes of documents since the checkpoint write none"
+    );
+    commit_bytes(&runtime, &seed, 4, 300_000);
+    drop(runtime);
+    let over = document_bytes_after(path, file, 0);
+    assert!(over >= bound, "file={file}: {over} bytes");
+    let newest = pointers(&open(path, file)).pop().unwrap();
+    assert_eq!(
+        checkpoint_revision(path, file, &newest),
+        4,
+        "file={file}: {over} bytes of documents since the checkpoint write one"
+    );
+    assert_eq!(
+        answers(&open(path, file)),
+        answers(&open_in_full(path, file)),
+        "file={file}"
+    );
 }
 
 /// A consumer's batch holds many small operations: more than the 512 that design § 99.1 once

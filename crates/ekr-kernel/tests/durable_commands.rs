@@ -192,7 +192,11 @@ fn changed_knowledge_reconstructs_in_a_fresh_process_on_both_providers() {
         let child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "changed_knowledge_reconstructs_in_a_fresh_process_on_both_providers",
+                crate::case_name(
+                    module_path!(),
+                    "changed_knowledge_reconstructs_in_a_fresh_process_on_both_providers",
+                )
+                .as_str(),
                 "--nocapture",
             ])
             .env("EKR_DURABLE_CHILD_PATH", directory.path())

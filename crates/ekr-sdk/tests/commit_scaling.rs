@@ -131,6 +131,10 @@ fn workspace_root() -> PathBuf {
 fn ekr_path() -> &'static Path {
     static PATH: OnceLock<PathBuf> = OnceLock::new();
     PATH.get_or_init(|| {
+        if let Some(path) = std::env::var_os("EKR_SDK_TEST_EKR").filter(|_| cfg!(debug_assertions))
+        {
+            return PathBuf::from(path);
+        }
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"));
         let mut build = std::process::Command::new(cargo);
         build
