@@ -140,10 +140,7 @@ fn classify(paths: &[&str]) -> String {
 #[test]
 fn the_change_classifier_holds_both_sides_of_its_path_list() {
     for (paths, class) in [
-        (
-            vec![".engineering/planning/story/ekr-review-ci-budget.md"],
-            "planning-only",
-        ),
+        (vec![".engineering/story/a.md"], "planning-only"),
         (
             vec![
                 ".engineering/reviews/a.md",
@@ -291,6 +288,12 @@ fn test_builds_carry_no_debug_info_and_the_runner_holds_the_budgets() {
         config.contains("[profile.dev]\ndebug = false\n"),
         ".cargo/config.toml turns debug info off for dev and test builds; a manifest setting \
          loses to the host's ~/.cargo/config.toml"
+    );
+    let manifest = read(&root.join("Cargo.toml"));
+    assert!(
+        manifest.contains("[profile.test]\nopt-level = 1\n"),
+        "test builds compile the workspace at opt-level 1: the checkpoint cases replay a history at \
+         every step and ran past 60 s at opt-level 0"
     );
     let nextest = read(&root.join(".config/nextest.toml"));
     assert!(

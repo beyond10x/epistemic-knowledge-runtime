@@ -152,6 +152,9 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
 - **No debug info in test builds.** `.cargo/config.toml` sets `[profile.dev] debug = false`; a
   manifest setting loses to the host's `~/.cargo/config.toml`, a repository config file wins over
   it. CI sets the same through `CARGO_PROFILE_DEV_DEBUG`.
+- **Test builds compile the workspace at opt-level 1** (`[profile.test]` in `Cargo.toml`;
+  dependencies stay at 3). At opt-level 0 the checkpoint cases, which replay a growing history at
+  every step, ran past 60 s on CI (PR 109's first run: 8 killed, 7 more at 52-59 s).
 - **Compile-only work is its own task.** `task bench-check` type-checks the `bench`-feature
   targets; the test step does not build them.
 
