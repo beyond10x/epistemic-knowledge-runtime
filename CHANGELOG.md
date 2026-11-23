@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.43] — 2026-11-23
+
 ### Added
 
 - `ekr mcp` and `ekr mcp-http` serve a tenth tool, `list_nodes` (story:mcp-list-nodes-by-type):
