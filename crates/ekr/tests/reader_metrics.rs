@@ -661,7 +661,7 @@ fn metrics_endpoint_off_by_default_and_host_checked() {
 }
 
 /// `docs/cli.md` ("an unknown tool ... is counted under no tool") and `call`'s own comment ("a
-/// tool the server does not have is no series"): `ekr mcp-http` serves nine tools, so a
+/// tool the server does not have is no series"): `ekr mcp-http` serves ten tools, so a
 /// `tools/call` naming a view-only wire name (`find`, `projection`, `roles`,
 /// `describe_evidence`) is a -32602 for a tool it does not have and moves no series.
 #[test]

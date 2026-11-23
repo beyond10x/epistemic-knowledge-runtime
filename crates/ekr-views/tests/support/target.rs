@@ -993,8 +993,10 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
         }
         SEARCH_NODES => {
             let (format, filter) = search_input(request)?;
+            let after = optional_integer(request, "after")?;
             Read::Search(
-                SearchRequest::new(text(request, "text")?, required_integer(request, "limit")?),
+                SearchRequest::new(text(request, "text")?, required_integer(request, "limit")?)
+                    .and_then(|search| search.starting_at(after)),
                 format,
                 filter,
             )

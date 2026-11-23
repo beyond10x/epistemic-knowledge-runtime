@@ -4,6 +4,21 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr mcp` and `ekr mcp-http` serve a tenth tool, `list_nodes` (story:mcp-list-nodes-by-type):
+  every node of one type, by id or name, a page at a time (`limit` 1 to 100, 100 when absent),
+  by degree, then id. It answers the `ekr.node-matches/3` document `search` answers for the empty
+  text with that `type`; `meta.total` counts the type's nodes. Its reads are counted under the
+  wire name `list_nodes`.
+- An `ekr.node-matches/3` search can be continued: `meta.next` names the position of the next
+  page while matches remain, and `after` (MCP `search` and `list_nodes`, `GET /search`, the session
+  verb's `--after`) starts a page there. Paging one revision answers every match `meta.total`
+  counts exactly once. Before, for 101 equal names a search counted 101, answered 100 and offered
+  no way to the 101st (finding 29 of the EKR 0.0.42 review). `after` with `ekr.node-matches/1` or
+  /2 is refused as malformed input; those documents are unchanged. In `ekr-sdk`,
+  `MatchesMetaV3` reads `next` and `Reader::search_v3_page` takes `after`.
+
 ## [0.0.42] — 2026-11-22
 
 ### Changed

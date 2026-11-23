@@ -329,20 +329,44 @@ impl ExpandRequest {
 pub struct SearchRequest {
     text: String,
     limit: u64,
+    after: u64,
 }
 
 impl SearchRequest {
     /// The greatest admitted limit.
     pub const MAX_LIMIT: i64 = 100;
 
-    /// `text` has no length bound; `limit` is 1 to 100.
+    /// `text` has no length bound; `limit` is 1 to 100. The request starts at the first match
+    /// ([`Self::after`] is 0).
     ///
     /// # Errors
     ///
     /// [`LimitExceeded`] naming `limit`.
     pub fn new(text: String, limit: i64) -> Result<Self, LimitExceeded> {
         let limit = bounded("limit", limit, 1, Some(Self::MAX_LIMIT))?;
-        Ok(Self { text, limit })
+        Ok(Self {
+            text,
+            limit,
+            after: 0,
+        })
+    }
+
+    /// The request starting at position `after` of its match order (`ekr.views.MatchCursor`,
+    /// 0 or more; 0 when `None`): an earlier `ekr.node-matches/3` page's `next`. Only /3 reads
+    /// it; a surface refuses it named with /1 or /2 (`views.yaml`, `ekr.views.SearchNodes`).
+    ///
+    /// # Errors
+    ///
+    /// [`LimitExceeded`] naming `after`.
+    pub fn starting_at(self, after: Option<i64>) -> Result<Self, LimitExceeded> {
+        let after = bounded("after", after.unwrap_or(0), 0, None)?;
+        Ok(Self { after, ..self })
+    }
+
+    /// The cursor: the position in the match order the /3 page starts at.
+    #[must_use]
+    pub const fn after(&self) -> u64 {
+        self.after
     }
 
     /// The text searched for.

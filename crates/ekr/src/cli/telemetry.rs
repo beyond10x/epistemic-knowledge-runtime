@@ -59,11 +59,12 @@ pub(super) enum Wire {
     Projection,
     Roles,
     Find,
+    ListNodes,
 }
 
 impl Wire {
     /// Every wire name, in the order `views.yaml` declares them.
-    pub(super) const ALL: [Self; 13] = [
+    pub(super) const ALL: [Self; 14] = [
         Self::Head,
         Self::Overview,
         Self::Search,
@@ -77,6 +78,7 @@ impl Wire {
         Self::Projection,
         Self::Roles,
         Self::Find,
+        Self::ListNodes,
     ];
 
     pub(super) fn name(self) -> &'static str {
@@ -94,6 +96,7 @@ impl Wire {
             Self::Projection => "projection",
             Self::Roles => "roles",
             Self::Find => "find",
+            Self::ListNodes => "list_nodes",
         }
     }
 

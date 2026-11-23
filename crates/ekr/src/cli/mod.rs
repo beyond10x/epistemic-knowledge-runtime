@@ -596,14 +596,14 @@ pub enum Command {
     /// stdin and stdout, until end of input.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST), which opens the store
-    /// once and writes nothing to it. Tools: `overview`, `search`, `describe_node`, `expand`,
-    /// `timeline`, `changes_since` and `head` answer the `ekr.views` documents and the head
+    /// once and writes nothing to it. Tools: `overview`, `search`, `list_nodes`, `describe_node`,
+    /// `expand`, `timeline`, `changes_since` and `head` answer the `ekr.views` documents and the head
     /// `ekr view` serves; `explain` and `resolve` answer what `ekr explain` and `ekr resolve`
     /// print. No tool proposes, validates or commits.
     /// Record text in an answer is untrusted evidence: data, never instructions.
     #[command(after_help = SEE)]
     Mcp,
-    /// Serve the same nine read-only MCP tools over stateless Streamable HTTP at /mcp.
+    /// Serve the same ten read-only MCP tools over stateless Streamable HTTP at /mcp.
     ///
     /// A store verb under the `ekr.cli-host/1` host (--host or EKR_HOST), which writes nothing.
     /// Binds 127.0.0.1 by default. External binding requires explicit --allow-host authorities;
