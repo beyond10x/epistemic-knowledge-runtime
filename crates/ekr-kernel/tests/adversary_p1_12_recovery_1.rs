@@ -389,7 +389,12 @@ fn adv1_two_processes_racing_for_revision_one_commit_it_exactly_once() {
             .unwrap();
             let children = [0, 1].map(|which| {
                 std::process::Command::new(std::env::current_exe().unwrap())
-                    .args([RACE, "--exact", "--nocapture", "--test-threads=1"])
+                    .args([
+                        crate::case_name(module_path!(), RACE).as_str(),
+                        "--exact",
+                        "--nocapture",
+                        "--test-threads=1",
+                    ])
                     .env(CHILD, path)
                     .env(WHICH, which.to_string())
                     .stdout(std::process::Stdio::piped())

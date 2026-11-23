@@ -270,7 +270,11 @@ fn adversary_manifest_macro_guard_rejects_all_rust_delimiters() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "executable_source_location_macros_cannot_return",
+                crate::case_name(
+                    module_path!(),
+                    "executable_source_location_macros_cannot_return",
+                )
+                .as_str(),
                 "--nocapture",
             ])
             .env("CARGO_MANIFEST_DIR", &crate_path)

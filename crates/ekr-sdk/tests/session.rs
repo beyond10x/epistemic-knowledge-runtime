@@ -640,7 +640,7 @@ fn run_child_case(case: &str, environment: &[(&str, &OsString)]) {
     command
         .args([
             "--exact",
-            case,
+            crate::case_name(module_path!(), case).as_str(),
             "--ignored",
             "--nocapture",
             "--test-threads=1",

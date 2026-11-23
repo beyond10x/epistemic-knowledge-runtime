@@ -124,6 +124,82 @@ Each is a claim that can be checked. Breaking one is a design change, not a refa
 errors, the planning store's validation. Land nothing until it exits zero. Prefer `cargo check -p`
 and `cargo test -p` on touched crates while working; run the whole gate before claiming a phase.
 
+### The test step and its budgets
+
+`task test` runs `scripts/test-step.sh`, locally and in CI (`~/beyond10x/AGENTS.md` § Tests stay
+fast). It builds every test target once, runs every test under cargo-nextest (0.9.143, pinned in
+`.github/workflows/correctness.yml`) with `.config/nextest.toml`, runs the doc tests, prints the ten
+slowest tests from nextest's JUnit report, and prints the step's run time against its budget.
+
+- **One process per test.** nextest starts each test in a process of its own, so a test that
+  relied on being alone in its binary still is. A file-wide `static` mutex holds one process only:
+  the six browser files (`view_page`, `search_live`, `adversary_p_page`, `adversary_page_stream_1`,
+  `adversary_viewer_compact`, `adversary_viewer_follow_ups`) are the nextest test group `browser`,
+  one test at a time, which is what their mutexes did while each was a binary run after the other.
+- **A test over 60 s is killed and fails** (`slow-timeout`, `terminate-after = 1`). Split a test
+  that loops over providers, profiles or seeds into one test per case; do not raise the limit.
+- **The step's budget is 120 s** of tests and doc tests, the build not counted (the step prints
+  the build time apart). It is not met yet; until it is, nextest stops the run at an interim
+  ceiling of 600 s (`global-timeout`), and the step prints how far over 120 s it is. What remains,
+  measured on main's CI run 44976803966 (2026-11-22) before this layout: the browser files take
+  about 300 s of one-browser-at-a-time time (`view_page` 174 s, `adversary_viewer_compact` 36 s,
+  `adversary_page_stream_1` 34 s, `adversary_viewer_follow_ups` 33 s, `adversary_p_page` 28 s, and
+  `search_live`), because every browser case starts a Chromium of its own. The fix is one browser
+  per run, started by the step, with a fresh browser context per case; its story is filed apart.
+- **The SDK's tests do not build `ekr`.** The step takes the `ekr` executable of its own test build
+  and names it in `EKR_SDK_TEST_EKR`; each SDK test file's `ekr_path()` reads that first and builds
+  through cargo only when it is unset (`cargo test -p ekr-sdk` alone).
+- **No debug info in test builds.** `.cargo/config.toml` sets `[profile.dev] debug = false`; a
+  manifest setting loses to the host's `~/.cargo/config.toml`, a repository config file wins over
+  it. CI sets the same through `CARGO_PROFILE_DEV_DEBUG`.
+- **Compile-only work is its own task.** `task bench-check` type-checks the `bench`-feature
+  targets; the test step does not build them.
+
+### One integration-test binary per crate
+
+Each crate under `crates/` has `autotests = false` and one `[[test]]` target, `main`, at
+`tests/main.rs`. Every other file directly under `tests/` is a module of it. Before this layout the
+workspace linked 380 integration-test executables (CI run 44976803966: 393 test executables run
+one after another, 4 min 7 s of build and 1,222 s of test run, the step 24 min 32 s).
+
+**How a new test file joins**: add the file under `crates/<crate>/tests/`, then add two lines to
+that crate's `tests/main.rs`, in name order:
+
+```rust
+#[path = "my_new_file.rs"]
+mod my_new_file;
+```
+
+The `#[path]` keeps the file's own `mod` declarations resolving next to it (`mod support;` in a
+file still finds `tests/support/…` as it did when the file was a binary of its own); a plain
+`mod my_new_file;` would look in `tests/my_new_file/` instead. A file left out never runs:
+`crates/ekr/tests/gate_layout.rs` fails the gate when a file under `tests/` is not listed. A
+support file several test files load by `#[path]` is a module of each of them, as before, and a
+file may wrap its cases in a module of its own name; each `tests/main.rs` allows
+`clippy::duplicate_mod` and `clippy::module_inception` for those two. Do not
+put inner attributes that only a crate root may carry (`#![feature]`, `#![recursion_limit]`) in a
+test file; `#![cfg(unix)]` and `#![allow(...)]` are fine.
+
+A test's name is now `<file>::<test>` (nextest: binary `<crate>::main`). Run one file with
+`cargo nextest run -p <crate> -E 'test(/^<file>::/)'`, or `cargo test -p <crate> --test main --
+<file>::`. A test that starts one case of its own binary in a child process (`current_exe()
+--exact <case>`) names it with `crate::case_name(module_path!(), "<case>")`, defined in the
+crate's `tests/main.rs`: `--exact` matches the whole name, and a child that matches nothing runs
+no test and exits 0. Under plain `cargo test` all files of a crate run as threads of one process;
+the gate runs nextest, one process per test.
+
+### Pull requests that change only planning or prose
+
+`scripts/classify-changes.sh` is the one path list (`~/beyond10x/AGENTS.md` § Planning-only pull
+requests skip the tests). The `Repository correctness` job always runs and classifies first:
+`planning-only` (`.engineering/`, and `*.md` in the root or under `docs/` that nothing reads) runs
+only `task plan-check`; `docs-site-only` (`website/` with such prose) runs `task site-check` and
+`task plan-check`; `code` runs `task check`. A document a test or the product reads (`AGENTS.md`,
+`README.md`, `docs/cli.md`, `docs/sdk.md`, `docs/roadmap.md`,
+`docs/epistemic-knowledge-runtime-design.md`) is code: a change to it can turn a guard red.
+`gate_layout.rs` holds both sides of the list and finds every document the sources read; a new
+reader of a document makes that test fail until the document is listed as code.
+
 Every tree of this repository builds into its own `target/` and never sets `CARGO_TARGET_DIR`.
 Every tree ends with `worktree finish --discard-cache --archive <tree>`, which deletes only the
 build cache it recognises and archives everything else. Before a gate's result counts as evidence,

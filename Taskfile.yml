@@ -8,6 +8,7 @@ tasks:
       - task: search-web-check
       - task: clippy
       - task: test
+      - task: bench-check
       - task: doc-check
       - task: vendor-check
       - task: spec-check
@@ -44,10 +45,14 @@ tasks:
       - cargo clippy --workspace --all-targets --locked -- -D warnings
 
   test:
-    desc: every unit, integration and doc test
+    desc: every unit, integration and doc test under nextest; prints the ten slowest and the time against 120 s
     cmds:
-      - cargo test --workspace --locked --no-fail-fast
-      - cargo test -p ekr-kernel --features bench --no-run --locked
+      - sh scripts/test-step.sh
+
+  bench-check:
+    desc: the bench-only test targets compile, outside the test step
+    cmds:
+      - cargo check -p ekr-kernel --features bench --tests --locked
 
   doc-check:
     desc: rustdoc with broken intra-doc links as errors
@@ -95,7 +100,7 @@ tasks:
         msg: conform-check needs an ess on PATH whose --version is ess 0.36.0
     cmds:
       - task: conform-fresh
-      - cargo test --locked -p ekr --test conformance -- --nocapture
+      - cargo nextest run --locked -p ekr -E 'test(/^conformance::/)' --no-capture
 
   conform-fresh:
     desc: the committed ekr-kernel, ekr-views and ekr-integrate suites are fresh synthesis

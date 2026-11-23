@@ -1,2 +1,5 @@
 [alias]
 xtask = "run -q -p xtask --"
+
+[profile.dev]
+debug = false

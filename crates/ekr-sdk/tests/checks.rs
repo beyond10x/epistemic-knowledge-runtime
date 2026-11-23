@@ -29,6 +29,9 @@ where
 fn binary_path() -> &'static Path {
     static PATH: OnceLock<PathBuf> = OnceLock::new();
     PATH.get_or_init(|| {
+        if let Some(path) = std::env::var_os("EKR_SDK_TEST_EKR") {
+            return PathBuf::from(path);
+        }
         let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
         let output = std::process::Command::new(std::env::var_os("CARGO").unwrap())
             .args([

@@ -59,7 +59,11 @@ fn render_in_a_child_process() {
 
 fn render_in_a_fresh_process(provider: Provider, store: &Path, out: &Path) -> Vec<u8> {
     let status = Command::new(std::env::current_exe().expect("this test binary"))
-        .args(["--exact", "render_in_a_child_process", "--test-threads=1"])
+        .args([
+            "--exact",
+            crate::case_name(module_path!(), "render_in_a_child_process").as_str(),
+            "--test-threads=1",
+        ])
         .env(
             CHILD,
             format!(

@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [dependencies]
 ekr-core.workspace = true
@@ -20,6 +21,10 @@ serde_yaml_ng.workspace = true
 
 [features]
 schema = ["dep:schemars", "ekr-core/schema", "ekr-ontology/schema"]
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
 
 [lints]
 workspace = true
