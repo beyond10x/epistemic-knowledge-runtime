@@ -822,7 +822,7 @@ types:
   # `AddEvidence`: one evidence entry, as a seed's graph.evidence holds one, and the exact bytes
   # its content_hash addresses (ContentHash::of_bytes, "ekr.payload.v1"). Validation refuses, as
   # named issues of a Rejected transaction: a payload that does not hash to the entry
-  # (evidence-payload-mismatch, Provenance), a source other than HumanStatement
+  # (evidence-payload-mismatch, Provenance), a source other than HumanStatement or Url
   # (evidence-unsupported-source, Provenance), an id canonical state already retains
   # (identity-already-exists, Structural) or that the transaction adds twice (duplicate-identity,
   # Structural). An entry whose extracted_by is not the submitter is refused at Propose as

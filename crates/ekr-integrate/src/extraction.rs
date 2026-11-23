@@ -58,8 +58,8 @@
 //! * `fact-without-evidence` — a fact citing no evidence item;
 //! * `fact-evidence-unlisted` — a fact citing an id no evidence item of the document carries;
 //! * `duplicate-identity` — two evidence items under one id;
-//! * `extraction-evidence-kind-unsupported` — an evidence item whose source is not a
-//!   `!HumanStatement`, the one source the kernel admits as evidence today;
+//! * `extraction-evidence-kind-unsupported` — an evidence item whose source is neither a
+//!   `!HumanStatement` nor a `!Url`, the two sources the kernel admits as evidence;
 //! * `evidence-payload-mismatch` — an evidence item whose payload does not hash to its entry.
 //!
 //! [`ExtractionDocument::check_facts`] makes the same checks a fact at a time
@@ -78,7 +78,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use ekr_core::{ContentHash, EvidenceId, TypeId};
-use ekr_graph::{CanonicalGraph, Evidence, EvidenceSource, GraphSnapshot};
+use ekr_graph::{CanonicalGraph, Evidence, GraphSnapshot};
 use ekr_ontology::{Cardinality, Ontology, Value, ValueType};
 use serde::{Deserialize, Serialize};
 
@@ -474,8 +474,8 @@ impl ExtractionRefusalCode {
             }
             Self::DuplicateIdentity => "two evidence items carry the id",
             Self::ExtractionEvidenceKindUnsupported => {
-                "the evidence item's source is not a !HumanStatement, the one source the kernel \
-                 admits:"
+                "the evidence item's source is neither a !HumanStatement nor a !Url, the two \
+                 sources the kernel admits:"
             }
             Self::EvidencePayloadMismatch => {
                 "the payload's bytes do not hash to the content_hash of the evidence item"
@@ -855,7 +855,7 @@ impl ExtractionDocument {
             if !ids.insert(id) {
                 return Err(refusal(Code::DuplicateIdentity, id.to_string()));
             }
-            if !matches!(item.evidence.source, EvidenceSource::HumanStatement { .. }) {
+            if !item.evidence.source.admissible() {
                 return Err(refusal(
                     Code::ExtractionEvidenceKindUnsupported,
                     id.to_string(),

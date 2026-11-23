@@ -89,7 +89,18 @@ fn every_kernel_error_maps_to_its_declared_exit_and_name() {
             Some("ekr.kernel.TransactionNotFound"),
             "transaction",
         ),
-        (CommitError::NotSeeded.into(), 1, None, "not seeded"),
+        (
+            CommitError::NotSeeded.into(),
+            2,
+            Some("ekr.views.NotSeeded"),
+            "not seeded",
+        ),
+        (
+            CommitError::Store(PersistenceError::UnknownCommit).into(),
+            3,
+            None,
+            "publication outcome unknown",
+        ),
         (
             CommitError::Store(PersistenceError::Backend("disk".into())).into(),
             1,

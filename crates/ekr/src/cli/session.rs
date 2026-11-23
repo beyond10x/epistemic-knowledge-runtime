@@ -585,7 +585,9 @@ fn reopen(store: &Store) -> Result<Runtime, Replaced> {
     count(|work| work.reopens += 1);
     store.open().map_err(|failure| {
         let why = match failure {
-            Failure::Refused { name, message } => format!("{name}: {message}"),
+            Failure::Refused { name, message } | Failure::Uncertain { name, message } => {
+                format!("{name}: {message}")
+            }
             Failure::Fault { message, .. } | Failure::Usage { message } => message,
         };
         Replaced {

@@ -16,11 +16,11 @@
 //! an alias that is not a YAML string, anything but one document of the format. It then makes the
 //! reader's checks of the document alone ([`ExtractionDocument::check`]): a fact citing an id no
 //! evidence item carries, two evidence items under one id, a payload that does not hash to its
-//! entry. An evidence item whose source is not a `!HumanStatement` is refused as the reader refuses
-//! it, `extraction-evidence-kind-unsupported`. [`ExtractionDocument::decode`] decodes alike and
-//! makes none of those checks, for [`crate::extraction::apply`], which skips a fact they refuse.
-//! What the document names against a store is checked by `ekr apply-extraction` before it applies
-//! anything, and by [`crate::extraction::apply`] before it writes anything.
+//! entry. An evidence item whose source is neither a `!HumanStatement` nor a `!Url` is refused as
+//! the reader refuses it, `extraction-evidence-kind-unsupported`. [`ExtractionDocument::decode`]
+//! decodes alike and makes none of those checks, for [`crate::extraction::apply`], which skips a
+//! fact they refuse. What the document names against a store is checked by `ekr apply-extraction`
+//! before it applies anything, and by [`crate::extraction::apply`] before it writes anything.
 
 use std::collections::BTreeMap;
 
@@ -310,16 +310,18 @@ impl ExtractionDocument {
     }
 }
 
-/// The engine reader's refusal of an evidence item whose source is not a `!HumanStatement`, the
-/// one source the kernel admits (`extraction-evidence-kind-unsupported`): asked only of a text the
-/// mirror did not decode, whose evidence source it does not model.
+/// The engine reader's refusal of an evidence item whose source is neither a `!HumanStatement` nor a
+/// `!Url`, the two sources the kernel admits (`extraction-evidence-kind-unsupported`): asked only
+/// of a text the mirror did not decode, whose evidence source it does not model.
 fn unsupported_source(text: &str) -> Option<ExtractionRefusal> {
     let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(text).ok()?;
     document["evidence"]
         .as_sequence()?
         .iter()
         .find_map(|item| match &item["evidence"]["source"] {
-            serde_yaml_ng::Value::Tagged(tagged) if tagged.tag != "HumanStatement" => {
+            serde_yaml_ng::Value::Tagged(tagged)
+                if tagged.tag != "HumanStatement" && tagged.tag != "Url" =>
+            {
                 Some(ExtractionRefusal::new(
                     code::EVIDENCE_KIND,
                     item["evidence"]["id"].as_str().unwrap_or_default(),

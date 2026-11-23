@@ -751,7 +751,7 @@ fn the_mirror_refuses_by_the_readers_codes() {
         (
             KNOWN_TYPES.replace(
                 "source: !HumanStatement\n      identity: Quarterly report",
-                "source: !Url https://example.org/report",
+                "source: !Document\n      document_id: quarterly-report\n      section: null",
             ),
             "extraction-evidence-kind-unsupported",
         ),
@@ -787,6 +787,57 @@ fn the_mirror_refuses_by_the_readers_codes() {
             Err(code.to_owned()),
             "the mirror"
         );
+    }
+}
+
+/// `story:extraction-admits-url-evidence`: a document whose evidence comes from a page (`!Url`)
+/// applies through the verb, `--strict` included, and through the SDK over a child session. The
+/// store holds the entry with its URL, `ekr explain` ends at it, and the document's schema lists
+/// `!Url`.
+#[test]
+fn evidence_from_a_url_applies_and_explain_shows_the_url() {
+    const URL: &str = "https://example.org/news/globex";
+    let document = KNOWN_TYPES.replace(
+        "source: !HumanStatement\n      identity: Quarterly report",
+        &format!("source: !Url {URL}"),
+    );
+    let schema = text(&["schema", "ekr.extraction-document/1"]);
+    assert!(schema.contains("\"!Url\""), "{schema}");
+    for backend in BACKENDS {
+        for route in ["verb", "strict", "sdk"] {
+            let world = World::new(backend, false);
+            let report = match route {
+                "verb" => world.apply_verb(&document),
+                "strict" => {
+                    let path = world.file("extraction.yaml");
+                    std::fs::write(&path, &document).unwrap();
+                    world.store_json(&["apply-extraction", "--strict", path.to_str().unwrap()])
+                }
+                _ => world.apply_sdk(&document),
+            };
+            assert_eq!(
+                report["rejected"],
+                serde_json::json!([]),
+                "{route}: {report}"
+            );
+            assert!(
+                !report["committed"].as_array().unwrap().is_empty(),
+                "{route}: {report}"
+            );
+            let snapshot = world.store_json(&["snapshot"]);
+            assert_eq!(
+                snapshot["graph"]["graph"]["evidence"]["00000000-0000-4000-8000-000000000403"]
+                    ["source"],
+                serde_json::json!({ "Url": URL }),
+                "{route}: {backend}"
+            );
+            let claim = active_saying(&world, "Globex Corporation").to_string();
+            let explained = world.store_json(&["explain", &claim]).to_string();
+            assert!(
+                explained.contains(&format!("{{\"Url\":\"{URL}\"}}")),
+                "{route}: {backend}: {explained}"
+            );
+        }
     }
 }
 
