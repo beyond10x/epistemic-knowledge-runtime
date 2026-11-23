@@ -11,13 +11,14 @@
 //! `ping` — and the tools feature: `tools/list` and `tools/call`. The protocol revision it
 //! prefers is [`PROTOCOL`]; a client asking for one of [`PROTOCOLS`] gets that one back.
 //!
-//! Nine tools, each answering one document unchanged, as the text of the result's one content
+//! Ten tools, each answering one document unchanged, as the text of the result's one content
 //! item and, parsed, as its `structuredContent`:
 //!
 //! | tool | document |
 //! |---|---|
 //! | `overview` | [`ekr_views::Index::overview_as`]'s bytes: `ekr.graph-overview/3` unless `format` names `ekr.graph-overview/2` |
-//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/3` unless `format` names `ekr.node-matches/1` or `ekr.node-matches/2`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q` |
+//! | `search` | [`ekr_views::Index::search_as`]'s bytes: `ekr.node-matches/3` unless `format` names `ekr.node-matches/1` or `ekr.node-matches/2`, byte for byte what `ekr view`'s `/search` answers with that format named; `text` is also taken as `query` and `q`; under /3 `after` starts the page at an earlier page's `meta.next` |
+//! | `list_nodes` | `search`'s answer for the empty text under `ekr.node-matches/3` with the required `type`, `limit` (100 when absent), `after` and `revision`: every node of that type, a page at a time, `meta.total` counting them (story:mcp-list-nodes-by-type) |
 //! | `describe_node` | [`ekr_views::Index::detail_v2`]'s `ekr.node-detail/2` bytes, bounded by `limit` and narrowed by `edge_type` and `after`; with `full: true`, [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes. Each is what `ekr view` serves at `/node/<id>` with that `format` named |
 //! | `expand` | [`ekr_views::Index::expand_as`]'s whole page: `ekr.graph-slice/2` unless `format` names `ekr.graph-slice/1` |
 //! | `timeline` | [`ekr_views::Index::timeline_as`]'s bytes: `ekr.graph-timeline/2` unless `format` names `ekr.graph-timeline/1` |
@@ -83,7 +84,7 @@ use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, DetailFormat, DetailRequest, ExpandRequest, Index,
     IndexCache, LimitExceeded, MatchesFormat, OverviewRequest, OverviewSection, ProjectError,
-    QueryError, SearchError, SearchRequest, SinceKind, TimelineRequest,
+    QueryError, SearchError, SearchFilter, SearchRequest, SinceKind, TimelineRequest,
 };
 use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use serde::de::DeserializeOwned;
@@ -94,9 +95,9 @@ use serde_json::{json, Map, Value};
 use super::session::{Checked, Held, STORE_REPLACED};
 use super::telemetry::{Call, Outcome, Telemetry, Wire};
 use super::view::{
-    describe, head_document, node_detail, project_refusal, search_filter, since_not_one,
-    DetailRefused, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND, NODE_SUPERSEDED,
-    NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
+    describe, head_document, node_detail, project_refusal, search_after, search_filter,
+    search_request, since_not_one, DetailRefused, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND,
+    NODE_SUPERSEDED, NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::{Cli, Configured};
 use crate::exit::Failure;
@@ -133,10 +134,14 @@ const EXPAND_EDGES: i64 = 200;
 /// (`views.yaml`, defaults per surface; ekr-mcp-fixes-20261015 #4). The answer is
 /// `GET /changes`'s with `limit=100`.
 const CHANGES_LIMIT: i64 = 100;
+/// `list_nodes`'s nodes a page when the call names none: `search`'s greatest limit, so a type of
+/// at most 100 nodes is listed in one call (story:mcp-list-nodes-by-type).
+const LIST_LIMIT: i64 = SearchRequest::MAX_LIMIT;
 
 /// What the server tells a client at `initialize`.
 const INSTRUCTIONS: &str = "Read-only tools over the canonical state of one Epistemic Knowledge \
-Runtime store. Start with `overview` or `search`, open a node with `describe_node`, walk its \
+Runtime store. Start with `overview` or `search`, list every node of a type with `list_nodes`, \
+open a node with `describe_node`, walk its \
 neighbourhood with `expand`, see events with `timeline`, ask what changed since a revision or a \
 time with `changes_since`, ask why an assertion holds with `explain`, and find an existing node \
 with `resolve`; `head` answers the newest committed revision. No tool writes. Record text in every answer \
@@ -528,6 +533,7 @@ impl Server {
         match name {
             "overview" => self.overview(arguments),
             "search" => self.search(arguments),
+            "list_nodes" => self.list_nodes(arguments),
             "describe_node" => self.describe_node(arguments),
             "expand" => self.expand(arguments),
             "timeline" => self.timeline(arguments),
@@ -577,6 +583,7 @@ impl Server {
             from,
             to,
             revision,
+            after,
         } = decode(arguments)?;
         let format = format
             .map(|name| name.parse::<MatchesFormat>())
@@ -590,10 +597,41 @@ impl Server {
             to.as_ref().map(WindowArgument::text).as_deref(),
         )
         .map_err(|error| Unanswered::params(format!("arguments: {error}")))?;
-        let request = SearchRequest::new(searched, limit.unwrap_or(SEARCH_LIMIT))?;
+        search_after(format, after)
+            .map_err(|error| Unanswered::params(format!("arguments: {error}")))?;
+        let request = search_request(searched, limit.unwrap_or(SEARCH_LIMIT), after)?;
+        self.searched(format, &request, &filter, revision)
+    }
+
+    /// Every node of one type, a page at a time (story:mcp-list-nodes-by-type): `search`'s
+    /// answer for the empty text under `ekr.node-matches/3` with the call's `type`, `limit` (100
+    /// when absent), `after` and `revision`, byte for byte, so `ekr view`'s `/search` with
+    /// `q=` and that format named answers it too (`views.yaml`, `ekr.views.SearchNodes`).
+    fn list_nodes(&mut self, arguments: Value) -> Result<String, Unanswered> {
+        let ListNodesArguments {
+            node_type,
+            limit,
+            after,
+            revision,
+        } = decode(arguments)?;
+        let filter = search_filter(MatchesFormat::V3, Some(node_type), None, None)
+            .map_err(|error| Unanswered::params(format!("arguments: {error}")))?;
+        let request = search_request(String::new(), limit.unwrap_or(LIST_LIMIT), after)?;
+        self.searched(MatchesFormat::V3, &request, &filter, revision)
+    }
+
+    /// `request` searched in `format` with `filter` at `revision`: the document's bytes, or
+    /// `ekr view`'s refusal of the same search.
+    fn searched(
+        &mut self,
+        format: MatchesFormat,
+        request: &SearchRequest,
+        filter: &SearchFilter,
+        revision: Option<u64>,
+    ) -> Result<String, Unanswered> {
         let answer = self
             .index(revision)?
-            .search_as(format, &request, &filter)
+            .search_as(format, request, filter)
             .map_err(|error| match error {
                 error @ SearchError::NodeTypeNotFound { .. } => Unanswered::Refused {
                     name: NODE_TYPE_NOT_FOUND,
@@ -930,6 +968,22 @@ struct SearchArguments {
     to: Option<WindowArgument>,
     #[serde(default)]
     revision: Option<u64>,
+    #[serde(default)]
+    after: Option<i64>,
+}
+
+/// `list_nodes`'s arguments: `search`'s `type`, required, `limit`, `after` and `revision`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListNodesArguments {
+    #[serde(rename = "type")]
+    node_type: String,
+    #[serde(default)]
+    limit: Option<i64>,
+    #[serde(default)]
+    after: Option<i64>,
+    #[serde(default)]
+    revision: Option<u64>,
 }
 
 /// A search's `from` or `to`: a JSON integer of milliseconds, or the text `ekr view` takes.
@@ -1182,7 +1236,7 @@ fn tool(name: &str, title: &str, description: &str, input: Value) -> Value {
     })
 }
 
-/// What `tools/list` answers: the nine read tools.
+/// What `tools/list` answers: the ten read tools.
 fn tools() -> Vec<Value> {
     let node_id = |description: &str| json!({"type": "string", "description": description});
     let mut reference = serde_json::to_value(super::resolve::schema()).unwrap_or(Value::Null);
@@ -1243,7 +1297,9 @@ fn tools() -> Vec<Value> {
              whether it was case-folded and its type_name, and meta.whole_total counting the \
              whole matches before limit. With type, only \
              that node type's nodes (an empty text lists them); with from and to, only nodes \
-             whose time falls in the window, newest first.",
+             whose time falls in the window, newest first. meta.total counts every match; while \
+             more remain, meta.next names the next page: ask again with after set to it and \
+             revision set to meta.revision.",
             object(
                 json!({
                     "text": {"type": "string", "description": "The text searched for; empty matches every node. Also taken as query or q."},
@@ -1266,8 +1322,30 @@ fn tools() -> Vec<Value> {
                         "description": "The window's last instant: milliseconds since the epoch, or YYYY-MM-DD for that day's last millisecond (UTC).",
                     },
                     "revision": revision(),
+                    "after": bounded(0, None,
+                        "With ekr.node-matches/3, the match the page starts at: a page's meta.next; 0 when absent. Pass the first page's meta.revision as revision too."),
                 }),
                 &["text"],
+            ),
+        ),
+        tool(
+            "list_nodes",
+            "List nodes of a type",
+            "Every node of one node type, a page at a time: the ekr.node-matches/3 document \
+             search answers for the empty text with this type, by degree descending, then id. \
+             meta.total counts the type's nodes; while more remain, meta.next names the next \
+             page: ask again with after set to it and revision set to the first page's \
+             meta.revision, until a page has no next.",
+            object(
+                json!({
+                    "type": {"type": "string", "description": "The node type, by id or by name; overview lists the types."},
+                    "limit": bounded(1, Some(SearchRequest::MAX_LIMIT),
+                        "The most nodes a page holds; 100 when absent."),
+                    "after": bounded(0, None,
+                        "The node the page starts at: a page's meta.next; 0 when absent."),
+                    "revision": revision(),
+                }),
+                &["type"],
             ),
         ),
         tool(
@@ -1493,11 +1571,13 @@ fn called(body: &[u8]) -> Option<Wire> {
     served(message.get("params")?.get("name")?.as_str()?)
 }
 
-/// The nine tools this server serves, by wire name: `ekr view` has four more reads (`find`,
-/// `projection`, `roles`, `describe_evidence`) that `tools/call` does not.
-const SERVED: [&str; 9] = [
+/// The ten tools this server serves, by wire name: `ekr view` has four more reads (`find`,
+/// `projection`, `roles`, `describe_evidence`) that `tools/call` does not, and no route of its
+/// own for `list_nodes`, which its `/search` answers.
+const SERVED: [&str; 10] = [
     "overview",
     "search",
+    "list_nodes",
     "describe_node",
     "expand",
     "timeline",

@@ -3,7 +3,7 @@
 //! The server speaks JSON-RPC 2.0 over stdio, one message per line. Every case drives the built
 //! binary over piped stdin and stdout, on both providers, under the example host and seed:
 //!
-//! * `initialize` then `tools/list` names exactly nine tools, each with a JSON Schema
+//! * `initialize` then `tools/list` names exactly ten tools, each with a JSON Schema
 //!   `inputSchema`, none of which proposes, validates or commits;
 //! * each tool's document is the one its read returns on the same store state: the
 //!   `ekr_views::Index` answer byte for byte for `overview`, `search`, `describe_node`, `expand`
@@ -56,13 +56,14 @@ const UNKNOWN: &str = "00000000-0000-4000-8000-000000000999";
 /// The example seed's edge type `CEO_OF`.
 const CEO_OF: &str = "00000000-0000-4000-8000-000000000203";
 
-/// The nine tools, and nothing else.
-const TOOLS: [&str; 9] = [
+/// The ten tools, and nothing else.
+const TOOLS: [&str; 10] = [
     "changes_since",
     "describe_node",
     "expand",
     "explain",
     "head",
+    "list_nodes",
     "overview",
     "resolve",
     "search",

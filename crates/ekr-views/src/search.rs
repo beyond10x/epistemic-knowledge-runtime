@@ -15,7 +15,9 @@
 //! match's kind (`views.yaml`, `ekr.views.MatchKind` and `ekr.views.NodeMatchesV3`): whole name,
 //! whole alias, prefix, substring, words, each case-exact or case-folded. Its order (determinism
 //! rule for /3): kind, whatever the case; a case-exact match before a case-folded one; with
-//! `from` or `to`, time descending; degree descending; id.
+//! `from` or `to`, time descending; degree descending; id. That order is total, so /3 pages:
+//! a page starts at [`SearchRequest::after`] and its `meta.next` names the next page's start,
+//! present exactly when matches remain (`ekr.views.MatchCursor`, story:mcp-list-nodes-by-type).
 
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -332,6 +334,8 @@ struct MatchesMetaV3<'a> {
     total: u64,
     exact_total: u64,
     whole_total: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -607,8 +611,10 @@ impl Index {
     /// nodes [`Self::search_v2`] matches for the same request, each naming its
     /// `ekr.views.MatchKind` and whether it matched only after lowercasing. A node's match is the
     /// first of WholeName, WholeAlias, Prefix, Substring and Words, each case-exact before
-    /// case-folded, that its canonical name or one alias passes; the first `limit` are ordered by
-    /// that kind and fold, with a window newest first, then degree descending, then id.
+    /// case-folded, that its canonical name or one alias passes; ordered by that kind and fold,
+    /// with a window newest first, then degree descending, then id, the page holds the first
+    /// `limit` from position [`SearchRequest::after`] on, and `meta.next` is the following
+    /// page's `after` while matches remain.
     ///
     /// # Errors
     ///
@@ -712,6 +718,7 @@ impl Index {
         let mut matches: Vec<NodeMatchV3<'_>> = Vec::new();
         for hit in found
             .iter()
+            .skip(usize::try_from(request.after()).unwrap_or(usize::MAX))
             .take(usize::try_from(request.limit()).unwrap_or(usize::MAX))
         {
             let id = self.node_ids[hit.index as usize];
@@ -739,6 +746,10 @@ impl Index {
         let first_match = matches.first().map(|hit| hit.id);
         let first_kind = matches.first().map(|hit| hit.kind.name());
         let first_folded = matches.first().map(|hit| hit.folded);
+        // `ekr.views.MatchCursor`: the following page's `after`, present exactly when matches
+        // remain after this page.
+        let end = request.after().saturating_add(matches.len() as u64);
+        let next = (end < total).then_some(end);
         let document = NodeMatchesV3 {
             meta: MatchesMetaV3 {
                 format: MATCHES_V3_FORMAT,
@@ -750,6 +761,7 @@ impl Index {
                 total,
                 exact_total,
                 whole_total,
+                next,
             },
             matches,
         };
