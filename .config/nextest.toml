@@ -1,24 +1,9 @@
-[test-groups]
-browser = { max-threads = 1 }
-
 [profile.default]
 slow-timeout = { period = "60s", terminate-after = 1 }
 global-timeout = "600s"
 fail-fast = false
 final-status-level = "slow"
+default-filter = "not (binary_id(ekr-kernel::main) & test(=validation::only_the_kernel_constructs_a_validated_transaction))"
 
 [profile.default.junit]
 path = "junit.xml"
-
-[[profile.default.overrides]]
-filter = """
-binary_id(ekr::main) & (
-  test(/^view_page::/)
-  | test(/^search_live::/)
-  | test(/^adversary_p_page::/)
-  | test(/^adversary_page_stream_1::/)
-  | test(/^adversary_viewer_compact::/)
-  | test(/^adversary_viewer_follow_ups::/)
-)
-"""
-test-group = "browser"

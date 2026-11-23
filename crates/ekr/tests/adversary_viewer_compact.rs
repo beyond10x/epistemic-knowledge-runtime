@@ -19,6 +19,8 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+#[path = "support/shared_browser.rs"]
+mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
 mod viewer_libraries;
 
@@ -323,18 +325,9 @@ fn discovery_waits_for_a_page_after_the_devtools_listener_is_ready() {
     server.join().unwrap();
 }
 
-struct BrowserChild(Child);
-
-impl Drop for BrowserChild {
-    fn drop(&mut self) {
-        self.0.kill().ok();
-        self.0.wait().ok();
-    }
-}
-
 /// The `Driven` harness of `view_page.rs`, copied (it is private to that file).
 struct Driven {
-    _child: BrowserChild,
+    _child: shared_browser::Browser,
     socket: TcpStream,
     reader: BufReader<TcpStream>,
     next: u64,
@@ -348,7 +341,7 @@ impl Driven {
     fn launch(browser: &Path, url: &str, init: Option<&str>) -> Self {
         let one = one_browser();
         let profile = tempfile::tempdir().unwrap();
-        let child = BrowserChild(
+        let child = shared_browser::launch(Some((1600, 1000)), || {
             Command::new(browser)
                 .args([
                     "--headless",
@@ -369,25 +362,11 @@ impl Driven {
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
                 .spawn()
-                .unwrap(),
-        );
+                .unwrap()
+        });
         let mut child = child;
-        let mut lines = BufReader::new(child.0.stderr.take().unwrap());
-        let port: u16 = loop {
-            let mut line = String::new();
-            assert!(
-                lines.read_line(&mut line).unwrap() > 0,
-                "no DevTools address"
-            );
-            if let Some(rest) = line
-                .trim()
-                .strip_prefix("DevTools listening on ws://127.0.0.1:")
-            {
-                break rest.split('/').next().unwrap().parse().unwrap();
-            }
-        };
-        std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
-        let address = page_target(port);
+        let (port, page) = child.devtools();
+        let address = page.unwrap_or_else(|| page_target(port));
         let path = &address[address.find("/devtools/").unwrap()..];
         let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(

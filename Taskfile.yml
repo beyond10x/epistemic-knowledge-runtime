@@ -9,6 +9,7 @@ tasks:
       - task: clippy
       - task: test
       - task: bench-check
+      - task: compile-fail-check
       - task: doc-check
       - task: vendor-check
       - task: spec-check
@@ -53,6 +54,11 @@ tasks:
     desc: the bench-only test targets compile, outside the test step
     cmds:
       - cargo check -p ekr-kernel --features bench --tests --locked
+
+  compile-fail-check:
+    desc: the trybuild compile-fail cases, outside the test step (they compile a crate per case)
+    cmds:
+      - cargo nextest run --locked -p ekr-kernel --ignore-default-filter -E 'test(=validation::only_the_kernel_constructs_a_validated_transaction)'
 
   doc-check:
     desc: rustdoc with broken intra-doc links as errors
