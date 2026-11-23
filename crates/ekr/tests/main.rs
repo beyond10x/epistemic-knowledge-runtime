@@ -175,6 +175,8 @@ mod host_input_adversary;
 mod hosted_http;
 #[path = "mcp.rs"]
 mod mcp;
+#[path = "mcp_list_nodes.rs"]
+mod mcp_list_nodes;
 #[path = "migrate_cli.rs"]
 mod migrate_cli;
 #[path = "msrv_contract.rs"]
