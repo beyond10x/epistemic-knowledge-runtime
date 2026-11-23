@@ -617,6 +617,10 @@ pub struct MatchesMetaV3 {
     /// The matches of kind [`MatchKind::WholeName`] or [`MatchKind::WholeAlias`], before the
     /// limit.
     pub whole_total: u64,
+    /// The `after` of the next page, present while matches remain after this page
+    /// (`ekr.views.MatchCursor`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<u64>,
 }
 
 /// One `ekr.node-matches/3` match.

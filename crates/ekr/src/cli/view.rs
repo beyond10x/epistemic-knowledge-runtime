@@ -72,7 +72,7 @@
 //! | `GET /overview[?revision=N&limit=L&sections=S&format=F]` | [`ekr_views::Index::overview_as`]'s bytes, `ekr.graph-overview/2` unless `F` names `ekr.graph-overview/3` (which names each type and carries `meta.committed_at`): meta, the type counts and the `L` highest-degree nodes, and of `ontology`, `schema`, `roles` and `timeline` only those `S` names, joined by `,` (none when absent or empty; an unknown name, or format, is 400 `invalid-query`), `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N][&format=F]` | [`ekr_views::Index::page_as`]'s records, `ekr.graph-slice/1` unless `F` names `ekr.graph-slice/2` (each record with its `type_name`), streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N][&format=F][&limit=L][&edge_type=E][&after=A]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, or with `F` `ekr.node-detail/2` [`ekr_views::Index::detail_v2`]'s: at most `L` (1 to 500, 10 when absent) values per property and neighbours per relation group, each group from neighbour `A` (0 when absent), only the edge type `E` names (its id or name) when given; `L`, `E` or `A` on a /1 request is 400 `invalid-query`, and a /2 request for a type id 404 `ekr.views.NodeIsAType`, `application/json` |
-//! | `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]` | [`ekr_views::Index::search_as`]'s bytes in the format `F` names, `ekr.node-matches/1` when absent and `ekr.node-matches/2` or `ekr.node-matches/3` (each match's kind, a whole name or alias first) when named (`L` is [`SEARCH_LIMIT`] when absent); `T` (a node type's id or name), `A` and `B` (milliseconds or `YYYY-MM-DD`) are /2's and /3's, read by [`search_filter`]: with /1, or malformed, they are 400 `invalid-query`, and a `T` naming no node type is 404 `ekr.views.NodeTypeNotFound`. `application/json` |
+//! | `GET /search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N][&after=C]` | [`ekr_views::Index::search_as`]'s bytes in the format `F` names, `ekr.node-matches/1` when absent and `ekr.node-matches/2` or `ekr.node-matches/3` (each match's kind, a whole name or alias first) when named (`L` is [`SEARCH_LIMIT`] when absent); `T` (a node type's id or name), `A` and `B` (milliseconds or `YYYY-MM-DD`) are /2's and /3's, read by [`search_filter`]: with /1, or malformed, they are 400 `invalid-query`, and a `T` naming no node type is 404 `ekr.views.NodeTypeNotFound`; `C`, a cursor from a /3 page's `meta.next`, is /3's alone, read by [`search_after`]. `application/json` |
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N][&format=F]` | [`ekr_views::Index::timeline_as`]'s bytes, `ekr.graph-timeline/1` unless `F` names `ekr.graph-timeline/2` (with `names`): one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A][&format=F]` | [`ekr_views::Index::changes_as`]'s bytes, `ekr.graph-changes/1` unless `F` names `ekr.graph-changes/2` (with `names`): the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
@@ -1556,16 +1556,19 @@ fn find(
     ))
 }
 
-/// `/search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N]`: the format
+/// `/search?q=<text>[&limit=L][&format=F][&type=T][&from=A][&to=B][&revision=N][&after=C]`: the format
 /// `F` names, `ekr.node-matches/1` when absent (`views.yaml`, `ekr.views.SearchNodes`).
 fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
     let query = Query::parse(
         query,
-        &["q", "limit", "format", "type", "from", "to", "revision"],
+        &[
+            "q", "limit", "format", "type", "from", "to", "revision", "after",
+        ],
     )
     .map_err(invalid_query)?;
     let text = query.required("q").map_err(invalid_query)?.to_owned();
     let limit = query.integer("limit").map_err(invalid_query)?;
+    let after = query.integer("after").map_err(invalid_query)?;
     let format = query
         .get("format")
         .map(str::parse::<MatchesFormat>)
@@ -1579,8 +1582,9 @@ fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Re
         query.get("to"),
     )
     .map_err(invalid_query)?;
+    search_after(format, after).map_err(invalid_query)?;
     let at = query.revision().map_err(invalid_query)?;
-    let request = SearchRequest::new(text, limit.unwrap_or(SEARCH_LIMIT))
+    let request = search_request(text, limit.unwrap_or(SEARCH_LIMIT), after)
         .map_err(|error| limit_exceeded(&error))?;
     let index = indexes
         .index(runtime, at)
@@ -1594,6 +1598,29 @@ fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Re
 /// `ekr.views.NodeTypeNotFound`: a search's `type` that is neither the id nor the name of a node
 /// type of the revision read. `ekr view`, the session verb and `ekr mcp` all name it from here.
 pub(super) const NODE_TYPE_NOT_FOUND: &str = "ekr.views.NodeTypeNotFound";
+
+/// A search's `after` under `format` (`views.yaml`, `ekr.views.SearchNodes`): read by
+/// `ekr.node-matches/3` only, so named with /1 or /2 it is malformed input. `ekr view`, the
+/// session verb and `ekr mcp` read it here, so each refuses the same requests with the same
+/// message.
+pub(super) fn search_after(format: MatchesFormat, after: Option<i64>) -> Result<(), String> {
+    if after.is_some() && format != MatchesFormat::V3 {
+        return Err(format!(
+            "after is an input of {MATCHES_V3_FORMAT} only; name that format to page a search"
+        ));
+    }
+    Ok(())
+}
+
+/// The bounded search request of `text`, `limit` and `after` (0 when `None`): `limit` checked
+/// first, then `after`, as `ekr.views.SearchNodes` names its first broken input.
+pub(super) fn search_request(
+    text: String,
+    limit: i64,
+    after: Option<i64>,
+) -> Result<SearchRequest, LimitExceeded> {
+    SearchRequest::new(text, limit)?.starting_at(after)
+}
 
 /// A search's `type`, `from` and `to` under `format` (`views.yaml`, `ekr.views.SearchNodes`):
 /// each bound read by [`WindowBound::read`], and none of the three named with

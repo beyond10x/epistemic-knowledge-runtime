@@ -678,6 +678,14 @@ types:
     kind: newtype
     of: Integer
 
+  # The position in a search's match order (SearchNodes under ekr.node-matches/3): the number of
+  # matches the earlier pages delivered. A page's `next` is its own `after` plus the matches it
+  # delivered. Like ekr.views.SliceCursor it names no revision, so a reader that pages keeps `at`
+  # fixed to the first page's meta.revision.
+  - name: ekr.views.MatchCursor
+    kind: newtype
+    of: Integer
+
   # A light node record: what a viewer needs to draw a node and nothing it needs to open one.
   # `name` is the node's canonical_name, `type` its type id, `degree` the number of the revision's
   # edges (ekr.graph.Edge) whose source or target is the node, counted over the whole revision,
@@ -1702,7 +1710,8 @@ types:
   # canonical_name or an alias contains the text byte for byte, both before `limit`; each is
   # ekr.node-matches/2's for the same request. `whole_total` counts the matches whose kind is
   # WholeName or WholeAlias, before `limit`, so a reader of the first page knows whether more whole
-  # matches exist than it was given.
+  # matches exist than it was given. `next` is the `after` of the following page, omitted when
+  # this page reaches the end of the matches (ekr.views.MatchCursor).
   - name: ekr.views.MatchesMetaV3
     kind: struct
     fields:
@@ -1724,10 +1733,13 @@ types:
         type: Integer
       - name: whole_total
         type: Integer
+      - name: next
+        type: Optional<ekr.views.MatchCursor>
 
-  # ekr.node-matches/3: the first `limit` matching nodes of the named types in the named window,
-  # ordered by kind as the determinism rule for ekr.node-matches/3 says. It matches the nodes
-  # ekr.node-matches/2 matches for the same request; only the order and each match's kind differ.
+  # ekr.node-matches/3: the first `limit` matching nodes from position `after` (0 when the request
+  # names none) of the named types in the named window, ordered by kind as the determinism rule
+  # for ekr.node-matches/3 says. It matches the nodes ekr.node-matches/2 matches for the same
+  # request; only the order, each match's kind and the paging differ.
   - name: ekr.views.NodeMatchesV3
     kind: struct
     fields:
@@ -2885,8 +2897,9 @@ types:
   #
   # The wire name. Every counted read is labelled `tool` with its wire name, a value of
   # ekr.views.ReadWireName and never request text: an MCP `tools/call` by the tool it names
-  # (a name outside the nine tools `ekr mcp-http` serves, `find`, `projection`, `roles` and
-  # `describe_evidence` included, is a -32602 and counted under no tool), and an `ekr view` GET of a
+  # (a name outside the ten tools `ekr mcp-http` serves, `find`, `projection`, `roles` and
+  # `describe_evidence` included, is a -32602 and counted under no tool; `list_nodes` is an MCP
+  # tool with no `ekr view` route of its own), and an `ekr view` GET of a
   # route that reads the store by the read it answers: /head head, /overview overview, /search
   # search, /node/<id> describe_node, /expand expand, /timeline timeline, /changes changes_since,
   # /projection projection, /roles roles, /evidence/<id> describe_evidence and /find find. A
@@ -2958,6 +2971,7 @@ types:
       - projection
       - roles
       - find
+      - list_nodes
 
   - name: ekr.views.ReadOutcome
     kind: enum
@@ -3498,6 +3512,20 @@ commands:
   # the MCP tool's answer is byte for byte `ekr view`'s. ekr.node-matches/1 and /2 are served
   # unchanged: a /1 or /2 request answers what the command answered before /3 was declared.
   #
+  # `after` (ekr.views.MatchCursor, 0 when absent) is read under /3 only: the /3 page holds the
+  # matches from position `after` of the request's whole match order onward, at most `limit` of
+  # them, and meta's `next` is the `after` of the following page, present exactly when matches
+  # remain after this page (story:mcp-list-nodes-by-type). The order is total (it ends with the
+  # node id), so paging one revision from 0 by each page's `next` answers every counted match
+  # exactly once. A surface refuses a request that names `after` with /1 or /2 as malformed
+  # input that never reaches the command, as it refuses `type`, `from` and `to` under /1.
+  #
+  # The MCP tool `list_nodes` is SearchNodes under /3 with the empty text and a required `type`:
+  # every node of that type, by degree descending, then id, `limit` 1 to 100 (100 when the call
+  # names none) and `after` as above. Its answer is byte for byte the MCP tool `search`'s for
+  # `text` "" with the same `type`, `limit`, `after` and `revision`, and `ekr view`'s for that
+  # request with ekr.node-matches/3 named; meta's `total` counts the type's nodes.
+  #
   # `type`, `from` and `to` are read under /2 and /3 only; under /1 the command reads none of them. A
   # surface refuses a request that names one of them with the format /1 as malformed input that
   # never reaches the command (`ekr view` answers invalid-query, the MCP tool -32602).
@@ -3537,6 +3565,8 @@ commands:
         type: Optional<ekr.views.EpochMillis>
       - name: to
         type: Optional<ekr.views.EpochMillis>
+      - name: after
+        type: Optional<ekr.views.MatchCursor>
     response:
       - name: matches
         type: Optional<ekr.views.NodeMatchesV1>
@@ -3568,8 +3598,9 @@ commands:
           any:
             - limit < 1
             - limit > 100
+            - after < 0
         error: ekr.views.LimitExceeded
-        summary: The store was not read; the refusal names `limit`, its value and its bounds 1 and 100.
+        summary: The store was not read; the refusal names the first broken input of `limit` and `after`, its value and its bounds (1 and 100 for `limit`, 0 and none for `after`).
       - name: not-found
         external: the store holds no committed revision with the requested number
         error: ekr.views.RevisionNotFound

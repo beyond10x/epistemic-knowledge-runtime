@@ -27,15 +27,15 @@ use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, DetailFormat, ExpandRequest, IndexCache,
     LimitExceeded, MatchesFormat, OverviewRequest, ProjectError, QueryError, SearchError,
-    SearchRequest, SinceKind, TimelineRequest, UnknownMatchesFormat,
+    SinceKind, TimelineRequest, UnknownMatchesFormat,
 };
 use ekr_views::{ChangesFormat, OverviewFormat, SliceFormat, TimelineFormat, UnknownFormat};
 use serde_json::Value;
 
 use super::super::view::{
-    describe, node_detail, overview_sections, project_refusal, search_filter, since_not_one,
-    DetailRefused, OverviewSections, LIMIT_EXCEEDED, NODE_IS_A_TYPE, NODE_NOT_FOUND,
-    NODE_SUPERSEDED, NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
+    describe, node_detail, overview_sections, project_refusal, search_after, search_filter,
+    search_request, since_not_one, DetailRefused, OverviewSections, LIMIT_EXCEEDED, NODE_IS_A_TYPE,
+    NODE_NOT_FOUND, NODE_SUPERSEDED, NODE_TYPE_NOT_FOUND, SEARCH_LIMIT, SINCE_MALFORMED,
 };
 use super::super::Backend;
 use crate::exit::Failure;
@@ -129,6 +129,10 @@ pub(super) enum Verb {
         /// The committed revision to read; the head when absent.
         #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
+        /// `ekr.node-matches/3` only: the cursor the page starts at, an earlier page's
+        /// `meta.next`; 0 when absent.
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
+        after: Option<i64>,
     },
     /// `GET /node/<id>`: the `ekr.node-detail/1` document of one node, or with `--format
     /// ekr.node-detail/2` its bounded `ekr.node-detail/2`.
@@ -330,13 +334,16 @@ fn read(verb: &Verb, runtime: &Runtime, indexes: &mut IndexCache) -> Result<Vec<
             from,
             to,
             revision: at,
+            after,
         } => {
             let format = format.unwrap_or(MatchesFormat::V1);
-            let filter = search_filter(format, node_type.clone(), from.as_deref(), to.as_deref())
-                .map_err(|message| Failure::Usage {
+            let usage = |message: String| Failure::Usage {
                 message: format!("error: {message}\n"),
-            })?;
-            let request = SearchRequest::new(text.clone(), limit.unwrap_or(SEARCH_LIMIT))
+            };
+            let filter = search_filter(format, node_type.clone(), from.as_deref(), to.as_deref())
+                .map_err(usage)?;
+            search_after(format, *after).map_err(usage)?;
+            let request = search_request(text.clone(), limit.unwrap_or(SEARCH_LIMIT), *after)
                 .map_err(limit_exceeded)?;
             let index = indexes.index(runtime, revision(at)).map_err(project)?;
             index

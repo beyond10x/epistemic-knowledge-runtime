@@ -88,8 +88,9 @@ WORKFLOW
                                                    directly-follows edges with their counts
      ekr view [--port N]                          a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
-                                                   client: overview, search, describe_node,
-                                                   expand, timeline, explain, resolve
+                                                   client: overview, search, list_nodes,
+                                                   describe_node, expand, timeline, explain,
+                                                   resolve
      ekr code-names <file>... [--at N]             which store names your code quotes as literals:
                                                    file, line and kind; exit 0, the count is
                                                    meta.findings; --words includes bare words
