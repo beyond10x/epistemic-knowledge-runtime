@@ -16,7 +16,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   verb's `--after`) starts a page there. Paging one revision answers every match `meta.total`
   counts exactly once. Before, for 101 equal names a search counted 101, answered 100 and offered
   no way to the 101st (finding 29 of the EKR 0.0.42 review). `after` with `ekr.node-matches/1` or
-  /2 is refused as malformed input; those documents are unchanged.
+  /2 is refused as malformed input; those documents are unchanged. In `ekr-sdk`,
+  `MatchesMetaV3` reads `next` and `Reader::search_v3_page` takes `after`.
 
 ## [0.0.42] — 2026-11-22
 

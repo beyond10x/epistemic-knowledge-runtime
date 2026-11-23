@@ -552,6 +552,7 @@ fn http_and_stdio_mcp_return_identical_nine_tool_documents() {
             call("head", json!({})),
             call("overview", json!({})),
             call("search", json!({"text":"Alice"})),
+            call("list_nodes", json!({"type":"Person"})),
             call(
                 "describe_node",
                 json!({"node":"00000000-0000-4000-8000-000000000301"}),
@@ -571,7 +572,7 @@ fn http_and_stdio_mcp_return_identical_nine_tool_documents() {
         ];
         let expected = world.stdio(&messages);
         assert_eq!(expected.len(), messages.len());
-        assert_eq!(expected[1]["result"]["tools"].as_array().unwrap().len(), 9);
+        assert_eq!(expected[1]["result"]["tools"].as_array().unwrap().len(), 10);
         for (request, expected) in messages.iter().zip(expected) {
             let response = server.mcp(request);
             assert_eq!(response.status, 200);

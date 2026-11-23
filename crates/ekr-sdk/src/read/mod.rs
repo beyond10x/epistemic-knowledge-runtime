@@ -9,7 +9,7 @@
 //! | [`Reader::overview`] | `overview --sections ontology,schema,roles,timeline` | [`Overview`], `ekr.graph-overview/2` with every section |
 //! | [`Reader::overview_sections`] | `overview --sections <named>` | [`Overview`], `ekr.graph-overview/2` with the named sections |
 //! | [`Reader::search`] | `search` | [`NodeMatches`], `ekr.node-matches/1` |
-//! | [`Reader::search_v3`] | `search --format ekr.node-matches/3` | [`NodeMatchesV3`], `ekr.node-matches/3` |
+//! | [`Reader::search_v3`], [`Reader::search_v3_page`] | `search --format ekr.node-matches/3 [--after C]` | [`NodeMatchesV3`], `ekr.node-matches/3` |
 //! | [`Reader::describe`] | `describe` | [`NodeDetail`], `ekr.node-detail/1` |
 //! | [`Reader::expand`], [`Reader::expand_page`] | `expand` | [`Slice`] pages, `ekr.graph-slice/1` |
 //! | [`Reader::timeline`] | `timeline` | [`Timeline`], `ekr.graph-timeline/1` |
@@ -372,6 +372,30 @@ impl<T: Transport> Reader<T> {
             Argv::new("search")
                 .flag("format", Some("ekr.node-matches/3"))
                 .flag("limit", limit)
+                .flag("revision", revision)
+                .arg("--")
+                .arg(text),
+        )
+    }
+
+    /// `search --format ekr.node-matches/3 --after <after>`: the page of [`Self::search_v3`]'s
+    /// matches starting at position `after` (0 for the first page, then the previous page's
+    /// `meta.next`). Keep `revision` at the first page's `meta.revision` while paging.
+    ///
+    /// # Errors
+    /// [`ReadError`].
+    pub fn search_v3_page(
+        &mut self,
+        text: &str,
+        limit: Option<u64>,
+        after: u64,
+        revision: Option<u64>,
+    ) -> Result<NodeMatchesV3, ReadError> {
+        self.read(
+            Argv::new("search")
+                .flag("format", Some("ekr.node-matches/3"))
+                .flag("limit", limit)
+                .flag("after", Some(after))
                 .flag("revision", revision)
                 .arg("--")
                 .arg(text),
