@@ -328,7 +328,9 @@ fn the_sdk_needs_no_workspace_patch_and_the_gate_builds_it_standalone() {
     let root = workspace_root();
     let manifest = read(&root.join("Cargo.toml"));
     assert!(
-        !manifest.lines().any(|line| line.trim_start().starts_with("[patch")),
+        !manifest
+            .lines()
+            .any(|line| line.trim_start().starts_with("[patch")),
         "the root manifest selects no crate through [patch]: an application building ekr-sdk \
          does not get it"
     );

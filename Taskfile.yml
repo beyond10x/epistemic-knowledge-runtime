@@ -38,7 +38,7 @@ tasks:
   fmt-check:
     desc: rustfmt, check only
     cmds:
-      - cargo fmt --all -- --check
+      - cargo fmt -- --check
 
   clippy:
     desc: clippy over every target, warnings are errors
@@ -133,4 +133,4 @@ tasks:
   fmt:
     desc: rustfmt, in place
     cmds:
-      - cargo fmt --all
+      - cargo fmt

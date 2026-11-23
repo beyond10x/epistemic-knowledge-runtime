@@ -83,4 +83,7 @@ cargo test --offline --locked --manifest-path vendor/serde_yaml_ng/Cargo.toml
 All original test files are retained byte for byte. Their existing formatting
 in `tests/test_de.rs`, and the existing formatting in `src/with.rs`, differ from
 Rust 1.98.1 rustfmt output; those unrelated bytes are deliberately retained.
+As a path dependency this package is a local package to `cargo fmt --all`, so
+`task fmt-check` runs `cargo fmt -- --check`, which formats the workspace
+members only.
 The local facade and its tests are formatted with the repository's toolchain.
