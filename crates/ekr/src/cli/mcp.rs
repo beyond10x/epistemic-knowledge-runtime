@@ -360,6 +360,7 @@ impl From<Failure> for Unanswered {
             Failure::Refused { name, message } => Self::Refused { name, message },
             Failure::Usage { message } => Self::params(message),
             Failure::Fault { message, .. } => Self::internal(message),
+            Failure::Uncertain { name, message } => Self::internal(format!("{name}: {message}")),
         }
     }
 }

@@ -91,6 +91,10 @@ pub(super) fn from(which: Which, failure: Failure) -> Failure {
             diverged,
             replaced,
         },
+        Failure::Uncertain { name, message } => Failure::Uncertain {
+            name,
+            message: format!("{}: {message}", which.name()),
+        },
         usage @ Failure::Usage { .. } => usage,
     }
 }

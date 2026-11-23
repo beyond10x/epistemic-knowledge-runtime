@@ -141,8 +141,9 @@ exactly that.
 | exit | meaning | output |
 |---|---|---|
 | 0 | a declared outcome | one JSON document on stdout. A validation that rejects (`"kind": "Rejected"`) and a commit that finds the head moved (`"kind": "Stale"`) are outcomes too: read `kind` |
-| 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
-| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, `ekr: <name>: <reason>` for a refusal of a stage ([`ekr stage`](#ekr-stage)), or clap's usage message |
+| 1 | a fault: provider, verification, unreadable input, host configuration, no store at `--store` (`store-not-found`) | a message on stderr |
+| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: ekr.views.NotSeeded: <reason>` from every verb that meets a store with no seed (the reason as before: `the lineage has no seed`, or `the store was never seeded` from a view), `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, `ekr: <name>: <reason>` for a refusal of a stage ([`ekr stage`](#ekr-stage)), or clap's usage message |
+| 3 | `publication-outcome-unknown`: the store cannot say whether a write took effect; it may have been recorded. Read `ekr head` or `ekr transactions --state Committed` before writing it again | `ekr: publication-outcome-unknown: publication outcome is unknown; resolve the exact retained occurrence` on stderr |
 
 `guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
@@ -1494,7 +1495,7 @@ Each change carries the revision that made it and that revision's `recorded_at`,
 `EvidenceAdded`, `NodeSuperseded` or `NodeMerged`), the `id` of the node, edge, assertion or
 evidence entry, the node's `type` and `name`, the edge's `type`, `source` and `target`, the
 assertion's `subject_kind` and `subject` (and `by` for a supersession), its `valid_time`, the
-evidence entry's `locator` (its source identity: the `identity` of its `!HumanStatement`) and
+evidence entry's `locator` (its source identity: the `identity` of its `!HumanStatement`, or the URL of its `!Url`) and
 `content_hash` (the address of its payload), a superseded or merged node's `target` (the node it is
 superseded by or merged into), and `evidence`: the evidence ids the assertion cites, or for a node
 or an edge those the same revision's assertions about it cite, empty for an evidence entry, and for
@@ -1651,7 +1652,7 @@ request is read, in request order:
 {"exit":2,"stdout":null,"stderr":"ekr: ekr.kernel.TransactionNotFound: transaction 00000000-0000-4000-8000-000000000999 does not exist\n"}
 ```
 
-- `"exit"` — the exit status the one-shot verb would have returned (0, 1 or 2, [as above](#exit-codes-and-output)).
+- `"exit"` — the exit status the one-shot verb would have returned (0, 1, 2 or 3, [as above](#exit-codes-and-output)).
 - `"stdout"` — the JSON document the one-shot verb prints, as a JSON value: printed pretty with a
   newline, it is byte for byte what the verb prints. `null` when the verb printed nothing.
 - `"stderr"` — the text the one-shot verb writes to stderr, newline included: a named refusal, a
@@ -2550,6 +2551,11 @@ transaction:
   evidence: []                                    # no assertion here cites it yet
 ```
 
+A page read from the web is added from `source: !Url <the page's URL>`: the payload is the page's
+bytes as they were fetched, and `observed_at` the time they were. The runtime never fetches the URL;
+the retained bytes are the evidence, and `ekr explain` and the viewer show the URL as the entry's
+source.
+
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
 `transaction.evidence` only in a transaction whose assertions cite it or whose `!AttachEvidence`
 attaches it ([below](#evidence-attached-to-a-held-assertion)). Committing applies the entry
@@ -2561,7 +2567,7 @@ committed it, whether or not an assertion cites it. Validation refuses, as named
 | issue | validator | when |
 |---|---|---|
 | `evidence-payload-mismatch` | Provenance | the payload's bytes do not hash to `content_hash`; the message names both hashes |
-| `evidence-unsupported-source` | Provenance | `source` is not `!HumanStatement` |
+| `evidence-unsupported-source` | Provenance | `source` is neither `!HumanStatement` nor `!Url` |
 | `identity-already-exists` | Structural | the id is one the store already retains, seeded or added |
 | `duplicate-identity` | Structural | the transaction adds the same id twice |
 | `unresolved-evidence` | Reference | an assertion cites an id the store does not retain and the transaction does not add |
@@ -2833,7 +2839,7 @@ evidence:
 | `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types), written as one is (`parameters: {variants: [...]}` for an `Enum`), except that a `NodeRef` names its node types in `parameters: {allowed_types: [...]}` rather than listing their ids. An `Enum`'s variants and a `NodeRef`'s types are at least one, each once; a `Record` field is written once. A type the store lacks is added; one it holds by that name is kept |
 | `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
 | `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one; optional `replaces: true`, the value replacing the active one of that subject and property) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
-| `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
+| `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement` or `source: !Url <the page the payload was fetched from>`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
 
 The reader refuses, by code, a document it cannot read:
 
@@ -2863,7 +2869,7 @@ A code met in a fact, `facts[<index>]`, refuses that fact alone when
 | `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
 | `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
 | `duplicate-identity` | two evidence items under one id |
-| `extraction-evidence-kind-unsupported` | an evidence item whose `source` is not a `!HumanStatement`, the one source the kernel admits as evidence today |
+| `extraction-evidence-kind-unsupported` | an evidence item whose `source` is neither a `!HumanStatement` nor a `!Url`, the two sources the kernel admits as evidence |
 | `evidence-payload-mismatch` | an evidence item whose `payload` does not hash to its `content_hash` (`ekr hash` prints the right one) |
 
 ## Worked example: a library catalogue
@@ -3973,7 +3979,12 @@ is refused. Either way most of the work is in the seed. What holds up:
 
 ## Common refusals
 
-There are three forms, and the `exit` column says which one each refusal takes:
+There are three forms, and the `exit` column says which one each refusal takes. A fourth outcome is
+not a refusal: a write whose publication the store cannot confirm exits 3 with
+`ekr: publication-outcome-unknown: <reason>` and may have been recorded
+([Exit codes and output](#exit-codes-and-output)).
+
+The three forms:
 
 - **A named refusal, exit 2.** Nothing was recorded. stderr is `ekr: ekr.kernel.<Name>: <reason>`.
   A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes. A
@@ -4020,6 +4031,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
+| `ekr.views.NotSeeded` | head, quality, snapshot, ontology, transactions | 2 | the store at `--store` holds no seed for the host's `tenant`: a tenant newly named in an existing store has an empty lineage. Every verb that meets one refuses it under this name, each with its own reason (`the lineage has no seed`, or `the store was never seeded` from a view) | run `ekr seed` under that host first, or check its `tenant` |
 | `store-read-only` | seed, propose, validate, commit | 2 | this process may not write the store at `--store` — a file store's directory, `writer.lock`, `events.jsonl` or `blobs`; a SQLite database, its directory or its `-wal` or `-shm` file — so the verb, which writes, is refused before it opens anything and nothing is written. The verbs that only read answer on the same store ([Configuration](#configuration)) | run the verb as a user that may write the store, or on a writable copy of it |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `stage-tenant-reserved` | any store verb | 1 | the host document's `tenant` contains `ekr.stage:`, the marker reserved to a stage's own tenant, so no store is opened under it; nothing is read, created or written | choose a tenant without `ekr.stage:` |
@@ -4077,7 +4089,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
-| `evidence-unsupported-source` | validation issue | 0 | an `!AddEvidence` entry whose `source` is not `!HumanStatement` | add evidence from a `!HumanStatement` source |
+| `evidence-unsupported-source` | validation issue | 0 | an `!AddEvidence` entry whose `source` is neither `!HumanStatement` nor `!Url` | add evidence from a `!HumanStatement` or a `!Url` source |
 | `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
 | `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |

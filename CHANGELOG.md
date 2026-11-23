@@ -18,6 +18,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   no way to the 101st (finding 29 of the EKR 0.0.42 review). `after` with `ekr.node-matches/1` or
   /2 is refused as malformed input; those documents are unchanged. In `ekr-sdk`,
   `MatchesMetaV3` reads `next` and `Reader::search_v3_page` takes `after`.
+- Evidence from a web page (story:extraction-admits-url-evidence, finding 12 of the EKR 0.0.42
+  review): an `!AddEvidence` and an extraction document's evidence item may cite `source: !Url
+  <url>`, held to the rule a `!HumanStatement` is held to (the payload is the retained bytes and
+  hashes to `content_hash`; `observed_at` is when they were fetched). `ekr explain` ends a chain
+  at it and the viewer shows the URL as the evidence's source. `!Document`, `!DatabaseRecord`,
+  `!Observation` and `!GraphAssertion` are still refused, as `evidence-unsupported-source` and
+  `extraction-evidence-kind-unsupported`; a seed still admits `!HumanStatement` only. In
+  `ekr-sdk`, `document::EvidenceSource` has a `Url` variant.
+
+### Changed
+
+- Store outcomes carry their own names (story:store-outcome-kinds, finding 18 of the EKR 0.0.42
+  review). A store whose tenant has no seed is the named refusal `ekr.views.NotSeeded`, exit 2,
+  from every verb (`ekr head` and the other kernel verbs exited 1 with `ekr: the lineage has no
+  seed`; they now print `ekr: ekr.views.NotSeeded: the lineage has no seed`). A write whose
+  publication the store cannot confirm exits 3 with `ekr: publication-outcome-unknown:
+  publication outcome is unknown; resolve the exact retained occurrence` (it was a fault, exit 1,
+  with the same text after `ekr: `). A session answers both with the same `exit` and `stderr`.
 
 ## [0.0.42] — 2026-11-22
 

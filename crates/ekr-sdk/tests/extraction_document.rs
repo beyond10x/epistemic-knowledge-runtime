@@ -78,3 +78,37 @@ fn a_node_ref_written_by_the_mirror_names_its_types_in_parameters() {
     assert_eq!(ExtractionDocument::from_yaml(&written).unwrap(), document);
     assert_eq!(ExtractionDocument::default(), ExtractionDocument::new());
 }
+
+/// `story:extraction-admits-url-evidence`: the mirror reads and writes an evidence item from a page
+/// as `!Url <url>`, which the schema accepts, and still refuses a source the kernel does not admit
+/// by the reader's code.
+#[test]
+fn the_mirror_reads_and_writes_evidence_from_a_url() {
+    let example = ekr(&["example", EXTRACTION_FORMAT]);
+    let human = "source: !HumanStatement\n      identity: Quarterly report";
+    assert!(example.contains(human), "{example}");
+    let from_a_page = example.replace(human, "source: !Url https://example.org/news/globex");
+    let document = ExtractionDocument::from_yaml(&from_a_page).unwrap();
+    assert_eq!(
+        document.evidence[0].evidence.source,
+        ekr_sdk::document::EvidenceSource::Url("https://example.org/news/globex".to_owned())
+    );
+    document.check().unwrap();
+    let written = document.to_yaml().unwrap();
+    assert!(
+        written.contains("!Url https://example.org/news/globex"),
+        "{written}"
+    );
+    schema_accepts(&written);
+    assert_eq!(ExtractionDocument::from_yaml(&written).unwrap(), document);
+
+    let from_a_document = example.replace(
+        human,
+        "source: !Document\n      document_id: quarterly-report\n      section: null",
+    );
+    let refused = ExtractionDocument::from_yaml(&from_a_document).unwrap_err();
+    assert_eq!(
+        refused.code, "extraction-evidence-kind-unsupported",
+        "{refused}"
+    );
+}

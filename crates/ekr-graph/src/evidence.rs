@@ -145,6 +145,17 @@ impl EvidenceSource {
         }
     }
 
+    /// Whether an entry from this source is admitted by an `AddEvidence`, under the provenance
+    /// profile `retained-admissible-evidence/1`: a `HumanStatement` or a `Url`. Both carry the
+    /// retained bytes they address, observed at `observed_at`; a `Url` names where those bytes
+    /// were fetched, and the runtime never fetches it. An `Observation` waits on a retained
+    /// observation, a `GraphAssertion` would name an assertion no validator resolved, and a
+    /// `Document` or `DatabaseRecord` names a system the runtime has no policy for yet.
+    #[must_use]
+    pub const fn admissible(&self) -> bool {
+        matches!(self, Self::HumanStatement { .. } | Self::Url(_))
+    }
+
     /// The locator, as `ekr.graph.Evidence.locator` carries it: enough to find the source again.
     ///
     /// A `HumanStatement` with no recorded identity has an empty locator, which is the honest
