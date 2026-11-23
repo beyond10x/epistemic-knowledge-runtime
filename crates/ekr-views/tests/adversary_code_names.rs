@@ -121,25 +121,31 @@ fn fastest(mut work: impl FnMut()) -> Duration {
         .expect("nine runs")
 }
 
-/// Linear work grows four times when its input does; quadratic work grows sixteen times. Eight
-/// lies between them with a factor of two to spare on either side.
-const QUADRUPLED_INPUT_CEILING: f64 = 8.0;
-
-fn grows_linearly(name: &str, small: Duration, large: Duration) {
+/// Linear work grows `factor` times when its input does; quadratic work grows `factor²` times. The
+/// ceiling is their geometric mean, `factor^1.5`, with a factor of `√factor` to spare on either
+/// side: 8 for four times the input, 64 for sixteen times.
+fn grows_linearly(name: &str, factor: u32, small: Duration, large: Duration) {
+    let ceiling = f64::from(factor).powf(1.5);
     let ratio = large.as_secs_f64() / small.as_secs_f64().max(1e-6);
     assert!(
-        ratio < QUADRUPLED_INPUT_CEILING,
-        "{name}: four times the input took {ratio:.1} times as long ({small:?} -> {large:?})"
+        ratio < ceiling,
+        "{name}: {factor} times the input took {ratio:.1} times as long, the ceiling is \
+         {ceiling:.0} ({small:?} -> {large:?})"
     );
 }
 
 /// The literal scan of one line is linear in the line's length. An opening quote with no
 /// unescaped partner scans to the end of its line, and the scan for openings does not skip
 /// escaped quotes, so a line of `n` escaped quotes costs `n` scans of the line.
+///
+/// The two lines are sixteen times apart, not four: the scan's tables of the longer line leave the
+/// processor's caches where the shorter one's fit, and in an optimised test build that alone took
+/// four times the input to 8.0 and 9.2 times the time (CI runs of PR 109), over the ceiling of 8
+/// with no quadratic step in the scan.
 #[test]
 fn scanning_a_long_line_of_escaped_quotes_is_linear() {
     let line = |quotes: usize| format!("data = '{}';\n", "\\\"".repeat(quotes));
-    let (short, long) = (line(12_500), line(50_000));
+    let (short, long) = (line(12_500), line(200_000));
     assert_eq!(
         ekr_views::literals(&long).len(),
         1,
@@ -147,7 +153,7 @@ fn scanning_a_long_line_of_escaped_quotes_is_linear() {
     );
     let small = fastest(|| assert_eq!(ekr_views::literals(&short).len(), 1));
     let large = fastest(|| assert_eq!(ekr_views::literals(&long).len(), 1));
-    grows_linearly("a line of escaped quotes", small, large);
+    grows_linearly("a line of escaped quotes", 16, small, large);
 }
 
 /// Many sources: the answer's cost is not quadratic in the number of files. Measured on the unit's
@@ -178,5 +184,5 @@ fn many_sources_answer_in_time_linear_in_their_number() {
     let large = fastest(|| {
         ekr_views::code_names(&loaded, &many).expect("an answer");
     });
-    grows_linearly("code names over many sources", small, large);
+    grows_linearly("code names over many sources", 4, small, large);
 }
