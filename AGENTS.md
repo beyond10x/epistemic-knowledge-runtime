@@ -143,7 +143,10 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   at a time: 470 s of the 498.6 s step on CI run 45260269611. The step's Chromium composites in
   software (`--disable-gpu-compositing`); the pages' WebGL still draws through SwiftShader.
   Composited through SwiftShader, one page load of the sounding store cost 13-14 s of CPU, mostly
-  during its 1.2 s of layout, against 3-4 s composited in software.
+  during its 1.2 s of layout, against 3-4 s composited in software. A page that draws some
+  20,000 nodes for its whole budget is the other way round (`adversary_page_stream_1`'s
+  render-budget case: 27 s of CPU in its own browser, 288 s composited in software), so that case
+  starts a browser of its own (`dump_composited`).
 - **A seeded store is made once.** A browser case's fixture store is seeded through the `ekr`
   binary once per build and kept under `target/<profile>/ekr-test-stores/<digest>`; every case that
   asks for the same store copies it (`crates/ekr/tests/support/seeded_store.rs`; the digest covers
