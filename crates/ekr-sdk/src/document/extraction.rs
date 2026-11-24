@@ -48,6 +48,8 @@ pub(crate) mod code {
     pub(crate) const TOO_DEEP: &str = "extraction-document-too-deep";
     pub(crate) const YAML_ALIAS: &str = "extraction-yaml-alias";
     pub(crate) const MALFORMED: &str = "extraction-document-malformed";
+    pub(crate) const NAME_DUPLICATE: &str = "extraction-name-duplicate";
+    pub(crate) const VALUE_MISMATCH: &str = "extraction-value-mismatch";
     pub(crate) const WITHOUT_IDENTITY: &str = "reference-without-identity";
     pub(crate) const HAS_SUBTYPES: &str = "reference-type-has-subtypes";
     pub(crate) const TYPE_UNDECLARED: &str = "extraction-type-undeclared";

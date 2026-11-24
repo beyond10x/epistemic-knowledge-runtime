@@ -31,7 +31,9 @@
 //! Checking refuses, as [`ExtractionError::Refused`] and in document order, the first of:
 //!
 //! * `extraction-name-duplicate` — a node type, edge type, property of one type, `Enum` variant
-//!   or `NodeRef` type the document declares twice;
+//!   or `NodeRef` type the document declares twice, or a node type or edge type name the document
+//!   uses that the store gives more than one type; a name the store repeats and the document does
+//!   not use is not refused;
 //! * `extraction-type-conflict` — a type the store holds, redeclared with other parents or another
 //!   abstractness (a node type) or another cardinality (an edge type), which no schema operation
 //!   changes;
@@ -443,7 +445,9 @@ impl ExtractionRefusalCode {
                 "a YAML alias (`*name`) is not accepted; write each value out:"
             }
             Self::ExtractionDocumentMalformed => "not an ekr.extraction-document/1 document:",
-            Self::ExtractionNameDuplicate => "the document declares this name twice:",
+            Self::ExtractionNameDuplicate => {
+                "the document declares this name twice, or uses a name the store declares twice:"
+            }
             Self::ExtractionTypeConflict => {
                 "the store declares this type with other parents, abstractness or cardinality, \
                  which no schema operation changes:"
@@ -584,11 +588,18 @@ impl<'g> Landing<'g> {
     /// as `ekr resolve` answers), where that is not the key's own type: a key whose superseded
     /// node was kept as a node of another type. `None` for every other key — one resolving to a
     /// node of its own type, to none or to several, or whose type the graph does not declare.
-    fn type_of(&self, reference: &ExtractedReference) -> Option<String> {
+    /// The key is resolved with every alias of the keys `groups` joins it with, as applying the
+    /// document resolves its named thing (review of 0.0.42, finding 6).
+    fn type_of(
+        &self,
+        reference: &ExtractedReference,
+        groups: &BTreeMap<(String, Vec<String>), Vec<String>>,
+    ) -> Option<String> {
         let type_id = *self.types.get(&reference.node_type)?;
+        let key = key_of(reference);
         let typed = crate::TypedReference {
             type_id,
-            aliases: reference.aliases.clone(),
+            aliases: groups.get(&key).cloned().unwrap_or(key.1),
         };
         let crate::ResolutionOutcome::Resolved(resolved) =
             crate::resolve_indexed(GraphSnapshot::of(self.graph), &self.aliases, &typed)
@@ -609,6 +620,85 @@ fn refusal(code: ExtractionRefusalCode, name: impl Into<String>) -> ExtractionRe
         code,
         name: name.into(),
     }
+}
+
+/// A named thing's key: its type's name and its distinct non-empty aliases, sorted.
+fn key_of(reference: &ExtractedReference) -> (String, Vec<String>) {
+    let aliases: BTreeSet<&String> = reference
+        .aliases
+        .iter()
+        .filter(|alias| !alias.is_empty())
+        .collect();
+    (
+        reference.node_type.clone(),
+        aliases.into_iter().cloned().collect(),
+    )
+}
+
+/// Every key of `document` — each entity's, each fact's subject's and object's — with every alias
+/// of the keys of its type it shares an alias with, transitively, sorted: the aliases applying the
+/// document resolves its named thing with, as the SDK groups them.
+fn alias_groups(document: &ExtractionDocument) -> BTreeMap<(String, Vec<String>), Vec<String>> {
+    let mut keys: BTreeSet<(String, Vec<String>)> = document.entities.iter().map(key_of).collect();
+    for fact in &document.facts {
+        match fact {
+            ExtractedFact::Property(fact) => {
+                keys.insert(key_of(&fact.subject));
+            }
+            ExtractedFact::Relation(fact) => {
+                keys.insert(key_of(&fact.subject));
+                keys.insert(key_of(&fact.object));
+            }
+        }
+    }
+    let keys: Vec<(String, Vec<String>)> = keys.into_iter().collect();
+    let mut parent: Vec<usize> = (0..keys.len()).collect();
+    let root = |parent: &mut Vec<usize>, mut at: usize| {
+        while parent[at] != at {
+            parent[at] = parent[parent[at]];
+            at = parent[at];
+        }
+        at
+    };
+    let mut by_alias: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+    for (at, (node_type, aliases)) in keys.iter().enumerate() {
+        for alias in aliases {
+            match by_alias.get(&(node_type.as_str(), alias.as_str())) {
+                Some(&other) => {
+                    let (left, right) = (root(&mut parent, at), root(&mut parent, other));
+                    parent[left.max(right)] = left.min(right);
+                }
+                None => {
+                    by_alias.insert((node_type.as_str(), alias.as_str()), at);
+                }
+            }
+        }
+    }
+    let mut joined: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+    for (at, (_, aliases)) in keys.iter().enumerate() {
+        let top = root(&mut parent, at);
+        joined
+            .entry(top)
+            .or_default()
+            .extend(aliases.iter().cloned());
+    }
+    keys.iter()
+        .enumerate()
+        .map(|(at, key)| {
+            let top = root(&mut parent, at);
+            (key.clone(), joined[&top].iter().cloned().collect())
+        })
+        .collect()
+}
+
+/// The refusal of a `kind` type name the document uses and the store gives more than one type:
+/// `extraction-name-duplicate`, since the name identifies none of them (review of 0.0.42,
+/// finding 8). A name the document does not use is not refused.
+fn shared(name: &str, kind: &str) -> ExtractionRefusal {
+    refusal(
+        ExtractionRefusalCode::ExtractionNameDuplicate,
+        format!("{name} (the store declares more than one {kind} type of this name)"),
+    )
 }
 
 impl ExtractionDocument {
@@ -692,14 +782,21 @@ impl ExtractionDocument {
         let held = Names::of_store(store);
         let names = held.with(&self.ontology);
         let landing = graph.and_then(Landing::of);
+        let groups = if landing.is_some() {
+            alias_groups(self)
+        } else {
+            BTreeMap::new()
+        };
         let landed = |reference: &ExtractedReference| -> String {
             landing
                 .as_ref()
-                .and_then(|landing| landing.type_of(reference))
+                .and_then(|landing| landing.type_of(reference, &groups))
                 .unwrap_or_else(|| reference.node_type.clone())
         };
         let node_type = |name: &str| {
-            if names.nodes.contains_key(name) {
+            if names.shared_nodes.contains(name) {
+                Err(shared(name, "node"))
+            } else if names.nodes.contains_key(name) {
                 Ok(())
             } else {
                 Err(refusal(Code::ExtractionTypeUndeclared, name))
@@ -710,6 +807,9 @@ impl ExtractionDocument {
         for spec in &self.ontology.node_types {
             if !declared.insert(spec.name.as_str()) {
                 return Err(refusal(Code::ExtractionNameDuplicate, spec.name.as_str()));
+            }
+            if held.shared_nodes.contains(&spec.name) {
+                return Err(shared(&spec.name, "node"));
             }
             unique_properties(&spec.name, &spec.properties)?;
             if let Some(store_type) = held.nodes.get(&spec.name) {
@@ -728,7 +828,7 @@ impl ExtractionDocument {
                     .into_iter()
                     .skip(1)
                     .find_map(|ancestor| names.nodes.get(ancestor)?.shapes.get(&property.name));
-                if !own && inherited.is_some_and(|shape| *shape != Shape::of_spec(property)) {
+                if !own && inherited.is_some_and(|shape| !shape.covers(&Shape::of_spec(property))) {
                     return Err(refusal(
                         Code::ExtractionPropertyConflict,
                         format!("{}.{}", spec.name, property.name),
@@ -750,6 +850,9 @@ impl ExtractionDocument {
         for spec in &self.ontology.edge_types {
             if !declared.insert(spec.name.as_str()) {
                 return Err(refusal(Code::ExtractionNameDuplicate, spec.name.as_str()));
+            }
+            if held.shared_edges.contains(&spec.name) {
+                return Err(shared(&spec.name, "edge"));
             }
             unique_properties(&spec.name, &spec.properties)?;
             if held
@@ -809,6 +912,9 @@ impl ExtractionDocument {
                 }
                 ExtractedFact::Relation(fact) => {
                     reference(format!("facts[{at}].subject"), &fact.subject)?;
+                    if names.shared_edges.contains(&fact.relation) {
+                        return Err(shared(&fact.relation, "edge"));
+                    }
                     let Some(edge) = names.edges.get(&fact.relation) else {
                         return Err(refusal(
                             Code::ExtractionTypeUndeclared,
@@ -996,6 +1102,44 @@ impl Shape {
             constrained: false,
         }
     }
+
+    /// Whether this declaration meets `wanted`, as `Ontology::ensure` of the SDK finds a repeated
+    /// declaration met: the same cardinality, requiredness and constraints, and a value type
+    /// admitting every value `wanted`'s does. An extractor that declared an `Enum` before the
+    /// store widened it declares it again unchanged and still applies (review of 0.0.42,
+    /// finding 10); a narrowing is a schema change of its own, never a side effect.
+    fn covers(&self, wanted: &Self) -> bool {
+        self.cardinality == wanted.cardinality
+            && self.required == wanted.required
+            && self.constrained == wanted.constrained
+            && admits(&self.value, &wanted.value)
+    }
+}
+
+/// Whether a property of `held`'s value type admits every value one of `wanted`'s does: the
+/// same type, or an `Enum` or `NodeRef` listing more, element and field types alike.
+fn admits(held: &ValueSpec, wanted: &ValueSpec) -> bool {
+    match (held, wanted) {
+        (ValueSpec::Enum { variants: held }, ValueSpec::Enum { variants: wanted }) => {
+            wanted.iter().all(|variant| held.contains(variant))
+        }
+        (
+            ValueSpec::NodeRef {
+                allowed_types: held,
+            },
+            ValueSpec::NodeRef {
+                allowed_types: wanted,
+            },
+        ) => wanted.iter().all(|allowed| held.contains(allowed)),
+        (ValueSpec::List(held), ValueSpec::List(wanted)) => admits(held, wanted),
+        (ValueSpec::Record(held), ValueSpec::Record(wanted)) => {
+            held.len() == wanted.len()
+                && wanted
+                    .iter()
+                    .all(|(field, wanted)| held.get(field).is_some_and(|held| admits(held, wanted)))
+        }
+        (held, wanted) => held == wanted,
+    }
 }
 
 /// An edge type by name: its ends by node type name and its cardinality.
@@ -1006,17 +1150,34 @@ struct EdgeEntry {
     cardinality: Cardinality,
 }
 
-/// An ontology by name.
+/// An ontology by name. A name the store gives two node types, or two edge types, names neither:
+/// it is held apart, and refused where a document uses it (review of 0.0.42, finding 8).
 #[derive(Clone)]
 struct Names {
     nodes: BTreeMap<String, NodeEntry>,
     edges: BTreeMap<String, EdgeEntry>,
+    /// Node type names the store declares more than once.
+    shared_nodes: BTreeSet<String>,
+    /// Edge type names the store declares more than once.
+    shared_edges: BTreeSet<String>,
+}
+
+/// Each name `names` yields more than once.
+fn repeated<'a>(names: impl IntoIterator<Item = &'a str>) -> BTreeSet<String> {
+    let mut seen = BTreeSet::new();
+    names
+        .into_iter()
+        .filter(|name| !seen.insert(*name))
+        .map(str::to_owned)
+        .collect()
 }
 
 impl Names {
     /// What `store` declares.
     fn of_store(store: &Ontology) -> Self {
         let held = store.to_document();
+        let shared_nodes = repeated(held.node_types.iter().map(|node| node.name.as_str()));
+        let shared_edges = repeated(held.edge_types.iter().map(|edge| edge.name.as_str()));
         let named: BTreeMap<TypeId, String> = held
             .node_types
             .iter()
@@ -1028,6 +1189,7 @@ impl Names {
         let nodes = held
             .node_types
             .iter()
+            .filter(|declared| !shared_nodes.contains(&declared.name))
             .map(|declared| {
                 let entry = NodeEntry {
                     parents: names(&declared.parents),
@@ -1059,6 +1221,7 @@ impl Names {
         let edges = held
             .edge_types
             .iter()
+            .filter(|declared| !shared_edges.contains(&declared.name))
             .map(|declared| {
                 let entry = EdgeEntry {
                     sources: names(&declared.source_types),
@@ -1068,16 +1231,22 @@ impl Names {
                 (declared.name.clone(), entry)
             })
             .collect();
-        Self { nodes, edges }
+        Self {
+            nodes,
+            edges,
+            shared_nodes,
+            shared_edges,
+        }
     }
 
     /// This ontology with `spec` applied: a new type as declared, a held one with the document's
-    /// properties declared over its own, and an edge type's ends widened to the document's.
+    /// properties declared over its own, and an edge type's ends widened to the document's. A
+    /// property the type or an ancestor already declares so as to cover the document's
+    /// declaration ([`Shape::covers`]) keeps that declaration, as the SDK's schema change does.
     fn with(&self, spec: &OntologySpec) -> Self {
         let mut next = self.clone();
         for declared in &spec.node_types {
-            let entry = next
-                .nodes
+            next.nodes
                 .entry(declared.name.clone())
                 .or_insert_with(|| NodeEntry {
                     parents: declared.parents.iter().cloned().collect(),
@@ -1085,13 +1254,26 @@ impl Names {
                     properties: BTreeMap::new(),
                     shapes: BTreeMap::new(),
                 });
+        }
+        for declared in &spec.node_types {
             for property in &declared.properties {
+                let wanted = Shape::of_spec(property);
+                let covered = next
+                    .lineage(&declared.name)
+                    .into_iter()
+                    .find_map(|name| next.nodes.get(name)?.shapes.get(&property.name))
+                    .is_some_and(|held| held.covers(&wanted));
+                if covered {
+                    continue;
+                }
+                let entry = next
+                    .nodes
+                    .get_mut(&declared.name)
+                    .expect("every node type of the spec is in the map");
                 entry
                     .properties
                     .insert(property.name.clone(), property.value.clone());
-                entry
-                    .shapes
-                    .insert(property.name.clone(), Shape::of_spec(property));
+                entry.shapes.insert(property.name.clone(), wanted);
             }
         }
         for declared in &spec.edge_types {
@@ -1109,19 +1291,23 @@ impl Names {
         next
     }
 
-    /// `node_type` and its ancestors, nearest first.
+    /// `node_type` and its ancestors, nearest first: breadth first, each generation in name
+    /// order, so a property two ancestors declare is the nearer one's, as the SDK's
+    /// `Ontology::property` finds it and the writer asserts it (review of 0.0.42, finding 5).
     fn lineage<'a>(&'a self, node_type: &'a str) -> Vec<&'a str> {
-        let mut seen = BTreeSet::new();
-        let mut order = Vec::new();
-        let mut open = vec![node_type];
-        while let Some(name) = open.pop() {
-            if !seen.insert(name) {
-                continue;
-            }
-            order.push(name);
-            if let Some(entry) = self.nodes.get(name) {
-                open.extend(entry.parents.iter().map(String::as_str).rev());
-            }
+        let mut seen = BTreeSet::from([node_type]);
+        let mut order = vec![node_type];
+        let mut generation = vec![node_type];
+        while !generation.is_empty() {
+            let mut parents: Vec<&str> = generation
+                .iter()
+                .filter_map(|name| self.nodes.get(*name))
+                .flat_map(|entry| entry.parents.iter().map(String::as_str))
+                .filter(|parent| seen.insert(parent))
+                .collect();
+            parents.sort_unstable();
+            order.extend(&parents);
+            generation = parents;
         }
         order
     }

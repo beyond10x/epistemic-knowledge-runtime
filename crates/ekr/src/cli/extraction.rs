@@ -105,6 +105,9 @@ fn applied<'a, T: Transport>(
                     || Failure::fault(format!("applying the extraction document: {refusal}")),
                     |code| Failure::refused(code.code(), &refusal.name),
                 ),
+            // An evidence item past a limit of the transaction document that would add it: the
+            // refusal `ekr propose` gives that document, before anything is written.
+            ApplyError::Limit(limit) => Failure::refused("ekr.kernel.StructurallyInvalid", limit),
             error => Failure::fault(format!("applying the extraction document: {error}")),
         });
     Ok((report, transport))

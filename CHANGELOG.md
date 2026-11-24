@@ -6,6 +6,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- Extraction and strict validation follow the schema in the SDK and the CLI
+  (story:ekr-extraction-validation-fixes, findings 5-11 and 14 of the EKR 0.0.42 review):
+  - an inherited property is the nearest ancestor's, each generation in name order, in the reader
+    and the SDK alike;
+  - a fact is typed by every alias of the named things the document joins it with, so where an
+    alias sits no longer changes strict validation;
+  - `ekr_sdk::extraction::apply_with` in strict mode refuses a value its property does not hold
+    (`extraction-value-mismatch`) and a fact citing no evidence (`fact-without-evidence`) before
+    any write, as the verb does;
+  - a type name the store gives two types is refused as `extraction-name-duplicate` only where a
+    document uses it; before, every document was refused;
+  - a node created for a named thing carries the document's values of its required properties;
+  - a declaration the store has since widened is met, not narrowed back (`value-type-narrowed`);
+  - a supersession whose replacement an earlier transaction already superseded or retracted is
+    `invalid-supersession`; a chain in one transaction still commits;
+  - an evidence item past the `sequence_elements` limit of its `!AddEvidence` refuses the document
+    before any write, as `ekr propose` does (`ekr.kernel.StructurallyInvalid`;
+    `ApplyError::Limit` in the SDK).
 - `ekr apply-extraction` and `ekr_sdk::extraction::apply` write the same state whatever the
   batching (story:extraction-write-integrity, findings 1-4 of the EKR 0.0.42 review):
   - an evidence item whose id the store already retains for another item (another source,

@@ -427,18 +427,37 @@ created or added, and the rest of the document applies. A refusal of the ontolog
 of an evidence item still refuses the whole document; an evidence item whose id the store already
 retains for another item — another source, content hash or observed time — is one
 (`duplicate-identity`), since the store would cite the retained item for the document's facts. The
-same item again, as a document applied twice carries it, is cited. `--strict` refuses the whole
-document for a bad fact too, as the reader's first refusal in document order. Then, in order:
+same item again, as a document applied twice carries it, is cited. So is an evidence item whose
+payload is past the `sequence_elements` limit of the `!AddEvidence` that would add it (16,384
+bytes, [Evidence after the seed](#evidence-after-the-seed)): it is refused as `ekr propose` refuses
+that document (exit 2, `ekr.kernel.StructurallyInvalid`, `transaction document limit:
+sequence_elements …`) before anything is written. An item the store already retains is cited and
+not added, so a statement larger than that, seeded once with `ekr seed --evidence`, is cited by
+every later document that carries it. `--strict` refuses the whole document for a bad fact too, as
+the reader's first refusal in document order; the SDK's `ApplyOptions::strict` refuses the same
+document before anything is written, a value its property does not hold and a fact citing no
+evidence included. A fact's property is the one its subject's type declares, or else the nearest
+ancestor's: breadth first, each generation in name order, for the reader and the writer alike. A
+name the store gives two node types, or two edge types, identifies neither: a document that uses
+it is refused at that reference (`extraction-name-duplicate`), and one that does not use it
+applies. Then, in order:
 
 1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
    (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
-   profile that fixes the schema it is rejected, and nothing more is applied;
+   profile that fixes the schema it is rejected, and nothing more is applied. A property the
+   store already declares so that it admits every value the document's declaration does — an
+   `Enum` the store has since given another variant, a `NodeRef` to one more type — is kept as
+   the store declares it, so an extractor repeating its older declaration still applies; a
+   narrower declaration is never written by extraction. Narrow a property with a
+   `!ModifyProperty` transaction of its own;
 2. every named thing — each entity, then each fact's subject and object — is resolved as
    [`ekr resolve`](#ekr-resolve) resolves a typed reference of its type. Named things of one node
    type that share an alias, directly or through another, are one thing whatever order the
    document lists them in, resolved once with every alias of all of them. One the store holds is
    used; one it does not hold is created, a node of its type carrying those aliases and named by the
-   least, in byte order, of its members' first aliases (a single named thing's first alias); one
+   least, in byte order, of its members' first aliases (a single named thing's first alias),
+   carrying from its creation the value of each `!Property` fact about it whose property its type
+   requires (the first such fact's, for a single-valued property), which is asserted as well; one
    the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
    applied;
 3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
@@ -452,7 +471,9 @@ document for a bad fact too, as the reader's first refusal in document order. Th
    cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
    those relations as assertions only; applying the document again holds them and adds no edge.
    A fact's property and a relation's ends are checked against the type of the node its subject
-   or object resolves to: a key [superseded](#a-node-superseded-by-another) by a node of another
+   or object resolves to, as the named thing it is one of — every alias of the named things it
+   shares an alias with, whether the document puts them on the fact or on an entity: a key
+   [superseded](#a-node-superseded-by-another) by a node of another
    type takes the kept node's properties and edge ends, by the reader and again before anything
    is resolved, so a fact the kept node's type admits is applied to it, and one it does not is
    refused before anything is written — `extraction-property-undeclared` or
@@ -2518,8 +2539,10 @@ property.
 `!SupersedeAssertion` ends one assertion's valid time where its replacement's begins. It is
 validated as a whole, and any rule below that fails is the issue `invalid-supersession`:
 
-- the replacement (`by`) is a different assertion, accepted and active — one added with
-  `assessment: Proposed` in the same transaction counts;
+- the replacement (`by`) is a different assertion, accepted and active before the transaction —
+  one added with `assessment: Proposed` in the same transaction counts, and so does one the same
+  transaction supersedes in turn, so a chain of supersessions commits in one transaction; one an
+  earlier transaction already superseded or retracted does not, whatever its valid time;
 - the replacement's `valid_time.from` is **exactly** `effective_from`, never `null`;
 - `effective_from` lies inside the old assertion's valid time: not before its `from`, not after
   its `to`.
@@ -2869,7 +2892,7 @@ A code met in a fact, `facts[<index>]`, refuses that fact alone when
 
 | code | when |
 |---|---|
-| `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice |
+| `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice; or a node type or edge type name the document uses — declares, names as a parent, an end or a `NodeRef` type, or names in a named thing, a fact's subject or object, or a relation — that the store gives more than one type. A name the store repeats and the document does not use is not refused |
 | `extraction-type-conflict` | a type the store holds, redeclared with other `parents` or another `abstract_type` (a node type) or another `cardinality` (an edge type): no schema operation changes those |
 | `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
 | `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
