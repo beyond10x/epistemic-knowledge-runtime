@@ -180,6 +180,113 @@ fn migrate_writes_a_store_at_the_new_path_with_the_same_history_on_both_provider
     }
 }
 
+/// Review of EKR 0.0.42, finding 16: a SQLite store with a `Begun` stage that had committed a
+/// revision in its tenant migrated with exit 0, and the copy listed no stage and refused the
+/// stage's id, while the staged work stayed in the source. A migration carries the store's own
+/// tenant only, so a store with a stage still `Begun` or `Sealing` is refused
+/// `migrate-open-stage`, naming the stage, before anything is written to `--to`, into either
+/// provider. Once the stage is abandoned the same `--to` takes the migration, and the copy lists
+/// no stage: stage records stay with the source.
+#[test]
+fn a_store_with_an_open_stage_is_refused_and_named_before_anything_is_written() {
+    let directory = tempfile::tempdir().unwrap();
+    let (host, source) = source(directory.path(), "sqlite");
+    let begun = document(&run(&host, &source, "sqlite", &["stage", "begin"]));
+    assert_eq!(begun["state"], "Begun", "{begun}");
+    let stage = begun["stage_id"].as_str().unwrap().to_owned();
+    // One evidence entry committed in the stage: revision 2 there, 1 in the store.
+    let staged = directory.path().join("staged.yaml");
+    std::fs::write(
+        &staged,
+        format!(
+            "format: ekr.transaction-document/2\ntransaction:\n  id: \
+             00000000-0000-4000-8000-0000000006a1\n  proposer: \
+             00000000-0000-4000-8000-000000000101\n  operations:\n{}  evidence: []\n",
+            add_evidence(directory.path(), ADDED_FIRST, FIRST_STATEMENT)
+        ),
+    )
+    .unwrap();
+    let proposed = document(&run(
+        &host,
+        &source,
+        "sqlite",
+        &["--stage", &stage, "propose", staged.to_str().unwrap()],
+    ));
+    let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+    let validated = document(&run(
+        &host,
+        &source,
+        "sqlite",
+        &["--stage", &stage, "validate", &id],
+    ));
+    assert_eq!(validated["kind"], "Validated", "{validated}");
+    document(&run(
+        &host,
+        &source,
+        "sqlite",
+        &["--stage", &stage, "commit", &id],
+    ));
+    assert_eq!(
+        document(&run(&host, &source, "sqlite", &["--stage", &stage, "head"]))["revision"],
+        2
+    );
+
+    let targets = [("sqlite", "migrated.db"), ("file", "migrated")];
+    for (backend, name) in targets {
+        let to = directory.path().join(name);
+        let refused = run(
+            &host,
+            &source,
+            "sqlite",
+            &[
+                "migrate",
+                "--to",
+                to.to_str().unwrap(),
+                "--to-backend",
+                backend,
+            ],
+        );
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert_eq!(refused.status.code(), Some(1), "{backend}: {stderr}");
+        assert!(stderr.contains("migrate-open-stage"), "{backend}: {stderr}");
+        assert!(stderr.contains(&stage), "{backend}: {stderr}");
+    }
+
+    document(&run(
+        &host,
+        &source,
+        "sqlite",
+        &["stage", "abandon", &stage],
+    ));
+    for (backend, name) in targets {
+        let to = directory.path().join(name);
+        let report = document(&run(
+            &host,
+            &source,
+            "sqlite",
+            &[
+                "migrate",
+                "--to",
+                to.to_str().unwrap(),
+                "--to-backend",
+                backend,
+            ],
+        ));
+        assert_eq!(report["format"], "ekr.store-migration/1", "{backend}");
+        assert_eq!(
+            document(&run(&host, &to, backend, &["head"]))["revision"],
+            1,
+            "{backend}"
+        );
+    }
+    let copy = directory.path().join("migrated.db");
+    assert_eq!(
+        document(&run(&host, &copy, "sqlite", &["stage", "list"])),
+        serde_json::json!([]),
+        "stage records stay with the source"
+    );
+}
+
 /// One `!AddEvidence` of `payload` under evidence id `id`, its hash and byte list printed by
 /// `ekr hash`, as a YAML sequence item indented for `transaction.operations`.
 fn add_evidence(directory: &Path, id: &str, payload: &str) -> String {
