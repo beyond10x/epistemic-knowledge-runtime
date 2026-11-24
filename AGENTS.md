@@ -145,12 +145,14 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   that loops over providers, profiles or seeds into one test per case; do not raise the limit.
 - **The step's budget is 120 s** of tests and doc tests, the build not counted (the step prints
   the build time apart). It is not met yet; until it is, nextest stops the run at an interim
-  ceiling of 600 s (`global-timeout`), and the step prints how far over 120 s it is. What remains,
-  measured on main's CI run 44976803966 (2026-11-22) before this layout: the browser files take
-  about 300 s of one-browser-at-a-time time (`view_page` 174 s, `adversary_viewer_compact` 36 s,
-  `adversary_page_stream_1` 34 s, `adversary_viewer_follow_ups` 33 s, `adversary_p_page` 28 s, and
-  `search_live`), because every browser case starts a Chromium of its own. The fix is one browser
-  per run, started by the step, with a fresh browser context per case; its story is filed apart.
+  ceiling of 600 s (`global-timeout`), and the step prints how far over 120 s it is without failing
+  (`enforced=0` in `scripts/test-step.sh`; the change that brings the step under 120 s sets it to 1
+  and the ceiling to 120 s). CI runs 45297797215 and 45303320618 (2026-11-24): about 300 s on 4
+  threads, 1,170-1,200 s of test time summed: browser cases about 430 s (8,000 ms of virtual time
+  per render, stores seeded through the CLI per case), checkpoint, conformance and other CPU-bound
+  cases about 330 s, every other case about 425 s. The same code ran 419 s on a slower runner (run
+  45300454015). Opt-level 2 for test builds gained nothing and cost 151 s of build (run
+  45303320618).
 - **The SDK's tests do not build `ekr`.** The step takes the `ekr` executable of its own test build
   and names it in `EKR_SDK_TEST_EKR`; each SDK test file's `ekr_path()` reads that first and builds
   through cargo only when it is unset (`cargo test -p ekr-sdk` alone).

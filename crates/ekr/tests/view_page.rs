@@ -3489,6 +3489,18 @@ const COUNT_DRAWS: &str =
   for (const f of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
     const own = gl[f].bind(gl); gl[f] = (...a) => { window.__calls++; return own(...a); }; } })()";
 
+/// The draw calls since the count stood at `at`, once there is one, or after `millis` ms with none.
+fn draws_since(driven: &mut Driven, at: u64, millis: u32) -> u64 {
+    driven
+        .eval(&format!(
+            "new Promise(done => {{ const start = performance.now(); const tick = () => {{ \
+             const drawn = window.__calls - {at}; \
+             if (drawn > 0 || performance.now() - start > {millis}) done(drawn); else setTimeout(tick, 20); }}; tick(); }})"
+        ))
+        .as_u64()
+        .unwrap()
+}
+
 fn draws_within(driven: &mut Driven, millis: u32) -> u64 {
     driven
         .eval(&format!(
@@ -3557,11 +3569,19 @@ fn compact_mode_in(dim: &str, chosen: bool) {
     }
 
     // the key collapses both
+    let before_key = if rests {
+        driven.eval("window.__calls").as_u64().unwrap()
+    } else {
+        0
+    };
     driven.key("c");
     if rests {
-        let woke = draws_within(&mut driven, 400);
+        // Counted from before the key, and waited for: with other cases drawing beside it on a
+        // shared machine the first frame of the resize can come later than any fixed window
+        // (CI runs 45297797215 and 45303320618 saw none in 400 ms).
+        let woke = draws_since(&mut driven, before_key, 10_000);
         assert!(woke > 0, "the 3D loop drew the resize: {woke} calls");
-        eprintln!("3d: {woke} draw calls in the 400 ms after the key");
+        eprintln!("3d: {woke} draw calls after the key");
         std::thread::sleep(Duration::from_millis(1000));
         assert_eq!(
             draws_within(&mut driven, 1000),
