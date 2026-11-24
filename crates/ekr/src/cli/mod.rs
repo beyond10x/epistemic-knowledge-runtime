@@ -205,7 +205,7 @@ pub enum Command {
         #[arg(long, allow_negative_numbers = true, value_parser = crate::host::parse_valid_at)]
         valid_at: Option<Timestamp>,
     },
-    /// Explain an assertion (`ekr.kernel.Explain`) at the newest verified revision: the
+    /// Explain an assertion (`ekr.kernel.Explain`) at the newest verified revision, or at --at: the
     /// `ekr.explanation/2` document, which names proposals, commit receipts and evidence by hash.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
@@ -213,6 +213,10 @@ pub enum Command {
     Explain {
         /// The assertion's id, as `ekr snapshot` prints it.
         assertion_id: ekr_core::AssertionId,
+        /// The committed revision to explain the assertion at; the newest (`ekr head`) when absent.
+        /// The answer's `at` names the revision read.
+        #[arg(long)]
+        at: Option<u64>,
         /// Also print the whole records the links reference: each proposal record as `record`,
         /// each commit receipt as `receipt`, and each evidence payload as `payload` (base64)
         /// and, when it is UTF-8, `text`. An evidence payload is bounded: at most 64 KiB of it
@@ -1016,6 +1020,7 @@ fn dispatch(
         }
         Command::Explain {
             assertion_id,
+            at,
             documents,
             offset,
             limit,
@@ -1033,6 +1038,7 @@ fn dispatch(
             render(&explain::run(
                 &runtime,
                 assertion_id,
+                at,
                 documents,
                 format,
                 scope,

@@ -2734,7 +2734,10 @@ types:
   # `base64`, their standard padded base64 (RFC 4648 § 4). Exactly one of the two is present for
   # every record the kernel admitted, whose bytes are always retained (see "Evidence without
   # retained bytes is unreachable" in the domain summary); neither is present only for a record
-  # whose bytes the store does not hold.
+  # whose bytes the store does not hold. `attached_at` is the revision that attached the record to
+  # the assertion after it was added (`!AttachEvidence`, ekr.graph.EvidenceAttachment), omitted for
+  # a record the assertion cites, so a sample of a revision without an attachment is the bytes it
+  # was (review of 0.0.42, finding 23).
   - name: ekr.views.SampledEvidence
     kind: struct
     fields:
@@ -2752,6 +2755,8 @@ types:
         type: Optional<String>
       - name: base64
         type: Optional<String>
+      - name: attached_at
+        type: Optional<ekr.kernel.RevisionNumber>
 
   # One sampled fact. `subject_type` is the subject node's type, the subject edge's type, or, for
   # a Type subject, that type. `subject_name` is a node subject's canonical name or a Type
@@ -2759,7 +2764,9 @@ types:
   # Property predicate or, where it does not declare it, the first node type by id that
   # `subject_type` conforms to and that does; for a Relation, the edge type's name; omitted where
   # the revision's ontology declares neither. `object_name` is a Node object's
-  # canonical name, omitted for any other object. `evidence` is every record the assertion cites.
+  # canonical name, omitted for any other object. `evidence` is every record the assertion cites
+  # and every record attached to it through the revision, by id, so a judge reads the evidence
+  # ekr.kernel.Explain names at that revision.
   # An assertion about a node a supersession of the revision holds is kept and still sampled
   # (story:supersede-node, ADR 0017 decision 3): its `subject_type`, `subject_name` and
   # `predicate_name` are read from the supersession record, which holds the node as it was, as is

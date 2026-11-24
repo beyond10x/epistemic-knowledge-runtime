@@ -1207,9 +1207,13 @@ types:
   #   3. `names` is read off the document so far, then `scope` and `omitted_evidence` are added.
   #   4. The cap: while the document as `ekr` prints it — pretty JSON with keys ascending, two-space
   #      indent and a final newline — is longer than 49152 bytes (48 KiB), the longest `text` of an
-  #      Evidence link, by its UTF-8 bytes, the first in link order among equals, is cut to its first
-  #      floor(n / 2) bytes, moved back to a character boundary, and its link marked
-  #      `truncated: true`, with `offset` (its first byte in the record, 0 when it had none) and
+  #      Evidence link, by its UTF-8 bytes, the first in link order among equals, is cut to a
+  #      window of floor(n / 2) of its bytes placed as /2 places a default window: centred on the
+  #      first cited text (the string value of an assertion on the chain, in chain order) the text
+  #      holds, so a cut keeps the statement the window was centred on, and its first bytes when it
+  #      holds none; the window's ends move inward to character boundaries. Its link is marked
+  #      `truncated: true`, with `offset` (its first byte in the record: the window's start plus
+  #      the offset it had, 0 when it had none) and
   #      `record_length` (the whole record's bytes, its text's bytes when it had none). It stops when
   #      the document fits, or when no Evidence link's text is longer than 0 bytes; the cap cuts no
   #      other field, so a document without texts may stay longer than it.
@@ -1802,6 +1806,11 @@ commands:
         summary: Nothing was read.
 
   # Design § 62. Why is this true: assertion → transaction → validation → evidence → observation.
+  # The command explains the assertion as one captured revision holds it, the newest. `ekr explain
+  # --at N` and the MCP tool's `at` capture revision N instead, as `ekr snapshot --at` does, and the
+  # result's `at` names the revision read; a revision the store does not hold is
+  # ekr.kernel.RevisionNotFound (review of 0.0.42, finding 21). The selector is the CLI's, like
+  # `--documents`, and not an input of this command, whose conformance scenarios read the newest.
   - name: ekr.kernel.Explain
     naming:
       wire: explain

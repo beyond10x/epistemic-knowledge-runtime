@@ -757,15 +757,16 @@ impl Server {
         text(index.changes_as(runtime, &request, format)?.bytes)
     }
 
-    /// What `ekr explain <assertion> --format F` prints, byte for byte, or with `documents`, what
-    /// `ekr explain <assertion> --documents [--offset N] [--limit N] --format F` prints; `F` is
-    /// `ekr.explanation/3` unless `format` names `ekr.explanation/2`, and under /3 the scope is
-    /// `cited` unless `scope` names `all` (`kernel.yaml`, `ekr.kernel.ExplanationV3`;
-    /// ekr-mcp-fixes-20261015 #7). `offset` and `limit` without `documents`, a `limit` of 0, and
+    /// What `ekr explain <assertion> [--at N] --format F` prints, byte for byte, or with
+    /// `documents`, what `ekr explain <assertion> [--at N] --documents [--offset N] [--limit N]
+    /// --format F` prints; `F` is `ekr.explanation/3` unless `format` names `ekr.explanation/2`,
+    /// and under /3 the scope is `cited` unless `scope` names `all` (`kernel.yaml`,
+    /// `ekr.kernel.ExplanationV3`; ekr-mcp-fixes-20261015 #7). `offset` and `limit` without `documents`, a `limit` of 0, and
     /// a `scope` with /2 are refused as the verb refuses them.
     fn explain(&mut self, arguments: Value) -> Result<String, Unanswered> {
         let ExplainArguments {
             assertion,
+            at,
             documents,
             offset,
             limit,
@@ -811,6 +812,7 @@ impl Server {
         Ok(super::render(&super::explain::run(
             self.read()?.0,
             id,
+            at,
             documents,
             format,
             scope,
@@ -1099,6 +1101,8 @@ struct HeadArguments {}
 struct ExplainArguments {
     #[serde(alias = "id", alias = "assertion_id")]
     assertion: String,
+    #[serde(default)]
+    at: Option<u64>,
     #[serde(default)]
     documents: bool,
     #[serde(default)]
@@ -1457,15 +1461,18 @@ fn tools() -> Vec<Value> {
             "explain",
             "Explain assertion",
             "What `ekr explain --format ekr.explanation/3` prints: the assertion at the newest \
-             revision, where it came from, what later changed it, and the evidence it cites \
-             (the rest counted as omitted_evidence; scope all for every entry of its \
+             revision, or at `at`, where it came from, what later changed it, and the evidence \
+             it cites (the rest counted as omitted_evidence; scope all for every entry of its \
              transactions), each record by hash, with `names` naming every type and property id \
              it holds; with `documents`, also the evidence text, at most 64 KiB of each evidence \
              record unless `limit` says otherwise, and no proposal record. The answer is at most \
-             48 KiB: the longest evidence text is halved, and marked truncated, until it fits.",
+             48 KiB: the longest evidence text is halved around the text the chain cites, and \
+             marked truncated, until it fits.",
             object(
                 json!({
                     "assertion": {"type": "string", "description": "The assertion's id, as describe_node answers it."},
+                    "at": {"type": "integer", "minimum": 0,
+                        "description": "The committed revision to explain the assertion at; the newest when absent. The answer's `at` names the revision read."},
                     "documents": {"type": "boolean",
                         "description": "Also answer the whole proposal records, commit receipts and evidence payloads (base64, and text when UTF-8), as `ekr explain --documents`; false when absent. An evidence payload is bounded by `offset` and `limit`; when the answer is not the whole record its link carries `offset`, `record_length` (the whole record's bytes) and `truncated: true`."},
                     "offset": bounded(0, None,
