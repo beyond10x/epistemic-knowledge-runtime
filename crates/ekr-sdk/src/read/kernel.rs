@@ -292,6 +292,49 @@ pub struct OntologyNodeType {
     pub abstract_type: bool,
     /// Its properties.
     pub properties: Vec<OntologyProperty>,
+    /// Its lifecycle, `None` when it has none. An `ekr` that predates it does not print it, and it
+    /// reads as `None`.
+    #[serde(default)]
+    pub lifecycle: Option<OntologyLifecycle>,
+    /// Its named operations, by the key `!Invoke` names. An `ekr` that predates them does not print
+    /// them, and they read as none.
+    #[serde(default)]
+    pub operations: BTreeMap<String, OntologyOperation>,
+}
+
+/// A node type's lifecycle as `ekr ontology` prints it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OntologyLifecycle {
+    /// The state a new node is in.
+    pub initial: String,
+    /// Every state, ascending.
+    pub states: Vec<String>,
+    /// Every declared move, ascending.
+    pub transitions: Vec<OntologyTransition>,
+}
+
+/// One move of a lifecycle.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OntologyTransition {
+    /// The state a node must be in.
+    pub from: String,
+    /// The state it is in afterwards.
+    pub to: String,
+}
+
+/// A named operation of a node type as `ekr ontology` prints it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OntologyOperation {
+    /// Its declared name; `!Invoke` names the operation by its key.
+    pub name: String,
+    /// Its arguments by name, each with its value type.
+    pub arguments: BTreeMap<String, OntologyValueType>,
+    /// Its preconditions, carried as text.
+    pub preconditions: Vec<String>,
+    /// The move it makes, if it makes one.
+    pub transition: Option<OntologyTransition>,
+    /// The event types it emits.
+    pub emits: Vec<String>,
 }
 
 /// An edge type of `ekr ontology`.
@@ -309,6 +352,16 @@ pub struct OntologyEdgeType {
     pub cardinality: OntologyCardinality,
     /// Its properties.
     pub properties: Vec<OntologyProperty>,
+    /// The edge type that reads it backwards. An `ekr` that predates it does not print it, and it
+    /// reads as `None`.
+    #[serde(default)]
+    pub inverse: Option<NamedType>,
+    /// Whether the relation holds both ways; `false` from an `ekr` that predates it.
+    #[serde(default)]
+    pub symmetric: bool,
+    /// Whether the relation composes with itself; `false` from an `ekr` that predates it.
+    #[serde(default)]
+    pub transitive: bool,
 }
 
 /// A retained transaction's state, as `ekr transactions` prints and `--state` takes it. A state a
