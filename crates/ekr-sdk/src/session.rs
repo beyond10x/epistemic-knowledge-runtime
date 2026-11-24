@@ -619,6 +619,10 @@ impl ProcessSession {
                             stderr: reply.stderr,
                         }),
                         Err(error) => {
+                            // The session fails here, so the child is stopped first, as a timed
+                            // out request stops it: its stderr then closes and the tail holds all
+                            // it wrote, without the second `settled` waits for a running child.
+                            self.shared.kill();
                             let stderr_tail = self.stderr.settled();
                             Err(self.fail(TransportError::Protocol {
                                 verb,
