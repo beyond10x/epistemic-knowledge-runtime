@@ -32,17 +32,18 @@ use ekr_sdk::read::{
     ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head,
     ListedTransaction, MatchField, MatchKind, MatchTier, MatchesMeta, MatchesMetaV3,
     ModifiedProperty, NamedType, NodeDetail, NodeMatch, NodeMatchV3, NodeMatches, NodeMatchesV3,
-    NodeSummary, OneShotReader, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType,
-    OntologyProperty, OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles,
-    OverviewSchema, OverviewSection, OverviewTimeline, ReadError, Reader, RecordedTime,
-    ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge,
-    SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge,
-    SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotMergeLineage, SnapshotNode,
-    SnapshotPredicate, SnapshotRewrittenAssertion, SnapshotRoot, SnapshotSubject,
-    SnapshotSupersededNode, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta,
-    TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState, Transactions,
-    TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType,
-    ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
+    NodeSummary, OneShotReader, Ontology, OntologyCardinality, OntologyEdgeType, OntologyLifecycle,
+    OntologyNodeType, OntologyOperation, OntologyProperty, OntologyTransition, OntologyValueType,
+    Overview, OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewSection,
+    OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember,
+    SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
+    SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
+    SnapshotGraphDocument, SnapshotMergeLineage, SnapshotNode, SnapshotPredicate,
+    SnapshotRewrittenAssertion, SnapshotRoot, SnapshotSubject, SnapshotSupersededNode, Timeline,
+    TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow,
+    TimelineRowType, TimelineStep, TransactionState, Transactions, TypeCount, TypeTiming,
+    ValidTime, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType,
+    ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -1228,7 +1229,21 @@ fn the_five_kernel_reads_are_one_typed_value_through_a_session_and_one_shot() {
             Ok(ontology.clone())
         );
         let node_types: &[OntologyNodeType] = &ontology.node_types;
-        assert!(node_types.iter().any(|t| t.name == "Organization"));
+        let organization = node_types
+            .iter()
+            .find(|t| t.name == "Organization")
+            .expect("the example seed's Organization");
+        // The seed declares `record_review(note: String)` on Organization, and no lifecycle.
+        let review: &OntologyOperation = &organization.operations["record_review"];
+        assert_eq!(review.name, "record_review");
+        assert_eq!(
+            review.arguments.get("note"),
+            Some(&OntologyValueType::String)
+        );
+        let transition: Option<&OntologyTransition> = review.transition.as_ref();
+        assert_eq!(transition, None);
+        let lifecycle: Option<&OntologyLifecycle> = organization.lifecycle.as_ref();
+        assert_eq!(lifecycle, None);
         for property in node_types.iter().flat_map(|t| &t.properties) {
             let property: &OntologyProperty = property;
             let kind: &OntologyValueType = &property.value_type;

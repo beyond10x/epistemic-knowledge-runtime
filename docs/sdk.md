@@ -617,7 +617,7 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `changes(since, at, limit, after)` | `changes` | `Changes`, `ekr.graph-changes/1` |
 | `head()` | `head` | `Head`: `revision` and `root` |
 | `snapshot(at, valid_at)` | `snapshot` | `Snapshot`: `root` and the graph, every map keyed by id |
-| `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version and the evidence it cites (`schema_version_evidence`) |
+| `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, each node type's `lifecycle` and `operations` and each edge type's `inverse`, `symmetric` and `transitive`, the schema version and the evidence it cites (`schema_version_evidence`) |
 | `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
 | `explain(assertion)` | `explain` | `Explanation`, `ekr.explanation/2`: `links`, one `ExplanationLink` per kind, each record by hash |
 | `explain_documents(assertion)` | `explain --documents` | the same `Explanation` with the whole records: each evidence link's `payload` and `text`, at most 64 KiB of each evidence record; a link that holds less than the whole record carries `truncated: true`, `offset` and `record_length` |
