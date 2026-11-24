@@ -51,12 +51,12 @@ const PAGE_ADDRESSES: [&str; 7] = [
 /// How many nodes the page draws before it asks first.
 const RENDER_BUDGET: &str = "20000";
 
-/// The only scripts the page loads from elsewhere, each pinned to one version.
+/// The only scripts the page loads, each pinned to one version and served by `ekr view` itself.
 const LIBRARIES: [&str; 4] = [
-    "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
-    "https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js",
-    "https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js",
-    "https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js",
+    "/assets/libraries/graphology@0.26.0/dist/graphology.umd.min.js",
+    "/assets/libraries/graphology-library@0.8.0/dist/graphology-library.min.js",
+    "/assets/libraries/sigma@3.0.3/dist/sigma.min.js",
+    "/assets/libraries/3d-force-graph@1.80.0/dist/3d-force-graph.min.js",
 ];
 
 fn manifest_dir() -> PathBuf {
@@ -461,8 +461,8 @@ fn absolute_literals(page: &str) -> Vec<String> {
 }
 
 /// The page with its pinned library tags and its policy line taken out, after checking that each
-/// tag is there exactly once, pinned, with a sha384 integrity and no credentials, and that the
-/// policy allows exactly those scripts, blob workers and reads from this server.
+/// tag is there exactly once, pinned, with a sha384 integrity, and that the policy allows scripts
+/// from this server and inline, blob workers and reads from this server.
 fn without_pinned_libraries(page: &str) -> String {
     let mut rest = page.to_owned();
     for url in LIBRARIES {
@@ -487,10 +487,7 @@ fn without_pinned_libraries(page: &str) -> String {
                 .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/'),
             "{url}: {digest}"
         );
-        assert!(
-            tag.ends_with("\" crossorigin=\"anonymous\" referrerpolicy=\"no-referrer\"></script>"),
-            "{tag}"
-        );
+        assert!(tag.ends_with(&format!("{digest}\"></script>")), "{tag}");
         rest.replace_range(at..end, "");
     }
     let line = rest
@@ -521,12 +518,10 @@ fn without_pinned_libraries(page: &str) -> String {
     };
     let mut scripts = sources("script-src");
     scripts.sort();
-    let mut expected: Vec<String> = LIBRARIES.iter().map(|url| (*url).to_owned()).collect();
-    expected.push("'unsafe-inline'".to_owned());
-    expected.sort();
     assert_eq!(
-        scripts, expected,
-        "script-src is exactly the pinned libraries"
+        scripts,
+        ["'self'", "'unsafe-inline'"],
+        "script-src is this server, which serves the pinned libraries, and no other host"
     );
     assert_eq!(sources("default-src"), ["'none'"], "{policy}");
     assert_eq!(sources("connect-src"), ["'self'"], "{policy}");
@@ -747,11 +742,79 @@ fn the_step_starts_its_shared_browser_unable_to_reach_the_network() {
     );
 }
 
+/// Finding 39 of the EKR 0.0.42 review: a browser case that finds no headless Chromium skips
+/// locally, and fails where a browser is required, on the forge (`CI`) or with
+/// `EKR_REQUIRE_BROWSER`; a value that is empty, `0` or `false` requires nothing.
+#[test]
+fn a_missing_browser_fails_a_case_where_one_is_required() {
+    use std::ffi::OsStr;
+    let found = Some(PathBuf::from("chromium"));
+    let fails = |ci: Option<&str>, require: Option<&str>| {
+        std::panic::catch_unwind(|| {
+            shared_browser::required_under(None, ci.map(OsStr::new), require.map(OsStr::new))
+        })
+        .is_err()
+    };
+    for (ci, require) in [
+        (Some("true"), None),
+        (None, Some("1")),
+        (Some("1"), Some("1")),
+    ] {
+        assert!(
+            fails(ci, require),
+            "CI={ci:?} {require:?}: no browser fails"
+        );
+        assert_eq!(
+            shared_browser::required_under(
+                found.clone(),
+                ci.map(OsStr::new),
+                require.map(OsStr::new)
+            ),
+            found,
+            "CI={ci:?} {require:?}: a browser found is the case's"
+        );
+    }
+    for (ci, require) in [(None, None), (Some(""), Some("0")), (Some("false"), None)] {
+        assert!(
+            !fails(ci, require),
+            "CI={ci:?} {require:?}: no browser skips"
+        );
+    }
+}
+
+/// Every test file that starts a browser finds it through `shared_browser::required`, so none of
+/// its cases passes on the forge without one.
+#[test]
+fn every_file_that_starts_a_browser_requires_one_where_the_forge_does() {
+    let headless = format!("\"--{}\"", "headless");
+    let needle = format!("shared_browser::{}(", "required");
+    let mut files = 0;
+    for entry in std::fs::read_dir(manifest_dir().join("tests")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).unwrap();
+        if source.contains(&headless) {
+            files += 1;
+            assert!(
+                source.contains(&needle),
+                "{}: starts a browser and finds it without {needle}",
+                path.display()
+            );
+        }
+    }
+    assert!(
+        files >= 6,
+        "the files that start a browser were found: {files}"
+    );
+}
+
 /// `story:browser-tests-need-no-network`: each library the page loads is committed under
-/// `tests/fixtures/viewer-libraries/` at its address's path and hashes to the `integrity` the page
-/// carries for it, read off the page's own tags, so a page that pins another version without its
-/// fixture fails here. The directory holds no script the page does not load, and each package's
-/// MIT licence is kept beside its files.
+/// `src/cli/viewer/libraries/` at its address's path under `/assets/libraries/` (the bytes
+/// `ekr view` serves there) and hashes to the `integrity` the page carries for it, read off the
+/// page's own tags, so a page that pins another version without its file fails here. The directory
+/// holds no script the page does not load, and each package's MIT licence is kept beside its files.
 #[test]
 fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
     let pinned = viewer_libraries::pinned(&page());
@@ -759,7 +822,7 @@ fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
     let root = manifest_dir().join(viewer_libraries::FIXTURES);
     for library in &pinned {
         let path = viewer_libraries::fixture_path(&library.url)
-            .unwrap_or_else(|| panic!("{}: not on {}", library.url, viewer_libraries::HOST));
+            .unwrap_or_else(|| panic!("{}: not under {}", library.url, viewer_libraries::LOCAL));
         let bytes = std::fs::read(&path).unwrap_or_else(|error| {
             panic!(
                 "{}: no fixture at {}: {error}; a library the page pins is committed there",
@@ -775,7 +838,7 @@ fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
             path.display()
         );
         let relative = path.strip_prefix(&root).unwrap();
-        let package = root.join(relative.iter().take(2).collect::<PathBuf>());
+        let package = root.join(relative.iter().take(1).collect::<PathBuf>());
         let licence = ["LICENSE", "LICENSE.txt", "LICENSE.md"]
             .iter()
             .map(|name| package.join(name))
@@ -857,6 +920,9 @@ fn the_embedded_page_loads_only_the_pinned_libraries_by_integrity() {
             !rest.contains("cdn.jsdelivr.net"),
             "{file}: no other library address"
         );
+        // finding 26 of the EKR 0.0.42 review: the page opens with no network, so it names no
+        // address on another host
+        assert!(!page.contains("://"), "{file}: an address on another host");
     }
 }
 
@@ -954,9 +1020,14 @@ fn ekr_view_serves_each_fixture_store_the_page_its_projection_and_roles_or_none(
     }
 }
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
+fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
 /// A local headless Chromium, or `None`: `EKR_VIEW_BROWSER`, else the newest Playwright
 /// headless shell under the home directory's cache.
-fn browser() -> Option<PathBuf> {
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }
@@ -2613,8 +2684,8 @@ fn a_focus_at_three_hops_streams_nothing_the_server_refuses() {
 //
 // `Driven` starts a headless browser with a DevTools port, speaks the protocol over one WebSocket
 // (text frames only) and evaluates expressions in the page, so a case can act as a reader does, and
-// [`rendered`] can read the DOM once the page has settled. Every request to the libraries' host is
-// paused and answered from the fixtures (`support/viewer_libraries.rs`), and the host is
+// [`rendered`] can read the DOM once the page has settled. Every request for a library is
+// paused and answered from its file (`support/viewer_libraries.rs`), and their old host is
 // unresolvable for the browser, so no page a case opens reaches the network.
 
 struct Driven {
@@ -3213,9 +3284,9 @@ fn a_library_served_with_bytes_its_integrity_does_not_name_is_refused() {
     );
     for library in LIBRARIES {
         assert!(
-            driven
-                .answered
-                .contains(&format!("Fetch.fulfillRequest {library}")),
+            driven.answered.iter().any(|line| {
+                line.starts_with("Fetch.fulfillRequest http") && line.ends_with(library)
+            }),
             "{library} was served: {:?}",
             driven.answered
         );

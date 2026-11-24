@@ -227,7 +227,12 @@ fn front_answer(mut stream: TcpStream, upstream: &str, page: &[u8]) {
 
 // ---- the browser -------------------------------------------------------------------------------
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
 fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }

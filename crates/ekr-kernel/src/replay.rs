@@ -351,6 +351,12 @@ pub(crate) struct ReplayCache {
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.
     pub(crate) envelope: Option<(ContentHash, Arc<crate::seed::SeedEnvelope>)>,
+    /// The evidence payloads each committed receipt's `AddEvidence` operations added, by the
+    /// receipt's address ([`KernelAuthority::added_evidence_required`]). They are a function of
+    /// the verified bytes at that address, so a later read that verified the same bytes takes
+    /// them instead of decoding the receipt and parsing its document again. A few hashes per
+    /// commit.
+    pub(crate) added_evidence: BTreeMap<ContentHash, Arc<[ContentHash]>>,
     /// The cell holding the [`AliasIndex`] of the newest head a read captured, by that head's
     /// revision identity and root. One slot: a read of a newer head replaces it, so this
     /// authority keeps the index of no head but the current one.
@@ -584,18 +590,21 @@ pub(crate) fn attributed(tx: &GraphTransaction, actor: AgentId) -> bool {
             _ => true,
         })
 }
+/// The proposal record of `document`, a document the proposing command has already parsed from
+/// the submitted bytes: it is not parsed a second time.
 pub(crate) fn proposal(
-    bytes: &[u8],
+    document: &TransactionDocument,
     actor: AgentId,
     event_id: EventId,
     at: Timestamp,
     anchor: &AuthorityStateV1,
 ) -> Result<ProposalRecordV1, StoreError> {
-    parsed_proposal(bytes, actor, event_id, at, anchor, ProposalRecordV1::FORMAT)
-        .map(|(record, _)| record)
+    registered(anchor, actor)?;
+    proposal_record(document, actor, event_id, at, ProposalRecordV1::FORMAT)
 }
-/// [`proposal`] in the record format a retained proposal was written in, returning the parsed
-/// document with it so that one replay parses each retained document once.
+/// [`proposal`] of the retained `bytes`, in the record format a retained proposal was written
+/// in, returning the parsed document with it so that one replay parses each retained document
+/// once.
 pub(crate) fn parsed_proposal(
     bytes: &[u8],
     actor: AgentId,
@@ -608,6 +617,17 @@ pub(crate) fn parsed_proposal(
     crate::read::count(|cost| cost.documents_parsed += 1);
     let document = TransactionDocument::parse(bytes)
         .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
+    let record = proposal_record(&document, actor, event_id, at, format)?;
+    Ok((record, document))
+}
+/// The record of a parsed proposal `document`, refused when it is not attributed to `actor`.
+fn proposal_record(
+    document: &TransactionDocument,
+    actor: AgentId,
+    event_id: EventId,
+    at: Timestamp,
+    format: &str,
+) -> Result<ProposalRecordV1, StoreError> {
     let tx = document.transaction();
     require(attributed(tx, actor), "proposal-attribution-mismatch")?;
     let canonical = GraphTransaction::<CanonicalValue>::try_from(tx.clone()).ok();
@@ -617,14 +637,14 @@ pub(crate) fn parsed_proposal(
         submitted_at: at,
         submitter: actor,
         document_hash: document.hash(),
-        document_bytes: bytes.to_vec(),
+        document_bytes: document.bytes().to_vec(),
         transaction_id: tx.id,
         operation_count: tx.operations.len() as u64,
         evidence_hash: ContentHash::of(&tx.evidence),
         canonical_transaction_hash: canonical.as_ref().map(ContentHash::of),
         canonical_operations_hash: canonical.as_ref().map(|tx| ContentHash::of(&tx.operations)),
     };
-    Ok((record, document))
+    Ok(record)
 }
 pub(crate) fn basis(
     prior: &Revision,

@@ -3,9 +3,9 @@
 //! Each case seeds a store derived from the unit's own `tests/fixtures/view-page/sounding`
 //! fixture through the real binary, serves it with `ekr view --port 0`, and reads the DOM a
 //! headless Chromium builds from the embedded page. The browser is driven over the DevTools
-//! protocol, which serves the page's graph libraries from `tests/fixtures/viewer-libraries/`
+//! protocol, which serves the page's graph libraries from `src/cli/viewer/libraries/`
 //! (`support/viewer_libraries.rs`). Without a local headless Chromium the browser cases say so and
-//! return.
+//! return, except where one is required (`support/shared_browser.rs`, `required`).
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -138,7 +138,12 @@ impl Drop for Server {
     }
 }
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
 fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }

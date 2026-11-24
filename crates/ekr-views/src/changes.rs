@@ -277,6 +277,10 @@ pub struct ChangesListed {
     pub nodes_superseded: u64,
     /// This page's NodeMerged changes.
     pub nodes_merged: u64,
+    /// This page's EvidenceAttached changes.
+    pub evidence_attached: u64,
+    /// This page's AliasAdded changes.
+    pub aliases_added: u64,
     /// The revision of the page's first change; `None` for an empty page.
     pub first_revision: Option<u64>,
     /// The revision of the page's last change; `None` for an empty page.
@@ -300,6 +304,8 @@ enum ChangeKind {
     EvidenceAdded,
     NodeSuperseded,
     NodeMerged,
+    EvidenceAttached,
+    AliasAdded,
 }
 
 impl ChangeKind {
@@ -339,6 +345,8 @@ struct GraphChange {
     #[serde(skip_serializing_if = "Option::is_none")]
     content_hash: Option<ContentHash>,
     evidence: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aliases: Option<Vec<String>>,
 }
 
 impl GraphChange {
@@ -359,6 +367,7 @@ impl GraphChange {
             locator: None,
             content_hash: None,
             evidence: Vec::new(),
+            aliases: None,
         }
     }
 
@@ -484,7 +493,9 @@ fn seed_changes(graph: &CanonicalGraph, entry: &LoadedRevisionEntry, into: &mut 
 /// superseded or retracted is read from `graph`, the state at the read revision, which holds
 /// every assertion ever added, its subject as `entry`'s revision held it ([`subject_at`]). An
 /// `AddEvidence` is an EvidenceAdded carrying the entry's source
-/// identity (its locator) and the address of the payload it brought.
+/// identity (its locator) and the address of the payload it brought. The `AttachEvidence`
+/// operations are one EvidenceAttached per assertion, listing the entries attached, and the
+/// `AddAlias` operations one AliasAdded per node, listing the aliases added.
 fn transaction_changes(
     graph: &CanonicalGraph,
     entry: &LoadedRevisionEntry,
@@ -611,6 +622,58 @@ fn transaction_changes(
             }
             _ => continue,
         };
+        into.push(change);
+    }
+
+    // One EvidenceAttached per assertion and one AliasAdded per node, however many entries or
+    // aliases the transaction gave it (review of 0.0.42, finding 22).
+    let mut attached: BTreeMap<AssertionId, BTreeSet<String>> = BTreeMap::new();
+    let mut aliased: BTreeMap<NodeId, BTreeSet<String>> = BTreeMap::new();
+    for operation in operations {
+        match operation {
+            GraphOperation::AttachEvidence(attachment) => {
+                attached
+                    .entry(attachment.assertion)
+                    .or_default()
+                    .insert(attachment.evidence.to_string());
+            }
+            GraphOperation::AddAlias(addition) => {
+                aliased
+                    .entry(addition.node)
+                    .or_default()
+                    .insert(addition.alias.clone());
+            }
+            _ => {}
+        }
+    }
+    for (assertion, evidence) in attached {
+        let claim = claim_of(assertion)?;
+        let mut change =
+            GraphChange::new(entry, ChangeKind::EvidenceAttached, assertion.to_string())
+                .about(held(&subject_at(graph, claim, entry.number)));
+        change.evidence = evidence.into_iter().collect();
+        into.push(change);
+    }
+    for (node, aliases) in aliased {
+        let type_id = graph
+            .nodes
+            .get(&node)
+            .map(|held| held.type_id)
+            .or_else(|| {
+                graph
+                    .superseded
+                    .get(&node)
+                    .map(|record| record.node.type_id)
+            })
+            .ok_or_else(|| {
+                inconsistent(format!(
+                    "revision {} gives node {node} an alias, which revision {} holds no record of",
+                    entry.number, graph.revision
+                ))
+            })?;
+        let mut change = GraphChange::new(entry, ChangeKind::AliasAdded, node.to_string());
+        change.type_id = Some(type_id);
+        change.aliases = Some(aliases.into_iter().collect());
         into.push(change);
     }
     Ok(())
@@ -815,6 +878,8 @@ impl Index {
             evidence_added: count(ChangeKind::EvidenceAdded),
             nodes_superseded: count(ChangeKind::NodeSuperseded),
             nodes_merged: count(ChangeKind::NodeMerged),
+            evidence_attached: count(ChangeKind::EvidenceAttached),
+            aliases_added: count(ChangeKind::AliasAdded),
             first_revision: page.first().map(|change| change.revision),
             last_revision: page.last().map(|change| change.revision),
             format: document.meta.format,

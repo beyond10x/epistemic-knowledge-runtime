@@ -189,31 +189,47 @@ impl KernelAuthority {
             ) {
                 continue;
             }
-            let Ok(bytes) = history.content(occurrence.event.record_hash, StorageClass::Canonical)
-            else {
+            let record_hash = occurrence.event.record_hash;
+            let Ok(bytes) = history.content(record_hash, StorageClass::Canonical) else {
                 continue;
             };
-            let Ok(receipt) = crate::CommitReceiptV1::from_bytes(bytes) else {
-                continue;
+            let held = self.cache()?.added_evidence.get(&record_hash).cloned();
+            let added = match held {
+                Some(added) => added,
+                None => {
+                    let added = Self::evidence_added_by(bytes);
+                    self.cache()?
+                        .added_evidence
+                        .insert(record_hash, Arc::clone(&added));
+                    added
+                }
             };
-            let Ok(document) = crate::TransactionDocument::parse(&receipt.proposal.document_bytes)
-            else {
-                continue;
-            };
-            required.extend(
-                document
-                    .transaction()
-                    .operations
-                    .iter()
-                    .filter_map(|operation| match operation {
-                        crate::GraphOperation::AddEvidence(addition) => {
-                            Some(addition.evidence.content_hash)
-                        }
-                        _ => None,
-                    }),
-            );
+            required.extend(added.iter().copied());
         }
         Ok(required)
+    }
+    /// The content hash of every evidence entry the `AddEvidence` operations of the committed
+    /// receipt `bytes` added: none for a receipt or document that does not read.
+    fn evidence_added_by(bytes: &[u8]) -> Arc<[ContentHash]> {
+        let Ok(receipt) = crate::CommitReceiptV1::from_bytes(bytes) else {
+            return Arc::from([]);
+        };
+        crate::read::count(|cost| cost.documents_parsed += 1);
+        let Ok(document) = crate::TransactionDocument::parse(&receipt.proposal.document_bytes)
+        else {
+            return Arc::from([]);
+        };
+        document
+            .transaction()
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                crate::GraphOperation::AddEvidence(addition) => {
+                    Some(addition.evidence.content_hash)
+                }
+                _ => None,
+            })
+            .collect()
     }
     pub(crate) fn cache(
         &self,
