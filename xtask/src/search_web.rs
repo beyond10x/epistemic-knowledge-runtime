@@ -67,6 +67,22 @@ fn copy_source(from: &Path, to: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+/// The rustc flags, `\x1f`-separated, that map the source copy to `/ekr-search-web` and Cargo's
+/// home to `/cargo`, each path both as given and with its symlinks resolved: rustc sees the form
+/// Cargo hands it, which for a `CARGO_HOME` that is a symlink is the link, not its target.
+fn remap_flags(copy: &Path, home: &Path) -> Result<String, String> {
+    let mut flags = Vec::new();
+    for (path, to) in [(copy, "/ekr-search-web"), (home, "/cargo")] {
+        let resolved = path
+            .canonicalize()
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        flags.push(format!("--remap-path-prefix={}={to}", path.display()));
+        if resolved != path {
+            flags.push(format!("--remap-path-prefix={}={to}", resolved.display()));
+        }
+    }
+    Ok(flags.join("\x1f"))
+}
 fn rebuild(source: &Path, work: &Path, toolchain: &str) -> Result<Vec<u8>, String> {
     let copy = work.join("source");
     // This is a generated source copy, never the caller's checkout or build cache.
@@ -82,12 +98,7 @@ fn rebuild(source: &Path, work: &Path, toolchain: &str) -> Result<Vec<u8>, Strin
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cargo")))
         .ok_or("Cargo home absent")?;
-    let home = home.canonicalize().map_err(|e| e.to_string())?;
-    let flags = format!(
-        "--remap-path-prefix={}=/ekr-search-web\x1f--remap-path-prefix={}=/cargo",
-        copy.display(),
-        home.display()
-    );
+    let flags = remap_flags(&copy, &home)?;
     let status = Command::new("rustup")
         .args([
             "run",
@@ -115,4 +126,35 @@ fn rebuild(source: &Path, work: &Path, toolchain: &str) -> Result<Vec<u8>, Strin
     }
     std::fs::read(work.join("target/wasm32-unknown-unknown/release/ekr_search_web.wasm"))
         .map_err(|e| e.to_string())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::remap_flags;
+
+    /// A host whose `CARGO_HOME` is a symlink to another directory: Cargo hands rustc the registry
+    /// sources under the path as given, so that path is remapped, and so is the one it resolves to.
+    #[test]
+    fn a_symlinked_cargo_home_is_remapped_as_given_and_resolved() {
+        let root = std::env::temp_dir().join(format!("ekr-xtask-remap-{}", std::process::id()));
+        if root.exists() {
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+        let (real, link, copy) = (root.join("real"), root.join("link"), root.join("copy"));
+        for directory in [&real, &copy] {
+            std::fs::create_dir_all(directory).unwrap();
+        }
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let flags = remap_flags(&copy, &link);
+        std::fs::remove_dir_all(&root).unwrap();
+        let flags: Vec<String> = flags.unwrap().split('\x1f').map(str::to_owned).collect();
+        let real = real.canonicalize().unwrap_or(real);
+        for wanted in [
+            format!("--remap-path-prefix={}=/ekr-search-web", copy.display()),
+            format!("--remap-path-prefix={}=/cargo", link.display()),
+            format!("--remap-path-prefix={}=/cargo", real.display()),
+        ] {
+            assert!(flags.contains(&wanted), "{wanted} missing from {flags:?}");
+        }
+    }
 }
