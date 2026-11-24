@@ -29,7 +29,7 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// A case's browser: a process of its own, or a context in the step's browser.
 pub(crate) enum Browser {
     Own(Child),
-    Shared(Context),
+    Shared(Box<Context>),
 }
 
 /// A case's browser context and page in the step's browser, over a browser-level connection.
@@ -46,7 +46,7 @@ pub(crate) struct Context {
 /// `own` is the case's launch as it stands; it runs only when there is no shared browser.
 pub(crate) fn launch(size: Option<(u32, u32)>, own: impl FnOnce() -> Child) -> Browser {
     match shared_address() {
-        Some(address) => Browser::Shared(Context::open(&address, size)),
+        Some(address) => Browser::Shared(Box::new(Context::open(&address, size))),
         None => Browser::Own(own()),
     }
 }
