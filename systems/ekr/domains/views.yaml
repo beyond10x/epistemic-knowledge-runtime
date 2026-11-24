@@ -1383,10 +1383,11 @@ types:
 
   # One value of a property group. A value of the node's record carries no `assertion`, no
   # `valid_from` and no evidence; a value assertion carries its id, its valid time's start when it
-  # has one, and the ids of the evidence it cites, ascending. A String value longer than 2,000
-  # bytes is answered as its longest prefix of at most 2,000 bytes that ends on a character
-  # boundary, and `truncated` is true; every other value is answered whole and `truncated` is
-  # false. Only a top-level String is cut: a List or Record value is answered whole.
+  # has one, and the ids of the evidence it cites, ascending. One text limit holds at every depth:
+  # each String longer than 2,000 bytes, the value itself or an element of a List or a field of a
+  # Record at any depth, is answered as its longest prefix of at most 2,000 bytes that ends on a
+  # character boundary, and `truncated` is true when any String of the value was cut; a value
+  # that holds no such String is answered whole and `truncated` is false.
   - name: ekr.views.DetailValue
     kind: struct
     fields:
@@ -1424,7 +1425,9 @@ types:
     variants: [in, out]
 
   # One neighbour of a relation group: another node at the far end of an edge of the group's type
-  # and direction, however many such edges join the two. `assertion` is the newest (as property
+  # and direction, or of an Active Relation assertion of that type in that direction (a relation
+  # recorded as a claim with no edge), however many such edges and assertions join the two; an
+  # assertion relating the node to itself is `out`, as a self-loop is. `assertion` is the newest (as property
   # values order) of the Active Relation assertions of the group's type between the two in the
   # group's direction (subject the source, object the target), omitted when there is none: the
   # id `explain` takes; `assertions` counts them. A self-loop's neighbour is the node itself.
@@ -1446,7 +1449,8 @@ types:
       - name: assertions
         type: Integer
 
-  # The node's edges of one type in one direction. `total` counts the distinct neighbours;
+  # The node's edges and Active Relation assertions of one type in one direction. `total` counts
+  # the distinct neighbours;
   # `nodes` lists them from the request's `after`, at most `limit`, by degree descending, then
   # id; `next` is the `after` of the group's next page, omitted when this page reaches its end.
   - name: ekr.views.DetailRelationGroup
@@ -1486,11 +1490,12 @@ types:
   # after both are lowercased as ekr.views.MatchTier's Folded lowercases them (a name or alias
   # that is empty or whitespace only matches nothing); `properties` is one group per property the
   # node's record or its Active value assertions hold; `relations` is one group per edge type and
-  # direction of the node's edges, each from `after`. With `edge_type`, the request pages that
+  # direction of the node's edges and of its Active Relation assertions with another node of the
+  # revision (subject or object), each from `after`. With `edge_type`, the request pages that
   # type's groups: `same_name` and `properties` are empty, and `relations` holds that edge type's
   # groups alone, each from `after` (an edge type the node has no edge of, or an edge_type that names no edge type of the
   # revision, answers none: no refusal). Bound:
-  # `limit` members in each list and group, and each String value cut at 2,000 bytes; the number
+  # `limit` members in each list and group, and each String cut at 2,000 bytes at any depth; the number
   # of groups is the node's properties and edge types, which the ontology bounds.
   - name: ekr.views.NodeDetailV2
     kind: struct
@@ -3432,7 +3437,8 @@ commands:
   # when absent) members per list and group, paged by `after` (0 or more, 0 when absent) within
   # each relation group, and narrowed to one edge type's relation groups by `edge_type`: that edge
   # type's id, or its name in the revision's ontology — byte for byte, else the one edge type
-  # whose name equals it after both are lowercased as MatchTier's Folded lowercases them; one that
+  # whose name equals it after both are lowercased as MatchTier's Folded lowercases them (a text
+  # shaped as an id that no edge type has is read as a name, so a UUID-shaped name is found); one that
   # names no edge type of the revision answers no relation group, not a refusal. The
   # bounds are checked before the store is read whatever the format; an ekr.node-detail/1 answer
   # uses none of limit, edge_type and after, and a surface refuses a /1 request that names one as
