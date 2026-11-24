@@ -424,13 +424,15 @@ fn decode_under(
     }
     let text = std::str::from_utf8(bytes).map_err(|_| DocumentError::InvalidUtf8)?;
     let budget = RefCell::new(Budget::new(profile));
-    let shape = shape::read(text, &budget).map_err(|error| budget.borrow().error(error))?;
+    let (shape, document) =
+        shape::read(text, &budget).map_err(|error| budget.borrow().error(error))?;
     // Keep one tally. Preflight charges base nodes, keys and tags; actual typed
     // visitors charge scalar Strings and enum boundaries. Shape credits shared
     // key/enum-tag occurrences.
     // Explicit tags remain charged even when a typed scalar ignores its tag.
+    // The typed decode reads the events the preflight loaded: the text is loaded once.
     let envelope = Envelope::deserialize(checked::Checked::new(
-        serde_yaml_ng::Deserializer::from_str(text),
+        document.into_deserializer(),
         &shape,
         &budget,
     ))

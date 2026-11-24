@@ -488,9 +488,9 @@ mod tests {
             // Local tag "bound" contributes five; numeric scalar text contributes
             // three only when the actual typed String visitor requests it.
             let text = "!bound 0.0";
-            let shape = crate::document::shape::read(text, &budget).unwrap();
+            let (shape, document) = crate::document::shape::read(text, &budget).unwrap();
             let called = Cell::new(false);
-            let result = Checked::new(serde_yaml_ng::Deserializer::from_str(text), &shape, &budget)
+            let result = Checked::new(document.into_deserializer(), &shape, &budget)
                 .deserialize_string(Allocate(&called));
             if over == 0 {
                 assert_eq!(result.unwrap(), "0.0");
@@ -515,10 +515,10 @@ mod tests {
             ..Budget::default()
         });
         let text = "!bound 'value'";
-        let shape = crate::document::shape::read(text, &budget).unwrap();
+        let (shape, document) = crate::document::shape::read(text, &budget).unwrap();
         let called = Cell::new(false);
         assert_eq!(
-            Checked::new(serde_yaml_ng::Deserializer::from_str(text), &shape, &budget)
+            Checked::new(document.into_deserializer(), &shape, &budget)
                 .deserialize_string(Allocate(&called))
                 .unwrap(),
             "value"

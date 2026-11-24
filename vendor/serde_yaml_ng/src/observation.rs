@@ -92,6 +92,17 @@ impl<'input> Document<'input> {
             None => Ok(()),
         }
     }
+
+    /// The default deserializer over this event tape, without loading the input again.
+    ///
+    /// It decodes exactly as the deserializer the multi-document iterator of
+    /// [`crate::Deserializer`] yields for this document: the same events, marks, recursion
+    /// limit and retained loader error, raised after the visit as there. It does not look for
+    /// a later document; a caller that requires a single document reads the next one from
+    /// [`Documents`] first, as `from_str` would.
+    pub fn into_deserializer(self) -> crate::Deserializer<'input> {
+        crate::Deserializer::from_loaded(self.inner)
+    }
 }
 
 /// A borrowed loader event, with all tag metadata intact.
