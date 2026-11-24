@@ -161,6 +161,8 @@ mod explain_by_reference;
 mod explain_scope;
 #[path = "extraction_cli.rs"]
 mod extraction_cli;
+#[path = "extraction_validation.rs"]
+mod extraction_validation;
 #[path = "extraction_write_integrity.rs"]
 mod extraction_write_integrity;
 #[path = "gate_layout.rs"]
