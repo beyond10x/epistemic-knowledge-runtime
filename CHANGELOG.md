@@ -18,6 +18,31 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
     from the server only;
   - a browser test that finds no headless Chromium fails where one is required (`CI` or
     `EKR_REQUIRE_BROWSER` set) in all six browser test files, not only in `search_live`.
+- Event times and the change feed follow the store's active assertions
+  (story:ekr-views-history-fixes, findings 17, 22, 31 and 32 of the EKR 0.0.42 review):
+  - `ekr ocel --event-time` and `ekr process-map --event-time` date a node by the revision's
+    `Active` assertions of the selected property as well as its record, so an event time
+    `ekr apply-extraction` recorded is an event; a retracted or superseded one dates nothing;
+  - `ekr changes` (`/changes`, `changes_since`) lists an `!AttachEvidence` as `EvidenceAttached`
+    (the assertion, the entries attached) and an `!AddAlias` as `AliasAdded` (the node, its type,
+    the aliases); `ekr.views.ChangesListed` counts them as `evidence_attached` and `aliases_added`,
+    and `ekr_sdk`'s `ChangeKind` reads both;
+  - `docs/cli.md` says that the default OCEL time is historical (retracted facts included) and that
+    `--event-time` reads current values; a `since_revision` past the head stays refused as
+    documented.
+- The CLI's schema read, its output formats and the published pages say what the release does
+  (story:ekr-cli-contract-fixes, findings 33, 35, 43 and 44 of the EKR 0.0.42 review):
+  - `ekr ontology` prints each node type's `lifecycle` and named `operations` (arguments,
+    transition, preconditions, emitted events) and each edge type's `inverse`, `symmetric` and
+    `transitive`; `ekr_sdk::read::Ontology` reads them (`OntologyLifecycle`, `OntologyOperation`,
+    `OntologyTransition`) and reads an older `ekr`'s output as before;
+  - `README.md` and `docs/cli.md` name the output of the bootstrap verbs: `ekr guide` and
+    `ekr operations` print text, `ekr example` JSON for `ekr.cli-host/1` and YAML for every other
+    format;
+  - `docs/cli.md` § Partial writes says when `ekr apply-extraction` writes part of a document and
+    which report fields say so; `README.md` no longer promises a document applies whole;
+  - the public site names the workspace version as the current release, written in when the site
+    is built; it named 0.0.41 after 0.0.42 shipped.
 - `ekr.node-detail/2` (`ekr describe --format ekr.node-detail/2`, `/node/<id>`, MCP
   `describe_node`) answers what the store holds (story:ekr-views-detail-fixes, findings 27, 28
   and 30 of the EKR 0.0.42 review):
@@ -70,6 +95,14 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   with the tag. An application that copied the workaround `serde_yaml_ng` patch into its own
   manifest can drop it. `task check` runs a new step, `task sdk-standalone-check`, that builds the
   SDK from a workspace of its own, offline.
+- `ekr compare` compares the evidence the schema version in force cites
+  (story:ekr-store-integrity-fixes, finding 15 of the EKR 0.0.42 review): an eighth category,
+  `schema_evidence`, keyed by evidence id, listed where either store's version cites any. Two
+  stores whose schema changes cited different evidence compared equal before.
+- `ekr migrate` refuses a store with a stage still `Begun` or `Sealing` as `migrate-open-stage`,
+  naming each, before it writes to `--to` (finding 16 of the same review). Before, it exited 0 and
+  the copy lost the stage's run, which lives in the stage's own tenant. `docs/cli.md` now says what
+  a migration carries: the store's own tenant, no stage records.
 - Explanations and quality samples return whole, pinned evidence
   (story:ekr-explain-evidence-fixes, findings 19, 20, 21 and 23 of the EKR 0.0.42 review):
   - `ekr_sdk::read::ExplainedEvidence` reads `offset`, `record_length` and `truncated`, so a typed

@@ -17,6 +17,9 @@ pub struct StoreInventory {
     /// Each stage whose publication slot (`ekr.publication-preparation/4`) is unresolved (design
     /// § 107.5), with the occurrences its newest attempt elected, none of which is published.
     pub unresolved_stages: BTreeMap<StageId, Vec<ekr_core::EventId>>,
+    /// Each stage whose record is still open, `Begun` or `Sealing` (design § 107.1): its run is in
+    /// the stage's own tenant, which a preserving migration does not carry.
+    pub open_stages: BTreeSet<StageId>,
     /// How many events the provider log holds, of every stream.
     pub events: usize,
 }
@@ -152,6 +155,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             objects,
             prepared,
             unresolved_stages,
+            open_stages: resolved.open()?,
             events: events.len(),
         })
     }
@@ -241,6 +245,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             objects,
             prepared,
             unresolved_stages,
+            open_stages: resolved.open()?,
             events: total,
         })
     }
@@ -352,6 +357,20 @@ impl Resolution {
             Some(STAGE_SEALED) => self.stream > expected,
             _ => false,
         }
+    }
+
+    /// The stages whose record's newest event leaves them open: `StageBegun` (Begun) or
+    /// `StageSealed` (Sealing).
+    fn open(&self) -> Result<BTreeSet<StageId>, StoreError> {
+        self.stages
+            .iter()
+            .filter(|(_, newest)| matches!(newest.as_str(), STAGE_BEGUN | STAGE_SEALED))
+            .map(|(stage, _)| {
+                stage
+                    .parse()
+                    .map_err(|_| StoreError::Document(format!("inventory-stage-stream: {stage}")))
+            })
+            .collect()
     }
 }
 
