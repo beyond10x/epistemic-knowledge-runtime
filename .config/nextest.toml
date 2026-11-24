@@ -12,5 +12,45 @@ not (
 )
 """
 
+[[profile.default.overrides]]
+filter = """
+(binary_id(ekr-kernel::main) & (
+  test(/^adversary_checkpoint_cadence_p1::adversary_checkpoint_cadence_mixed_history_/)
+  | test(=adversary_checkpoint_by_size_p2::documents_of_exactly_the_byte_bound_write_a_checkpoint)
+  | test(/^replay_checkpoint::a_commit_that_reaches_the_byte_bound_writes_a_checkpoint_/)
+))
+| (binary_id(ekr::main) & (
+  test(/^conformance::(the_file_provider_passes|the_sqlite_provider_passes|each_injected_kernel_defect)/)
+  | test(=adversary_v_view_r2::dribbling_connections_up_to_the_descriptor_limit_do_not_starve_a_well_formed_client)
+  | test(=adversary_viewer_follow_ups::the_narrow_rule_holds_below_970_px_only_and_compact_0_keeps_every_parameter)
+  | test(/^adversary_viewer_compact::(a_malformed_or_repeated_compact_value|compact_beside_every_other_parameter)/)
+  | test(=adversary_p_page::markup_in_store_text_is_shown_as_text_and_never_becomes_an_element)
+  | test(/^view_page::(evidence_is_read_only|the_timeline_rows|compact_mode_|a_generated_store_of_five_thousand|the_page_draws_each_store|a_search_in_the_address)/)
+))
+"""
+priority = 90
+
+[[profile.default.overrides]]
+filter = """
+(binary_id(ekr-kernel::main) & (
+  test(=adversary_checkpoint_cadence_p1::adversary_checkpoint_cadence_crash_states_reopen_as_a_full_replay)
+  | test(=adversary_checkpoint_by_size_p2::after_0_to_12_commits_a_fresh_open_answers_as_a_full_replay_under_every_profile)
+  | test(=transaction_document_v2::a_v2_document_of_10000_operations_validates_and_commits_on_both_providers)
+))
+| (binary_id(ekr::main) & (
+  test(/^adversary_p1_14_conformance_r2::/)
+  | test(/^adversary_page_stream_1::/)
+  | test(/^adversary_viewer_follow_ups::/)
+  | test(=adversary_v_view_r2::a_head_dribbled_a_byte_a_second_is_refused_within_its_5_s)
+  | test(=explain_bounds_documents::explain_bounds_each_evidence_record_and_reads_any_part_of_it_on_every_lane)
+  | test(/^view_cli::ekr_view_(answers_busy_over_64_connections|refuses_a_body_and_survives)/)
+  | test(/^view_page::(a_chosen_node_streams|a_key_held_on_a_type_chip|a_narrow_window_opens_compact|a_neighbourhood_expanded_two_hops|a_node_dragged_in_3d|the_3d_view_draws_every_shown|the_schema_history_lists)/)
+))
+| (binary_id(ekr-integrate::main) & test(=adversary_x6_d::adv_the_deepest_flow_nesting_under_the_byte_cap_is_answered_promptly))
+| (binary_id(ekr-sdk::main) & test(=adversary_session_transport::opening_a_binary_that_never_answers_version_returns))
+| (binary_id(ekr-store) & test(=eventlog::lock_wait::a_held_lock_is_retried_only_inside_the_window_and_the_bound_is_its_sum))
+"""
+priority = 50
+
 [profile.default.junit]
 path = "junit.xml"
