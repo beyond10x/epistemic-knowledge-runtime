@@ -357,6 +357,12 @@ pub(crate) struct ReplayCache {
     /// them instead of decoding the receipt and parsing its document again. A few hashes per
     /// commit.
     pub(crate) added_evidence: BTreeMap<ContentHash, Arc<[ContentHash]>>,
+    /// The documents [`KernelAuthority::added_evidence_required`] parsed from committed receipts,
+    /// by their [`TransactionDocument::hash`], for the replay that reads the same proposals next.
+    /// A parse is a function of the bytes, so that replay takes a document whose bytes equal the
+    /// proposal's rather than parsing them a second time. Each replay takes the whole map and
+    /// drops what it did not read, so it holds at most the documents of one scan.
+    pub(crate) parsed: BTreeMap<ContentHash, Arc<TransactionDocument>>,
     /// The cell holding the [`AliasIndex`] of the newest head a read captured, by that head's
     /// revision identity and root. One slot: a read of a newer head replaces it, so this
     /// authority keeps the index of no head but the current one.
@@ -604,7 +610,8 @@ pub(crate) fn proposal(
 }
 /// [`proposal`] of the retained `bytes`, in the record format a retained proposal was written
 /// in, returning the parsed document with it so that one replay parses each retained document
-/// once.
+/// once. `held` is a document already parsed from the same bytes, if the caller has one: it is
+/// taken only when its bytes are `bytes`, and `bytes` are parsed otherwise.
 pub(crate) fn parsed_proposal(
     bytes: &[u8],
     actor: AgentId,
@@ -612,11 +619,19 @@ pub(crate) fn parsed_proposal(
     at: Timestamp,
     anchor: &AuthorityStateV1,
     format: &str,
-) -> Result<(ProposalRecordV1, TransactionDocument), StoreError> {
+    held: Option<Arc<TransactionDocument>>,
+) -> Result<(ProposalRecordV1, Arc<TransactionDocument>), StoreError> {
     registered(anchor, actor)?;
-    crate::read::count(|cost| cost.documents_parsed += 1);
-    let document = TransactionDocument::parse(bytes)
-        .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
+    let document = match held.filter(|document| document.bytes() == bytes) {
+        Some(document) => document,
+        None => {
+            crate::read::count(|cost| cost.documents_parsed += 1);
+            Arc::new(
+                TransactionDocument::parse(bytes)
+                    .map_err(|e| refuse(&format!("proposal-document: {e}")))?,
+            )
+        }
+    };
     let record = proposal_record(&document, actor, event_id, at, format)?;
     Ok((record, document))
 }
@@ -1007,6 +1022,9 @@ impl KernelAuthority {
         reuse: bool,
     ) -> Result<Option<Arc<ReplayState>>, StoreError> {
         crate::migrate::finished(self, history)?;
+        // The documents the evidence scan before this replay parsed. This replay takes them all,
+        // so none outlives it.
+        let mut parsed = std::mem::take(&mut self.cache()?.parsed);
         // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();
@@ -1119,6 +1137,7 @@ impl KernelAuthority {
                         record.submitted_at,
                         &self.anchor,
                         &record.format,
+                        parsed.remove(&record.document_hash),
                     )?;
                     require(
                         record == expected
@@ -1131,7 +1150,7 @@ impl KernelAuthority {
                         !state.transactions.contains_key(&transaction_id),
                         "transaction-identity-reused",
                     )?;
-                    state.documents.insert(transaction_id, Arc::new(document));
+                    state.documents.insert(transaction_id, document);
                     state.transactions_mut().insert(
                         transaction_id,
                         Arc::new(TransactionRecord {
@@ -2664,5 +2683,41 @@ mod tests {
             || sqlite(into.path(), false),
             "sqlite",
         );
+    }
+
+    /// A document the evidence scan parsed is what the replay of its proposal reads, and only
+    /// for the bytes it was parsed from: other bytes are parsed, as without it.
+    #[test]
+    fn a_held_document_is_taken_for_its_own_bytes_only() {
+        use crate::{ProposalRecordV1, TransactionDocument};
+        use std::sync::Arc;
+        let seed = seed();
+        let type_id = "00000000-0000-4000-8000-000000000005".parse().unwrap();
+        let (_, first) = document(&seed, 1, type_id);
+        let (_, second) = document(&seed, 2, type_id);
+        let held = Arc::new(TransactionDocument::parse(&first).unwrap());
+        let read = |bytes: &[u8], held: &Arc<TransactionDocument>| {
+            super::parsed_proposal(
+                bytes,
+                context().operator,
+                ekr_core::EventId::mint(),
+                at(1, 0),
+                &anchor(),
+                ProposalRecordV1::FORMAT,
+                Some(Arc::clone(held)),
+            )
+            .unwrap()
+        };
+        let _ = crate::read_cost();
+        let (record, taken) = read(&first, &held);
+        assert!(Arc::ptr_eq(&taken, &held));
+        assert_eq!(record.document_bytes, first);
+        assert_eq!(crate::read_cost().documents_parsed, 0);
+        let (record, parsed) = read(&second, &held);
+        assert!(!Arc::ptr_eq(&parsed, &held));
+        assert_eq!(parsed.bytes(), second.as_slice());
+        assert_eq!(record.document_bytes, second);
+        assert_eq!(record.document_hash, parsed.hash());
+        assert_eq!(crate::read_cost().documents_parsed, 1);
     }
 }

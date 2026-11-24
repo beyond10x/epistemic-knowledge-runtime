@@ -897,7 +897,9 @@ fn a_damaged_seed_envelope_is_refused_by_both_reads_as_by_a_complete_read() {
 /// A complete read parses each retained document once. Its evidence scan parses each committed
 /// one to find the payloads it added and its replay parses each proposal; the scan once named
 /// the same commits again before the replay reached them, which cost a one-shot `--full-replay`
-/// handle three parses per committed document. And the command that proposes a document parses
+/// handle three parses per committed document, and the replay then parsed each committed
+/// proposal the scan had parsed already, two per committed document. The replay now takes the
+/// scan's document. And the command that proposes a document parses
 /// the submitted bytes once: it once parsed them again to write the proposal record, so the
 /// replay reading the proposal back was the second retained parse of one command.
 #[test]
@@ -911,8 +913,9 @@ fn a_read_parses_each_retained_document_once_and_a_proposal_is_parsed_once() {
         full.read(None).unwrap();
         assert_eq!(
             ekr_kernel::read_cost().documents_parsed,
-            6,
-            "{}: three proposals replayed and three commits scanned, each once",
+            3,
+            "{}: three commits scanned, each once, and their proposals replayed from the scan's \
+             documents",
             provider(file)
         );
         let session = open(path, file);
