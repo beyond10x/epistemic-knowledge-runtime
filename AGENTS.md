@@ -140,7 +140,10 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   (`crates/ekr/tests/support/shared_browser.rs`), so they run in parallel like any other test.
   Without the variable (`cargo test -p ekr` alone) a case starts its own browser. Before
   (`story:browser-tests-one-chromium`), every case started a Chromium and the files ran one case
-  at a time: 470 s of the 498.6 s step on CI run 45260269611.
+  at a time: 470 s of the 498.6 s step on CI run 45260269611. The step's Chromium composites in
+  software (`--disable-gpu-compositing`); the pages' WebGL still draws through SwiftShader.
+  Composited through SwiftShader, one page load of the sounding store cost 13-14 s of CPU, mostly
+  during its 1.2 s of layout, against 3-4 s composited in software.
 - **A seeded store is made once.** A browser case's fixture store is seeded through the `ekr`
   binary once per build and kept under `target/<profile>/ekr-test-stores/<digest>`; every case that
   asks for the same store copies it (`crates/ekr/tests/support/seeded_store.rs`; the digest covers

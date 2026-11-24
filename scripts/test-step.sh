@@ -52,7 +52,10 @@ export EKR_SDK_TEST_EKR
 # One Chromium for the whole run, with the flags each case's own launch carries: no network for the
 # viewer's libraries (the cases serve them), no component update, no background networking.
 # Several cases' windows are open at once, each over another: none is throttled as hidden or in
-# the background, as a case's own browser, the only window, never was.
+# the background, as a case's own browser, the only window, never was. The pages' WebGL still
+# draws through SwiftShader, but the browser composites its windows in software: composited
+# through SwiftShader, a 1600x1000 window cost 13-14 s of CPU per page load of the sounding store
+# (its 1.2 s of layout at 60 frames a second), and 3-4 s composited in software.
 browser_pid=
 stop_browser() {
     if [ -n "$browser_pid" ]; then
@@ -88,6 +91,7 @@ if [ -n "$browser" ] && [ -x "$browser" ]; then
         --disable-backgrounding-occluded-windows \
         --disable-renderer-backgrounding \
         --disable-background-timer-throttling \
+        --disable-gpu-compositing \
         "--host-resolver-rules=MAP cdn.jsdelivr.net ~NOTFOUND" \
         --remote-debugging-port=0 \
         "--user-data-dir=$profile" \
