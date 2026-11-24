@@ -140,8 +140,17 @@ types:
 # component owning its domain (ESS-COMPONENT-004, `conflicting_declaration`, ess 0.36.0 and
 # 0.55.0), and ekr-store owns ekr.store, so the commands are declared in this domain, which `ekr`
 # owns, and not beside the Stage in store.yaml. The committed ekr-kernel, ekr-views and
-# ekr-integrate suites select none of them, and no suite for the `ekr` component is synthesized in
-# this wave: unit L's named cases (design § 107.10) carry their acceptance.
+# ekr-integrate suites select none of them. Until 2026-11-24 no suite for the `ekr` component was
+# synthesized and unit L's named cases (design § 107.10) carried their acceptance; since review
+# finding 40 of EKR 0.0.42 the `ekr` component's suite is systems/ekr/conformance/cli-suite.json,
+# run by `crates/ekr/tests/conformance_cli.rs` on both native providers, and the component
+# publishes ekr.store.StageIndexed, which a begin writes in the group of its StageBegun.
+#
+# BeginStage's `copy-failed` declares no event, and ess 0.36.0 refuses one that would
+# (ESS-COMMAND-004, a refused command changes nothing). The begin writes StageBegun and
+# StageIndexed before its copy and StageAbandoned after it, as docs/cli.md documents, so the
+# suite's `copy-failed` scenario is quarantined in cli-baseline.json with exactly those three
+# findings pinned.
 #
 # Joining is not a command: every store verb opens the stage's tenant instead of the store's when
 # the host names a stage (`--stage <id>` or `EKR_STAGE=<id>`), as the tenant itself is host

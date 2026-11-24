@@ -5892,6 +5892,22 @@ in `ekr.store`, and the commands reference them. The view of every stage is `ekr
 The committed `ekr-kernel`, `ekr-views` and `ekr-integrate` suites select none of the four, and no
 suite for the `ekr` component is synthesized or committed in this wave.
 
+Amendment (2026-11-24, review finding 40 of EKR 0.0.42): the `ekr` component's suite is now
+synthesized and committed as `systems/ekr/conformance/cli-suite.json` (40 scenarios: 31 outcomes of
+the stage commands and `ekr.cli.CompareStores`, 9 of the stage's lifecycle), freshness-checked by
+`task conform-fresh` and run on both native providers by `crates/ekr/tests/conformance_cli.rs`
+through `ekr::conformance::CliTarget` (cargo feature `conformance`). The component also publishes
+`ekr.store.StageIndexed`, which a begin writes in the group of its `StageBegun`.
+`systems/ekr/conformance/cli-baseline.json` pins, per provider, how many command and entity
+scenarios executed and passed and which ones the target answers unsupported: on File every stage
+scenario but `BeginStage/unsupported-provider`; on SQLite `BeginStage/unsupported-provider` and
+`PublishStage/object-moved`, whose state no public writer of the runtime makes. It quarantines
+`BeginStage/copy-failed` with its three findings pinned: the begin records `StageBegun` and
+`StageIndexed` before the copy and `StageAbandoned` after it fails, as `docs/cli.md` documents,
+while the outcome declares no event, and ess 0.36.0 refuses a refusing outcome that emits
+(`ESS-COMMAND-004`). The cases below still hold what the suite does not: PostgreSQL, the interleavings
+of two writers, and the copy's own interruptions.
+
 The cases below carry the stage's acceptance. Unit C's, unit P's and unit L's exist (2026-10-08).
 "Where the PostgreSQL tests run" means: a case's PostgreSQL part returns early without
 `EKR_TEST_POSTGRES_CONFIG` (`EKR_REQUIRE_POSTGRES=1` makes that a failure), and no workflow under
