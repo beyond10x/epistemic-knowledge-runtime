@@ -2,19 +2,21 @@
 //! holds, so that no browser a test starts reaches the network
 //! (`story:browser-tests-need-no-network`).
 //!
-//! The page (`src/cli/viewer/index.html`) loads its libraries from [`HOST`], each by a
-//! `<script src=… integrity="sha384-…" crossorigin="anonymous">` tag. The bytes are committed under
-//! `tests/fixtures/viewer-libraries/`, at the path of their address on that host, beside each
-//! package's licence. A harness that drives its browser over the DevTools protocol:
+//! The page (`src/cli/viewer/index.html`) loads its libraries from the server that serves it, at
+//! addresses under [`LOCAL`], each by a `<script src=… integrity="sha384-…">` tag; `ekr view`
+//! answers them from the bytes built into the binary, committed under [`FIXTURES`] at the path of
+//! their address there, beside each package's licence (`story:ekr-viewer-fixes`; before, the page
+//! loaded them from [`HOST`]). A harness that drives its browser over the DevTools protocol:
 //!
 //! - starts the browser with [`UNRESOLVABLE`], so nothing that escaped interception could be
 //!   answered from the network;
-//! - calls [`serve`] once connected, which pauses every request to [`HOST`] (`Fetch.enable`);
+//! - calls [`serve`] once connected, which pauses every request to [`HOST`] and under [`LOCAL`]
+//!   (`Fetch.enable`), so a harness's own server need not serve the libraries;
 //! - hands every `Fetch.requestPaused` it reads to [`answer`], which fulfils a script the page names
-//!   from its fixture and fails any other address on that host with `BlockedByClient`.
+//!   from its file and fails any other address there, and every request to [`HOST`], with
+//!   `BlockedByClient`.
 //!
-//! The page and its Content-Security-Policy are unchanged: the browser still requests each script
-//! at its pinned address and still checks it against its `integrity`.
+//! The browser still checks each script against its `integrity`.
 
 // Six test binaries include this file and each uses a part of it.
 #![allow(dead_code)]
@@ -25,21 +27,25 @@ use std::sync::OnceLock;
 use base64::Engine as _;
 use serde_json::{json, Value};
 
-/// The host the page loads its libraries from.
+/// The host the page loaded its libraries from before it was served them by `ekr view`; a request
+/// to it is failed.
 pub(crate) const HOST: &str = "https://cdn.jsdelivr.net/";
 
 /// The browser flag that leaves [`HOST`] unresolvable for the browser.
 pub(crate) const UNRESOLVABLE: &str = "--host-resolver-rules=MAP cdn.jsdelivr.net ~NOTFOUND";
 
-/// The directory the fixtures live in, relative to the crate.
-pub(crate) const FIXTURES: &str = "tests/fixtures/viewer-libraries";
+/// The path under which the page loads its libraries from the server that serves it.
+pub(crate) const LOCAL: &str = "/assets/libraries/";
+
+/// The directory the libraries live in, relative to the crate: the bytes `ekr view` embeds.
+pub(crate) const FIXTURES: &str = "src/cli/viewer/libraries";
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"))
 }
 
-/// One script the page loads from elsewhere: its address and its `integrity` attribute, empty when
-/// the tag has none.
+/// One script the page loads: its address and its `integrity` attribute, empty when the tag has
+/// none.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Pinned {
     pub(crate) url: String,
@@ -76,10 +82,20 @@ pub(crate) fn page_pinned() -> &'static [Pinned] {
     })
 }
 
-/// Where the fixture of `url` lives: its path on [`HOST`] under [`FIXTURES`]. `None` for another
-/// host, or a path with an empty, `.` or `..` segment, a query or a fragment.
-pub(crate) fn fixture_path(url: &str) -> Option<PathBuf> {
-    let path = url.strip_prefix(HOST)?;
+/// The address a request for `url` names on the server that serves the page, when it is under
+/// [`LOCAL`]: `url` itself when it is a path, else its path after the scheme and authority.
+pub(crate) fn local_address(url: &str) -> Option<&str> {
+    let path = match url.split_once("://") {
+        Some((_, rest)) => &rest[rest.find('/')?..],
+        None => url,
+    };
+    path.starts_with(LOCAL).then_some(path)
+}
+
+/// Where the file of `address` lives: its path under [`LOCAL`] taken under [`FIXTURES`]. `None` for
+/// another address, or a path with an empty, `.` or `..` segment, a query or a fragment.
+pub(crate) fn fixture_path(address: &str) -> Option<PathBuf> {
+    let path = address.strip_prefix(LOCAL)?;
     if path.contains(['?', '#', '\\'])
         || path
             .split('/')
@@ -90,48 +106,53 @@ pub(crate) fn fixture_path(url: &str) -> Option<PathBuf> {
     Some(manifest_dir().join(FIXTURES).join(path))
 }
 
-/// The bytes served for `url`: its fixture, when the embedded page loads that address; `None`
+/// The bytes served for `address`: its file, when the embedded page loads that address; `None`
 /// otherwise.
-pub(crate) fn fixture(url: &str) -> Option<Vec<u8>> {
-    if !page_pinned().iter().any(|pinned| pinned.url == url) {
+pub(crate) fn fixture(address: &str) -> Option<Vec<u8>> {
+    if !page_pinned().iter().any(|pinned| pinned.url == address) {
         return None;
     }
-    std::fs::read(fixture_path(url)?).ok()
+    std::fs::read(fixture_path(address)?).ok()
 }
 
-/// `Fetch.enable`'s parameters: every request to [`HOST`] paused before it is sent, and the
-/// harness's own `others` besides. Enabling again replaces the patterns, so a harness that pauses
-/// requests of its own passes them here rather than enabling without [`HOST`].
+/// `Fetch.enable`'s parameters: every request to [`HOST`] and under [`LOCAL`] paused before it is
+/// sent, and the harness's own `others` besides. Enabling again replaces the patterns, so a harness
+/// that pauses requests of its own passes them here rather than enabling without these.
 pub(crate) fn patterns_with(others: &[Value]) -> Value {
-    let mut patterns = vec![json!({"urlPattern": format!("{HOST}*"), "requestStage": "Request"})];
+    let mut patterns = vec![
+        json!({"urlPattern": format!("{HOST}*"), "requestStage": "Request"}),
+        json!({"urlPattern": format!("*{LOCAL}*"), "requestStage": "Request"}),
+    ];
     patterns.extend(others.iter().cloned());
     json!({ "patterns": patterns })
 }
 
-/// Pauses every request to [`HOST`], through the harness's own protocol `call`, before the page is
-/// opened.
+/// Pauses every request to [`HOST`] and under [`LOCAL`], through the harness's own protocol
+/// `call`, before the page is opened.
 pub(crate) fn serve<T>(call: impl FnOnce(&str, Value) -> T) -> T {
     call("Fetch.enable", patterns_with(&[]))
 }
 
 /// The command, and its parameters, that answers a `Fetch.requestPaused` event's `params` from the
-/// fixtures. `None` for a request to another host, which the harness answers itself.
+/// library files. `None` for a request to another address, which the harness answers itself.
 pub(crate) fn answer(paused: &Value) -> Option<(&'static str, Value)> {
     answer_from(paused, fixture)
 }
 
-/// [`answer`], with the bytes for an address taken from `body`: a fulfilment when it has some, a
-/// `BlockedByClient` failure when it has none.
+/// [`answer`], with the bytes for an address under [`LOCAL`] taken from `body`: a fulfilment when
+/// it has some, a `BlockedByClient` failure when it has none. A request to [`HOST`] is failed.
 pub(crate) fn answer_from(
     paused: &Value,
     body: impl Fn(&str) -> Option<Vec<u8>>,
 ) -> Option<(&'static str, Value)> {
     let url = paused["request"]["url"].as_str()?;
-    if !url.starts_with(HOST) {
-        return None;
-    }
+    let bytes = if url.starts_with(HOST) {
+        None
+    } else {
+        body(local_address(url)?)
+    };
     let id = paused["requestId"].clone();
-    Some(match body(url) {
+    Some(match bytes {
         Some(bytes) => ("Fetch.fulfillRequest", fulfilment(&id, &bytes)),
         None => (
             "Fetch.failRequest",
@@ -140,8 +161,7 @@ pub(crate) fn answer_from(
     })
 }
 
-/// A `200` carrying `bytes` as a script any origin may read: the page's tags are
-/// `crossorigin="anonymous"`, so the browser checks the answer under CORS before its integrity.
+/// A `200` carrying `bytes` as a script any origin may read.
 pub(crate) fn fulfilment(request: &Value, bytes: &[u8]) -> Value {
     json!({
         "requestId": request,

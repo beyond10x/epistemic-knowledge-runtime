@@ -6,6 +6,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- The graph viewer and `/find` keep the address in step with the page, and the viewer opens
+  offline (story:ekr-viewer-fixes, findings 24-26 and 39 of the EKR 0.0.42 review):
+  - a revision the viewer's address names stays in it, the head's too, so a `/find` result link
+    no longer moves to a later head once opened; choosing the head in the page drops it;
+  - submitting a search on `/find` writes the query, and the chosen revision, into the address,
+    as the form's own GET does (the page is not reloaded; typing alone leaves the address);
+  - `ekr view` serves the viewer's four graph libraries (graphology 0.26.0, graphology-library
+    0.8.0, sigma 3.0.3, 3d-force-graph 1.80.0, each MIT) from the binary under
+    `/assets/libraries/`; the page loads nothing from another host, and its policy allows scripts
+    from the server only;
+  - a browser test that finds no headless Chromium fails where one is required (`CI` or
+    `EKR_REQUIRE_BROWSER` set) in all six browser test files, not only in `search_live`.
+
 - Extraction and strict validation follow the schema in the SDK and the CLI
   (story:ekr-extraction-validation-fixes, findings 5-11 and 14 of the EKR 0.0.42 review):
   - an inherited property is the nearest ancestor's, each generation in name order, in the reader
