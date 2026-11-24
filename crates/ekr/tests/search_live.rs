@@ -305,9 +305,13 @@ impl Browser {
             return None;
         };
         let dir = tempfile::tempdir().unwrap();
-        let child = shared_browser::launch(None, || {
-            Command::new("taskset")
-                .args(["-c", "0-1", "nice", "-n", "19"])
+        // A browser of its own even under the test step: these cases type into the focused field
+        // (`Input.insertText`), and in the shared browser another case's new window can take the
+        // focus between the field's focus and the typing (CI run 45300454015).
+        // No longer pinned to two cores: the cases run in parallel, no more one at a time.
+        let child = shared_browser::Browser::Own({
+            Command::new("nice")
+                .args(["-n", "19"])
                 .arg(binary)
                 .args([
                     "--headless",
@@ -326,10 +330,8 @@ impl Browser {
                 .spawn()
                 .unwrap()
         });
-        let (port, url) = child.shared_page().unwrap_or_else(|| {
-            let port = announced_port(dir.path());
-            (port, page_target(port))
-        });
+        let port = announced_port(dir.path());
+        let url = page_target(port);
         let tcp = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
         let (socket, _) = tungstenite::client(url, tcp).unwrap();
