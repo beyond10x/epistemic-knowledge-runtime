@@ -10,8 +10,12 @@ transaction that an agent proposes, a deterministic validator checks and only th
 a new immutable revision, so nothing reaches the canonical state unchecked and every state can be
 replayed and explained.
 
-The `ekr` binary is the way in. It is built for agents as much as for people: every verb prints
-JSON, every refusal has a name, and the binary documents its own workflow (`ekr guide`).
+The `ekr` binary is the way in. It is built for agents as much as for people: every store verb
+prints JSON, every refusal has a name, and the binary documents its own workflow (`ekr guide`).
+The bootstrap verbs print what they describe: `ekr guide` and `ekr operations` print text,
+`ekr example` prints a document in its own format (JSON for `ekr.cli-host/1`, YAML for every
+other), and `ekr schema` and `ekr mint` print JSON. [Exit codes and
+output](docs/cli.md#exit-codes-and-output) lists which verb prints what.
 
 It is the third generation of the organisation-memory line: an earlier, non-public prototype (v1, Python over a
 markdown store) and `org-brain` (v2, a Rust engine on the entity-runtime kernel) came before it.
@@ -54,7 +58,7 @@ authentication service. See [hosted PostgreSQL](docs/cli.md#hosted-postgresql).
 | store checks as reads, each a one-shot verb and an `ekr session` verb: `ekr quality` (seed and item evidence coverage, constrained properties and declaring types, shared names), `ekr rejections` (validation issues of rejected transactions) and `ekr code-names` (literal names or whole words with `--words` in consumer source files); see [`docs/cli.md`](docs/cli.md) | findings for committed transactions: a transaction commits only when no validator raised an issue |
 | `ekr sample` and `ekr fact-quality`: reproducible facts with retained evidence and a judged sample's Wilson interval; the typed SDK draws samples and runs an injected judge in ordered batches; an empty judged sample reports null rate and bounds 0–1; see [`docs/cli.md`](docs/cli.md) and [`docs/sdk.md`](docs/sdk.md) | choosing the judge: the runtime supplies no model or judgement policy |
 | `AttachEvidence` adds retained evidence to an accepted, active assertion through a validated transaction; snapshots, explanations and quality reads include its revision without rewriting the original assertion | attaching evidence to a retracted or superseded assertion |
-| `ekr.extraction-document/1` and `ekr apply-extraction`: the document an extracting agent writes, with its schema (`ekr schema`) and an example (`ekr example`), applied to a store in one verb through the SDK's own routine; a second run adds nothing, and a document is refused before any write when it cannot apply whole | the extraction's judging of facts: a consumer runs it |
+| `ekr.extraction-document/1` and `ekr apply-extraction`: the document an extracting agent writes, with its schema (`ekr schema`) and an example (`ekr example`), applied to a store in one verb through the SDK's own routine; a document the reader refuses writes nothing, and a second run adds no node, evidence or assertion. The writes are not all or nothing: the schema change and new nodes commit before any fact is validated, a fact validation rejects is listed under `rejected`, as is a fact the reader refuses when `--strict` is not given, and the rest applies; see [Partial writes](docs/cli.md#partial-writes) | the extraction's judging of facts: a consumer runs it; one document applied all or nothing without an [`ekr stage`](docs/cli.md#ekr-stage) (SQLite and PostgreSQL) |
 | `ekr-sdk`: a Rust client that drives a store through one child `ekr session`, with typed replies, builders for transaction and seed documents, an ontology compared by name, resolve-or-create through a cache, batches that bisect a rejection and carry each evidence item with the first assertion citing it, and typed reads including the store checks; see [`docs/sdk.md`](docs/sdk.md) | an async API: the SDK blocks, and a Tokio program calls it inside `spawn_blocking` |
 
 A command continues from the store's replay checkpoint rather than replaying the whole

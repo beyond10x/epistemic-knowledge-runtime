@@ -145,7 +145,8 @@ exactly that.
 | 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: ekr.views.NotSeeded: <reason>` from every verb that meets a store with no seed (the reason as before: `the lineage has no seed`, or `the store was never seeded` from a view), `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, `ekr: <name>: <reason>` for a refusal of a stage ([`ekr stage`](#ekr-stage)), or clap's usage message |
 | 3 | `publication-outcome-unknown`: the store cannot say whether a write took effect; it may have been recorded. Read `ekr head` or `ekr transactions --state Committed` before writing it again | `ekr: publication-outcome-unknown: publication outcome is unknown; resolve the exact retained occurrence` on stderr |
 
-`guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
+`guide` and `operations` print text; `example` prints a document in its own format, JSON for
+`ekr.cli-host/1`, YAML for every other; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
 `{"Node": "<id>"}` — where a YAML input writes the tag `!Node <id>`. A proposal record's
 `document_bytes` prints as one standard base64 string.
@@ -165,7 +166,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
-| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent`, `schema_version_evidence` |
+| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, each node type's lifecycle and named operations, each edge type's inverse and flags, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent`, `schema_version_evidence` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr compare` | reads | `--other <store>`, optional `--other-backend <provider>`, `--other-host <file>`, `--at <revision>`, `--other-at <revision>` | the `ekr.store-comparison/1` document: whether two stores hold the same knowledge, commit times and transaction ids aside, and per category the first differing ids with the fields that differ |
@@ -548,6 +549,31 @@ committed the verb does not fault: if a request then gets no answer it can act o
 report with what committed until then and `stopped` saying why. A fault before anything committed
 is exit 1, with nothing written.
 
+#### Partial writes
+
+The verb writes in several transactions, and a document is not applied all or nothing. Nothing is
+written when the reader refuses the document, or, with `--strict`, any fact in it. Past the
+reader, the schema change and the new nodes commit before any fact is validated, and each fact
+commits or is rejected on its own:
+
+- without `--strict`, a fact the reader refuses is skipped: `rejected` lists it with a `refusal`,
+  and the rest of the document applies. A `replaces` fact with nothing to replace is such a row
+  with or without `--strict`;
+- with or without `--strict`, a fact validation rejects (`edge-cardinality`: its subject already
+  has the one edge of that type it may have) is listed under `rejected` with the `transaction_id` and
+  `issues` of the rejected transaction. The nodes created for it and every other fact that
+  committed stay committed;
+- once something has committed, a request that gets no answer the verb can act on stops it:
+  `stopped` says why, and `committed` lists what committed until then.
+
+So after exit 0 the document applied whole only when `rejected` and `ambiguous` are empty and
+`stopped` is `null`; `committed` lists every transaction written, `held` the facts the store
+already held. Applying the same document again creates no node, evidence item or assertion it
+created before, tries each rejected fact again and records another rejected transaction for each
+one rejected again. A caller that needs the document whole or not at all applies it in an
+[`ekr stage`](#ekr-stage) (SQLite and PostgreSQL), checks the report, and publishes or abandons
+the stage.
+
 ### `ekr head`
 
 Prints the newest revision number and its root hashes. Use it for `validate --against` and to see
@@ -579,7 +605,11 @@ printed; only a new rejection in the range does.
 ### `ekr ontology`
 
 Prints the schema in force at the head, or at `--at N` as of that committed revision:
-`node_types` and `edge_types` with their ids, names, parents, endpoint types and properties, and the
+`node_types` and `edge_types` with their ids, names, parents, endpoint types and properties; each
+node type's `lifecycle` (`initial`, `states`, `transitions`, or `null`) and `operations` (by the
+key `!Invoke` names: `name`, `arguments` with their value types, `preconditions`, `transition`,
+`emits`), as the [seed](#lifecycles-and-named-operations) declared them; each edge type's
+`inverse` (its id and name, or `null`), `symmetric` and `transitive`; and the
 schema version — `schema_version` (its id), `schema_version_number` (`0` at the seed, one more per
 committed schema change), `schema_version_parent` (the version it was derived from, `null` at the
 seed) and `schema_version_evidence` (the evidence ids the schema transaction that made the version
@@ -755,8 +785,9 @@ It prints the `ekr.store-comparison/1` document (`ekr.cli.CompareStores` in
 
 `categories` lists six, in this order (one is shown above): `types`, `properties`, `nodes`,
 `edges`, `assertions` and `evidence`, then `superseded` where either store holds a
-[supersession record](#a-node-superseded-by-another). `left` and `right` count the ids each store holds there;
-`differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
+[supersession record](#a-node-superseded-by-another), then `schema_evidence` where either store's
+schema version in force [cites evidence](#6-cite-the-evidence-a-version-rests-on). `left` and
+`right` count the ids each store holds there; `differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
 `presence` is `left` or `right` for an id only one store holds, and `both` for one both hold
 differently, with `fields` naming the fields that differ. `equal` is `true` exactly when every
 category's is.
@@ -770,9 +801,11 @@ category's is.
 | `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
 | `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
 | `superseded` | superseded node id | `node` and `edges` (as `nodes` and `edges` compare them), `by`, `revision`, `reason`, `evidence`, and a merged node's `merge` lineage; listed only where either store holds a record |
+| `schema_evidence` | evidence id | that the schema version in force cites it (`schema_version_evidence` of `ekr ontology`); an id one store's version cites and the other's does not differs, with no `fields`; listed only where either store's version cites evidence |
 
 Nothing a commit's clock or its transaction decides is compared: not an assertion's
-`transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
+`transaction_time`, not the schema version's id, number or creation time, not a revision's root;
+what the version in force cites is compared, an earlier version's citations are not. Two stores
 built from the same seed and the same transaction documents at different times compare equal, on
 one provider or on two. A store never seeded is refused as `ekr.views.NotSeeded`, and a revision a
 store does not hold as `ekr.kernel.RevisionNotFound`, exit 2, the message naming which store.
@@ -2103,8 +2136,15 @@ a store; `migrate-destination-is-source`, `migrate-destination-inside-source` an
 `migrate-destination-contains-source` for a `--to` that is `--store` (a symbolic link to it or,
 for `sqlite`, one of its side files included), lies inside it, or contains it — `--to` is resolved
 through its nearest existing directory, and nothing is created; `migrate-unresolved-preparation`
-for a decision a command elected and never published — run that command again first — and a
-`--store` that does not replay.
+for a decision a command elected and never published — run that command again first;
+`migrate-open-stage` for a store with an [`ekr stage`](#ekr-stage) still `Begun` or `Sealing`,
+naming each such stage — publish or abandon it first; and a `--store` that does not replay.
+
+A migration carries the store's own tenant: its seed, every proposal, validation, rejection,
+commit and stale decision, and every object. It does not carry stage records or a stage's
+tenant: the new store lists no stage in `ekr stage list` and refuses a stage id of the old one,
+and a published stage's revisions move as the store's revisions they became. An open stage's run
+is in its own tenant only, which is why a store that has one is refused.
 
 A migration that stops after it began writing — `migrate-verification-disagrees`, a new store
 that does not replay to the old one's state, a full disk, an interrupted process — leaves the store
