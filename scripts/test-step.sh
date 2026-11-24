@@ -9,8 +9,8 @@
 #   3. Runs every test under cargo-nextest, one process per test (.config/nextest.toml): a test
 #      over 60 s is killed and fails, and the run is stopped at the step's budget.
 #   4. Runs the doc tests, which nextest does not run.
-#   5. Prints the ten slowest tests, the browser cases' share, how busy the CPUs were and the run
-#      time against the budget of 120 s.
+#   5. Prints the ten slowest tests, the browser cases' share and how many of them drove a
+#      browser, how busy the CPUs were and the run time against the budget of 120 s.
 #
 # Exits non-zero when a build, a test or a doc test failed. Running longer than the budget fails
 # the step once `enforced` is 1 (AGENTS.md, "The gate"): it is set with the change that brings the
@@ -130,6 +130,10 @@ cpu_ticks() {
         /proc/stat 2>/dev/null
 }
 cpu_before=$(cpu_ticks)
+# Each browser case that drove a browser appends a line here (support/shared_browser.rs, `CASES`).
+EKR_TEST_BROWSER_CASES=$work/browser-cases.txt
+export EKR_TEST_BROWSER_CASES
+rm -f "$EKR_TEST_BROWSER_CASES"
 cargo nextest run --workspace --locked --no-fail-fast
 tests=$?
 cpu_after=$(cpu_ticks)
@@ -172,8 +176,23 @@ if [ -f "$junit" ]; then
         if (first == "") span = "unknown"; else span = sprintf("%.1f s", last - first)
         printf "browser cases: %d, %.1f s summed, %s from the first start to the last end\n", cases, sum, span
     }' "$junit"
+    browser_cases=$(grep '<testcase ' "$junit" | grep ' classname="ekr::main"' |
+        grep -cE ' name="(view_page|search_live|adversary_p_page|adversary_page_stream_1|adversary_viewer_compact|adversary_viewer_follow_ups)::')
 else
     echo "  (no report: the run did not start)"
+    browser_cases=0
+fi
+# A case of those files that skipped for want of a browser passes all the same; these are the ones
+# that held one. On the forge a run in which none did fails, as a browser left out of the runner.
+drove=0
+if [ -s "$EKR_TEST_BROWSER_CASES" ]; then
+    drove=$(cut -d' ' -f1 "$EKR_TEST_BROWSER_CASES" | sort -u | wc -l | tr -d ' ')
+fi
+echo "browser cases that drove a browser: $drove of the $browser_cases cases of the browser files"
+unbrowsed=0
+if [ "${GITHUB_ACTIONS:-}" = true ] && [ "$browser_cases" -gt 0 ] && [ "$drove" -eq 0 ]; then
+    echo "test step: on the forge no browser case drove a browser" >&2
+    unbrowsed=1
 fi
 
 build_time=$((built - started))
@@ -193,7 +212,7 @@ if [ "$run_time" -gt "$budget" ]; then
     over=$enforced
 fi
 
-if [ "$tests" -ne 0 ] || [ "$docs" -ne 0 ] || [ "$over" -ne 0 ]; then
-    echo "test step: failed (nextest exit $tests, doc tests exit $docs, over the budget: $over)" >&2
+if [ "$tests" -ne 0 ] || [ "$docs" -ne 0 ] || [ "$over" -ne 0 ] || [ "$unbrowsed" -ne 0 ]; then
+    echo "test step: failed (nextest exit $tests, doc tests exit $docs, over the budget: $over, no browser case drove a browser: $unbrowsed)" >&2
     exit 1
 fi

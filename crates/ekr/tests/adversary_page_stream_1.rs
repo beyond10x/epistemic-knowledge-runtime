@@ -751,58 +751,102 @@ impl Cdp {
                     None => Ok(value["result"].clone()),
                 };
             }
-            let params = &value["params"];
-            if value["method"] == "Fetch.requestPaused" {
-                // a library the page loads, answered from the fixtures; the reply is passed over
-                if let Some((answer, answered)) = viewer_libraries::answer(params) {
-                    self.console.push(format!(
-                        "library {answer} {}",
-                        params["request"]["url"].as_str().unwrap_or_default()
-                    ));
-                    self.next += 1;
-                    let command =
-                        serde_json::json!({"id": self.next, "method": answer, "params": answered});
-                    self.socket
-                        .send(tungstenite::Message::Text(command.to_string().into()))
-                        .map_err(|error| format!("{answer}: sending: {error}"))?;
-                }
-                continue;
-            }
-            if value.get("error").is_some() {
-                self.console.push(format!("protocol error: {value}"));
-            }
-            match value["method"].as_str() {
-                Some("Runtime.consoleAPICalled") => self.console.push(format!(
-                    "console.{}: {}",
-                    params["type"].as_str().unwrap_or(""),
-                    params["args"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .map(|arg| arg.get("value").map_or_else(
-                            || arg["description"].as_str().unwrap_or("").to_owned(),
-                            ToString::to_string
-                        ))
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                )),
-                Some("Runtime.exceptionThrown") => self.console.push(format!(
-                    "exception: {}",
-                    params["exceptionDetails"]["exception"]["description"]
-                        .as_str()
-                        .or_else(|| params["exceptionDetails"]["text"].as_str())
-                        .unwrap_or("")
-                )),
-                Some("Log.entryAdded") => self.console.push(format!(
-                    "log.{}: {} {}",
-                    params["entry"]["level"].as_str().unwrap_or(""),
-                    params["entry"]["text"].as_str().unwrap_or(""),
-                    params["entry"]["url"].as_str().unwrap_or("")
-                )),
-                _ => {}
-            }
-            self.events.push(value);
+            self.note(value)?;
         }
+    }
+
+    /// Takes in one message that is not the reply a call waits for: an event is kept, a paused
+    /// library request answered.
+    fn note(&mut self, value: Value) -> Result<(), String> {
+        let params = &value["params"];
+        if value["method"] == "Fetch.requestPaused" {
+            // a library the page loads, answered from the fixtures; the reply is passed over
+            if let Some((answer, answered)) = viewer_libraries::answer(params) {
+                self.console.push(format!(
+                    "library {answer} {}",
+                    params["request"]["url"].as_str().unwrap_or_default()
+                ));
+                self.next += 1;
+                let command =
+                    serde_json::json!({"id": self.next, "method": answer, "params": answered});
+                self.socket
+                    .send(tungstenite::Message::Text(command.to_string().into()))
+                    .map_err(|error| format!("{answer}: sending: {error}"))?;
+            }
+            return Ok(());
+        }
+        if value.get("error").is_some() {
+            self.console.push(format!("protocol error: {value}"));
+        }
+        match value["method"].as_str() {
+            Some("Runtime.consoleAPICalled") => self.console.push(format!(
+                "console.{}: {}",
+                params["type"].as_str().unwrap_or(""),
+                params["args"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|arg| arg.get("value").map_or_else(
+                        || arg["description"].as_str().unwrap_or("").to_owned(),
+                        ToString::to_string
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )),
+            Some("Runtime.exceptionThrown") => self.console.push(format!(
+                "exception: {}",
+                params["exceptionDetails"]["exception"]["description"]
+                    .as_str()
+                    .or_else(|| params["exceptionDetails"]["text"].as_str())
+                    .unwrap_or("")
+            )),
+            Some("Log.entryAdded") => self.console.push(format!(
+                "log.{}: {} {}",
+                params["entry"]["level"].as_str().unwrap_or(""),
+                params["entry"]["text"].as_str().unwrap_or(""),
+                params["entry"]["url"].as_str().unwrap_or("")
+            )),
+            _ => {}
+        }
+        self.events.push(value);
+        Ok(())
+    }
+
+    /// Takes in the messages the browser sends for up to `wait`, each as it arrives, and returns
+    /// early once an event named `until` has arrived. A paused library request is answered when it
+    /// arrives: a page whose clock waits on a request it made waits no longer than that.
+    fn pump(&mut self, wait: Duration, until: &str) -> Result<(), String> {
+        let deadline = Instant::now() + wait;
+        while !self.events.iter().any(|event| event["method"] == until) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Ok(());
+            }
+            // the socket keeps a message that arrived in part, and reads on from it next time
+            self.socket.get_ref().set_read_timeout(Some(left)).unwrap();
+            let message = self.socket.read();
+            self.socket
+                .get_ref()
+                .set_read_timeout(Some(Duration::from_secs(60)))
+                .unwrap();
+            let message = match message {
+                Ok(message) => message,
+                Err(tungstenite::Error::Io(error))
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    return Ok(());
+                }
+                Err(error) => return Err(format!("reading: {error}")),
+            };
+            let tungstenite::Message::Text(text) = message else {
+                continue;
+            };
+            self.note(serde_json::from_str(&text).unwrap())?;
+        }
+        Ok(())
     }
 
     /// The value `expression` evaluates to in the page.
@@ -963,7 +1007,10 @@ fn dump_once(browser: &Path, url: &str, budget: u32, own: bool) -> Option<String
                     "the page's virtual clock was at {clock} ms of {budget} after {DUMP_CEILING:?}"
                 )));
             }
-            std::thread::sleep(Duration::from_millis(200));
+            cdp.pump(
+                Duration::from_millis(200),
+                "Emulation.virtualTimeBudgetExpired",
+            )?;
         }
     })();
     child.stop();

@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.44] — 2026-11-24
+
 ### Fixed
 
 - The graph viewer and `/find` keep the address in step with the page, and the viewer opens
@@ -121,6 +123,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   between the look at it and the check of its permission counted as a file this process may not
   write; a sidecar that is not there is now no obstacle, for the File store's `writer.lock`,
   `events.jsonl` and `blobs` too. `cargo xtask search-web` builds where `CARGO_HOME` is a symlink.
+
+### Changed
+
+- The viewer's 2D layout stops within 100 ms of 800 ms of calm: it reads the node positions every
+  100 ms and compares each with the one 400 ms before. Before, it compared them every 400 ms from
+  the layout's start, and so stopped up to 400 ms later.
 
 ## [0.0.43] — 2026-11-23
 
