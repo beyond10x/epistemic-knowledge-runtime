@@ -79,6 +79,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   - `ekr sample` lists the evidence attached to a fact after it was written (`!AttachEvidence`)
     beside the evidence it cites, each such entry with `attached_at`, the revision that attached
     it. Before, the judge saw only the evidence the fact was written with.
+- A read verb racing the first `ekr seed` of a SQLite store no longer answers `store-read-only`
+  (story:ekr-store-open-race-and-xtask-path). A `-wal` or `-shm` that the closing seed unlinked
+  between the look at it and the check of its permission counted as a file this process may not
+  write; a sidecar that is not there is now no obstacle, for the File store's `writer.lock`,
+  `events.jsonl` and `blobs` too. `cargo xtask search-web` builds where `CARGO_HOME` is a symlink.
 
 ## [0.0.43] — 2026-11-23
 
