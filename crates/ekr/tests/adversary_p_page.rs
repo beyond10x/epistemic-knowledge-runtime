@@ -178,14 +178,15 @@ const SETTLE_BUDGET: u32 = 8000;
 const RENDER_ATTEMPTS: usize = 3;
 /// How long the page's virtual clock may stand still, with no request in flight, before the run is
 /// taken for stalled.
-const STALL_WINDOW: Duration = Duration::from_secs(30);
-/// The longest one run may take while its clock keeps moving.
-const SETTLE_CEILING: Duration = Duration::from_secs(600);
+const STALL_WINDOW: Duration = Duration::from_secs(20);
 
 /// The DOM after `url` loads and [`SETTLE_BUDGET`] ms of virtual time pass, as
 /// `--virtual-time-budget` gives, from a browser held to two cores at the lowest priority and
-/// driven over the DevTools protocol, so that the page's libraries are served from the fixtures. A
-/// run whose virtual clock stalls is tried again, up to [`RENDER_ATTEMPTS`] runs.
+/// driven over the DevTools protocol, so that the page's libraries are served from the fixtures. The
+/// page is given [`shared_browser::WORKER_GUARD`] (`story:ekr-browser-case-hang`). A run whose
+/// virtual clock stalls is tried again, up to [`RENDER_ATTEMPTS`] runs; none runs past the case's
+/// bound ([`shared_browser::case_deadline`]), and one that would fails the case naming where the
+/// clock stood.
 fn rendered(browser: &Path, url: &str) -> String {
     for _ in 0..RENDER_ATTEMPTS {
         match rendered_once(browser, url) {
@@ -226,7 +227,8 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
     });
     let (port, page) = child.devtools();
     let tcp = TcpStream::connect(("127.0.0.1", port)).unwrap();
-    tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
+    tcp.set_read_timeout(Some(shared_browser::REPLY_BOUND))
+        .unwrap();
     let (socket, _) = tungstenite::client(page.unwrap_or_else(|| page_socket(port)), tcp).unwrap();
     let mut cdp = Cdp {
         socket,
@@ -238,6 +240,11 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
     cdp.call("Runtime.enable", json!({}));
     cdp.call("Log.enable", json!({}));
     cdp.call("Network.enable", json!({}));
+    cdp.call("Page.enable", json!({}));
+    cdp.call(
+        "Page.addScriptToEvaluateOnNewDocument",
+        json!({ "source": shared_browser::WORKER_GUARD }),
+    );
     viewer_libraries::serve(|method, params| cdp.call(method, params));
     cdp.call("Page.navigate", json!({ "url": url }));
     // the policy `--virtual-time-budget` sets, once the page is there: the clock waits while a
@@ -246,7 +253,7 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
         "Emulation.setVirtualTimePolicy",
         json!({"policy": "pauseIfNetworkFetchesPending", "budget": SETTLE_BUDGET}),
     );
-    let start = Instant::now();
+    let (start, deadline) = (Instant::now(), shared_browser::case_deadline());
     let (mut clock, mut moved) = (Value::Null, Instant::now());
     while !cdp.budget_expired {
         // `performance.now()` reads virtual time: a slow run on a loaded machine keeps it moving
@@ -254,14 +261,25 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
         if now != clock || !cdp.in_flight.is_empty() {
             (clock, moved) = (now, Instant::now());
         }
-        if moved.elapsed() >= STALL_WINDOW || start.elapsed() >= SETTLE_CEILING {
+        if moved.elapsed() >= STALL_WINDOW {
             return Err(format!(
                 "the page's virtual clock stood at {clock} ms of {SETTLE_BUDGET}, {:?} into the run; its log:\n{}",
                 start.elapsed(),
                 cdp.log.join("\n")
             ));
         }
-        cdp.pump(Duration::from_millis(200));
+        assert!(
+            Instant::now() < deadline,
+            "the page's virtual clock stood at {clock} ms of {SETTLE_BUDGET} when the case's bound ended the run, {:?} into it, with {} request(s) in flight; its log:\n{}",
+            start.elapsed(),
+            cdp.in_flight.len(),
+            cdp.log.join("\n")
+        );
+        cdp.pump(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .min(Duration::from_millis(200)),
+        );
     }
     Ok(cdp
         .eval("document.documentElement.outerHTML")
@@ -275,7 +293,7 @@ fn page_socket(port: u16) -> String {
     let start = Instant::now();
     loop {
         let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
-        list.set_read_timeout(Some(Duration::from_secs(30)))
+        list.set_read_timeout(Some(shared_browser::REPLY_BOUND))
             .unwrap();
         write!(
             list,
@@ -310,7 +328,7 @@ fn page_socket(port: u16) -> String {
             return address.to_owned();
         }
         assert!(
-            start.elapsed() < Duration::from_secs(60),
+            start.elapsed() < shared_browser::REPLY_BOUND,
             "the browser listed no page target: {targets}"
         );
         std::thread::sleep(Duration::from_millis(50));
@@ -337,7 +355,11 @@ impl Cdp {
         let id = self.next;
         self.send(&json!({"id": id, "method": method, "params": params}));
         loop {
-            let tungstenite::Message::Text(text) = self.socket.read().unwrap() else {
+            let tungstenite::Message::Text(text) = self
+                .socket
+                .read()
+                .unwrap_or_else(|error| panic!("{method}: no reply from the browser: {error}"))
+            else {
                 continue;
             };
             let value: Value = serde_json::from_str(&text).unwrap();
@@ -369,7 +391,10 @@ impl Cdp {
             Some("Network.requestWillBeSent") => {
                 self.log
                     .push(format!("request {}", text(&params["request"]["url"])));
-                self.in_flight.insert(text(&params["requestId"]));
+                // a worker's script read from a `blob:` address is never reported finished
+                if !text(&params["request"]["url"]).starts_with("blob:") {
+                    self.in_flight.insert(text(&params["requestId"]));
+                }
             }
             Some("Network.loadingFinished" | "Network.loadingFailed") => {
                 self.in_flight.remove(&text(&params["requestId"]));
@@ -406,7 +431,7 @@ impl Cdp {
             let message = self.socket.read();
             self.socket
                 .get_ref()
-                .set_read_timeout(Some(Duration::from_secs(60)))
+                .set_read_timeout(Some(shared_browser::REPLY_BOUND))
                 .unwrap();
             let message = match message {
                 Ok(message) => message,

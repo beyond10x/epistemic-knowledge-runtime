@@ -70,7 +70,7 @@ impl World {
     fn get(&self, path: &str) -> (String, String) {
         let mut stream = TcpStream::connect(self.origin.trim_start_matches("http://")).unwrap();
         stream
-            .set_read_timeout(Some(Duration::from_secs(60)))
+            .set_read_timeout(Some(shared_browser::REPLY_BOUND))
             .unwrap();
         write!(
             stream,
@@ -201,7 +201,7 @@ fn announced_port(profile: &std::path::Path) -> u16 {
             last = Some(text);
         }
         assert!(
-            start.elapsed() < Duration::from_secs(60),
+            start.elapsed() < shared_browser::REPLY_BOUND,
             "Chromium did not announce CDP; DevToolsActivePort held {last:?}"
         );
         std::thread::sleep(Duration::from_millis(20));
@@ -329,7 +329,8 @@ impl Browser {
         let port = announced_port(dir.path());
         let url = page_target(port);
         let tcp = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
-        tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
+        tcp.set_read_timeout(Some(shared_browser::REPLY_BOUND))
+            .unwrap();
         let (socket, _) = tungstenite::client(url, tcp).unwrap();
         let mut browser = Self {
             _child: child,
@@ -383,7 +384,10 @@ impl Browser {
                     .set_read_timeout(Some(remaining))
                     .unwrap();
             }
-            let message = self.socket.read().unwrap();
+            let message = self
+                .socket
+                .read()
+                .unwrap_or_else(|error| panic!("{method}: no answer from the browser: {error}"));
             if let Message::Text(text) = message {
                 let value: Value = serde_json::from_str(&text).unwrap();
                 if value["method"] == "Fetch.requestPaused" {
@@ -914,7 +918,7 @@ fn embedded_assets_work_without_store_and_keep_http_admission() {
             let mut stream =
                 TcpStream::connect(world.origin.trim_start_matches("http://")).unwrap();
             stream
-                .set_read_timeout(Some(Duration::from_secs(60)))
+                .set_read_timeout(Some(shared_browser::REPLY_BOUND))
                 .unwrap();
             write!(
                 stream,
