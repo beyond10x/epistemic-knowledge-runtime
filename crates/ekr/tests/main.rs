@@ -147,6 +147,8 @@ mod agent_cli;
 mod code_names_cli;
 #[path = "conformance.rs"]
 mod conformance;
+#[path = "conformance_cli.rs"]
+mod conformance_cli;
 #[path = "conformance_integrate.rs"]
 mod conformance_integrate;
 #[path = "created_node_aliases.rs"]

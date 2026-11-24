@@ -21,8 +21,8 @@ ekr-kernel = { workspace = true, features = ["schema"] }
 ekr-ontology.workspace = true
 ekr-sdk.workspace = true
 ekr-views.workspace = true
-ess-conformance.workspace = true
-ess-primitives.workspace = true
+ess-conformance = { workspace = true, optional = true }
+ess-primitives = { workspace = true, optional = true }
 httparse.workspace = true
 schemars = "1.2"
 serde.workspace = true
@@ -37,11 +37,17 @@ wasm-bindgen-cli-support = "=0.2.129"
 
 [dev-dependencies]
 base64 = "0.22"
+ekr = { path = ".", features = ["conformance"] }
+ess-conformance.workspace = true
+ess-primitives.workspace = true
 tungstenite = "0.29"
 assert_cmd.workspace = true
 jsonschema = { version = "0.58", default-features = false }
 rusqlite = { workspace = true, features = ["backup"] }
 tempfile.workspace = true
+
+[features]
+conformance = ["dep:ess-conformance", "dep:ess-primitives"]
 
 [[test]]
 name = "main"
