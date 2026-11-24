@@ -55,6 +55,8 @@ mod adversary_x6_q;
 mod changes;
 #[path = "changes_adversary.rs"]
 mod changes_adversary;
+#[path = "changes_attachments_aliases.rs"]
+mod changes_attachments_aliases;
 #[path = "changes_by_time_cost.rs"]
 mod changes_by_time_cost;
 #[path = "code_names.rs"]
@@ -65,6 +67,8 @@ mod conformance;
 mod determinism;
 #[path = "document.rs"]
 mod document;
+#[path = "event_time_assertions.rs"]
+mod event_time_assertions;
 #[path = "lineage.rs"]
 mod lineage;
 #[path = "merge.rs"]

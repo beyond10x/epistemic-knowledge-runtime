@@ -1978,7 +1978,11 @@ types:
   # (story:supersede-node); a range holding no supersession answers exactly as it did before
   # NodeSuperseded was declared. Every node an ekr.kernel MergeEntity of its transaction absorbed
   # is a NodeMerged (story:merge-entity-applies); a range holding no merge answers exactly as it
-  # did before NodeMerged was declared. An edge a later revision deletes, retires with a superseded
+  # did before NodeMerged was declared. Every assertion an ekr.kernel AttachEvidence of its
+  # transaction attached evidence to is one EvidenceAttached, and every node an ekr.kernel AddAlias
+  # of its transaction gave an alias is one AliasAdded (review of 0.0.42, finding 22: either changes
+  # what explain or resolve answers); a range holding neither answers exactly as it did before the
+  # two were declared. An edge a later revision deletes, retires with a superseded
   # node or rewrites in a merge stays the change its creating revision made. A property update, a
   # named operation, an edge deletion and a schema change are not changes of this format.
   #
@@ -1992,8 +1996,9 @@ types:
   #   - a valid time T (since_valid): every assertion change, of every revision from the seed up
   #     to and including `at`, whose valid time is after T (valid_time > T, below). A node or an
   #     edge has no valid time of its own (ekr.views.ProjectedEdge), and neither has an evidence
-  #     entry, so NodeCreated, EdgeCreated, EvidenceAdded, NodeSuperseded and NodeMerged are never
-  #     chosen by a valid time, and an assertion with no valid_from is not either.
+  #     entry, an attachment or an alias, so NodeCreated, EdgeCreated, EvidenceAdded,
+  #     NodeSuperseded, NodeMerged, EvidenceAttached and AliasAdded are never chosen by a valid
+  #     time, and an assertion with no valid_from is not either.
   # ---------------------------------------------------------------------------------------------
 
   - name: ekr.views.GraphChangesFormatV1
@@ -2014,7 +2019,7 @@ types:
 
   - name: ekr.views.ChangeKind
     kind: enum
-    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded, NodeSuperseded, NodeMerged]
+    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded, NodeSuperseded, NodeMerged, EvidenceAttached, AliasAdded]
 
   # The position in the change sequence: the number of changes the earlier pages delivered. A
   # page's `next` is its own `after` plus the changes it delivered. Like ekr.views.SliceCursor it
@@ -2040,16 +2045,22 @@ types:
   #     change);
   #   - NodeMerged: `type` and `name`, the absorbed node's type and canonical_name as its record
   #     holds them, and `target`, the node it was merged into as the merge named it (a later merge
-  #     or supersession of that node repoints the record, not this change).
+  #     or supersession of that node repoints the record, not this change);
+  #   - EvidenceAttached: `id` the assertion's, and `subject_kind` and `subject`, its subject as
+  #     the revision held it; one change per assertion, however many entries the revision
+  #     attached to it;
+  #   - AliasAdded: `id` the node's, `type` its type, and `aliases`, the aliases the revision gave
+  #     it, ascending; one change per node, however many aliases the revision gave it.
   # `valid_time` is the valid time an assertion change is chosen by under since_valid: the
   # assertion's valid_from for AssertionAdded and AssertionRetracted, and the supersession's
-  # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from and for a
-  # node or an edge.
+  # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from, for a
+  # node or an edge, and for an EvidenceAttached or an AliasAdded.
   # `evidence` is, for an assertion change, the ids of the evidence the assertion cites; for a
   # NodeCreated or EdgeCreated, the ids of the evidence cited by the assertions the same revision
   # added whose subject is that node or edge — empty when it added none; for an EvidenceAdded,
   # empty; for a NodeSuperseded, the ids of the evidence the supersession rests on; for a
-  # NodeMerged, the ids of the evidence the merge rests on.
+  # NodeMerged, the ids of the evidence the merge rests on; for an EvidenceAttached, the ids of
+  # the evidence the revision attached to the assertion; for an AliasAdded, empty.
   - name: ekr.views.GraphChange
     kind: struct
     fields:
@@ -2083,6 +2094,8 @@ types:
         type: Optional<ekr.kernel.ContentHash>
       - name: evidence
         type: List<ekr.graph.EvidenceId>
+      - name: aliases
+        type: Optional<List<String>>
 
   # `revision` is the revision read: `at`, or the head as it stood at the request when `at` is
   # absent. Exactly one of since_revision, since_valid and since_recorded is present: the
@@ -2400,15 +2413,21 @@ types:
   # it (ekr.graph-timeline/1: its least timestamp-like property value, else the earliest of its
   # dated facts). A node of an event type with no time, or with a time the time form below cannot
   # write (a year outside 0000–9999), is not in the log: OCEL 2.0 gives every event a time.
-  # Each node of an object type is an object.
+  # Each node of an object type is an object. The dated facts are those of every lifecycle, so
+  # this time is historical: a retracted or superseded fact can still place a node (review of
+  # 0.0.42, finding 31). A named event time, below, reads only the values the revision holds
+  # current.
   #
   # Named event time. A nonempty event_time list replaces the rule and cannot be combined with
   # events. Each selector is TypeName.propertyName, split at its last dot. Resolve the type name
   # exactly and uniquely in the requested revision, then the property name exactly and uniquely
   # among that type's effective properties (including inherited declarations). Its value type
   # must be Timestamp. Identical repeated selectors deduplicate; different properties mapped to
-  # one type refuse. Only the mapped types are event types. Their nodes with no value for the
-  # selected property are undated; one distinct Timestamp gives the time, while multiple distinct
+  # one type refuse. Only the mapped types are event types. A node's values of the selected
+  # property are those its record holds and the objects of the revision's Active assertions of
+  # that property about it — an extraction records a property as such an assertion (review of
+  # 0.0.42, finding 17); a retracted or superseded assertion gives none. Nodes with no value for
+  # the selected property are undated; one distinct Timestamp gives the time, while multiple distinct
   # timestamps refuse instead of choosing. A timestamp outside the writable range is undated.
   # Malformed, absent, ambiguous or conflicting selectors and ambiguous timestamp values refuse
   # as EventTimeInvalid, naming the selector, reason and revision. Every other type is an object.
@@ -3764,6 +3783,8 @@ commands:
             evidence_added: {generated: true}
             nodes_superseded: {generated: true}
             nodes_merged: {generated: true}
+            evidence_attached: {generated: true}
+            aliases_added: {generated: true}
             first_revision: {generated: true}
             last_revision: {generated: true}
             format: {generated: true}
@@ -4381,7 +4402,7 @@ events:
         type: ekr.kernel.ContentHash
 
   # What one page of changes returned. `revision`, `after` and `total` are meta's; `changes` the
-  # length of changes and `remaining` the document's; the eight kind counts count this page's
+  # length of changes and `remaining` the document's; the ten kind counts count this page's
   # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
   # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
   # SHA-256 of the document's exact bytes. `format` is meta's; `names` the page's names map under
@@ -4413,6 +4434,10 @@ events:
       - name: nodes_superseded
         type: Integer
       - name: nodes_merged
+        type: Integer
+      - name: evidence_attached
+        type: Integer
+      - name: aliases_added
         type: Integer
       - name: first_revision
         type: Optional<ekr.kernel.RevisionNumber>

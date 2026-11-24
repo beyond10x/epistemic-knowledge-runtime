@@ -1015,6 +1015,9 @@ pub struct GraphChange {
     pub content_hash: Option<ContentHash>,
     /// The evidence it cites, by id; empty for an added evidence entry.
     pub evidence: Vec<String>,
+    /// The aliases an `AliasAdded` gave the node, ascending.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aliases: Option<Vec<String>>,
 }
 
 /// What a change did, in the format's order within a revision. A kind a newer `ekr` adds reads
@@ -1038,6 +1041,11 @@ pub enum ChangeKind {
     NodeSuperseded,
     /// A node was merged into another, by a `MergeEntity`: `target` names the node kept.
     NodeMerged,
+    /// Evidence was attached to an assertion, by `AttachEvidence`: `id` names the assertion and
+    /// `evidence` the entries attached.
+    EvidenceAttached,
+    /// A node gained aliases, by `AddAlias`: `id` names the node and `aliases` the aliases.
+    AliasAdded,
     /// A kind this SDK does not know, added by a newer `ekr`.
     #[serde(other)]
     Other,

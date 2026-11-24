@@ -803,8 +803,11 @@ before CLI pretty printing. A session carries the same line in that request's `s
 Repeat `--event-time TypeName.propertyName` to select event types and the `Timestamp` property
 that supplies each event's time. Selectors split at the last dot, so type names may contain dots;
 property names containing dots cannot be selected by this spelling. Names resolve in the
-requested revision, including inherited properties. Only selected types become events, and a
-node missing that property is omitted and counted in `undated_events`. A node with several
+requested revision, including inherited properties. Only selected types become events. A node's
+values of the property are those on its record and those of the revision's `Active` assertions of
+that property about it, which is how `ekr apply-extraction` records an extracted fact; a retracted or
+superseded assertion supplies none. A node with no value is omitted and counted in
+`undated_events`. A node with several
 distinct timestamps, an ambiguous name, an absent or non-Timestamp property, or two different
 properties selected for one type is refused as `ekr.views.EventTimeInvalid`; repeated identical
 selectors deduplicate. `--events` and `--event-time` cannot be combined. Without `--event-time`,
@@ -817,7 +820,11 @@ property value (a `Timestamp`, or an `Integer` of epoch milliseconds from 1,000,
 10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
 any lifecycle whose subject it is, or whose relation object it is. It is instant when it is
 timestamped or its dated facts lie within one hour. A type is an event type when it has a judged
-node and at least 60% of its judged nodes are instant.
+node and at least 60% of its judged nodes are instant. An event's time is its least
+timestamp-like property value, else its earliest dated fact. Because the dated facts include
+retracted and superseded ones, this time is historical: a node whose only early fact was
+retracted is still placed at it. For current state, name the time with `--event-time`, which reads
+only the values the revision holds current.
 `--events <type name>...` names the event types instead: exactly the node types with those names,
 a name two types share naming both; a name no node type holds is refused as
 `ekr.views.EventTypeNotFound` (exit 2), naming it.
@@ -1531,18 +1538,24 @@ answers no group. `meta.truncated` says whether the answer left anything out.
 <a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
 every node and edge created, every assertion added, superseded or retracted, every evidence
 entry added by an `!AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)), every
-node superseded by a `!SupersedeNode` ([A node superseded by another](#a-node-superseded-by-another))
-and every node merged by a `!MergeEntity` ([Two nodes merged into one](#two-nodes-merged-into-one)).
+node superseded by a `!SupersedeNode` ([A node superseded by another](#a-node-superseded-by-another)),
+every node merged by a `!MergeEntity` ([Two nodes merged into one](#two-nodes-merged-into-one)),
+every assertion evidence was attached to by an `!AttachEvidence`
+([Evidence attached to a held assertion](#evidence-attached-to-a-held-assertion)) and every node
+given an alias by an `!AddAlias` ([operation kinds](#operation-kinds)).
 Each change carries the revision that made it and that revision's `recorded_at`, its `change`
 (`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded`, `AssertionRetracted`,
-`EvidenceAdded`, `NodeSuperseded` or `NodeMerged`), the `id` of the node, edge, assertion or
-evidence entry, the node's `type` and `name`, the edge's `type`, `source` and `target`, the
+`EvidenceAdded`, `NodeSuperseded`, `NodeMerged`, `EvidenceAttached` or `AliasAdded`), the `id`
+of the node, edge, assertion or evidence entry, the node's `type` and `name`, the edge's `type`, `source` and `target`, the
 assertion's `subject_kind` and `subject` (and `by` for a supersession), its `valid_time`, the
 evidence entry's `locator` (its source identity: the `identity` of its `!HumanStatement`, or the URL of its `!Url`) and
 `content_hash` (the address of its payload), a superseded or merged node's `target` (the node it is
 superseded by or merged into), and `evidence`: the evidence ids the assertion cites, or for a node
 or an edge those the same revision's assertions about it cite, empty for an evidence entry, and for
-a superseded or merged node those its supersession or merge rests on. The seed's own evidence is
+a superseded or merged node those its supersession or merge rests on. An `EvidenceAttached` is one
+change per assertion and revision: its `subject_kind` and `subject`, and in `evidence` the entries
+that revision attached. An `AliasAdded` is one change per node and revision: the node's `type`,
+and `aliases`, the aliases that revision gave it, ascending. The seed's own evidence is
 not a change. The changes are ordered by revision, then change kind in that order, then id:
 
 - `since_revision=N` chooses the changes of the revisions after `N`; one at or after `at` chooses
@@ -1551,7 +1564,8 @@ not a change. The changes are ordered by revision, then change kind in that orde
   included when it was;
 - `since_valid=T` chooses the assertion changes whose valid time is after `T` — an added or
   retracted assertion's `valid_from`, a supersession's `effective_from` — from every revision up
-  to `at`. A node, an edge or an evidence entry has no valid time, and is never chosen by one.
+  to `at`. A node, an edge, an evidence entry, an attachment or an alias has no valid time, and is
+  never chosen by one.
 
 `meta` echoes the since, `revision` (the revision read), `limit`, `after` and `total`; `next`,
 present while changes remain, is the next page's `after`, and `remaining` counts what is left.
