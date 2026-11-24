@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 use std::ops::Range;
 
-use ekr_core::{AssertionId, TransactionId};
+use ekr_core::{AssertionId, RevisionNumber, TransactionId};
 use ekr_graph::{CanonicalValue, Object};
 use ekr_kernel::{ExplanationLink, ExplanationResult, Runtime, TransactionRecord, VerifiedRead};
 use serde_json::{Map, Value};
@@ -145,8 +145,10 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|window| window == needle)
 }
 
-/// Captures the newest revision once and explains the assertion from that capture alone, in
-/// `ekr.explanation/2`: proposals, commit receipts and evidence by reference.
+/// Captures revision `at`, or the newest when `None`, once and explains the assertion from that
+/// capture alone, in `ekr.explanation/2`: proposals, commit receipts and evidence by reference.
+/// The document's `at` names the revision read; a revision the store does not hold is the
+/// kernel's `RevisionNotFound`.
 ///
 /// With `documents`, each link also carries the whole retained record it references, read from
 /// the same capture: a Proposal link its proposal record as `record`, every commit (a Commit link,
@@ -169,6 +171,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 pub(super) fn run(
     runtime: &Runtime,
     assertion: AssertionId,
+    at: Option<u64>,
     documents: Option<Bounds>,
     format: Format,
     scope: Option<Scope>,
@@ -178,12 +181,13 @@ pub(super) fn run(
             message: format!("error: {SCOPE_WITHOUT_V3}\n"),
         });
     }
-    let read = runtime.read(None)?;
+    let read = runtime.read(at.map(RevisionNumber::new))?;
+    let explained = read.explain(assertion)?;
     if format == Format::V2 {
-        return Ok(rendered(runtime, &read, assertion, documents, None)?.0);
+        return Ok(rendered(runtime, &read, &explained, documents, None)?.0);
     }
     let scope = scope.unwrap_or(Scope::Cited);
-    let (mut value, omitted) = rendered(runtime, &read, assertion, documents, Some(scope))?;
+    let (mut value, omitted) = rendered(runtime, &read, &explained, documents, Some(scope))?;
     named(&mut value, &read.graph.ontology, EXPLANATION_V3_FORMAT)?;
     let Some(fields) = value.as_object_mut() else {
         return Err(Failure::fault("an explanation is not an object"));
@@ -192,8 +196,25 @@ pub(super) fn run(
     fields.insert("omitted_evidence".to_owned(), Value::from(omitted));
     // The cap measures the document as it is printed, its byte strings already base64.
     super::bytes_as_base64(&mut value);
-    capped(&mut value)?;
+    capped(&mut value, &cited(&explained))?;
     Ok(value)
+}
+
+/// The cited texts of an explanation: the string value of each assertion on its chain, in chain
+/// order. Evidence names no span of its record, so a window is placed on the first of these that
+/// the record holds.
+fn cited(explained: &ExplanationResult) -> Vec<&[u8]> {
+    explained
+        .links
+        .iter()
+        .filter_map(|link| match link {
+            ExplanationLink::Assertion(assertion) => match &assertion.object {
+                Object::Value(CanonicalValue::String(text)) => Some(text.as_bytes()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
 }
 
 /// The document as `ekr` prints it, its length in bytes: pretty JSON and a final newline.
@@ -206,10 +227,13 @@ fn printed_length(document: &Value) -> Result<usize, Failure> {
 
 /// `ekr.explanation/3`'s cap (`kernel.yaml`, `ekr.kernel.ExplanationV3`, step 4): while the
 /// printed document is longer than [`EXPLANATION_CAP`], the longest Evidence `text` — the first
-/// in link order among equals — keeps its first half, at a character boundary, and its link is
-/// marked `truncated`, with `offset` and `record_length`. It stops when the document fits or no
-/// text is left to cut. Each cut shortens one text, so it ends.
-fn capped(document: &mut Value) -> Result<(), Failure> {
+/// in link order among equals — keeps half its bytes, and its link is marked `truncated`, with
+/// `offset` and `record_length`. The half kept is the one [`Bounds`] places without an offset:
+/// centred on the first of `cited` the text holds, so a cut never drops the cited text a window
+/// was centred on (review of 0.0.42, finding 20), and its first half when it holds none; its ends
+/// at character boundaries. It stops when the document fits or no text is left to cut. Each cut
+/// shortens one text, so it ends.
+fn capped(document: &mut Value, cited: &[&[u8]]) -> Result<(), Failure> {
     while printed_length(document)? > EXPLANATION_CAP {
         let Some(links) = document.get_mut("links").and_then(Value::as_array_mut) else {
             return Ok(());
@@ -235,12 +259,17 @@ fn capped(document: &mut Value) -> Result<(), Failure> {
             .get("text")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let mut cut = length / 2;
-        while !text.is_char_boundary(cut) {
-            cut -= 1;
+        let half = Bounds {
+            offset: None,
+            limit: Some(u64::try_from(length / 2).unwrap_or(u64::MAX)),
         }
-        let kept = text[..cut].to_owned();
-        fields.entry("offset").or_insert(Value::from(0));
+        .range(text.as_bytes(), cited);
+        let kept = text[half.clone()].to_owned();
+        let offset = fields.get("offset").and_then(Value::as_u64).unwrap_or(0);
+        fields.insert(
+            "offset".to_owned(),
+            Value::from(offset.saturating_add(u64::try_from(half.start).unwrap_or(u64::MAX))),
+        );
         fields.entry("record_length").or_insert(Value::from(length));
         fields.insert("text".to_owned(), Value::String(kept));
         fields.insert("truncated".to_owned(), Value::Bool(true));
@@ -269,20 +298,19 @@ pub(super) fn named(
     Ok(())
 }
 
-/// The `ekr.explanation/2` rendering of `assertion`'s chain in the capture `read`, with the
-/// records `documents` asks for; and the count of Evidence links left out. With `v3`, the
+/// The `ekr.explanation/2` rendering of `explained`, the chain the capture `read` explains,
+/// with the records `documents` asks for; and the count of Evidence links left out. With `v3`, the
 /// rendering `ekr.explanation/3` starts from: only the links the scope keeps, no proposal record
 /// (a Proposal link's `record`, a receipt's `proposal`) and no `payload` whose `text` is
 /// answered (`kernel.yaml`, `ekr.kernel.ExplanationV3`, steps 1 and 2).
 fn rendered(
     runtime: &Runtime,
     read: &VerifiedRead,
-    assertion: AssertionId,
+    explained: &ExplanationResult,
     documents: Option<Bounds>,
     v3: Option<Scope>,
 ) -> Result<(Value, usize), Failure> {
-    let explained = read.explain(assertion)?;
-    let mut value = serde_json::to_value(&explained).map_err(Failure::fault)?;
+    let mut value = serde_json::to_value(explained).map_err(Failure::fault)?;
     let Some(links) = value.get_mut("links").and_then(Value::as_array_mut) else {
         return Err(Failure::fault("explanation without links"));
     };
@@ -334,17 +362,7 @@ fn rendered(
         return Ok((value, omitted));
     };
     let trim = v3.is_some();
-    let cited: Vec<&[u8]> = explained
-        .links
-        .iter()
-        .filter_map(|link| match link {
-            ExplanationLink::Assertion(assertion) => match &assertion.object {
-                Object::Value(CanonicalValue::String(text)) => Some(text.as_bytes()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
+    let cited = cited(explained);
     let Some(links) = value.get_mut("links").and_then(Value::as_array_mut) else {
         return Err(Failure::fault("explanation without links"));
     };

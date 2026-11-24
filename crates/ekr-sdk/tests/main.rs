@@ -57,6 +57,8 @@ mod docs_examples;
 mod document_drift;
 #[path = "evidence.rs"]
 mod evidence;
+#[path = "explain_range.rs"]
+mod explain_range;
 #[path = "extraction_document.rs"]
 mod extraction_document;
 #[path = "protocol_answer.rs"]
