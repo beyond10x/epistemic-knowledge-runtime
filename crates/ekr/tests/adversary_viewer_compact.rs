@@ -19,6 +19,8 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+#[path = "support/seeded_store.rs"]
+mod seeded_store;
 #[path = "support/shared_browser.rs"]
 mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
@@ -67,18 +69,26 @@ impl Seeded {
         let seeded = Self {
             directory: tempfile::tempdir().unwrap(),
         };
-        let seed = Self::fixture().join("seed.yaml").display().to_string();
-        let output = Command::new(env!("CARGO_BIN_EXE_ekr"))
-            .args(seeded.args(&["seed", &seed]))
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(0),
-            "seed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let seed = Self::fixture().join("seed.yaml");
+        let inputs = [
+            std::fs::read(Self::fixture().join("host.json")).unwrap(),
+            std::fs::read(&seed).unwrap(),
+        ];
+        let inputs = [inputs[0].as_slice(), inputs[1].as_slice()];
+        // Through the real binary once per build, then copied (`support/seeded_store.rs`).
+        seeded_store::seeded(&inputs, seeded.directory.path(), || {
+            let output = Command::new(env!("CARGO_BIN_EXE_ekr"))
+                .args(seeded.args(&["seed", &seed.display().to_string()]))
+                .stdin(Stdio::null())
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "seed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        });
         seeded
     }
 
