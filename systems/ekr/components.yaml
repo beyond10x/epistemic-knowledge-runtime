@@ -111,6 +111,7 @@ components:
     publishes:
       events:
         - ekr.store.StageBegun
+        - ekr.store.StageIndexed
         - ekr.store.StageSealed
         - ekr.store.StagePublished
         - ekr.store.StageAbandoned

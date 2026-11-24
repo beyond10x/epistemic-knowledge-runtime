@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.44] — 2026-11-24
+
 ### Fixed
 
 - The graph viewer and `/find` keep the address in step with the page, and the viewer opens
@@ -116,6 +118,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   - `ekr sample` lists the evidence attached to a fact after it was written (`!AttachEvidence`)
     beside the evidence it cites, each such entry with `attached_at`, the revision that attached
     it. Before, the judge saw only the evidence the fact was written with.
+- The ESS conformance gate (story:ekr-conformance-gate-fixes, findings 40-42 of the EKR 0.0.42
+  review):
+  - a build of the `ekr` binary no longer compiles the ESS conformance compiler: the conformance
+    targets (`ekr::conformance`) sit behind the cargo feature `conformance`, which only the
+    crate's tests turn on, and `cargo install` of the binary builds no `ess-*` package;
+  - the stage commands and `ekr compare` are held by the `ekr` component's own suite,
+    `systems/ekr/conformance/cli-suite.json` (31 command and 9 stage-lifecycle scenarios), run on
+    the File and SQLite providers with the executed count of each kind pinned per provider;
+  - the extraction suite reads the stored state after the command: for an applied document the
+    revisions it committed, each fact as an active assertion with its value and exactly its
+    citation, and the cited evidence and its payload; for a refused one, an unchanged head,
+    snapshot and transaction list, a valid assertion included.
 - A read verb racing the first `ekr seed` of a SQLite store no longer answers `store-read-only`
   (story:ekr-store-open-race-and-xtask-path). A `-wal` or `-shm` that the closing seed unlinked
   between the look at it and the check of its permission counted as a file this process may not
