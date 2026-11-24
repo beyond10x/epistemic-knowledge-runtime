@@ -20,6 +20,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+#[path = "support/seeded_store.rs"]
+mod seeded_store;
 #[path = "support/shared_browser.rs"]
 mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
@@ -53,7 +55,8 @@ struct Seeded {
 }
 
 impl Seeded {
-    /// Seeds `seed` and commits each of `commits` in order, each validated against the head before it.
+    /// Seeds `seed` and commits each of `commits` in order, each validated against the head before
+    /// it: through the real binary once per build, then copied (`support/seeded_store.rs`).
     fn new(seed: &str, commits: &[String]) -> Self {
         let fixture = tempfile::tempdir().unwrap();
         std::fs::copy(
@@ -62,26 +65,28 @@ impl Seeded {
         )
         .unwrap();
         std::fs::write(fixture.path().join("seed.yaml"), seed).unwrap();
+        for (at, commit) in commits.iter().enumerate() {
+            std::fs::write(fixture.path().join(format!("commit-{at}.yaml")), commit).unwrap();
+        }
         let seeded = Self {
             directory: tempfile::tempdir().unwrap(),
             fixture,
         };
-        let path = seeded
-            .fixture
-            .path()
-            .join("seed.yaml")
-            .display()
-            .to_string();
-        seeded.ok(&["seed", &path]);
-        for (at, commit) in commits.iter().enumerate() {
-            let file = seeded.fixture.path().join(format!("commit-{at}.yaml"));
-            std::fs::write(&file, commit).unwrap();
-            let proposed = seeded.ok(&["propose", &file.display().to_string()]);
-            let id = proposed["transaction_id"].as_str().unwrap().to_owned();
-            let validated = seeded.ok(&["validate", &id, "--against", &at.to_string()]);
-            assert_eq!(validated["kind"], "Validated", "commit {at}: {validated}");
-            seeded.ok(&["commit", &id]);
-        }
+        let host = std::fs::read(seeded.fixture.path().join("host.json")).unwrap();
+        let mut inputs = vec![host.as_slice(), seed.as_bytes()];
+        inputs.extend(commits.iter().map(String::as_bytes));
+        seeded_store::seeded(&inputs, seeded.directory.path(), || {
+            let path = seeded.fixture.path().join("seed.yaml");
+            seeded.ok(&["seed", &path.display().to_string()]);
+            for at in 0..commits.len() {
+                let file = seeded.fixture.path().join(format!("commit-{at}.yaml"));
+                let proposed = seeded.ok(&["propose", &file.display().to_string()]);
+                let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+                let validated = seeded.ok(&["validate", &id, "--against", &at.to_string()]);
+                assert_eq!(validated["kind"], "Validated", "commit {at}: {validated}");
+                seeded.ok(&["commit", &id]);
+            }
+        });
         seeded
     }
 

@@ -28,6 +28,8 @@ use ekr_views::{
 };
 use serde_json::Value;
 
+#[path = "support/seeded_store.rs"]
+mod seeded_store;
 #[path = "support/shared_browser.rs"]
 mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
@@ -109,7 +111,8 @@ fn fixture_stores() -> Vec<PathBuf> {
     all
 }
 
-/// One fixture store, seeded and committed into a directory of its own.
+/// One fixture store, seeded and committed into a directory of its own: through the real binary
+/// once per build, then copied (`support/seeded_store.rs`).
 struct Seeded {
     fixture: PathBuf,
     directory: tempfile::TempDir,
@@ -121,9 +124,21 @@ impl Seeded {
             fixture: fixture.to_owned(),
             directory: tempfile::tempdir().unwrap(),
         };
-        let seed = fixture.join("seed.yaml").display().to_string();
-        seeded.ok(&["seed", &seed]);
-        let mut commits: Vec<PathBuf> = std::fs::read_dir(fixture)
+        let mut inputs = vec![std::fs::read(seeded.host()).unwrap()];
+        let mut files = vec![fixture.join("seed.yaml")];
+        files.extend(seeded.commits());
+        for file in files {
+            inputs.push(file.file_name().unwrap().as_encoded_bytes().to_vec());
+            inputs.push(std::fs::read(&file).unwrap());
+        }
+        let inputs: Vec<&[u8]> = inputs.iter().map(Vec::as_slice).collect();
+        seeded_store::seeded(&inputs, seeded.directory.path(), || seeded.seed());
+        seeded
+    }
+
+    /// The fixture's `commit-<n>.yaml` transactions, in name order.
+    fn commits(&self) -> Vec<PathBuf> {
+        let mut commits: Vec<PathBuf> = std::fs::read_dir(&self.fixture)
             .unwrap()
             .map(|entry| entry.unwrap().path())
             .filter(|path| {
@@ -133,15 +148,21 @@ impl Seeded {
             })
             .collect();
         commits.sort();
-        for (at, commit) in commits.iter().enumerate() {
-            let proposed = seeded.ok(&["propose", &commit.display().to_string()]);
+        commits
+    }
+
+    /// Seeds the fixture and commits each of its transactions through the real binary.
+    fn seed(&self) {
+        let seed = self.fixture.join("seed.yaml").display().to_string();
+        self.ok(&["seed", &seed]);
+        for (at, commit) in self.commits().iter().enumerate() {
+            let proposed = self.ok(&["propose", &commit.display().to_string()]);
             let id = proposed["transaction_id"].as_str().unwrap().to_owned();
             let against = at.to_string();
-            let validated = seeded.ok(&["validate", &id, "--against", &against]);
+            let validated = self.ok(&["validate", &id, "--against", &against]);
             assert_eq!(validated["kind"], "Validated", "{}", commit.display());
-            seeded.ok(&["commit", &id]);
+            self.ok(&["commit", &id]);
         }
-        seeded
     }
 
     /// The fixture's own `host.json`, else the host the role-derivation stores are seeded under

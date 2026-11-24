@@ -141,6 +141,14 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   Without the variable (`cargo test -p ekr` alone) a case starts its own browser. Before
   (`story:browser-tests-one-chromium`), every case started a Chromium and the files ran one case
   at a time: 470 s of the 498.6 s step on CI run 45260269611.
+- **A seeded store is made once.** A browser case's fixture store is seeded through the `ekr`
+  binary once per build and kept under `target/<profile>/ekr-test-stores/<digest>`; every case that
+  asks for the same store copies it (`crates/ekr/tests/support/seeded_store.rs`; the digest covers
+  the binary's size and modification time and every input the seeding reads). The conformance
+  target establishes each lineage (provider, host, seed, revision 1) once per target and copies it
+  into every later scenario; the defect matrix's ten targets (one clean, nine faulted) share one set
+  (`ekr::conformance::Lineages`). Every seed, propose, validate and commit is several `fsync`s, and
+  the copies cost none.
 - **A test over 60 s is killed and fails** (`slow-timeout`, `terminate-after = 1`). Split a test
   that loops over providers, profiles or seeds into one test per case; do not raise the limit.
 - **The step's budget is 120 s** of tests and doc tests, the build not counted (the step prints

@@ -16,7 +16,11 @@
 //!   validates against, so the target establishes revision 0 and revision 1 through the same
 //!   handlers before the first such command. A scenario the manifest gives a setup of its own
 //!   runs under that setup's host, seed and revision 1 instead — the authored schema-change
-//!   scenarios, which need a validation profile that admits schema changes. An external control
+//!   scenarios, which need a validation profile that admits schema changes. Each distinct lineage
+//!   (provider, host, seed, revision 1 or none) is established through those handlers once, by
+//!   the first scenario that needs it; every later scenario that needs it starts from a byte copy
+//!   of that provider root, with the host clock where the establishing run left it, kept in
+//!   [`Lineages`]. An external control
 //!   establishes the state its branch declares — an intervening canonical commit, a different
 //!   retained seed, an absent revision, transaction or assertion — and never selects the reported
 //!   outcome.
@@ -41,6 +45,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use ekr_core::{AssertionId, ContentHash, EventId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::Root;
@@ -89,6 +95,117 @@ pub struct KernelTarget {
     opened: Cell<u64>,
     clock: Cell<i64>,
     scenario: RefCell<Option<Scenario>>,
+    lineages: Arc<Lineages>,
+}
+
+/// Seeded lineages established once through the real handlers and copied into each scenario that
+/// starts from one. A [`KernelTarget`] keeps its own below its work directory; targets that
+/// share one through [`KernelTarget::sharing`] establish each lineage once between them.
+pub struct Lineages {
+    root: PathBuf,
+    kept: AtomicU64,
+    built: Mutex<BTreeMap<String, Arc<Mutex<Option<Lineage>>>>>,
+}
+
+/// One established provider root and the host clock its establishing run ended at.
+struct Lineage {
+    directory: PathBuf,
+    clock: i64,
+}
+
+impl Lineages {
+    /// Lineages kept below `root`, created when the first one is established.
+    #[must_use]
+    pub fn new(root: &Path) -> Arc<Self> {
+        Arc::new(Self {
+            root: root.to_path_buf(),
+            kept: AtomicU64::new(0),
+            built: Mutex::new(BTreeMap::new()),
+        })
+    }
+
+    /// Fills `directory` with the lineage `key` names: a copy of the provider root its first
+    /// establishing run left, or, the first time, the result of `establish` run in `directory`.
+    /// A failed run keeps nothing, so the next scenario that needs the lineage establishes it. A
+    /// scenario whose root an earlier read already opened runs `establish` there and keeps nothing.
+    fn establish(
+        &self,
+        key: String,
+        directory: &Path,
+        clock: &Cell<i64>,
+        establish: impl FnOnce() -> Result<(), TargetError>,
+    ) -> Result<(), TargetError> {
+        if !untouched(directory) {
+            return establish();
+        }
+        let entry = Arc::clone(
+            self.built
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(key)
+                .or_default(),
+        );
+        let mut lineage = entry.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(lineage) = lineage.as_ref() {
+            copy_tree(&lineage.directory, directory)
+                .map_err(|e| unavailable("copying an established lineage", e))?;
+            clock.set(lineage.clock);
+            return Ok(());
+        }
+        establish()?;
+        let number = self.kept.fetch_add(1, Ordering::Relaxed);
+        let kept = self.root.join(format!("lineage-{number:04}"));
+        copy_tree(directory, &kept)
+            .map_err(|e| unavailable("keeping an established lineage", e))?;
+        *lineage = Some(Lineage {
+            directory: kept,
+            clock: clock.get(),
+        });
+        Ok(())
+    }
+}
+
+/// Whether a scenario root holds exactly what [`KernelTarget::begin_scenario`] made: an empty
+/// `store` directory.
+fn untouched(directory: &Path) -> bool {
+    let entries = |path: &Path| {
+        std::fs::read_dir(path).map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.file_name())
+                .collect::<Vec<_>>()
+        })
+    };
+    matches!(entries(directory), Ok(names) if names.len() == 1 && names[0] == *"store")
+        && matches!(entries(&directory.join("store")), Ok(names) if names.is_empty())
+}
+
+/// Copies the directories and regular files below `from` into `to`, refusing anything else and
+/// any file `to` already holds.
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let target = to.join(entry.file_name());
+        if kind.is_dir() {
+            copy_tree(&entry.path(), &target)?;
+        } else if kind.is_file() {
+            if target.exists() {
+                return Err(std::io::Error::other(format!(
+                    "{} already exists",
+                    target.display()
+                )));
+            }
+            std::fs::copy(entry.path(), &target)?;
+        } else {
+            return Err(std::io::Error::other(format!(
+                "{} is neither a directory nor a regular file",
+                entry.path().display()
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -254,6 +371,7 @@ impl KernelTarget {
             opened: Cell::new(0),
             clock: Cell::new(CLOCK_START_MS),
             scenario: RefCell::new(None),
+            lineages: Lineages::new(&work.join("lineages")),
         })
     }
 
@@ -437,16 +555,44 @@ impl KernelTarget {
             }
             return Ok(());
         }
-        let (seed, revision_1) = own
-            .as_ref()
-            .map_or((setup.seed.as_str(), setup.revision_1.as_str()), |own| {
-                (own.seed.as_str(), own.revision_1.as_str())
-            });
-        self.establish_seed(seed)?;
-        if !control.is_some_and(Control::seed_only) {
-            self.establish_commit(revision_1)?;
-        }
-        Ok(())
+        let (host, seed, revision_1) = own.as_ref().map_or(
+            (
+                self.manifest.host.as_str(),
+                setup.seed.as_str(),
+                setup.revision_1.as_str(),
+            ),
+            |own| {
+                (
+                    own.host.as_str(),
+                    own.seed.as_str(),
+                    own.revision_1.as_str(),
+                )
+            },
+        );
+        let commit = !control.is_some_and(Control::seed_only);
+        let key = format!(
+            "{:?} {} {host} {seed} {}",
+            self.provider,
+            self.fixtures.display(),
+            if commit { revision_1 } else { "-" }
+        );
+        self.lineages
+            .establish(key, &self.directory()?, &self.clock, || {
+                self.establish_seed(seed)?;
+                if commit {
+                    self.establish_commit(revision_1)?;
+                }
+                Ok(())
+            })
+    }
+
+    /// This target, establishing its lineages in `lineages` and copying those another target
+    /// sharing them established, so targets over the same fixtures run each lineage's seed and
+    /// revision 1 once between them.
+    #[must_use]
+    pub fn sharing(mut self, lineages: Arc<Lineages>) -> Self {
+        self.lineages = lineages;
+        self
     }
 
     fn take_control(&self) -> Option<Control> {
