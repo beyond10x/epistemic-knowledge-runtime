@@ -304,15 +304,31 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     /// # Errors
     /// `migrate-destination-not-empty` for a destination that holds any event;
     /// `migrate-unresolved-preparation` for a source preparation whose decision was never
-    /// published; any refusal of the source's full replay; `migrate-verification-disagrees` where
-    /// the destination's full replay does not reach the source's state.
+    /// published; `migrate-open-stage` for a source with a stage still `Begun` or `Sealing`, whose
+    /// run is in the stage's own tenant, which no migration carries, naming each such stage; any
+    /// refusal of the source's full replay; `migrate-verification-disagrees` where the
+    /// destination's full replay does not reach the source's state.
     pub fn migrate_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
         &self,
         destination: &Commit<D>,
     ) -> Result<StoreMigrationV1, CommitError> {
         empty(destination)?;
-        self.capture()?
-            .copy_unchecked(destination, Destination::Shared)
+        let captured = self.capture()?;
+        let open = &captured.inventory.open_stages;
+        if !open.is_empty() {
+            let named: Vec<String> = open.iter().map(ToString::to_string).collect();
+            return Err(migration(
+                "migrate-open-stage",
+                format!(
+                    "stage {} is still Begun or Sealing, and its run is in the stage's own \
+                     tenant, which a migration does not carry; publish or abandon it before \
+                     migrating",
+                    named.join(", ")
+                ),
+            )
+            .into());
+        }
+        captured.copy_unchecked(destination, Destination::Shared)
     }
 }
 

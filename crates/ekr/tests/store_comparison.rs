@@ -22,6 +22,10 @@ const CAROL: &str = "00000000-0000-4000-8000-000000000305";
 const BOB_CEO: &str = "00000000-0000-4000-8000-000000000511";
 const BOB_EVIDENCE: &str = "00000000-0000-4000-8000-000000000402";
 const BOB_PAYLOAD_HASH: &str = "bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6";
+const ALICE_EVIDENCE: &str = "00000000-0000-4000-8000-000000000401";
+/// The node type and schema version `ekr example schema-change` declares.
+const PROJECT: &str = "00000000-0000-4000-8000-000000000204";
+const SCHEMA_VERSION: &str = "00000000-0000-4000-8000-000000000003";
 /// The six categories, in the order the document lists them.
 const CATEGORIES: [&str; 6] = [
     "types",
@@ -146,11 +150,30 @@ impl Built {
     /// Seeds `variant` and commits the example transaction, every step at an instant after
     /// `clock`.
     fn new(backend: &'static str, variant: Variant, clock: i64) -> Self {
+        Self::under(
+            backend,
+            variant,
+            clock,
+            &text(&["example", "ekr.cli-host/1"]),
+        )
+    }
+
+    /// [`Self::new`] under validation profile v2, which admits schema changes.
+    fn evolving(backend: &'static str, clock: i64) -> Self {
+        let host = text(&["example", "ekr.cli-host/1"])
+            .replace("ekr.p1-deterministic/1", "ekr.p2-deterministic/1")
+            .replace("ekr.p1-apply/1", "ekr.p2-apply/1");
+        assert!(host.contains("ekr.p2-apply/1"), "the example host moved");
+        Self::under(backend, Variant::Base, clock, &host)
+    }
+
+    /// [`Self::new`] under the host document `host`.
+    fn under(backend: &'static str, variant: Variant, clock: i64, host: &str) -> Self {
         let built = Self {
             directory: tempfile::tempdir().unwrap(),
             backend,
         };
-        std::fs::write(built.host(), text(&["example", "ekr.cli-host/1"])).unwrap();
+        std::fs::write(built.host(), host).unwrap();
         let seed_path = built.directory.path().join("seed.yaml");
         std::fs::write(&seed_path, seed(variant, built.directory.path())).unwrap();
         let transaction = built.directory.path().join("transaction.yaml");
@@ -208,17 +231,42 @@ impl Built {
     /// Commits a `!SupersedeNode` of `node` by `by` on Bob's evidence, every step at an instant
     /// after `clock`: revision 2.
     fn supersede(&self, clock: i64, node: &str, by: &str) {
+        self.commit_second(
+            clock,
+            &format!(
+                "  - !SupersedeNode\n    node: {node}\n    by: {by}\n    reason: recorded \
+                 twice\n    evidence:\n    - {BOB_EVIDENCE}\n  evidence:\n  - {BOB_EVIDENCE}\n"
+            ),
+        );
+    }
+
+    /// Commits a schema change that declares the node type `Project` and cites `evidence`, which
+    /// the seed retains, every step at an instant after `clock`: revision 2. Needs a store
+    /// [`Self::evolving`] built.
+    fn cite(&self, clock: i64, evidence: &str) {
+        self.commit_second(
+            clock,
+            &format!(
+                "  - !DefineNodeType\n    id: {PROJECT}\n    name: Project\n    parents: []\n    \
+                 properties: {{}}\n    abstract_type: false\n    lifecycle: null\n    \
+                 operations: {{}}\n  - !CiteEvidence {evidence}\n  evidence:\n  - {evidence}\n  \
+                 schema_version: {SCHEMA_VERSION}\n"
+            ),
+        );
+    }
+
+    /// Proposes, validates and commits the transaction whose operations and evidence are
+    /// `body`, every step at an instant after `clock`: revision 2.
+    fn commit_second(&self, clock: i64, body: &str) {
         let minted: Value = serde_json::from_str(&text(&["mint", "transaction"])).unwrap();
         let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
         let document = format!(
             "format: ekr.transaction-document/2\ntransaction:\n  id: {}\n  proposer: {}\n  \
-             operations:\n  - !SupersedeNode\n    node: {node}\n    by: {by}\n    reason: \
-             recorded twice\n    evidence:\n    - {BOB_EVIDENCE}\n  evidence:\n  - \
-             {BOB_EVIDENCE}\n",
+             operations:\n{body}",
             minted["id"].as_str().unwrap(),
             host["context"]["operator"].as_str().unwrap()
         );
-        let path = self.directory.path().join("supersede.yaml");
+        let path = self.directory.path().join("second.yaml");
         std::fs::write(&path, document).unwrap();
         let proposed: Value =
             serde_json::from_str(&self.at(clock, &["propose", path.to_str().unwrap()])).unwrap();
@@ -297,8 +345,9 @@ fn category<'a>(comparison: &'a Value, name: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("no {name} in {comparison}"))
 }
 
-/// The shape every comparison has, whatever it found: the six categories, and the seventh,
-/// `superseded`, after them exactly when either store holds a supersession record.
+/// The shape every comparison has, whatever it found: the six categories, the seventh,
+/// `superseded`, after them exactly when either store holds a supersession record, and the
+/// eighth, `schema_evidence`, last exactly when either store's schema version cites evidence.
 fn well_formed(comparison: &Value) {
     assert_eq!(
         comparison["format"], "ekr.store-comparison/1",
@@ -311,13 +360,15 @@ fn well_formed(comparison: &Value) {
         .map(|c| c["category"].as_str().unwrap())
         .collect();
     let mut expected = CATEGORIES.to_vec();
-    if names.len() > CATEGORIES.len() {
-        let superseded = category(comparison, "superseded");
-        assert!(
-            superseded["left"].as_u64().unwrap() + superseded["right"].as_u64().unwrap() > 0,
-            "a superseded category where neither store holds a record: {comparison}"
-        );
-        expected.push("superseded");
+    for optional in ["superseded", "schema_evidence"] {
+        if names.contains(&optional) {
+            let found = category(comparison, optional);
+            assert!(
+                found["left"].as_u64().unwrap() + found["right"].as_u64().unwrap() > 0,
+                "a {optional} category where neither store holds one: {comparison}"
+            );
+            expected.push(optional);
+        }
     }
     assert_eq!(names, expected, "{comparison}");
     let every = comparison["categories"]
@@ -487,6 +538,59 @@ fn a_supersession_on_one_side_is_the_seventh_category() {
             earlier["categories"].as_array().unwrap().len(),
             CATEGORIES.len(),
             "{earlier}"
+        );
+    }
+}
+
+/// Review of EKR 0.0.42, finding 15: two stores that hold the same types, facts and evidence and
+/// whose one schema change cited different retained evidence (0401 on one side, 0402 on the
+/// other) compared equal. The evidence the schema version in force cites is the eighth category,
+/// `schema_evidence`, listed where either version cites any; two stores whose versions cite the
+/// same compare equal, and a pair read before the citation lists six.
+#[test]
+fn a_schema_version_citing_other_evidence_compares_unequal() {
+    for (left_backend, right_backend) in [("file", "sqlite"), ("sqlite", "file")] {
+        let left = Built::evolving(left_backend, 1_000_000);
+        left.cite(1_000_100, ALICE_EVIDENCE);
+        let right = Built::evolving(right_backend, 9_000_000);
+        right.cite(9_000_100, BOB_EVIDENCE);
+
+        let comparison = left.compare(&right, &[]);
+        well_formed(&comparison);
+        assert_eq!(comparison["equal"], false, "{comparison}");
+        for name in CATEGORIES {
+            assert_eq!(
+                category(&comparison, name)["equal"],
+                true,
+                "{name} in {comparison}"
+            );
+        }
+        let cited = category(&comparison, "schema_evidence");
+        assert_eq!(cited["left"], 1, "{comparison}");
+        assert_eq!(cited["right"], 1, "{comparison}");
+        assert_eq!(
+            cited["differing"],
+            serde_json::json!([
+                { "id": ALICE_EVIDENCE, "presence": "left", "fields": [] },
+                { "id": BOB_EVIDENCE, "presence": "right", "fields": [] },
+            ]),
+            "{comparison}"
+        );
+
+        let alike = Built::evolving(left_backend, 5_000_000);
+        alike.cite(5_000_100, BOB_EVIDENCE);
+        let comparison = alike.compare(&right, &[]);
+        well_formed(&comparison);
+        assert_eq!(comparison["equal"], true, "{comparison}");
+        assert_eq!(category(&comparison, "schema_evidence")["left"], 1);
+
+        let before = left.compare(&right, &["--at", "1", "--other-at", "1"]);
+        well_formed(&before);
+        assert_eq!(before["equal"], true, "{before}");
+        assert_eq!(
+            before["categories"].as_array().unwrap().len(),
+            CATEGORIES.len(),
+            "{before}"
         );
     }
 }

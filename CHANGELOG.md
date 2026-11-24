@@ -6,6 +6,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- `ekr.node-detail/2` (`ekr describe --format ekr.node-detail/2`, `/node/<id>`, MCP
+  `describe_node`) answers what the store holds (story:ekr-views-detail-fixes, findings 27, 28
+  and 30 of the EKR 0.0.42 review):
+  - a relation recorded only as Active Relation assertions, with no edge, is a relation group of
+    both its ends; before, the bounded detail listed none and said it was not truncated;
+  - an `edge_type` shaped as an id that no edge type has is matched as a name, so an edge type
+    whose name is UUID-shaped is found by that name;
+  - every String longer than 2,000 bytes is cut, inside a List or Record too, and marks its value
+    `truncated`; before, only a String that was the whole value was cut.
 - Extraction and strict validation follow the schema in the SDK and the CLI
   (story:ekr-extraction-validation-fixes, findings 5-11 and 14 of the EKR 0.0.42 review):
   - an inherited property is the nearest ancestor's, each generation in name order, in the reader
@@ -49,6 +58,14 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   with the tag. An application that copied the workaround `serde_yaml_ng` patch into its own
   manifest can drop it. `task check` runs a new step, `task sdk-standalone-check`, that builds the
   SDK from a workspace of its own, offline.
+- `ekr compare` compares the evidence the schema version in force cites
+  (story:ekr-store-integrity-fixes, finding 15 of the EKR 0.0.42 review): an eighth category,
+  `schema_evidence`, keyed by evidence id, listed where either store's version cites any. Two
+  stores whose schema changes cited different evidence compared equal before.
+- `ekr migrate` refuses a store with a stage still `Begun` or `Sealing` as `migrate-open-stage`,
+  naming each, before it writes to `--to` (finding 16 of the same review). Before, it exited 0 and
+  the copy lost the stage's run, which lives in the stage's own tenant. `docs/cli.md` now says what
+  a migration carries: the store's own tenant, no stage records.
 - Explanations and quality samples return whole, pinned evidence
   (story:ekr-explain-evidence-fixes, findings 19, 20, 21 and 23 of the EKR 0.0.42 review):
   - `ekr_sdk::read::ExplainedEvidence` reads `offset`, `record_length` and `truncated`, so a typed
