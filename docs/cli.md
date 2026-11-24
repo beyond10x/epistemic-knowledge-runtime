@@ -1518,16 +1518,19 @@ megabytes; `/2` answers the same node in counted groups, each listing at most `l
   one thing recorded as several nodes, whose facts may sit on any of them;
 - `properties`: one group per property, named, with its `total` and its values: the record's,
   then the Active value assertions newest first, each with its `assertion`, `valid_from` and
-  `evidence`. A String longer than 2,000 bytes is cut on a character boundary and carries
+  `evidence`. Every String longer than 2,000 bytes, the value itself or one inside a List or
+  Record at any depth, is cut on a character boundary, and the value carries
   `"truncated": true`;
 - `relations`: one group per edge type and direction (`out` when the node is the source), named,
+  from the node's edges and its Active Relation assertions alike, so a relation recorded only as
+  a claim ([Relations: assertion, edge or both](#relations-assertion-edge-or-both)) is listed too,
   with `total` distinct neighbours, largest first; each lists its highest-degree neighbours from
   `after`, each with the newest Active Relation assertion between the two (the id `ekr explain`
   takes) and how many there are, and `next`, the `after` of the group's next page, while more
   remain.
 
 Ask again with `edge_type` (an edge type's id, or its name, matched exactly and else
-lowercased) and `after` set to a group's `next` to page that edge type's groups; such an answer
+lowercased; a text shaped as an id that no edge type has is matched as a name) and `after` set to a group's `next` to page that edge type's groups; such an answer
 carries no property group and no same-name list, and an `edge_type` that names no edge type
 answers no group. `meta.truncated` says whether the answer left anything out.
 

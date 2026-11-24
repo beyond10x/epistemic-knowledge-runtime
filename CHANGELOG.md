@@ -6,6 +6,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- `ekr.node-detail/2` (`ekr describe --format ekr.node-detail/2`, `/node/<id>`, MCP
+  `describe_node`) answers what the store holds (story:ekr-views-detail-fixes, findings 27, 28
+  and 30 of the EKR 0.0.42 review):
+  - a relation recorded only as Active Relation assertions, with no edge, is a relation group of
+    both its ends; before, the bounded detail listed none and said it was not truncated;
+  - an `edge_type` shaped as an id that no edge type has is matched as a name, so an edge type
+    whose name is UUID-shaped is found by that name;
+  - every String longer than 2,000 bytes is cut, inside a List or Record too, and marks its value
+    `truncated`; before, only a String that was the whole value was cut.
 - Extraction and strict validation follow the schema in the SDK and the CLI
   (story:ekr-extraction-validation-fixes, findings 5-11 and 14 of the EKR 0.0.42 review):
   - an inherited property is the nearest ancestor's, each generation in name order, in the reader
