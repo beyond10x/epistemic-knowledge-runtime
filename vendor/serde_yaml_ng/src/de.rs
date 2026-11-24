@@ -81,6 +81,13 @@ impl<'de> Deserializer<'de> {
         Deserializer { progress }
     }
 
+    /// Local (observation facade): a deserializer over one already loaded document, as the
+    /// multi-document iterator yields it.
+    pub(crate) fn from_loaded(document: Document<'de>) -> Self {
+        let progress = Progress::Document(document);
+        Deserializer { progress }
+    }
+
     /// Creates a YAML deserializer from an `io::Read`.
     ///
     /// Reader-based deserializers do not support deserializing borrowed types
