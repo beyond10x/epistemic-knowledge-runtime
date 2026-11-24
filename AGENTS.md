@@ -172,13 +172,14 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   the copies cost none.
 - **A test over 60 s is killed and fails** (`slow-timeout`, `terminate-after = 1`). Split a test
   that loops over providers, profiles or seeds into one test per case; do not raise the limit.
-- **The long cases start first.** Two `priority` overrides in `.config/nextest.toml` put the
-  cases that took 9 s or more on CI (run 45362960877) at priority 90 and those of 4.5-9 s at 50, so
-  the run does not end on one long case started late while the other threads wait. A case that
-  grows past 4.5 s on CI joins a list; one that falls under it leaves it. A third override puts
-  every other case of the six browser files at 40, so they run in the first part of the run and
-  not between the other tests in name order (CI run 45449323582: 85 cases, 333 s summed over
-  178 s, the last ones started 167 s in).
+- **The browser cases start first, then the long cases.** The `priority` overrides in
+  `.config/nextest.toml` put the cases of the six browser files ahead of every other test (100 for
+  those that took 9 s or more on CI, run 45362960877; 97 for 4.5-9 s; 95 for the rest), so they
+  run together while the shared Chromium is up and not between the other tests in name order (CI
+  run 45449323582: 85 cases, 333 s summed over 178 s, the last ones started 167 s in). Then the
+  other cases of 9 s or more (90) and of 4.5-9 s (50), so the run does not end on one long case
+  started late while the other threads wait. A case that grows past 4.5 s on CI joins a list; one
+  that falls under it leaves it.
 - **The step's budget is 120 s** of tests and doc tests, the build not counted (the step prints
   the build time apart). It is not met yet; until it is, nextest stops the run at an interim
   ceiling of 600 s (`global-timeout`), and the step prints how far over 120 s it is without failing
