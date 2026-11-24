@@ -161,10 +161,10 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   dependencies stay at 3). At opt-level 0 the checkpoint cases, which replay a growing history at
   every step, ran past 60 s on CI (PR 109's first run: 8 killed, 7 more at 52-59 s).
 - **Compile-only work is its own task.** `task bench-check` type-checks the `bench`-feature
-  targets; the test step does not build them. `task compile-fail-check` runs the trybuild
-  compile-fail cases (`validation::only_the_kernel_constructs_a_validated_transaction`, 38 s on CI:
-  it compiles a crate per case), which `.config/nextest.toml`'s `default-filter` leaves out of the
-  step.
+  targets; the test step does not build them. `task compile-fail-check` runs the four trybuild
+  compile-fail cases (one in `ekr-kernel`, three in `ekr-graph`; 23-38 s each on CI, since each
+  compiles crates), which `.config/nextest.toml`'s `default-filter` leaves out of the step;
+  `gate_layout` fails on a trybuild case the filter does not name.
 
 ### One integration-test binary per crate
 
