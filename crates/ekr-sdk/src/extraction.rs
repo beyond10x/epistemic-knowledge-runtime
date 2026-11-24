@@ -19,10 +19,17 @@
 //! property an ancestor declares otherwise — is [`ApplyError::Ontology`], before any write too; the
 //! engine's reader refuses it first, as `extraction-property-conflict`. Every type, property and
 //! relation the document names is looked up then too, so an entity's type no declaration gives is
-//! [`ApplyError::Undeclared`] before anything is written.
+//! [`ApplyError::Undeclared`] before anything is written. A type name the store gives two types
+//! names neither: a reference to it is refused as `extraction-name-duplicate`, and a document that
+//! does not use it applies (review of 0.0.42, finding 8). An evidence item the store does not
+//! retain whose payload is past the `sequence_elements` limit of the `!AddEvidence` that would add
+//! it is [`ApplyError::Limit`], before any write, as `ekr propose` would refuse that document
+//! (finding 14).
 //!
 //! A bad fact is skipped, and the rest of the document applies (`story:extraction-partial-apply`):
-//! one citing an id the document's evidence does not carry (`fact-evidence-unlisted`), one whose
+//! one citing an id the document's evidence does not carry (`fact-evidence-unlisted`) or none
+//! (`fact-without-evidence`), one whose value its property's type does not hold
+//! (`extraction-value-mismatch`, finding 7), one whose
 //! subject or object a named thing above would refuse, one naming a property or edge type no
 //! declaration gives (`extraction-property-undeclared`, `extraction-type-undeclared`), a relation
 //! between node types its edge type does not connect, subtypes conforming
@@ -32,8 +39,9 @@
 //! (`story:supersede-node-review-fixes`, D6 and Q4): such a key takes the kept node's properties
 //! and edge ends, a fact the kept type does not admit is skipped before anything only it names is
 //! created, and its refusal names the supersession of each end that caused it. A key is checked
-//! alone and again as the group it is resolved with, and a fact the group's type does not admit
-//! is skipped the same way. So is a `!Property` fact marked `replaces` that neither the store —
+//! with every alias of the keys the whole document joins it with (finding 6), and again as the
+//! group it is resolved with once bad facts are skipped, and a fact the group's type does not
+//! admit is skipped the same way. So is a `!Property` fact marked `replaces` that neither the store —
 //! on the nodes `ekr resolve` would answer its subject with — nor an earlier fact of the document
 //! holds an active value of its property for ([`REPLACES_NOTHING`]). It is listed under
 //! [`ExtractionReport::rejected`] with its refusal, and nothing only it names is resolved, created
@@ -51,7 +59,8 @@
 //!    node type that share an alias are one thing, whichever order the document lists them in:
 //!    each such group is resolved once through one [`Resolver`], as a typed reference carrying
 //!    every alias of its members. A group the store holds is used; one it does not is created as
-//!    a node of its type named by the least, in byte order, of its members' first aliases; one
+//!    a node of its type named by the least, in byte order, of its members' first aliases,
+//!    carrying the value of each fact about it whose property its type requires (finding 9); one
 //!    the store answers with several nodes is [ambiguous](ExtractionReport::ambiguous): nothing
 //!    is chosen;
 //! 3. every fact about things that resolved, as one `!AddAssertion` each — `!Property` with the
@@ -121,10 +130,10 @@ use serde::Serialize;
 
 use crate::batch::{BatchError, BatchReport, Batcher, CallError, Rejection};
 use crate::document::{
-    extraction_codes as code, Assertion, EdgeDraft, ExtractedFact, ExtractedReference,
-    ExtractionDocument, ExtractionRefusal, Object, Ontology, OntologyError, Operation, Predicate,
-    PropertyId, SchemaChange, Subject, Supersession, TemporalRange, TypedReference,
-    ValidationProfile,
+    extraction_codes as code, Assertion, Cardinality, DocumentError, DocumentLimit, EdgeDraft,
+    ExtractedFact, ExtractedReference, ExtractionDocument, ExtractionRefusal, NodeDraft, Object,
+    Ontology, OntologyError, Operation, Predicate, PropertyId, SchemaChange, Subject, Supersession,
+    TemporalRange, TypedReference, ValidationProfile, Value, ValueType,
 };
 use crate::evidence::EvidenceSet;
 use crate::read::{ReadError, Reader, SnapshotPredicate, SnapshotSubject};
@@ -244,6 +253,12 @@ pub enum ApplyError {
         /// The name, `Type.property` for a property.
         name: String,
     },
+    /// Under [`ApplyOptions::strict`], an evidence item a fact cites and the store does not
+    /// retain is past a limit of the transaction document that would add it — more payload bytes
+    /// than `sequence_elements` — which `ekr propose` refuses by the same name; nothing was
+    /// written (review of 0.0.42, finding 14).
+    #[error(transparent)]
+    Limit(DocumentError),
     /// A request got no answer the SDK can act on.
     #[error(transparent)]
     Call(#[from] CallError),
@@ -350,6 +365,9 @@ fn reference_type(
             site,
         )));
     }
+    if ontology.shares_name(&key.0, true) {
+        return Err(Defect::Refused(shared_name(&key.0, "node")));
+    }
     let Some(type_id) = ontology.node_type(&key.0) else {
         return Err(Defect::Undeclared {
             kind: "node type",
@@ -365,18 +383,31 @@ fn reference_type(
     Ok(type_id)
 }
 
+/// The refusal of a `kind` type name a document uses that the store gives more than one type:
+/// `extraction-name-duplicate`, as the engine's reader refuses it, since the name identifies none
+/// of them (review of 0.0.42, finding 8). A name the document does not use is not refused.
+fn shared_name(name: &str, kind: &str) -> ExtractionRefusal {
+    ExtractionRefusal::new(
+        code::NAME_DUPLICATE,
+        format!("{name} (the store declares more than one {kind} type of this name)"),
+    )
+}
+
 /// What `fact` names, looked up: its property, on the type of the node its subject's key
 /// resolves to ([`KeptTypes`]), or its edge type.
 fn lookup(fact: &ExtractedFact, ontology: &Ontology, kept: &KeptTypes) -> Result<Lookup, Defect> {
     match fact {
         ExtractedFact::Property(fact) => {
-            let landed = kept.of(&fact.subject.node_type, &fact.subject.aliases);
+            let landed = kept.of_reference(&fact.subject);
             property_on(
                 ontology,
                 &fact.subject.node_type,
                 landed.as_ref(),
                 &fact.property,
             )
+        }
+        ExtractedFact::Relation(fact) if ontology.shares_name(&fact.relation, false) => {
+            Err(Defect::Refused(shared_name(&fact.relation, "edge")))
         }
         ExtractedFact::Relation(fact) => ontology
             .edge_type(&fact.relation)
@@ -385,6 +416,67 @@ fn lookup(fact: &ExtractedFact, ontology: &Ontology, kept: &KeptTypes) -> Result
                 kind: "edge type",
                 name: fact.relation.clone(),
             }),
+    }
+}
+
+/// A property fact, at `facts[<at>]`, whose value the property's type does not hold, checked on
+/// the type of the node its subject lands on: `extraction-value-mismatch`, as the engine's reader
+/// refuses it, so the SDK refuses it before anything is written as `ekr apply-extraction` does
+/// (review of 0.0.42, finding 7). A property no declaration gives is [`lookup`]'s to refuse.
+fn value_held(
+    at: usize,
+    fact: &crate::document::PropertyFact,
+    ontology: &Ontology,
+    landed: Option<&Kept>,
+) -> Result<(), Defect> {
+    let typed = landed.map_or(fact.subject.node_type.as_str(), |kept| {
+        kept.node_type.as_str()
+    });
+    match ontology.property_definition(typed, &fact.property) {
+        Some(declared) if !holds(&declared.value_type, &fact.value) => {
+            Err(Defect::Refused(ExtractionRefusal::new(
+                code::VALUE_MISMATCH,
+                noted(format!("facts[{at}]: {typed}.{}", fact.property), [landed]),
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// A fact, at `facts[<at>]`, citing no evidence item: `fact-without-evidence`, as the engine's
+/// reader refuses it, before anything is written (review of 0.0.42, finding 7).
+fn cites_evidence(at: usize, fact: &ExtractedFact) -> Result<(), Defect> {
+    if fact.evidence().is_empty() {
+        return Err(Defect::Refused(ExtractionRefusal::new(
+            code::WITHOUT_EVIDENCE,
+            format!("facts[{at}]"),
+        )));
+    }
+    Ok(())
+}
+
+/// Whether a value of `value_type` can be `value`, as the engine's reader decides it: a `NodeRef`
+/// by its kind, which only the store resolves further; a `Float` never.
+fn holds(value_type: &ValueType, value: &Value) -> bool {
+    match (value_type, value) {
+        (ValueType::String, Value::String(_))
+        | (ValueType::Boolean, Value::Boolean(_))
+        | (ValueType::Integer, Value::Integer(_))
+        | (ValueType::Decimal, Value::Decimal(_))
+        | (ValueType::Timestamp, Value::Timestamp(_))
+        | (ValueType::Duration, Value::Duration(_))
+        | (ValueType::NodeRef { .. }, Value::NodeRef(_)) => true,
+        (ValueType::Enum { variants }, Value::Enum(variant)) => variants.contains(variant),
+        (ValueType::List(element), Value::List(items)) => {
+            items.iter().all(|item| holds(element, item))
+        }
+        (ValueType::Record(fields), Value::Record(carried)) => {
+            fields.len() == carried.len()
+                && carried
+                    .iter()
+                    .all(|(field, value)| fields.get(field).is_some_and(|spec| holds(spec, value)))
+        }
+        _ => false,
     }
 }
 
@@ -442,10 +534,19 @@ fn check_fact(
     let sites = fact_sites(at, fact);
     reference_type(&sites[0].0, sites[0].1, ontology)?;
     let found = lookup(fact, ontology, kept)?;
+    if let ExtractedFact::Property(property) = fact {
+        value_held(
+            at,
+            property,
+            ontology,
+            kept.of_reference(&property.subject).as_ref(),
+        )?;
+    }
     for (site, reference) in &sites[1..] {
         reference_type(site, reference, ontology)?;
     }
     relation_ends(at, fact, ontology, kept)?;
+    cites_evidence(at, fact)?;
     Ok(found)
 }
 
@@ -464,8 +565,8 @@ fn relation_ends(
     let ExtractedFact::Relation(fact) = fact else {
         return Ok(());
     };
-    let subject = kept.of(&fact.subject.node_type, &fact.subject.aliases);
-    let object = kept.of(&fact.object.node_type, &fact.object.aliases);
+    let subject = kept.of_reference(&fact.subject);
+    let object = kept.of_reference(&fact.object);
     ends_connect(
         at,
         ontology,
@@ -526,18 +627,26 @@ struct KeptTypes<'a> {
     /// Each `(type, alias)` a superseded node holds, with that node and the node it is superseded
     /// by.
     superseded: BTreeMap<(TypeId, &'a str), BTreeSet<(NodeId, NodeId)>>,
+    /// Each key of the document, with every alias of the named things it is one thing with
+    /// ([`alias_groups`]).
+    groups: BTreeMap<Key, Vec<String>>,
 }
 
 impl<'a> KeptTypes<'a> {
     /// The holders of `graph`'s aliases under `store`'s types, read only where `graph` holds a
-    /// supersession record.
-    fn read(graph: &'a crate::read::SnapshotGraph, store: &'a Ontology) -> Self {
+    /// supersession record, for the keys of `document`.
+    fn read(
+        graph: &'a crate::read::SnapshotGraph,
+        store: &'a Ontology,
+        document: &ExtractionDocument,
+    ) -> Self {
         if graph.superseded.is_empty() {
             return Self::default();
         }
         let mut kept = Self {
             store: Some(store),
             graph: Some(graph),
+            groups: alias_groups(document),
             ..Self::default()
         };
         for node in graph.nodes.values() {
@@ -558,6 +667,17 @@ impl<'a> KeptTypes<'a> {
             }
         }
         kept
+    }
+
+    /// [`Self::of`] the named thing `reference` is one of: its key with every alias of the keys
+    /// the document joins it with, which is what it is resolved as. So a fact on one alias of a
+    /// superseded node is checked against the kept node's type whether the document puts the
+    /// node's other aliases on the fact or on another named thing it shares an alias with
+    /// (review of 0.0.42, finding 6).
+    fn of_reference(&self, reference: &ExtractedReference) -> Option<Kept> {
+        let key = key_of(reference);
+        let aliases = self.groups.get(&key).unwrap_or(&key.1);
+        self.of(&reference.node_type, aliases)
     }
 
     /// Where a typed reference of the store's type named `node_type` and `aliases` resolves, as
@@ -694,6 +814,16 @@ impl Plan {
             for (at, fact) in document.facts.iter().enumerate() {
                 relation_ends(at, fact, ontology, kept).map_err(Defect::into_error)?;
             }
+            // Then what only the kernel refused before, once a node the fact rests on had been
+            // created: a value its property does not hold, a fact citing no evidence.
+            for (at, fact) in document.facts.iter().enumerate() {
+                if let ExtractedFact::Property(property) = fact {
+                    let landed = kept.of_reference(&property.subject);
+                    value_held(at, property, ontology, landed.as_ref())
+                        .map_err(Defect::into_error)?;
+                }
+                cites_evidence(at, fact).map_err(Defect::into_error)?;
+            }
         }
 
         let mut skipped = BTreeMap::new();
@@ -739,6 +869,7 @@ impl Plan {
                     (ExtractedFact::Property(fact), Some(Lookup::Property(property))) => {
                         let subject = of_key[&key_of(&fact.subject)];
                         regrouped_property(
+                            at,
                             fact,
                             *property,
                             landed[subject].as_ref(),
@@ -835,18 +966,19 @@ enum Landing {
 /// checked for, unless its group, `group` answering, resolves to a node of another type than the
 /// key alone does — then the property that type carries, or `extraction-property-undeclared`.
 fn regrouped_property(
+    at: usize,
     fact: &crate::document::PropertyFact,
     property: PropertyId,
     group: Option<&Kept>,
     ontology: &Ontology,
     kept: &KeptTypes,
 ) -> Result<PropertyId, Defect> {
-    let alone = kept.of(&fact.subject.node_type, &fact.subject.aliases);
+    let alone = kept.of_reference(&fact.subject);
     if alone.as_ref().map(|kept| &kept.node_type) == group.map(|kept| &kept.node_type) {
         return Ok(property);
     }
     match property_on(ontology, &fact.subject.node_type, group, &fact.property)? {
-        Lookup::Property(property) => Ok(property),
+        Lookup::Property(property) => value_held(at, fact, ontology, group).map(|()| property),
         Lookup::Relation(_) => unreachable!("a property is looked up as a property"),
     }
 }
@@ -862,7 +994,7 @@ fn regrouped_ends(
     kept: &KeptTypes,
 ) -> Result<(), Defect> {
     let same = |reference: &ExtractedReference, group: Option<&Kept>| {
-        kept.of(&reference.node_type, &reference.aliases)
+        kept.of_reference(reference)
             .map(|kept| kept.node_type)
             .as_ref()
             == group.map(|kept| &kept.node_type)
@@ -956,6 +1088,57 @@ fn grouped(
             .collect();
     }
     Ok((groups, of_key))
+}
+
+/// Every key of `document` — each entity's, each fact's subject's and object's — with every
+/// alias of the keys of its type it shares an alias with, transitively, sorted: the aliases its
+/// named thing is resolved with when every fact of the document applies, which is what a fact is
+/// checked against before any is skipped. The engine's reader groups them alike.
+fn alias_groups(document: &ExtractionDocument) -> BTreeMap<Key, Vec<String>> {
+    let mut references: Vec<&ExtractedReference> = document.entities.iter().collect();
+    for fact in &document.facts {
+        references.extend(
+            fact_sites(0, fact)
+                .into_iter()
+                .map(|(_, reference)| reference),
+        );
+    }
+    let keys: Vec<Key> = references
+        .into_iter()
+        .map(key_of)
+        .collect::<BTreeSet<Key>>()
+        .into_iter()
+        .collect();
+    let mut parent: Vec<usize> = (0..keys.len()).collect();
+    let mut by_alias: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+    for (at, (node_type, aliases)) in keys.iter().enumerate() {
+        for alias in aliases {
+            match by_alias.get(&(node_type.as_str(), alias.as_str())) {
+                Some(&other) => {
+                    let (left, right) = (root_of(&mut parent, at), root_of(&mut parent, other));
+                    parent[left.max(right)] = left.min(right);
+                }
+                None => {
+                    by_alias.insert((node_type.as_str(), alias.as_str()), at);
+                }
+            }
+        }
+    }
+    let mut joined: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+    for (at, (_, aliases)) in keys.iter().enumerate() {
+        let root = root_of(&mut parent, at);
+        joined
+            .entry(root)
+            .or_default()
+            .extend(aliases.iter().cloned());
+    }
+    keys.iter()
+        .enumerate()
+        .map(|(at, key)| {
+            let root = root_of(&mut parent, at);
+            (key.clone(), joined[&root].iter().cloned().collect())
+        })
+        .collect()
 }
 
 /// The root of `at`'s set, halving the path on the way.
@@ -1095,6 +1278,9 @@ pub fn apply_with<T: Transport + ?Sized>(
     if let Some(refusal) = reused_evidence(document, graph) {
         return Err(refusal.into());
     }
+    if let Some(limit) = oversized_evidence(document, graph) {
+        return Err(ApplyError::Limit(limit));
+    }
     let store = Ontology::read(&ontology(transport)?)?;
     // The kernel decides whether the store's profile takes a schema change: under v1 it is
     // rejected (`unsupported-operation`), and reported as the ontology's rejection.
@@ -1129,7 +1315,7 @@ pub fn apply_with<T: Transport + ?Sized>(
     } else {
         change.ontology()
     };
-    let kept = KeptTypes::read(graph, &store);
+    let kept = KeptTypes::read(graph, &store, document);
     let plan = Plan::of(document, planning, options, unlisted, &holds, &lands, &kept)?;
     let held: BTreeSet<EvidenceId> = graph.evidence.keys().copied().collect();
     let claims = claims_of(graph);
@@ -1189,6 +1375,28 @@ fn reused_evidence(
         let same = serde_json::to_value(&item.evidence).ok() == serde_json::to_value(retained).ok();
         (!same)
             .then(|| ExtractionRefusal::new(code::DUPLICATE_IDENTITY, item.evidence.id.to_string()))
+    })
+}
+
+/// The first evidence item of `document` the store does not retain whose payload is past the
+/// `sequence_elements` limit of the transaction document that would add it: `ekr propose` would
+/// refuse that `!AddEvidence`, so the document is refused before anything is written, with or
+/// without [`ApplyOptions::strict`], as a refusal of an evidence item refuses it (review of
+/// 0.0.42, finding 14). An item the store retains is cited, not added again, so a statement
+/// larger than the limit, retained once through `ekr seed --evidence`, is cited by any number of
+/// extractions.
+fn oversized_evidence(
+    document: &ExtractionDocument,
+    graph: &crate::read::SnapshotGraph,
+) -> Option<DocumentError> {
+    let limit = DocumentLimit::SequenceElements;
+    document.evidence.iter().find_map(|item| {
+        (item.payload.len() > limit.bound() && !graph.evidence.contains_key(&item.evidence.id))
+            .then(|| DocumentError::Limit {
+                limit,
+                bound: limit.bound(),
+                value: item.payload.len(),
+            })
     })
 }
 
@@ -1275,17 +1483,16 @@ fn named_by_cause(
 ) -> String {
     let causes: Vec<Kept> = match fact {
         ExtractedFact::Property(fact)
-            if [code::PROPERTY_UNDECLARED, VALUE_MISMATCH].contains(&refusal.code.as_str()) =>
+            if [code::PROPERTY_UNDECLARED, code::VALUE_MISMATCH]
+                .contains(&refusal.code.as_str()) =>
         {
-            kept.of(&fact.subject.node_type, &fact.subject.aliases)
-                .into_iter()
-                .collect()
+            kept.of_reference(&fact.subject).into_iter().collect()
         }
         ExtractedFact::Relation(fact) if refusal.code == code::RELATION_ENDS => {
             [(&fact.subject, true), (&fact.object, false)]
                 .into_iter()
                 .filter_map(|(reference, source)| {
-                    let landed = kept.of(&reference.node_type, &reference.aliases)?;
+                    let landed = kept.of_reference(reference)?;
                     (!ontology.connects_end(&fact.relation, &landed.node_type, source))
                         .then_some(landed)
                 })
@@ -1295,9 +1502,6 @@ fn named_by_cause(
     };
     noted(refusal.to_string(), causes.iter().map(Some))
 }
-
-/// The engine reader's code for a property fact's value its property's type does not hold.
-const VALUE_MISMATCH: &str = "extraction-value-mismatch";
 
 /// One application, once its plan is made.
 struct Run<'a> {
@@ -1870,6 +2074,38 @@ impl Run<'_> {
         }
     }
 
+    /// The values a node created for the group at `group` carries from its creation: for each
+    /// property its type requires, the values of the facts about it the plan applies — the first,
+    /// for a single-valued property — so a node whose type requires a property the document
+    /// supplies can be created (review of 0.0.42, finding 9). The facts are asserted as well.
+    fn required_values(&self, group: usize) -> BTreeMap<PropertyId, Vec<Value>> {
+        let required: BTreeMap<PropertyId, bool> = self
+            .ontology
+            .required(self.plan.groups[group].type_id)
+            .into_iter()
+            .map(|property| (property.id, property.cardinality == Cardinality::One))
+            .collect();
+        let mut values: BTreeMap<PropertyId, Vec<Value>> = BTreeMap::new();
+        for (fact, planned) in self.document.facts.iter().zip(&self.plan.facts) {
+            let (ExtractedFact::Property(fact), Some((subject, Said::Property(property)))) =
+                (fact, planned)
+            else {
+                continue;
+            };
+            let Some(&single) = required.get(property) else {
+                continue;
+            };
+            if *subject != group {
+                continue;
+            }
+            let held = values.entry(*property).or_default();
+            if !(single && !held.is_empty()) && !held.contains(&fact.value) {
+                held.push(fact.value.clone());
+            }
+        }
+        values
+    }
+
     /// Every group resolved, and the ones the store holds none of created.
     fn resolve<T: Transport + ?Sized>(
         &self,
@@ -1881,10 +2117,23 @@ impl Run<'_> {
         let mut created: BTreeMap<NodeId, usize> = BTreeMap::new();
         for (at, group) in self.plan.groups.iter().enumerate() {
             let typed = TypedReference::new(group.type_id, group.aliases.iter().cloned());
-            let resolved = resolver.resolve(transport, &typed).map_err(|error| {
-                report.absorb(resolver.take_pending().report, |_| "entities".to_owned());
-                ApplyError::from(error)
-            })?;
+            let name = group
+                .aliases
+                .iter()
+                .find(|alias| !alias.is_empty())
+                .cloned()
+                .unwrap_or_default();
+            let draft = || {
+                let mut draft = NodeDraft::new(self.root, group.type_id, name);
+                draft.properties = self.required_values(at);
+                draft
+            };
+            let resolved = resolver
+                .resolve_with(transport, &typed, draft)
+                .map_err(|error| {
+                    report.absorb(resolver.take_pending().report, |_| "entities".to_owned());
+                    ApplyError::from(error)
+                })?;
             things.push(match resolved {
                 Resolution::Resolved(node) => Thing::Node(node),
                 Resolution::Queued(node) => {

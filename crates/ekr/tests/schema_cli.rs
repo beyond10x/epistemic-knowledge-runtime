@@ -796,7 +796,7 @@ fn the_seed_schemas_graph_document_is_the_envelope_the_store_writes() {
 /// plain key, are refused where the tag is accepted.
 #[test]
 fn a_yaml_tag_is_spelled_as_a_one_key_object_the_readers_do_not_accept() {
-    for format in [TRANSACTION, SEED] {
+    for format in [TRANSACTION, SEED, EXTRACTION] {
         let description = schema(format)["description"]
             .as_str()
             .unwrap_or_else(|| panic!("{format}: no description"))
@@ -837,6 +837,22 @@ fn a_yaml_tag_is_spelled_as_a_one_key_object_the_readers_do_not_accept() {
         read(SEED, &document).is_err(),
         "the seed reader accepts the object form"
     );
+
+    // The extraction document is held to the same contract (review of 0.0.42, finding 13): its
+    // JSON projection, every fact `{"!Property": ...}`, validates against the printed schema, and
+    // the reader, which the schema's description says takes the tag, refuses it by name.
+    let example = text(&["example", EXTRACTION]);
+    read(EXTRACTION, &example).unwrap();
+    let projection = instance(EXTRACTION, &example);
+    assert!(
+        projection.to_string().contains("{\"!Property\":"),
+        "{projection}"
+    );
+    let errors = refusals(&validator(EXTRACTION), EXTRACTION, &example);
+    assert!(errors.is_empty(), "{errors:?}");
+    let error = read(EXTRACTION, &projection.to_string())
+        .expect_err("the extraction reader accepts the object form");
+    assert!(error.contains("extraction-document-malformed"), "{error}");
 }
 
 /// A document with one `CreateNode` whose single property value is `value` (already YAML).

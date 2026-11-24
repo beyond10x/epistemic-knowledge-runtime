@@ -48,8 +48,11 @@ use ekr_ontology::{
 const CASES: u64 = 3000;
 
 /// The digest of the rendering at base `c81a426a`, before the unit: every issue, in order, of
-/// three profiles over `CASES` seeded transactions.
-const BASE_DIGEST: &str = "80607f117007d8d13277adc696569114b3e755cd58aea6024d3a61d896c1d506";
+/// three profiles over `CASES` seeded transactions. Moved once since, by
+/// `story:ekr-extraction-validation-fixes` (finding 11): case 2908 supersedes with a replacement
+/// the basis graph no longer holds active, and each profile adds that `invalid-supersession`;
+/// no other line changed.
+const BASE_DIGEST: &str = "0affebb6ce4fe16abc2c6a0d5429ae5c8606131a9cdc2a1c05324279483f5f3d";
 
 const K_TYPE: u16 = 1;
 const K_PROP: u16 = 2;
