@@ -401,3 +401,210 @@ fn the_integrate_target_answers_both_branches_of_apply_extraction() {
         assert!(refused.direct_events.is_empty(), "{provider:?}");
     }
 }
+
+/// One store of `provider` in a directory of its own, run through `ekr::cli::run` under the
+/// conformance fixtures' host.
+struct Store {
+    _directory: tempfile::TempDir,
+    options: Vec<std::ffi::OsString>,
+}
+
+impl Store {
+    fn new(provider: Provider) -> Self {
+        let directory = tempfile::tempdir().unwrap();
+        let (backend, store) = match provider {
+            Provider::File => ("file", directory.path().join("store")),
+            Provider::Sqlite => ("sqlite", directory.path().join("store.sqlite")),
+        };
+        let options = vec![
+            "ekr".into(),
+            "--host".into(),
+            fixtures().join("host.json").into_os_string(),
+            "--store".into(),
+            store.into_os_string(),
+            "--backend".into(),
+            backend.into(),
+        ];
+        Self {
+            _directory: directory,
+            options,
+        }
+    }
+
+    fn run(&self, args: &[&std::ffi::OsStr]) -> Result<String, ekr::exit::Failure> {
+        let mut argv = self.options.clone();
+        argv.extend(args.iter().map(|arg| arg.to_os_string()));
+        ekr::cli::run(argv, &ekr::cli::system_time, &mut std::io::empty())
+    }
+
+    fn read(&self, args: &[&str]) -> Result<serde_json::Value, String> {
+        let args: Vec<&std::ffi::OsStr> = args.iter().map(std::ffi::OsStr::new).collect();
+        let printed = self.run(&args).map_err(|failure| failure.to_string())?;
+        serde_json::from_str(&printed).map_err(|e| e.to_string())
+    }
+}
+
+/// A read of the store, as the target makes one.
+type Read<'a> = dyn Fn(&[&str]) -> Result<serde_json::Value, String> + 'a;
+
+/// `read`, with the answer of the read verb `verb` changed by `change`.
+fn altered<'a>(
+    store: &'a Store,
+    verb: &'a str,
+    change: impl Fn(&mut serde_json::Value) + 'a,
+) -> impl Fn(&[&str]) -> Result<serde_json::Value, String> + 'a {
+    move |args: &[&str]| {
+        let mut answer = store.read(args)?;
+        if args.first() == Some(&verb) {
+            change(&mut answer);
+        }
+        Ok(answer)
+    }
+}
+
+/// The one assertion the fixture document adds, by id, in a snapshot.
+fn added(snapshot: &mut serde_json::Value) -> &mut serde_json::Value {
+    let assertions = snapshot["graph"]["graph"]["assertions"]
+        .as_object_mut()
+        .unwrap();
+    let id = assertions
+        .iter()
+        .find(|(_, assertion)| {
+            assertion["evidence"] == serde_json::json!(["00000000-0000-4000-8000-000000000405"])
+        })
+        .map(|(id, _)| id.clone())
+        .expect("the document's assertion");
+    &mut assertions[&id]
+}
+
+/// Review finding 41 of EKR 0.0.42: the target reported `applied` from the report's row counts,
+/// so a store holding the wrong fact or citation behind the same rows passed. The target now
+/// reads the store back ([`IntegrateTarget::check_applied`]): over a store the fixture document
+/// was applied to through the verb, the check passes; with the store's answer changed in one
+/// place — the fact's citation, its object, the evidence entry, the payload `explain` returns, the
+/// head — it names the disagreement.
+fn the_applied_check_reads_the_stored_fact_and_its_citation(provider: Provider) {
+    let store = Store::new(provider);
+    let seed = fixtures().join("seed.yaml");
+    store
+        .run(&[std::ffi::OsStr::new("seed"), seed.as_os_str()])
+        .unwrap();
+    let read = |args: &[&str]| store.read(args);
+    let before = IntegrateTarget::store_state(&read).unwrap();
+    let document = fixtures().join("extraction.yaml");
+    let printed = store
+        .run(&[
+            std::ffi::OsStr::new("apply-extraction"),
+            document.as_os_str(),
+        ])
+        .unwrap();
+    let report: serde_json::Value = serde_json::from_str(&printed).unwrap();
+    let text = std::fs::read_to_string(&document).unwrap();
+    IntegrateTarget::check_applied(&read, &text, &report, &before)
+        .unwrap_or_else(|e| panic!("{provider:?}: the store holds the applied document: {e}"));
+
+    let acme = "00000000-0000-4000-8000-000000000303";
+    let citation = altered(&store, "snapshot", |snapshot| {
+        added(snapshot)["evidence"] = serde_json::json!(["00000000-0000-4000-8000-000000000401"]);
+    });
+    let object = altered(&store, "snapshot", move |snapshot| {
+        added(snapshot)["object"] = serde_json::json!({ "Node": acme });
+    });
+    let entry = altered(&store, "snapshot", |snapshot| {
+        snapshot["graph"]["graph"]["evidence"]["00000000-0000-4000-8000-000000000405"]
+            ["observed_at"] = serde_json::json!(0);
+    });
+    let payload = altered(&store, "explain", |explained| {
+        for link in explained["links"].as_array_mut().unwrap() {
+            if link["kind"] == "Evidence" {
+                link["payload"] = serde_json::json!("RGFuYQ==");
+            }
+        }
+    });
+    let head = altered(&store, "head", |head| {
+        head["revision"] = serde_json::json!(head["revision"].as_u64().unwrap() + 1);
+    });
+    for (name, read, named) in [
+        ("citation", &citation as &Read, "no active assertion"),
+        ("object", &object, "no active assertion"),
+        (
+            "evidence entry",
+            &entry,
+            "evidence 00000000-0000-4000-8000-000000000405 is",
+        ),
+        ("payload", &payload, "does not return evidence"),
+        ("head", &head, "the head is revision"),
+    ] {
+        let refused = IntegrateTarget::check_applied(read, &text, &report, &before)
+            .expect_err(&format!("{provider:?}: a changed {name} passes the check"));
+        assert!(refused.contains(named), "{provider:?}: {name}: {refused}");
+    }
+}
+
+#[test]
+fn the_applied_check_reads_the_stored_fact_and_its_citation_on_file() {
+    the_applied_check_reads_the_stored_fact_and_its_citation(Provider::File);
+}
+
+#[test]
+fn the_applied_check_reads_the_stored_fact_and_its_citation_on_sqlite() {
+    the_applied_check_reads_the_stored_fact_and_its_citation(Provider::Sqlite);
+}
+
+/// Review finding 41 of EKR 0.0.42, `refused`: the target reported the refusal without reading
+/// the store. [`IntegrateTarget::check_unchanged`] holds the head, every assertion (the valid peer
+/// the refused document does not touch among them) and the retained transactions to what they
+/// were before the command: unchanged, it passes; with the peer's lifecycle, the head or a
+/// transaction moved, it names what changed. The refused store in the suite holds revision 1's
+/// assertion beside the refusing seed, so the peer is there to check.
+fn the_refused_check_holds_the_head_and_the_valid_peer(provider: Provider) {
+    let store = Store::new(provider);
+    let seed = fixtures().join("seed.yaml");
+    let document = fixtures().join("extraction.yaml");
+    store
+        .run(&[std::ffi::OsStr::new("seed"), seed.as_os_str()])
+        .unwrap();
+    // The document's assertion is the peer here: it is valid and a later refusal leaves it.
+    store
+        .run(&[
+            std::ffi::OsStr::new("apply-extraction"),
+            document.as_os_str(),
+        ])
+        .unwrap();
+    let read = |args: &[&str]| store.read(args);
+    let before = IntegrateTarget::store_state(&read).unwrap();
+    IntegrateTarget::check_unchanged(&read, &before)
+        .unwrap_or_else(|e| panic!("{provider:?}: an untouched store changed: {e}"));
+
+    let peer = altered(&store, "snapshot", |snapshot| {
+        added(snapshot)["lifecycle"] = serde_json::json!({ "Retracted": null });
+    });
+    let head = altered(&store, "head", |head| {
+        head["revision"] = serde_json::json!(head["revision"].as_u64().unwrap() + 1);
+    });
+    let proposed = altered(&store, "transactions", |transactions| {
+        transactions
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({ "state": "Proposed" }));
+    });
+    for (name, read, named) in [
+        ("peer", &peer as &Read, "`ekr snapshot` changed"),
+        ("head", &head, "`ekr head` changed"),
+        ("transactions", &proposed, "`ekr transactions` changed"),
+    ] {
+        let refused = IntegrateTarget::check_unchanged(read, &before)
+            .expect_err(&format!("{provider:?}: a changed {name} passes the check"));
+        assert!(refused.contains(named), "{provider:?}: {name}: {refused}");
+    }
+}
+
+#[test]
+fn the_refused_check_holds_the_head_and_the_valid_peer_on_file() {
+    the_refused_check_holds_the_head_and_the_valid_peer(Provider::File);
+}
+
+#[test]
+fn the_refused_check_holds_the_head_and_the_valid_peer_on_sqlite() {
+    the_refused_check_holds_the_head_and_the_valid_peer(Provider::Sqlite);
+}

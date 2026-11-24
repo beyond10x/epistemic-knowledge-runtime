@@ -7,6 +7,11 @@
 //! for `Snapshot` and `Explain`. It asserts nothing: it reports what those handlers returned and
 //! what the retained history holds afterwards, and the ESS runner decides.
 //!
+//! [`IntegrateTarget`] and [`CliTarget`] answer the `ekr-integrate` and `ekr` components' suites
+//! over the same isolated stores. The module is compiled only with the cargo feature
+//! `conformance`, which the crate's own tests turn on, so a build of the binary compiles no part
+//! of ESS (review finding 42 of EKR 0.0.42).
+//!
 //! * **Isolation.** Every scenario opens a fresh provider root below the caller's work directory.
 //! * **Documents.** A `SeedDocumentPath` or `TransactionDocumentPath` is a relative path. The
 //!   target stages the scenario-owned fixture the manifest names for it at exactly that path under
@@ -70,8 +75,10 @@ use serde::Deserialize;
 
 use crate::host::CliHostConfigurationV1;
 
+mod cli;
 mod integrate;
 
+pub use cli::CliTarget;
 pub use integrate::IntegrateTarget;
 
 /// The native provider a [`KernelTarget`] opens, exactly as `ekr --backend` selects it.
@@ -1877,6 +1884,11 @@ fn parse_instant(value: &str) -> Result<Timestamp, TargetError> {
 
 /// Standard padded base64, the spelling ESS admits for `Bytes`.
 fn bytes(value: &[u8]) -> Node {
+    Node::Text(base64(value))
+}
+
+/// Standard padded base64, as `ekr explain --documents` prints a payload too.
+fn base64(value: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(value.len().div_ceil(3) * 4);
     for chunk in value.chunks(3) {
@@ -1893,7 +1905,7 @@ fn bytes(value: &[u8]) -> Node {
             }
         }
     }
-    Node::Text(out)
+    out
 }
 
 fn record(fields: Vec<(&str, Node)>) -> Node {

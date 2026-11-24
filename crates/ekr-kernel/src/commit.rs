@@ -197,10 +197,12 @@ impl KernelAuthority {
             let added = match held {
                 Some(added) => added,
                 None => {
-                    let added = Self::evidence_added_by(bytes);
-                    self.cache()?
-                        .added_evidence
-                        .insert(record_hash, Arc::clone(&added));
+                    let (added, document) = Self::evidence_added_by(bytes);
+                    let mut cache = self.cache()?;
+                    cache.added_evidence.insert(record_hash, Arc::clone(&added));
+                    if let Some(document) = document {
+                        cache.parsed.insert(document.hash(), document);
+                    }
                     added
                 }
             };
@@ -209,17 +211,21 @@ impl KernelAuthority {
         Ok(required)
     }
     /// The content hash of every evidence entry the `AddEvidence` operations of the committed
-    /// receipt `bytes` added: none for a receipt or document that does not read.
-    fn evidence_added_by(bytes: &[u8]) -> Arc<[ContentHash]> {
+    /// receipt `bytes` added: none for a receipt or document that does not read. With them the
+    /// parsed document, which the replay reading the same proposal takes rather than parsing it
+    /// again ([`crate::replay::ReplayCache::parsed`]).
+    fn evidence_added_by(
+        bytes: &[u8],
+    ) -> (Arc<[ContentHash]>, Option<Arc<crate::TransactionDocument>>) {
         let Ok(receipt) = crate::CommitReceiptV1::from_bytes(bytes) else {
-            return Arc::from([]);
+            return (Arc::from([]), None);
         };
         crate::read::count(|cost| cost.documents_parsed += 1);
         let Ok(document) = crate::TransactionDocument::parse(&receipt.proposal.document_bytes)
         else {
-            return Arc::from([]);
+            return (Arc::from([]), None);
         };
-        document
+        let added = document
             .transaction()
             .operations
             .iter()
@@ -229,7 +235,8 @@ impl KernelAuthority {
                 }
                 _ => None,
             })
-            .collect()
+            .collect();
+        (added, Some(Arc::new(document)))
     }
     pub(crate) fn cache(
         &self,

@@ -189,3 +189,58 @@ fn a_depth_bound_stops_the_loader_at_the_first_container_past_it() {
     let mut documents = Documents::from_str("[[1]]\n").unwrap();
     documents.next_document().unwrap().check().unwrap();
 }
+
+#[test]
+fn a_loaded_document_deserializes_as_its_input_does_without_loading_it_again() {
+    use serde::Deserialize;
+    use serde_derive::Deserialize;
+    use serde_yaml_ng::Value;
+    use std::collections::BTreeMap;
+
+    #[derive(Debug, PartialEq, Deserialize)]
+    enum Kind {
+        Plain,
+        Pair(u8, u8),
+    }
+    #[derive(Debug, PartialEq, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Envelope {
+        format: String,
+        count: u32,
+        kinds: Vec<Kind>,
+        named: BTreeMap<String, Option<f64>>,
+    }
+
+    fn both<T: for<'de> Deserialize<'de> + PartialEq + std::fmt::Debug>(
+        input: &str,
+    ) -> Result<T, String> {
+        let direct = serde_yaml_ng::from_str::<T>(input).map_err(|error| error.to_string());
+        let mut documents = Documents::from_str(input).unwrap();
+        let document = documents.next_document().unwrap();
+        let loaded =
+            T::deserialize(document.into_deserializer()).map_err(|error| error.to_string());
+        assert_eq!(loaded, direct, "{input:?}");
+        loaded
+    }
+
+    let typed = "format: a/1\ncount: 3\nkinds: [Plain, !Pair [1, 2]]\nnamed: {x: 0.5, y: ~}\n";
+    assert_eq!(both::<Envelope>(typed).unwrap().count, 3);
+    let anchored = "format: a/1\ncount: 1\nkinds: []\nnamed: {x: &v 1.5, y: *v}\n";
+    assert_eq!(both::<Envelope>(anchored).unwrap().named["y"], Some(1.5));
+    // Typed refusals and loader errors carry the same message and mark.
+    for refused in [
+        "format: a/1\ncount: -1\nkinds: []\nnamed: {}\n",
+        "format: a/1\ncount: 1\nkinds: [Other]\nnamed: {}\n",
+        "format: a/1\ncount: 1\nkinds: []\nnamed: {}\nextra: 1\n",
+        "format: a/1\ncount: 1\nkinds: []\n",
+        "format: a/1\ncount: 1\nkinds: []\nnamed: {x: *missing}\n",
+        "format: [a\n",
+    ] {
+        assert!(both::<Envelope>(refused).is_err(), "{refused:?}");
+    }
+    assert!(both::<Value>("a: 1\nb: [1, 2\n").is_err());
+    assert_eq!(both::<Value>("").unwrap(), Value::Null);
+    // The default deserializer's recursion limit holds on a loaded tape too.
+    let deep = format!("{}{}", "[".repeat(200), "]".repeat(200));
+    assert!(both::<Value>(&deep).is_err());
+}
