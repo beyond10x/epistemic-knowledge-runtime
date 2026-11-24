@@ -192,31 +192,37 @@ fn backend(error: io::Error) -> StoreError {
     StoreError::Backend(error.to_string())
 }
 
-/// Whether this process may write `path`, by its effective identity. A path that does not exist,
-/// or whose permissions cannot be read, may not be written.
+/// Whether this process may write `path`, by its effective identity: `None` where nothing is at
+/// `path` (after following symlinks) when it asks, and `Some(false)` where its permissions cannot
+/// be read.
 #[cfg(unix)]
-fn may_write(path: &Path) -> bool {
+fn writable(path: &Path) -> Option<bool> {
     use rustix::fs::{accessat, Access, AtFlags, CWD};
-    accessat(CWD, path, Access::WRITE_OK, AtFlags::EACCESS).is_ok()
+    match accessat(CWD, path, Access::WRITE_OK, AtFlags::EACCESS) {
+        Ok(()) => Some(true),
+        Err(rustix::io::Errno::NOENT) => None,
+        Err(_) => Some(false),
+    }
 }
 
 /// Whether `path` may be written, from its permission bits alone.
 #[cfg(not(unix))]
-fn may_write(path: &Path) -> bool {
-    std::fs::metadata(path).is_ok_and(|found| !found.permissions().readonly())
+fn writable(path: &Path) -> Option<bool> {
+    match std::fs::metadata(path) {
+        Ok(found) => Some(!found.permissions().readonly()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(_) => Some(false),
+    }
 }
 
-/// The first of `required`, then of those of `if_present` that exist, that this process may not
-/// write.
+/// The first of `required`, then of those of `if_present` that are there, that this process may
+/// not write. A path of `if_present` is looked at once: one a writer unlinks meanwhile (a closing
+/// SQLite connection's `-wal` and `-shm`) is not there, and no obstacle.
 fn first_denied(required: &[PathBuf], if_present: &[PathBuf]) -> Option<PathBuf> {
     required
         .iter()
-        .chain(
-            if_present
-                .iter()
-                .filter(|path| std::fs::symlink_metadata(path).is_ok()),
-        )
-        .find(|path| !may_write(path))
+        .find(|path| writable(path) != Some(true))
+        .or_else(|| if_present.iter().find(|path| writable(path) == Some(false)))
         .cloned()
 }
 
@@ -624,5 +630,53 @@ mod sidecars_in_flux {
             calls, 1,
             "only a -wal without its -shm, or a change, is read again"
         );
+    }
+}
+
+#[cfg(all(test, unix))]
+mod sidecars_that_vanish {
+    use super::{file_write_denied, sqlite_write_denied};
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    /// A writer that closes unlinks its `-wal` and `-shm`; a reader asking whether it may write
+    /// them can find one there and gone a moment later (`ekr head` racing the first `ekr seed`
+    /// answered `store-read-only` this way on CI, 2026-11-24). A dangling symlink is that moment
+    /// held still: the name is there, nothing behind it. A sidecar that is not there is no
+    /// obstacle to a writer, which creates it.
+    #[test]
+    fn a_sqlite_sidecar_gone_before_its_permission_is_asked_is_no_obstacle() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = directory.path().join("store.sqlite");
+        std::fs::write(&database, b"database").unwrap();
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = directory.path().join(format!("store.sqlite{suffix}"));
+            symlink(directory.path().join("gone"), &sidecar).unwrap();
+            assert_eq!(sqlite_write_denied(&database), None, "{suffix}");
+            std::fs::remove_file(&sidecar).unwrap();
+        }
+        let shm = directory.path().join("store.sqlite-shm");
+        std::fs::write(&shm, b"").unwrap();
+        std::fs::set_permissions(&shm, std::fs::Permissions::from_mode(0o444)).unwrap();
+        if rustix::process::geteuid().is_root() {
+            return;
+        }
+        assert_eq!(
+            sqlite_write_denied(&database),
+            Some(shm),
+            "a sidecar that is there and may not be written is still denied"
+        );
+    }
+
+    /// The File-provider counterpart: `writer.lock`, `events.jsonl` and `blobs` are checked only
+    /// where they are.
+    #[test]
+    fn a_file_store_entry_gone_before_its_permission_is_asked_is_no_obstacle() {
+        let directory = tempfile::tempdir().unwrap();
+        for name in ["writer.lock", "events.jsonl", "blobs"] {
+            let entry = directory.path().join(name);
+            symlink(directory.path().join("gone"), &entry).unwrap();
+            assert_eq!(file_write_denied(directory.path()), None, "{name}");
+            std::fs::remove_file(&entry).unwrap();
+        }
     }
 }

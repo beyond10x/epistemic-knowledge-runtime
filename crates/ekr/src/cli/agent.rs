@@ -44,6 +44,7 @@ WORKFLOW
   2. ekr example ekr-seed/2 > seed.yaml           a seed: ontology, graph, evidence
      ekr seed seed.yaml                            revision 0
   3. ekr ontology [--at N]                         node types, edge types, properties: name and id;
+                                                   lifecycles, operations and their arguments;
                                                    the schema version (id, number, parent)
      ekr snapshot                                  nodes, edges, assertions, evidence at the head
   4. ekr resolve reference.yaml                    is the node there already? before a CreateNode
@@ -235,8 +236,11 @@ EXTRACTION DOCUMENTS
   valid from that evidence's observed_at, and a !Relation fact also as a CreateEdge, unless the
   store already asserts it. A !Property fact with `replaces: true` supersedes the active value of
   its subject and property instead of adding a second one. It prints committed, rejected, ambiguous, held and stopped;
-  applying a document twice adds nothing. Every write is a propose, validate and commit as the
-  host operator, in this process.
+  applying a document twice adds no node, evidence or assertion, and tries a rejected fact again.
+  Every write is a propose, validate and commit as the host operator, in this process, and the
+  writes are not all or nothing: nodes commit before the facts about them are validated, so the
+  document applied whole only when rejected and ambiguous are empty and stopped is null; an ekr
+  stage makes it all or nothing (docs/cli.md, Partial writes).
 
 ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes

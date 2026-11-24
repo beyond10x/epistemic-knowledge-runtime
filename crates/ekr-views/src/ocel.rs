@@ -15,7 +15,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{NodeId, PropertyId, RevisionNumber, TypeId};
-use ekr_graph::CanonicalValue;
+use ekr_graph::{AssertionLifecycle, CanonicalValue, Object, Predicate};
 use ekr_kernel::Runtime;
 use ekr_ontology::{Cardinality, PropertyDefinition, ValueType};
 use serde::Serialize;
@@ -364,11 +364,29 @@ pub fn ocel_with_event_time(
                 Role::Object
             } else {
                 let time = if let Some((property, selector)) = selected.get(&type_id) {
+                    // The record's values, and those of the revision's Active assertions of the
+                    // property about the node: an extraction records a property as an assertion.
+                    let asserted = u32::try_from(at)
+                        .ok()
+                        .and_then(|at| index.about_node.get(&at))
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|id| graph.assertions.get(id))
+                        .filter(|claim| matches!(claim.lifecycle, AssertionLifecycle::Active))
+                        .filter_map(|claim| match (&claim.predicate, &claim.object) {
+                            (Predicate::Property(held), Object::Value(value))
+                                if held == property =>
+                            {
+                                Some(value)
+                            }
+                            _ => None,
+                        });
                     let times: BTreeSet<_> = graph.nodes[node]
                         .properties
                         .get(property)
                         .into_iter()
                         .flatten()
+                        .chain(asserted)
                         .filter_map(|value| match value {
                             CanonicalValue::Timestamp(time) => Some(time.millis()),
                             _ => None,

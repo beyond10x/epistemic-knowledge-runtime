@@ -127,7 +127,29 @@ const PAGE: &str = include_str!("viewer/index.html");
 const CACHE_LIMIT: usize = 8;
 /// The page's Content-Security-Policy as its `<meta>` carries it; the header adds
 /// [`FRAME_POLICY`], which a `<meta>` policy cannot express.
-const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
+const PAGE_POLICY: &str = "default-src 'none'; script-src 'self' 'unsafe-inline'; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
+/// The page's graph libraries, built into the binary and served at the address the page loads each
+/// from, so the page opens with no network. Each is the package's published file at the version its
+/// directory names, under `viewer/libraries/`, beside the package's MIT licence; the page checks
+/// each against its `integrity`.
+const LIBRARIES: [(&str, &[u8]); 4] = [
+    (
+        "/assets/libraries/graphology@0.26.0/dist/graphology.umd.min.js",
+        include_bytes!("viewer/libraries/graphology@0.26.0/dist/graphology.umd.min.js"),
+    ),
+    (
+        "/assets/libraries/graphology-library@0.8.0/dist/graphology-library.min.js",
+        include_bytes!("viewer/libraries/graphology-library@0.8.0/dist/graphology-library.min.js"),
+    ),
+    (
+        "/assets/libraries/sigma@3.0.3/dist/sigma.min.js",
+        include_bytes!("viewer/libraries/sigma@3.0.3/dist/sigma.min.js"),
+    ),
+    (
+        "/assets/libraries/3d-force-graph@1.80.0/dist/3d-force-graph.min.js",
+        include_bytes!("viewer/libraries/3d-force-graph@1.80.0/dist/3d-force-graph.min.js"),
+    ),
+];
 /// Refuses framing, so another page cannot overlay the viewer.
 const FRAME_POLICY: &str = "; frame-ancestors 'none'";
 const SEARCH_POLICY: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; object-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
@@ -945,13 +967,19 @@ fn immediate(
         .target
         .split_once('?')
         .map_or(asked.target.as_str(), |(path, _)| path);
-    if matches!(path, "/assets/search.js" | "/assets/search_bg.wasm") {
+    let library = LIBRARIES
+        .iter()
+        .find(|(address, _)| *address == path)
+        .map(|(_, bytes)| *bytes);
+    if library.is_some() || matches!(path, "/assets/search.js" | "/assets/search_bg.wasm") {
         return Some(if asked.method != "GET" {
             Reply::text(405, "only GET")
         } else if asked.announces_body {
             Reply::text(413, "request-body-refused")
         } else if asked.target != path {
             Reply::text(400, "browser assets take no query")
+        } else if let Some(bytes) = library {
+            Reply::ok("text/javascript; charset=utf-8", bytes.to_vec())
         } else if path == "/assets/search.js" {
             Reply::ok(
                 "text/javascript; charset=utf-8",
@@ -2548,6 +2576,24 @@ mod tests {
             )),
             "{head}"
         );
+    }
+
+    /// The page loads each library from an address this server answers, and from no other host:
+    /// the page's `<script src>`s are [`LIBRARIES`]' addresses, in order, and it names no `http`
+    /// or `https` address.
+    #[test]
+    fn the_page_loads_every_library_from_this_server() {
+        let sources: Vec<&str> = PAGE
+            .split("<script src=\"")
+            .skip(1)
+            .map(|rest| rest.split('"').next().unwrap())
+            .collect();
+        let served: Vec<&str> = LIBRARIES.iter().map(|(address, _)| *address).collect();
+        assert_eq!(sources, served);
+        for (address, bytes) in LIBRARIES {
+            assert!(!bytes.is_empty(), "{address}");
+        }
+        assert!(!PAGE.contains("https://") && !PAGE.contains("http://"));
     }
 
     #[test]
