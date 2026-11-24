@@ -169,9 +169,11 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   it. CI sets the same through `CARGO_PROFILE_DEV_DEBUG`.
 - **CI's temporary files are on a tmpfs.** `.github/workflows/correctness.yml` mounts a 6 GiB
   tmpfs and points `TMPDIR` at it for `task check`; the tests' stores and their `fsync`s live
-  there, as `/tmp` is on most developer hosts. This is the one way CI's step differs from the local
-  gate, which keeps `TMPDIR` where the host puts it (on this workstation a disk: work files do not
-  go in `/tmp` or `/dev/shm`).
+  there, as `/tmp` is on most developer hosts. The inode-reuse cases
+  (`support/inode_tempdir.rs`) need a filesystem that hands a freed inode back, which tmpfs never
+  does, so CI points `EKR_INODE_TEST_TMPDIR` at a directory on the runner's disk. This is the one
+  way CI's step differs from the local gate, which keeps `TMPDIR` where the host puts it (on this
+  workstation a disk: work files do not go in `/tmp` or `/dev/shm`).
 - **Test builds compile the workspace at opt-level 1** (`[profile.test]` in `Cargo.toml`;
   dependencies stay at 3). At opt-level 0 the checkpoint cases, which replay a growing history at
   every step, ran past 60 s on CI (PR 109's first run: 8 killed, 7 more at 52-59 s).

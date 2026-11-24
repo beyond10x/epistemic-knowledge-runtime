@@ -130,6 +130,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/tests-tmp"
           sudo mount -t tmpfs -o size=6g,mode=1777 tmpfs "$RUNNER_TEMP/tests-tmp"
           export TMPDIR="$RUNNER_TEMP/tests-tmp"
+          mkdir -p "$RUNNER_TEMP/inode-tests"
+          export EKR_INODE_TEST_TMPDIR="$RUNNER_TEMP/inode-tests"
           task check
 
       - name: Check the documentation site
