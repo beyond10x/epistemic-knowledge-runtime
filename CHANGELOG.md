@@ -4,6 +4,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.44] — 2026-11-24
+
 ### Fixed
 
 - The graph viewer and `/find` keep the address in step with the page, and the viewer opens
