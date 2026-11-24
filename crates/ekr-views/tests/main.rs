@@ -61,6 +61,8 @@ mod changes_by_time_cost;
 mod code_names;
 #[path = "conformance.rs"]
 mod conformance;
+#[path = "detail_v2_held.rs"]
+mod detail_v2_held;
 #[path = "determinism.rs"]
 mod determinism;
 #[path = "document.rs"]
