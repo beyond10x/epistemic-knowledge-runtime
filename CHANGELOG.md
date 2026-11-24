@@ -39,6 +39,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   naming each, before it writes to `--to` (finding 16 of the same review). Before, it exited 0 and
   the copy lost the stage's run, which lives in the stage's own tenant. `docs/cli.md` now says what
   a migration carries: the store's own tenant, no stage records.
+- Explanations and quality samples return whole, pinned evidence
+  (story:ekr-explain-evidence-fixes, findings 19, 20, 21 and 23 of the EKR 0.0.42 review):
+  - `ekr_sdk::read::ExplainedEvidence` reads `offset`, `record_length` and `truncated`, so a typed
+    explanation no longer passes 64 KiB of a longer record off as the whole of it, and
+    `Reader::explain_range` (and `OneShotReader::explain_range`) reads any other range of it;
+  - `ekr.explanation/3`, the MCP `explain` default, keeps the half of an evidence window that
+    holds the cited text when its 48 KiB cap halves the window; before, it kept the first half,
+    which could end in the middle of the statement;
+  - `ekr explain --at N` and the MCP tool's `at` explain an assertion as revision N held it; the
+    answer's `at` names the revision. Before, both refused a revision and read the head;
+  - `ekr sample` lists the evidence attached to a fact after it was written (`!AttachEvidence`)
+    beside the evidence it cites, each such entry with `attached_at`, the revision that attached
+    it. Before, the judge saw only the evidence the fact was written with.
 
 ## [0.0.43] — 2026-11-23
 
