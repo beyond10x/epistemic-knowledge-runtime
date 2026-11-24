@@ -314,12 +314,23 @@ struct EdgeEntry {
 }
 
 /// A store's ontology by name: every node type, edge type and property name, and the id it has.
+///
+/// A name the store gives two node types, or two edge types, identifies neither (`docs/cli.md`:
+/// two types may share a name). Such types are held apart, by id: a name nobody uses does not
+/// stop the rest of the map, and one a spec or an extraction uses is refused there (review of
+/// 0.0.42, finding 8).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Ontology {
     schema_version: Option<SchemaVersionId>,
     node_types: BTreeMap<String, NodeEntry>,
     edge_types: BTreeMap<String, EdgeEntry>,
     node_names: BTreeMap<TypeId, String>,
+    /// The node types whose name another node type shares, by id.
+    shadowed: BTreeMap<TypeId, NodeEntry>,
+    /// Node type names the store gives more than one node type.
+    shared_nodes: BTreeSet<String>,
+    /// Edge type names the store gives more than one edge type.
+    shared_edges: BTreeSet<String>,
 }
 
 /// The document `ekr ontology` prints, as far as the map reads it.
@@ -381,27 +392,71 @@ fn by_name(
     Ok(named)
 }
 
-/// Whether two declarations of one property say the same, ids aside.
+/// Whether the declaration `held` meets `wanted`, ids aside: the same cardinality, requiredness
+/// and constraints, and a value type that admits every value `wanted`'s does. A spec repeating a
+/// declaration the store has since widened — an `Enum` with a variant added, a `NodeRef` to one
+/// more type — is met, not narrowed back (review of 0.0.42, finding 10): narrowing a property is a
+/// schema change of its own, never the side effect of an older spec applied again.
 fn same_declaration(held: &PropertyDefinition, wanted: &PropertyDefinition) -> bool {
-    held.value_type == wanted.value_type
+    admits(&held.value_type, &wanted.value_type)
         && held.cardinality == wanted.cardinality
         && held.required == wanted.required
         && held.constraints == wanted.constraints
 }
 
+/// Whether a property of value type `held` admits every value one of `wanted` does: the same type,
+/// or an `Enum` or `NodeRef` listing more, element and field types alike.
+fn admits(held: &ValueType, wanted: &ValueType) -> bool {
+    match (held, wanted) {
+        (ValueType::Enum { variants: held }, ValueType::Enum { variants: wanted }) => {
+            wanted.is_subset(held)
+        }
+        (
+            ValueType::NodeRef {
+                allowed_types: held,
+            },
+            ValueType::NodeRef {
+                allowed_types: wanted,
+            },
+        ) => wanted.is_subset(held),
+        (ValueType::List(held), ValueType::List(wanted)) => admits(held, wanted),
+        (ValueType::Record(held), ValueType::Record(wanted)) => {
+            held.len() == wanted.len()
+                && wanted
+                    .iter()
+                    .all(|(field, wanted)| held.get(field).is_some_and(|held| admits(held, wanted)))
+        }
+        (held, wanted) => held == wanted,
+    }
+}
+
 impl Ontology {
-    /// The map of what `ekr ontology` printed: its stdout, one JSON document.
+    /// The map of what `ekr ontology` printed: its stdout, one JSON document. Two types the store
+    /// declares under one name are read, and that name identifies neither: [`Self::node_type`] and
+    /// [`Self::edge_type`] answer `None` for it, and a spec naming it is refused by
+    /// [`Self::ensure`].
     ///
     /// # Errors
     /// [`OntologyError::Read`] for a document that is not `ekr ontology`'s, and
-    /// [`OntologyError::DuplicateName`] for a store holding two types, or two properties of one
-    /// type, under one name.
+    /// [`OntologyError::DuplicateName`] for a type declaring two properties under one name.
     pub fn read(printed: &str) -> Result<Self, OntologyError> {
         let printed: Printed = serde_json::from_str(printed)?;
         let mut ontology = Self {
             schema_version: Some(printed.schema_version),
             ..Self::default()
         };
+        let mut seen = BTreeSet::new();
+        for node in &printed.node_types {
+            if !seen.insert(node.name.as_str()) {
+                ontology.shared_nodes.insert(node.name.clone());
+            }
+        }
+        let mut seen = BTreeSet::new();
+        for edge in &printed.edge_types {
+            if !seen.insert(edge.name.as_str()) {
+                ontology.shared_edges.insert(edge.name.clone());
+            }
+        }
         for node in printed.node_types {
             let entry = NodeEntry {
                 id: node.id,
@@ -409,7 +464,12 @@ impl Ontology {
                 abstract_type: node.abstract_type,
                 properties: by_name(&node.name, node.properties)?,
             };
-            ontology.insert_node(node.name, entry)?;
+            if ontology.shared_nodes.contains(&node.name) {
+                ontology.node_names.insert(entry.id, node.name);
+                ontology.shadowed.insert(entry.id, entry);
+            } else {
+                ontology.insert_node(node.name, entry)?;
+            }
         }
         for edge in printed.edge_types {
             let entry = EdgeEntry {
@@ -419,13 +479,15 @@ impl Ontology {
                 cardinality: edge.cardinality,
                 properties: by_name(&edge.name, edge.properties)?,
             };
-            ontology.insert_edge(edge.name, entry)?;
+            if !ontology.shared_edges.contains(&edge.name) {
+                ontology.insert_edge(edge.name, entry)?;
+            }
         }
         Ok(ontology)
     }
 
     fn insert_node(&mut self, name: String, entry: NodeEntry) -> Result<(), OntologyError> {
-        if self.node_types.contains_key(&name) {
+        if self.node_types.contains_key(&name) || self.shared_nodes.contains(&name) {
             return Err(OntologyError::DuplicateName {
                 kind: "node type",
                 name,
@@ -437,7 +499,7 @@ impl Ontology {
     }
 
     fn insert_edge(&mut self, name: String, entry: EdgeEntry) -> Result<(), OntologyError> {
-        if self.edge_types.contains_key(&name) {
+        if self.edge_types.contains_key(&name) || self.shared_edges.contains(&name) {
             return Err(OntologyError::DuplicateName {
                 kind: "edge type",
                 name,
@@ -445,6 +507,30 @@ impl Ontology {
         }
         self.edge_types.insert(name, entry);
         Ok(())
+    }
+
+    /// Whether the store gives the name `name` to more than one node type (`node`) or edge type:
+    /// a name that identifies none of them.
+    pub(crate) fn shares_name(&self, name: &str, node: bool) -> bool {
+        if node {
+            self.shared_nodes.contains(name)
+        } else {
+            self.shared_edges.contains(name)
+        }
+    }
+
+    /// The node type whose id is `id`, whatever its name.
+    fn entry_of(&self, id: TypeId) -> Option<&NodeEntry> {
+        self.node_names
+            .get(&id)
+            .and_then(|name| self.node_types.get(name))
+            .filter(|entry| entry.id == id)
+            .or_else(|| self.shadowed.get(&id))
+    }
+
+    /// Every node type, a shadowed one included.
+    fn every_node(&self) -> impl Iterator<Item = &NodeEntry> {
+        self.node_types.values().chain(self.shadowed.values())
     }
 
     /// The schema version the map was read at, or the one a seed built it for; `None` for the
@@ -476,10 +562,41 @@ impl Ontology {
     /// Whether the node property `id` carries at most one value: its declaration says
     /// `cardinality: One`. `false` for an id no node type declares.
     pub(crate) fn single_valued(&self, id: PropertyId) -> bool {
-        self.node_types
-            .values()
+        self.every_node()
             .flat_map(|entry| entry.properties.values())
             .any(|property| property.id == id && property.cardinality == Cardinality::One)
+    }
+
+    /// The declaration of the property `name` a node of the type named `node_type` carries, found
+    /// as [`Self::property`] finds its id.
+    pub(crate) fn property_definition(
+        &self,
+        node_type: &str,
+        name: &str,
+    ) -> Option<&PropertyDefinition> {
+        self.inherited(node_type, name)
+    }
+
+    /// Every required property a node of the type `type_id` carries, its own or inherited, each
+    /// the declaration [`Self::property`] finds for its name.
+    pub(crate) fn required(&self, type_id: TypeId) -> Vec<&PropertyDefinition> {
+        let Some(start) = self.entry_of(type_id) else {
+            return Vec::new();
+        };
+        let mut names = BTreeSet::new();
+        let mut open = vec![type_id];
+        let mut seen = BTreeSet::new();
+        while let Some(id) = open.pop() {
+            if let Some(entry) = seen.insert(id).then(|| self.entry_of(id)).flatten() {
+                names.extend(entry.properties.keys().map(String::as_str));
+                open.extend(entry.parents.iter().copied());
+            }
+        }
+        names
+            .into_iter()
+            .filter_map(|property| self.inherited_from(start, property))
+            .filter(|property| property.required)
+            .collect()
     }
 
     /// The id of the property `name` of the edge type named `edge_type`.
@@ -500,8 +617,7 @@ impl Ontology {
         };
         entry.abstract_type
             || self
-                .node_types
-                .values()
+                .every_node()
                 .any(|other| other.id != entry.id && self.descends(other, entry.id))
     }
 
@@ -537,11 +653,7 @@ impl Ontology {
                 return true;
             }
             if seen.insert(parent) {
-                if let Some(next) = self
-                    .node_names
-                    .get(&parent)
-                    .and_then(|name| self.node_types.get(name))
-                {
+                if let Some(next) = self.entry_of(parent) {
                     open.extend(next.parents.iter().copied());
                 }
             }
@@ -549,21 +661,42 @@ impl Ontology {
         false
     }
 
-    /// The declaration of `name` on `node_type` or its nearest declaring ancestor, breadth first.
+    /// The declaration of `name` on `node_type` or its nearest declaring ancestor.
     fn inherited(&self, node_type: &str, name: &str) -> Option<&PropertyDefinition> {
-        let mut seen = BTreeSet::new();
-        let mut level = vec![self.node_types.get(node_type)?];
-        while !level.is_empty() {
-            if let Some(found) = level.iter().find_map(|entry| entry.properties.get(name)) {
+        self.inherited_from(self.node_types.get(node_type)?, name)
+    }
+
+    /// The declaration of `name` on `start` or its nearest declaring ancestor: breadth first, each
+    /// generation in name order, as the engine's extraction reader looks a property up, so the
+    /// reader checks a fact's value against the declaration whose id the writer asserts (review
+    /// of 0.0.42, finding 5).
+    fn inherited_from<'a>(
+        &'a self,
+        start: &'a NodeEntry,
+        name: &str,
+    ) -> Option<&'a PropertyDefinition> {
+        let mut seen = BTreeSet::from([start.id]);
+        let mut generation = vec![start];
+        while !generation.is_empty() {
+            if let Some(found) = generation
+                .iter()
+                .find_map(|entry| entry.properties.get(name))
+            {
                 return Some(found);
             }
-            level = level
+            let mut parents: Vec<(&str, &NodeEntry)> = generation
                 .iter()
                 .flat_map(|entry| entry.parents.iter())
                 .filter(|parent| seen.insert(**parent))
-                .filter_map(|parent| self.node_names.get(parent))
-                .filter_map(|parent| self.node_types.get(parent))
+                .filter_map(|parent| {
+                    Some((
+                        self.node_names.get(parent)?.as_str(),
+                        self.entry_of(*parent)?,
+                    ))
+                })
                 .collect();
+            parents.sort_by_key(|(name, entry)| (*name, entry.id));
+            generation = parents.into_iter().map(|(_, entry)| entry).collect();
         }
         None
     }
@@ -639,6 +772,12 @@ impl Ontology {
     }
 
     fn node_id(&self, name: &str) -> Result<TypeId, OntologyError> {
+        if self.shared_nodes.contains(name) {
+            return Err(OntologyError::DuplicateName {
+                kind: "node type",
+                name: name.to_owned(),
+            });
+        }
         self.node_type(name)
             .ok_or_else(|| OntologyError::UnknownName {
                 kind: "node type",

@@ -159,7 +159,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id; `--documents`, `--offset`, `--limit` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too, at most 64 KiB of each evidence record unless `--limit` says otherwise |
+| `ekr explain` | reads | an assertion id; `--at <revision>`, `--documents`, `--offset`, `--limit` | the `ekr.explanation/2` document of one revision, the head unless `--at` names one: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too, at most 64 KiB of each evidence record unless `--limit` says otherwise |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-`; `--strict` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
@@ -288,10 +288,14 @@ not.
 
 ### `ekr explain`
 
-Explains one assertion at the head, as the `ekr.explanation/2` document: `format`
-(`ekr.explanation/2`), `assertion_id`, `at` (the head revision it was read at) and `links`, a list
-of objects, each with a `kind`. The retained records a link stands for — a proposal, a commit
-receipt, an evidence payload — are named by their hash, not printed:
+Explains one assertion at the head, or at the committed revision `--at N` names, as the
+`ekr.explanation/2` document: `format` (`ekr.explanation/2`), `assertion_id`, `at` (the revision it
+was read at) and `links`, a list of objects, each with a `kind`. Every link is read from that one
+revision: an explanation `--at` an earlier revision lists neither the attachments nor the later
+changes made after it, so an answer pinned to a revision stays what it was. A revision the store
+does not hold is refused as `ekr.kernel.RevisionNotFound` (exit 2). The retained records a link
+stands for — a proposal, a commit receipt, an evidence payload — are named by their hash, not
+printed:
 
 | `kind` | what it is | when it appears |
 |---|---|---|
@@ -347,10 +351,12 @@ history. An unknown id is refused as `ekr.kernel.AssertionNotFound`.
    relation's or a property's name there instead of fetching the ontology. `scope` echoes the
    scope.
 4. **The cap.** While the printed document is longer than 49,152 bytes (48 KiB), the longest
-   evidence `text` (the first among equals) keeps its first half, cut back to a character
-   boundary, and its link is marked `truncated: true`, with `offset` and `record_length`; read the
-   rest with `ekr.explanation/2` and `--offset`. A document with no text left to cut may stay
-   longer.
+   evidence `text` (the first among equals) keeps half its bytes, and its link is marked
+   `truncated: true`, with `offset` (its first byte in the record) and `record_length`. The half
+   kept is placed as the default window is: centred on the cited text when the text holds it, so
+   a cut never drops the statement the window was centred on, and the first half when it does
+   not; its ends move inward to character boundaries. Read the rest with `ekr.explanation/2` and
+   `--offset`. A document with no text left to cut may stay longer.
 
 `--format ekr.explanation/2`, or no `--format`, prints `ekr.explanation/2` as above, and
 `--scope` without `--format ekr.explanation/3` is a usage error (exit 2).
@@ -427,18 +433,37 @@ created or added, and the rest of the document applies. A refusal of the ontolog
 of an evidence item still refuses the whole document; an evidence item whose id the store already
 retains for another item — another source, content hash or observed time — is one
 (`duplicate-identity`), since the store would cite the retained item for the document's facts. The
-same item again, as a document applied twice carries it, is cited. `--strict` refuses the whole
-document for a bad fact too, as the reader's first refusal in document order. Then, in order:
+same item again, as a document applied twice carries it, is cited. So is an evidence item whose
+payload is past the `sequence_elements` limit of the `!AddEvidence` that would add it (16,384
+bytes, [Evidence after the seed](#evidence-after-the-seed)): it is refused as `ekr propose` refuses
+that document (exit 2, `ekr.kernel.StructurallyInvalid`, `transaction document limit:
+sequence_elements …`) before anything is written. An item the store already retains is cited and
+not added, so a statement larger than that, seeded once with `ekr seed --evidence`, is cited by
+every later document that carries it. `--strict` refuses the whole document for a bad fact too, as
+the reader's first refusal in document order; the SDK's `ApplyOptions::strict` refuses the same
+document before anything is written, a value its property does not hold and a fact citing no
+evidence included. A fact's property is the one its subject's type declares, or else the nearest
+ancestor's: breadth first, each generation in name order, for the reader and the writer alike. A
+name the store gives two node types, or two edge types, identifies neither: a document that uses
+it is refused at that reference (`extraction-name-duplicate`), and one that does not use it
+applies. Then, in order:
 
 1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
    (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
-   profile that fixes the schema it is rejected, and nothing more is applied;
+   profile that fixes the schema it is rejected, and nothing more is applied. A property the
+   store already declares so that it admits every value the document's declaration does — an
+   `Enum` the store has since given another variant, a `NodeRef` to one more type — is kept as
+   the store declares it, so an extractor repeating its older declaration still applies; a
+   narrower declaration is never written by extraction. Narrow a property with a
+   `!ModifyProperty` transaction of its own;
 2. every named thing — each entity, then each fact's subject and object — is resolved as
    [`ekr resolve`](#ekr-resolve) resolves a typed reference of its type. Named things of one node
    type that share an alias, directly or through another, are one thing whatever order the
    document lists them in, resolved once with every alias of all of them. One the store holds is
    used; one it does not hold is created, a node of its type carrying those aliases and named by the
-   least, in byte order, of its members' first aliases (a single named thing's first alias); one
+   least, in byte order, of its members' first aliases (a single named thing's first alias),
+   carrying from its creation the value of each `!Property` fact about it whose property its type
+   requires (the first such fact's, for a single-valued property), which is asserted as well; one
    the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
    applied;
 3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
@@ -452,7 +477,9 @@ document for a bad fact too, as the reader's first refusal in document order. Th
    cardinality) rejects the fact, assertion and all. A store an earlier release applied holds
    those relations as assertions only; applying the document again holds them and adds no edge.
    A fact's property and a relation's ends are checked against the type of the node its subject
-   or object resolves to: a key [superseded](#a-node-superseded-by-another) by a node of another
+   or object resolves to, as the named thing it is one of — every alias of the named things it
+   shares an alias with, whether the document puts them on the fact or on an entity: a key
+   [superseded](#a-node-superseded-by-another) by a node of another
    type takes the kept node's properties and edge ends, by the reader and again before anything
    is resolved, so a fact the kept node's type admits is applied to it, and one it does not is
    refused before anything is written — `extraction-property-undeclared` or
@@ -1121,7 +1148,10 @@ Each item carries the assertion as the projection renders it, its subject (`subj
 `subject_name` (a node's canonical name or a type's name), `predicate_name` (the property's or the
 relation's name), `object_name` (a node object's canonical name), each left out where there is
 none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
-else `base64`. An assertion about a [superseded node](#a-node-superseded-by-another) is still
+else `base64`. Evidence [attached to the assertion](#evidence-attached-to-a-held-assertion) by the
+sampled revision is listed with it, in evidence id order, each such entry with `attached_at`, the
+revision that attached it; an entry the assertion cites has no `attached_at`. So the judge reads
+the evidence [`ekr explain`](#ekr-explain) names for the same revision. An assertion about a [superseded node](#a-node-superseded-by-another) is still
 sampled: its names are the node's as its record holds them, and `subject_superseded_by` names the
 node it is superseded by (for an edge subject retired with a superseded node, that node's), and
 `object_superseded_by` the node a superseded `!Node` object is superseded by, each left out where
@@ -1949,7 +1979,7 @@ Ask for the next page with `after` set to the page's `next`.
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 200 when absent: a page ends at `limit` nodes or `edges` edges, whichever comes first), `after` (a cursor, 0 or more), `revision`, `format` (`ekr.graph-slice/2` when absent, or `ekr.graph-slice/1`) | the whole `ekr.graph-slice/2` page as one document, `next` naming the next page's `after` | `GET /expand?format=ekr.graph-slice/2`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision`, `format` (`ekr.graph-timeline/2` when absent, or `ekr.graph-timeline/1`) | the `ekr.graph-timeline/2` document | `GET /timeline?format=ekr.graph-timeline/2` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 100 when absent), `after` (a cursor, 0 or more), `format` (`ekr.graph-changes/2` when absent, or `ekr.graph-changes/1`) | the `ekr.graph-changes/2` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes?format=ekr.graph-changes/2` |
-| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`), `scope` (with /3: `cited` when absent, or `all`) | what `ekr explain <assertion> --format ekr.explanation/3 --scope cited` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N] --format ekr.explanation/3 --scope cited` prints: the evidence the chain cites, at most 48 KiB in all | `ekr explain [--documents [--offset N] [--limit N]] --format ekr.explanation/3 --scope cited` |
+| `explain` | **`assertion`** (an assertion id), `at` (a committed revision, the newest when absent), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`), `scope` (with /3: `cited` when absent, or `all`) | what `ekr explain <assertion> [--at N] --format ekr.explanation/3 --scope cited` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> [--at N] --documents [--offset N] [--limit N] --format ekr.explanation/3 --scope cited` prints: the evidence the chain cites, at most 48 KiB in all | `ekr explain [--at N] [--documents [--offset N] [--limit N]] --format ekr.explanation/3 --scope cited` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — `at` (a revision) and `format` (`ekr.resolution/1` when absent, or `outcome`) | what `ekr resolve --format ekr.resolution/1` prints for that reference, byte for byte | `ekr resolve [--at N] --format ekr.resolution/1` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
@@ -1977,7 +2007,7 @@ bound outside its range `ekr.views.LimitExceeded`, both before the store is read
 replaced at the path by one that does not open `store-replaced` ([as for `ekr view`](#replaced-store));
 a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold — for
 `changes_since` an `at`, then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
-(`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
+(`ekr.kernel.RevisionNotFound` for `resolve` and `explain`); a node or seed the
 revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`, and for
 `describe_node` without `full` a `node` that is a node type or edge type id `ekr.views.NodeIsAType`;
 a `node` or seed a supersession of the revision holds `ekr.views.NodeSuperseded`, naming the node
@@ -2518,8 +2548,10 @@ property.
 `!SupersedeAssertion` ends one assertion's valid time where its replacement's begins. It is
 validated as a whole, and any rule below that fails is the issue `invalid-supersession`:
 
-- the replacement (`by`) is a different assertion, accepted and active — one added with
-  `assessment: Proposed` in the same transaction counts;
+- the replacement (`by`) is a different assertion, accepted and active before the transaction —
+  one added with `assessment: Proposed` in the same transaction counts, and so does one the same
+  transaction supersedes in turn, so a chain of supersessions commits in one transaction; one an
+  earlier transaction already superseded or retracted does not, whatever its valid time;
 - the replacement's `valid_time.from` is **exactly** `effective_from`, never `null`;
 - `effective_from` lies inside the old assertion's valid time: not before its `from`, not after
   its `to`.
@@ -2596,8 +2628,9 @@ its subject, predicate, object, valid time, lifecycle and the evidence it was ad
 they are — and no supersession is needed. The attachment is a record of its own: which assertion,
 which evidence, which revision. [`ekr explain`](#ekr-explain) lists it as an `Attachment` link,
 and the evidence among its `Evidence` links, from the revision that attached it on;
-[`ekr snapshot`](#ekr-snapshot) lists it under `attachments`; [`ekr quality`](#ekr-quality)
-counts it as it counts cited evidence. A supersession does not carry it to the replacement: it
+[`ekr snapshot`](#ekr-snapshot) lists it under `attachments`; [`ekr sample`](#ekr-sample) gives it
+to the judge with `attached_at`; [`ekr quality`](#ekr-quality) counts it as it counts cited
+evidence. A supersession does not carry it to the replacement: it
 stays with the assertion it was attached to.
 
 ```yaml ekr.transaction-document/2
@@ -2869,7 +2902,7 @@ A code met in a fact, `facts[<index>]`, refuses that fact alone when
 
 | code | when |
 |---|---|
-| `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice |
+| `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice; or a node type or edge type name the document uses — declares, names as a parent, an end or a `NodeRef` type, or names in a named thing, a fact's subject or object, or a relation — that the store gives more than one type. A name the store repeats and the document does not use is not refused |
 | `extraction-type-conflict` | a type the store holds, redeclared with other `parents` or another `abstract_type` (a node type) or another `cardinality` (an edge type): no schema operation changes those |
 | `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
 | `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
@@ -4057,7 +4090,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
-| `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
+| `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the revision read, the head unless `--at` names one | take the id from `ekr snapshot` |
 | `unsupported-operation` | validation issue | 0 | a `MergeEntity` in the bare `{absorbed, into}` shape, without `reason` and `evidence`, under any profile, or a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `WidenEdgeType` operation under validation profile v1 | give the `MergeEntity` a `reason` and `evidence` ([Two nodes merged into one](#two-nodes-merged-into-one)); a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
 | `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | name the node kept as `into` |
 | `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |

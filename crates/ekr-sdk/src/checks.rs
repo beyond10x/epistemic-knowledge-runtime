@@ -65,7 +65,8 @@ pub struct SampledFact {
     pub object_superseded_by: Option<NodeId>,
     /// The sampled assertion.
     pub assertion: ViewAssertion,
-    /// Its retained evidence records, in identifier order.
+    /// Its retained evidence records, those it cites and those attached to it later, in identifier
+    /// order.
     pub evidence: Vec<SampledEvidence>,
 }
 
@@ -89,6 +90,10 @@ pub struct SampledEvidence {
     /// Non-UTF-8 bytes as standard padded base64.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base64: Option<String>,
+    /// For evidence attached to the assertion after it was added, the revision that attached it;
+    /// `None` for the evidence the assertion cites.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attached_at: Option<u64>,
 }
 
 /// The caller's verdict; the SDK contains no model or evidence evaluator.

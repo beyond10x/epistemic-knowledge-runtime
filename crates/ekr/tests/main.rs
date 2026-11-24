@@ -157,10 +157,14 @@ mod docs_cli;
 mod explain_bounds_documents;
 #[path = "explain_by_reference.rs"]
 mod explain_by_reference;
+#[path = "explain_pinned_evidence.rs"]
+mod explain_pinned_evidence;
 #[path = "explain_scope.rs"]
 mod explain_scope;
 #[path = "extraction_cli.rs"]
 mod extraction_cli;
+#[path = "extraction_validation.rs"]
+mod extraction_validation;
 #[path = "extraction_write_integrity.rs"]
 mod extraction_write_integrity;
 #[path = "gate_layout.rs"]

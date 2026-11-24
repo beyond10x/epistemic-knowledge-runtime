@@ -127,6 +127,11 @@ struct SampledEvidence {
     text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     base64: Option<String>,
+    /// For evidence attached to the assertion after it was added (`!AttachEvidence`), the revision
+    /// that attached it; omitted for the evidence the assertion cites, so a sample of a revision
+    /// without an attachment is the bytes it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attached_at: Option<u64>,
 }
 
 /// `ekr.views.SampledFact`.
@@ -365,11 +370,22 @@ pub fn sample(
                 ),
                 Object::Value(_) | Object::Type(_) => (None, None),
             };
-            let mut evidence: Vec<SampledEvidence> = assertion
+            // The evidence the assertion cites, then the evidence attached to it later, with the
+            // revision that attached it (review of 0.0.42, finding 23): a judge reads what
+            // `explain` names.
+            let cited = assertion
                 .evidence
                 .iter()
-                .filter_map(|cited| graph.evidence.get(&CanonicalDependency::id(cited)))
-                .map(|record| {
+                .map(|cited| (CanonicalDependency::id(cited), None));
+            let attached = graph
+                .attached(assertion.id)
+                .map(|attached| (attached.evidence.id(), Some(attached.revision.get())));
+            let mut evidence: Vec<SampledEvidence> = cited
+                .chain(attached)
+                .filter_map(|(id, attached_at)| {
+                    graph.evidence.get(&id).map(|record| (record, attached_at))
+                })
+                .map(|(record, attached_at)| {
                     let bytes = read.content(&record.content_hash);
                     let (text, base64) = match bytes.map(std::str::from_utf8) {
                         Some(Ok(text)) => (Some(text.to_owned()), None),
@@ -384,6 +400,7 @@ pub fn sample(
                         content_hash: record.content_hash.to_string(),
                         text,
                         base64,
+                        attached_at,
                     }
                 })
                 .collect();

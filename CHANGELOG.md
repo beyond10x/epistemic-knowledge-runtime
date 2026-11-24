@@ -6,6 +6,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- Extraction and strict validation follow the schema in the SDK and the CLI
+  (story:ekr-extraction-validation-fixes, findings 5-11 and 14 of the EKR 0.0.42 review):
+  - an inherited property is the nearest ancestor's, each generation in name order, in the reader
+    and the SDK alike;
+  - a fact is typed by every alias of the named things the document joins it with, so where an
+    alias sits no longer changes strict validation;
+  - `ekr_sdk::extraction::apply_with` in strict mode refuses a value its property does not hold
+    (`extraction-value-mismatch`) and a fact citing no evidence (`fact-without-evidence`) before
+    any write, as the verb does;
+  - a type name the store gives two types is refused as `extraction-name-duplicate` only where a
+    document uses it; before, every document was refused;
+  - a node created for a named thing carries the document's values of its required properties;
+  - a declaration the store has since widened is met, not narrowed back (`value-type-narrowed`);
+  - a supersession whose replacement an earlier transaction already superseded or retracted is
+    `invalid-supersession`; a chain in one transaction still commits;
+  - an evidence item past the `sequence_elements` limit of its `!AddEvidence` refuses the document
+    before any write, as `ekr propose` does (`ekr.kernel.StructurallyInvalid`;
+    `ApplyError::Limit` in the SDK).
 - `ekr apply-extraction` and `ekr_sdk::extraction::apply` write the same state whatever the
   batching (story:extraction-write-integrity, findings 1-4 of the EKR 0.0.42 review):
   - an evidence item whose id the store already retains for another item (another source,
@@ -31,6 +49,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   with the tag. An application that copied the workaround `serde_yaml_ng` patch into its own
   manifest can drop it. `task check` runs a new step, `task sdk-standalone-check`, that builds the
   SDK from a workspace of its own, offline.
+- Explanations and quality samples return whole, pinned evidence
+  (story:ekr-explain-evidence-fixes, findings 19, 20, 21 and 23 of the EKR 0.0.42 review):
+  - `ekr_sdk::read::ExplainedEvidence` reads `offset`, `record_length` and `truncated`, so a typed
+    explanation no longer passes 64 KiB of a longer record off as the whole of it, and
+    `Reader::explain_range` (and `OneShotReader::explain_range`) reads any other range of it;
+  - `ekr.explanation/3`, the MCP `explain` default, keeps the half of an evidence window that
+    holds the cited text when its 48 KiB cap halves the window; before, it kept the first half,
+    which could end in the middle of the statement;
+  - `ekr explain --at N` and the MCP tool's `at` explain an assertion as revision N held it; the
+    answer's `at` names the revision. Before, both refused a revision and read the head;
+  - `ekr sample` lists the evidence attached to a fact after it was written (`!AttachEvidence`)
+    beside the evidence it cites, each such entry with `attached_at`, the revision that attached
+    it. Before, the judge saw only the evidence the fact was written with.
 
 ## [0.0.43] — 2026-11-23
 
