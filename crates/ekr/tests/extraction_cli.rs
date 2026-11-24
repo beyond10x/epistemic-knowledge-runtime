@@ -2533,3 +2533,157 @@ fn strict_help_and_strict_behaviour_agree_on_a_replacement_with_nothing_to_repla
         assert!(!written);
     }
 }
+
+/// The workspace's `relative` file, read per process.
+fn workspace_file(relative: &str) -> String {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
+    std::fs::read_to_string(PathBuf::from(manifest).join("../..").join(relative)).unwrap()
+}
+
+/// Review of 0.0.42, finding 35: when `ekr apply-extraction` writes part of a document, and which
+/// report fields say so, on both providers, held to what `README.md` and `docs/cli.md` § Partial
+/// writes say.
+///
+/// * Without `--strict`, a good relation and a fact citing evidence the document does not carry
+///   move the head from 0 to 2 (the new nodes, then the relation) and list the bad fact under
+///   `rejected`; `--strict` refuses that document at revision 0.
+/// * `--strict` checks the reader's codes only: a document whose one relation validation rejects
+///   (`edge-cardinality`) commits the node it creates for the relation's object, lists the
+///   relation under `rejected` with its `transaction_id` and `issues`, and exits 0. Applying it
+///   again creates nothing and records one more rejected transaction.
+#[test]
+fn a_partial_write_is_what_committed_and_rejected_say_and_the_documents_say_when() {
+    let relation = |object: &str, cited: &str| {
+        format!(
+            "- !Relation\n  subject: {{node_type: Person, aliases: [Rigel]}}\n  relation: \
+             CEO_OF\n  object: {{node_type: Organization, aliases: [{object}]}}\n  evidence: \
+             [{}]\n",
+            evidence_id(cited)
+        )
+    };
+    let item = |cited: &str| {
+        evidence_item(
+            cited,
+            format!("Rigel's posts, source {cited}.").as_bytes(),
+            1_773_273_600_000,
+        )
+    };
+    for backend in BACKENDS {
+        let head = |world: &World| world.store_json(&["head"])["revision"].as_u64().unwrap();
+        let rejected = |world: &World| {
+            world
+                .store_json(&["transactions", "--state", "Rejected"])
+                .as_array()
+                .unwrap()
+                .len()
+        };
+        let apply = |world: &World, document: &str, strict: bool| {
+            let path = world.file("extraction.yaml");
+            std::fs::write(&path, document).unwrap();
+            let mut args = vec!["apply-extraction"];
+            if strict {
+                args.push("--strict");
+            }
+            args.push(path.to_str().unwrap());
+            world.store_output(&args)
+        };
+
+        let mixed = extraction(
+            &[relation("Betelgeuse", "450"), relation("Saiph", "459")],
+            &[item("450")],
+        );
+        let world = World::new(backend, false);
+        let output = apply(&world, &mixed, true);
+        assert_eq!(output.status.code(), Some(2), "{backend}: strict refuses");
+        assert_eq!(head(&world), 0, "{backend}: strict wrote nothing");
+        let output = apply(&world, &mixed, false);
+        assert_eq!(output.status.code(), Some(0), "{backend}");
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(head(&world), 2, "{backend}: {report}");
+        assert_eq!(report["committed"].as_array().unwrap().len(), 2, "{report}");
+        assert_eq!(report["rejected"][0]["item"], "facts[1]", "{report}");
+        assert!(report["rejected"][0]["refusal"]
+            .as_str()
+            .unwrap()
+            .starts_with("fact-evidence-unlisted: "));
+        assert_eq!(report["stopped"], Value::Null, "{report}");
+
+        let second = extraction(&[relation("Mintaka", "451")], &[item("451")]);
+        let before = (head(&world), rejected(&world));
+        let output = apply(&world, &second, true);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{backend}: strict passes the reader"
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            head(&world),
+            before.0 + 1,
+            "{backend}: Mintaka committed: {report}"
+        );
+        assert!(node(&world, "Mintaka").is_some(), "{backend}");
+        assert_eq!(report["committed"].as_array().unwrap().len(), 1, "{report}");
+        let row = &report["rejected"][0];
+        assert_eq!(row["item"], "facts[0]", "{report}");
+        assert!(row["transaction_id"].is_string(), "{report}");
+        assert!(
+            row["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| issue["code"] == "edge-cardinality"),
+            "{report}"
+        );
+        assert_eq!(rejected(&world), before.1 + 1, "{backend}");
+
+        let output = apply(&world, &second, true);
+        assert_eq!(output.status.code(), Some(0), "{backend}");
+        let again: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(again["committed"], serde_json::json!([]), "{again}");
+        assert_eq!(again["rejected"][0]["item"], "facts[0]", "{again}");
+        assert_eq!(
+            head(&world),
+            before.0 + 1,
+            "{backend}: nothing more committed"
+        );
+        assert_eq!(
+            rejected(&world),
+            before.1 + 2,
+            "{backend}: one more rejection"
+        );
+    }
+
+    let readme = workspace_file("README.md");
+    let row = readme
+        .lines()
+        .find(|line| line.contains("`ekr apply-extraction`"))
+        .unwrap();
+    assert!(
+        !row.contains("a second run adds nothing") && !row.contains("refused before any write"),
+        "README.md promises an all-or-nothing apply: {row}"
+    );
+    assert!(row.contains("(docs/cli.md#partial-writes)"), "{row}");
+    let page = workspace_file("docs/cli.md");
+    let section = page
+        .split_once("\n#### Partial writes\n")
+        .expect("docs/cli.md § Partial writes")
+        .1
+        .split_once("\n#")
+        .unwrap()
+        .0
+        .replace('\n', " ");
+    for named in [
+        "`--strict`",
+        "`committed`",
+        "`rejected`",
+        "`stopped`",
+        "`transaction_id`",
+        "`issues`",
+        "`refusal`",
+        "again",
+        "`ekr stage`",
+    ] {
+        assert!(section.contains(named), "§ Partial writes names {named}");
+    }
+}

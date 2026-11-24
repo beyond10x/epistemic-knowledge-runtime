@@ -1,5 +1,6 @@
 //! `ekr ontology`: the node types, edge types and properties at the head or at one committed
-//! revision, by name and id, with the schema version in force there, through one
+//! revision, by name and id, with each node type's lifecycle and named operations and each edge
+//! type's inverse and flags, and the schema version in force there, through one
 //! `Runtime::read_ontology`: served from the persisted read model where the kernel verifies it
 //! (design § 108).
 
@@ -7,7 +8,7 @@ use std::collections::BTreeMap;
 
 use ekr_core::{EvidenceId, RevisionNumber, SchemaVersionId, TypeId};
 use ekr_kernel::Runtime;
-use ekr_ontology::{Cardinality, PropertyDefinition};
+use ekr_ontology::{Cardinality, Lifecycle, OperationDefinition, PropertyDefinition};
 use serde::Serialize;
 
 use crate::exit::Failure;
@@ -40,6 +41,11 @@ struct NodeType {
     parents: Vec<Named>,
     abstract_type: bool,
     properties: Vec<PropertyDefinition>,
+    /// The states a node of this type moves through and the moves declared; `null` without one.
+    lifecycle: Option<Lifecycle>,
+    /// The named operations, by the key `!Invoke` names: arguments, transition, preconditions
+    /// and emitted events, as the seed or schema change declared them.
+    operations: BTreeMap<String, OperationDefinition>,
 }
 
 #[derive(Serialize)]
@@ -50,6 +56,10 @@ struct EdgeType {
     target_types: Vec<Named>,
     cardinality: Cardinality,
     properties: Vec<PropertyDefinition>,
+    /// The edge type that reads this one backwards; `null` without one.
+    inverse: Option<Named>,
+    symmetric: bool,
+    transitive: bool,
 }
 
 /// The ontology of the requested (or newest) committed revision; a missing revision is the
@@ -59,6 +69,11 @@ pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failur
     let document = read.ontology.to_document();
     let names: BTreeMap<TypeId, String> = document
         .node_types
+        .iter()
+        .map(|t| (t.id, t.name.clone()))
+        .collect();
+    let edge_names: BTreeMap<TypeId, String> = document
+        .edge_types
         .iter()
         .map(|t| (t.id, t.name.clone()))
         .collect();
@@ -85,6 +100,8 @@ pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failur
                 parents: named(&t.parents),
                 abstract_type: t.abstract_type,
                 properties: t.properties.values().cloned().collect(),
+                lifecycle: t.lifecycle.clone(),
+                operations: t.operations.clone(),
             })
             .collect(),
         edge_types: document
@@ -97,6 +114,12 @@ pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failur
                 target_types: named(&t.target_types),
                 cardinality: t.cardinality,
                 properties: t.properties.values().cloned().collect(),
+                inverse: t.inverse.map(|id| Named {
+                    id,
+                    name: edge_names.get(&id).cloned(),
+                }),
+                symmetric: t.symmetric,
+                transitive: t.transitive,
             })
             .collect(),
     })

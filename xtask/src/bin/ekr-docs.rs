@@ -9,6 +9,17 @@ const NOT_FOUND: &str = include_str!("../../../website/404.html");
 const CSS: &str = include_str!("../../../website/styles.css");
 const ICON: &str = include_str!("../../../website/favicon.svg");
 const BASE: &str = "/epistemic-knowledge-runtime/";
+/// The release a build of this commit belongs to: the workspace version, which a release commit
+/// sets and nothing else changes.
+const RELEASE: &str = env!("CARGO_PKG_VERSION");
+/// Where the index names the current release; the build writes [`RELEASE`] there, so the page
+/// never names a release by hand.
+const RELEASE_MARK: &str = "{{release}}";
+
+/// The index as published: [`HTML`] with the current release written in.
+fn index() -> String {
+    HTML.replace(RELEASE_MARK, RELEASE)
+}
 
 #[derive(Parser)]
 #[command(about = "Validate and build EKR's public documentation")]
@@ -82,7 +93,12 @@ fn check(html: &str, canonical: bool) -> Result<(), String> {
 }
 
 fn check_site() -> Result<(), String> {
-    check(HTML, true)?;
+    if !HTML.contains(RELEASE_MARK) {
+        return Err(format!(
+            "index.html must name the current release as {RELEASE_MARK}, not by hand"
+        ));
+    }
+    check(&index(), true)?;
     check(NOT_FOUND, false).map_err(|error| format!("404.html: {error}"))?;
     if !ICON.starts_with("<svg ") || ICON.to_ascii_lowercase().contains("<script") {
         return Err("favicon.svg must be a script-free SVG document".into());
@@ -99,7 +115,7 @@ fn build(out: &Path, commit: &str) -> Result<(), String> {
     }
     let write = || -> std::io::Result<()> {
         fs::create_dir_all(out.join(".well-known"))?;
-        fs::write(out.join("index.html"), HTML)?;
+        fs::write(out.join("index.html"), index())?;
         fs::write(out.join("404.html"), NOT_FOUND)?;
         fs::write(out.join("styles.css"), CSS)?;
         fs::write(out.join("favicon.svg"), ICON)?;
@@ -175,7 +191,7 @@ mod tests {
         let out = std::env::temp_dir().join(format!("ekr-docs-build-{}", std::process::id()));
         build(&out, &"a".repeat(40)).expect("build");
         for (name, bytes) in [
-            ("index.html", HTML),
+            ("index.html", index().as_str()),
             ("404.html", NOT_FOUND),
             ("favicon.svg", ICON),
             ("styles.css", CSS),
@@ -183,6 +199,25 @@ mod tests {
             assert_eq!(fs::read_to_string(out.join(name)).expect(name), bytes);
         }
         fs::remove_dir_all(&out).expect("remove build output");
+    }
+
+    /// Review of 0.0.42, finding 43: the deployed page called 0.0.41 the current release after
+    /// 0.0.42 shipped. The built page names the release of the commit it is built from, the
+    /// workspace version, and no other.
+    #[test]
+    fn the_built_page_names_the_workspace_release_as_current() {
+        let out = std::env::temp_dir().join(format!("ekr-docs-release-{}", std::process::id()));
+        build(&out, &"b".repeat(40)).expect("build");
+        let page = fs::read_to_string(out.join("index.html")).expect("index.html");
+        fs::remove_dir_all(&out).expect("remove build output");
+        let release = env!("CARGO_PKG_VERSION");
+        let current = format!(
+            "The current release is <a href=\"https://github.com/beyond10x/\
+             epistemic-knowledge-runtime/releases/tag/{release}\">{release}</a>"
+        );
+        assert!(page.contains(&current), "the page does not say: {current}");
+        assert_eq!(page.matches("current release").count(), 1);
+        assert!(!page.contains(RELEASE_MARK));
     }
 
     #[test]

@@ -143,6 +143,8 @@ mod adversary_x7_v;
 mod adversary_x7_v_2;
 #[path = "agent_cli.rs"]
 mod agent_cli;
+#[path = "cli_contract.rs"]
+mod cli_contract;
 #[path = "code_names_cli.rs"]
 mod code_names_cli;
 #[path = "conformance.rs"]
