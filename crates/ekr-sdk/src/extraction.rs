@@ -10,7 +10,9 @@
 //! assertions the store holds, and `ekr ontology`, for the store's types by name. Then, before it
 //! writes anything, it refuses — by the engine reader's code, as [`ApplyError::Refused`] — a
 //! document [`ExtractionDocument::check_facts`] refuses (two evidence items under one id, a payload
-//! that does not hash to its entry); an entity with no alias but the empty string
+//! that does not hash to its entry); an evidence item whose id the store retains for another item
+//! (`duplicate-identity`), whose facts would otherwise cite the retained item; an entity with no
+//! alias but the empty string
 //! (`reference-without-identity`); and an entity whose node type is abstract or has a subtype
 //! once the document's ontology is applied (`reference-type-has-subtypes`), which `ekr resolve`
 //! would refuse. A document [`Ontology::ensure`] refuses to plan — a subtype redeclaring a
@@ -68,14 +70,29 @@
 //!    when the earlier fact that set one was rejected, it is refused alone, as
 //!    [`REPLACES_NOTHING`].
 //!
+//!    A `!Property` fact of a single-valued property (`cardinality: One`) not marked `replaces`
+//!    supersedes, in its group, every active assertion of its subject and property with another
+//!    value, from its own valid time on; one of the same value stays active beside it
+//!    (`story:extraction-write-integrity`). Earlier facts a replacement replaces are matched by
+//!    the store node a subject lands on, so a replacement under another alias of that node than
+//!    the earlier fact's is not refused.
+//!
 //!    Facts are committed in rounds. What the run records as done — the active values, the edges
 //!    and the claims — changes only when a fact's group commits, so a fact that depends on an
 //!    earlier fact of the round waits for the next one, and is planned once that fact is known
 //!    to have committed or not: a fact repeating its claim and citing no evidence it does not
 //!    (so it could be held by it), a relation repeating one whose edge it proposes, and a fact on
-//!    the same subject and property where either replaces. Any other corroboration of a claim
-//!    commits in the same round. A fact repeating a rejected one is tried on its own and
-//!    reported on its own result.
+//!    the same subject and property where either replaces or supersedes, or the property is
+//!    single-valued and their values differ. A later fact of the same claim, or of the same subject and property, waits behind it, so the
+//!    document's order holds and one document writes what its facts applied one by one write.
+//!    Any other corroboration of a claim commits in the same round. A fact repeating a rejected
+//!    one is tried on its own and reported on its own result.
+//!
+//!    Every round is validated against the revision the run's knowledge reflects — the
+//!    snapshot's, advanced by each of its own commits ([`Batcher`]'s pinned run). When another
+//!    writer committed after it, the commit is `Stale`; the run reads the head again and plans
+//!    the facts not yet committed against it, so two writers of the same facts leave one
+//!    assertion of each claim, the second holding every fact the first committed.
 //!
 //!    A fact is [held](ExtractionReport::held), not asserted, when an assertion making its claim
 //!    — the same subject, predicate and object — covers it: it cites every evidence item the fact
@@ -630,6 +647,10 @@ impl Plan {
     /// and nothing only it names is grouped. So is a replacement with nothing to replace, under
     /// `options.strict` too: `holds` answers whether a store node of a type, holding one of the
     /// aliases, has an active assertion of a property — the nodes `ekr resolve` would answer with.
+    /// An earlier fact sets a value for a later replacement when it is about the same node: the
+    /// same group, or one `lands` answers with the same single store node, as two groups of keys
+    /// that share no alias in the document are when the store's node holds both
+    /// (`story:extraction-write-integrity`, finding 4).
     ///
     /// A fact's property and ends are checked against the type of the node its key resolves to,
     /// `kept` answering where a supersession record resolves a key to a node of another type
@@ -644,6 +665,7 @@ impl Plan {
         options: &ApplyOptions,
         mut unlisted: BTreeMap<usize, ExtractionRefusal>,
         holds: &dyn Fn(TypeId, &[String], PropertyId) -> bool,
+        lands: &dyn Fn(TypeId, &[String]) -> BTreeSet<NodeId>,
         kept: &KeptTypes,
     ) -> Result<Self, ApplyError> {
         let entities: Vec<(String, &ExtractedReference)> = document
@@ -753,7 +775,20 @@ impl Plan {
                 }
             }
 
-            let mut set: BTreeSet<(usize, PropertyId)> = BTreeSet::new();
+            // A group is the store node it lands on when it lands on exactly one, so two groups
+            // the document does not join, each holding another alias of that node, are one.
+            let landing: Vec<Landing> = groups
+                .iter()
+                .enumerate()
+                .map(|(at, group)| {
+                    let nodes = lands(group.type_id, &group.aliases);
+                    match (nodes.len(), nodes.first()) {
+                        (1, Some(node)) => Landing::Node(*node),
+                        _ => Landing::Group(at),
+                    }
+                })
+                .collect();
+            let mut set: BTreeSet<(Landing, PropertyId)> = BTreeSet::new();
             for (at, (fact, planned)) in document.facts.iter().zip(&facts).enumerate() {
                 let (ExtractedFact::Property(fact), Some((subject, Said::Property(property)))) =
                     (fact, planned)
@@ -762,7 +797,7 @@ impl Plan {
                 };
                 let group = &groups[*subject];
                 if fact.replaces
-                    && !set.contains(&(*subject, *property))
+                    && !set.contains(&(landing[*subject], *property))
                     && !holds(group.type_id, &group.aliases, *property)
                 {
                     refused.insert(
@@ -773,7 +808,7 @@ impl Plan {
                         ),
                     );
                 } else {
-                    set.insert((*subject, *property));
+                    set.insert((landing[*subject], *property));
                 }
             }
             if refused.is_empty() {
@@ -786,6 +821,14 @@ impl Plan {
             skipped.extend(refused);
         }
     }
+}
+
+/// What a group is about, for whether an earlier fact sets a value a later replacement replaces:
+/// the store node it lands on, when it lands on exactly one, else the group itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Landing {
+    Node(NodeId),
+    Group(usize),
 }
 
 /// A property fact's property once its subject is grouped: `property`, the one its key alone was
@@ -1049,10 +1092,110 @@ pub fn apply_with<T: Transport + ?Sized>(
     };
     let snapshot = Reader::new(&mut *transport).snapshot(None, None)?;
     let graph = &snapshot.graph.graph;
+    if let Some(refusal) = reused_evidence(document, graph) {
+        return Err(refusal.into());
+    }
     let store = Ontology::read(&ontology(transport)?)?;
     // The kernel decides whether the store's profile takes a schema change: under v1 it is
     // rejected (`unsupported-operation`), and reported as the ontology's rejection.
     let change = store.ensure(&document.ontology, ValidationProfile::V2)?;
+    let active = active_of(graph);
+    // The nodes `ekr resolve` answers a typed reference with: of its type, holding one of its
+    // aliases; and for a superseded node that matches so, the node its record names
+    // (`story:supersede-node`), as `ekr_integrate::resolve` answers.
+    let lands = |type_id: TypeId, aliases: &[String]| -> BTreeSet<NodeId> {
+        let matches = |node: &&crate::read::SnapshotNode| {
+            node.root_id == graph.root.id
+                && node.type_id == type_id
+                && node.aliases.iter().any(|alias| aliases.contains(alias))
+        };
+        let held = graph.nodes.values().filter(matches).map(|node| node.id);
+        let kept = graph
+            .superseded
+            .values()
+            .filter(|record| matches(&&record.node))
+            .map(|record| record.by);
+        held.chain(kept).collect()
+    };
+    let holds = |type_id: TypeId, aliases: &[String], property: PropertyId| {
+        lands(type_id, aliases).into_iter().any(|node| {
+            active
+                .get(&(node, property))
+                .is_some_and(|held| !held.is_empty())
+        })
+    };
+    let planning = if change.is_empty() {
+        &store
+    } else {
+        change.ontology()
+    };
+    let kept = KeptTypes::read(graph, &store);
+    let plan = Plan::of(document, planning, options, unlisted, &holds, &lands, &kept)?;
+    let held: BTreeSet<EvidenceId> = graph.evidence.keys().copied().collect();
+    let claims = claims_of(graph);
+
+    let mut report = ExtractionReport::default();
+    // A skipped fact was refused before anything was tried. The SDK's own refusals name a
+    // supersession where one caused them; a refusal the caller's reader made is read here for one.
+    report
+        .rejected
+        .extend(plan.skipped.iter().map(|(at, refusal)| RejectedExtraction {
+            item: format!("facts[{at}]"),
+            transaction_id: None,
+            issues: Vec::new(),
+            refusal: Some(match (options.refused.get(at), document.facts.get(*at)) {
+                (Some(_), Some(fact)) => named_by_cause(fact, refusal, planning, &kept),
+                _ => refusal.to_string(),
+            }),
+        }));
+    let run = Run {
+        document,
+        plan: &plan,
+        ontology: planning,
+        root: graph.root.id,
+        operator,
+        held,
+        claims,
+        observed: document
+            .evidence
+            .iter()
+            .map(|item| (item.evidence.id, item.evidence.observed_at))
+            .collect(),
+        edges: edges_of(graph),
+        active,
+        known: snapshot.root.revision,
+    };
+    if let Err(error) = run.go(transport, &change, &mut report) {
+        if report.committed.is_empty() {
+            return Err(error);
+        }
+        report.stopped = Some(error.to_string());
+    }
+    Ok(report)
+}
+
+/// The first evidence item of `document` whose id `graph` retains for another item — another
+/// source, content hash, extractor, observed time or confidence — refused as
+/// `duplicate-identity` (`story:extraction-write-integrity`, finding 1). Such an id is cited, not
+/// added again, so applying the document would attach the retained item, not its own, to every
+/// fact citing it. An item equal to the retained one, as a document applied again carries it, is
+/// not refused.
+fn reused_evidence(
+    document: &ExtractionDocument,
+    graph: &crate::read::SnapshotGraph,
+) -> Option<ExtractionRefusal> {
+    document.evidence.iter().find_map(|item| {
+        let retained = graph.evidence.get(&item.evidence.id)?;
+        let same = serde_json::to_value(&item.evidence).ok() == serde_json::to_value(retained).ok();
+        (!same)
+            .then(|| ExtractionRefusal::new(code::DUPLICATE_IDENTITY, item.evidence.id.to_string()))
+    })
+}
+
+/// The active assertions of each node and property `graph` holds.
+fn active_of(
+    graph: &crate::read::SnapshotGraph,
+) -> BTreeMap<(NodeId, PropertyId), Vec<AssertionId>> {
     let mut active: BTreeMap<(NodeId, PropertyId), Vec<AssertionId>> = BTreeMap::new();
     for assertion in graph.assertions.values() {
         if let (SnapshotSubject::Node(node), SnapshotPredicate::Property(property), true) = (
@@ -1066,35 +1209,12 @@ pub fn apply_with<T: Transport + ?Sized>(
                 .push(assertion.id);
         }
     }
-    // The nodes `ekr resolve` answers a typed reference with: of its type, holding one of its
-    // aliases; and for a superseded node that matches so, the node its record names
-    // (`story:supersede-node`), as `ekr_integrate::resolve` answers.
-    let holds = |type_id: TypeId, aliases: &[String], property: PropertyId| {
-        let matches = |node: &&crate::read::SnapshotNode| {
-            node.root_id == graph.root.id
-                && node.type_id == type_id
-                && node.aliases.iter().any(|alias| aliases.contains(alias))
-        };
-        let held = graph.nodes.values().filter(matches).map(|node| node.id);
-        let kept = graph
-            .superseded
-            .values()
-            .filter(|record| matches(&&record.node))
-            .map(|record| record.by);
-        held.chain(kept).any(|node| {
-            active
-                .get(&(node, property))
-                .is_some_and(|held| !held.is_empty())
-        })
-    };
-    let planning = if change.is_empty() {
-        &store
-    } else {
-        change.ontology()
-    };
-    let kept = KeptTypes::read(graph, &store);
-    let plan = Plan::of(document, planning, options, unlisted, &holds, &kept)?;
-    let held: BTreeSet<EvidenceId> = graph.evidence.keys().copied().collect();
+    active
+}
+
+/// Every claim `graph` holds, active, retracted or superseded, each with every assertion making
+/// it.
+fn claims_of(graph: &crate::read::SnapshotGraph) -> Claims {
     let mut claims: Claims = BTreeMap::new();
     for assertion in graph.assertions.values() {
         let reason = if assertion.lifecycle == serde_json::json!("Active") {
@@ -1125,47 +1245,16 @@ pub fn apply_with<T: Transport + ?Sized>(
                 id: assertion.id,
             });
     }
+    claims
+}
 
-    let mut report = ExtractionReport::default();
-    // A skipped fact was refused before anything was tried. The SDK's own refusals name a
-    // supersession where one caused them; a refusal the caller's reader made is read here for one.
-    report
-        .rejected
-        .extend(plan.skipped.iter().map(|(at, refusal)| RejectedExtraction {
-            item: format!("facts[{at}]"),
-            transaction_id: None,
-            issues: Vec::new(),
-            refusal: Some(match (options.refused.get(at), document.facts.get(*at)) {
-                (Some(_), Some(fact)) => named_by_cause(fact, refusal, planning, &kept),
-                _ => refusal.to_string(),
-            }),
-        }));
-    let run = Run {
-        document,
-        plan: &plan,
-        root: graph.root.id,
-        operator,
-        held,
-        claims,
-        observed: document
-            .evidence
-            .iter()
-            .map(|item| (item.evidence.id, item.evidence.observed_at))
-            .collect(),
-        edges: graph
-            .edges
-            .values()
-            .map(|edge| (edge.source, edge.type_id, edge.target))
-            .collect(),
-        active,
-    };
-    if let Err(error) = run.go(transport, &change, &mut report) {
-        if report.committed.is_empty() {
-            return Err(error);
-        }
-        report.stopped = Some(error.to_string());
-    }
-    Ok(report)
+/// Every edge `graph` holds, as its source, type and target.
+fn edges_of(graph: &crate::read::SnapshotGraph) -> BTreeSet<(NodeId, TypeId, NodeId)> {
+    graph
+        .edges
+        .values()
+        .map(|edge| (edge.source, edge.type_id, edge.target))
+        .collect()
 }
 
 /// The refusal of a fact the caller's reader refused (`ApplyOptions::refused`), naming the
@@ -1214,6 +1303,8 @@ const VALUE_MISMATCH: &str = "extraction-value-mismatch";
 struct Run<'a> {
     document: &'a ExtractionDocument,
     plan: &'a Plan,
+    /// The store's ontology once the document's is applied: which properties are single-valued.
+    ontology: &'a Ontology,
     root: ekr_core::GraphRootId,
     operator: AgentId,
     /// The evidence ids the store holds.
@@ -1228,7 +1319,15 @@ struct Run<'a> {
     /// The active assertions of each node and property: the store's, then as the facts committed
     /// so far leave them, a replacement in place of those it supersedes.
     active: BTreeMap<(NodeId, PropertyId), Vec<AssertionId>>,
+    /// The revision `held`, `claims`, `edges` and `active` reflect: the snapshot's, advanced by
+    /// each of the run's own commits. Facts are validated against it, so a commit another writer
+    /// made after it moves the head under them and they are planned again
+    /// (`story:extraction-write-integrity`, finding 2).
+    known: u64,
 }
+
+/// How many rounds in a row may find the head moved by another writer before the run stops.
+const MOVED_ROUNDS: usize = 8;
 
 /// How a fact's group changes the active assertions of its node and property once it commits.
 #[derive(Debug)]
@@ -1259,15 +1358,35 @@ struct Effect {
 /// One round of facts, committed together.
 #[derive(Debug, Default)]
 struct Round {
-    /// Each group, its fact's label and its effect, in order.
+    /// Each group, its fact's label, its effect, and its fact's index and assertion, in order.
     groups: Vec<Vec<Operation>>,
     labels: Vec<String>,
     effects: Vec<Effect>,
+    sources: Vec<(usize, Assertion)>,
     /// The claims its groups make, each with the evidence of every fact making it and whether
     /// that fact proposes an edge.
     claimed: BTreeMap<Claim, Vec<(BTreeSet<EvidenceId>, bool)>>,
-    /// Each node and property its groups change, and whether one of them replaces.
-    touched: BTreeMap<(NodeId, PropertyId), bool>,
+    /// Each node and property its groups change: whether one of them replaces or supersedes, and
+    /// the objects they assert.
+    touched: BTreeMap<(NodeId, PropertyId), (bool, BTreeSet<String>)>,
+    /// The claims and the nodes and properties of facts it put off to a later round: a later fact
+    /// of one waits too, so the facts of one node and property, or one claim, are planned in the
+    /// document's order (`story:extraction-write-integrity`, finding 3).
+    waiting: BTreeSet<Claim>,
+    waiting_slots: BTreeSet<(NodeId, PropertyId)>,
+}
+
+impl Round {
+    /// Whether a fact of `key` and `slot` waits behind an earlier fact put off.
+    fn waits(&self, key: &Claim, slot: Option<(NodeId, PropertyId)>) -> bool {
+        self.waiting.contains(key) || slot.is_some_and(|slot| self.waiting_slots.contains(&slot))
+    }
+
+    /// Puts off a fact of `key` and `slot`.
+    fn put_off(&mut self, key: Claim, slot: Option<(NodeId, PropertyId)>) {
+        self.waiting.insert(key);
+        self.waiting_slots.extend(slot);
+    }
 }
 
 impl Run<'_> {
@@ -1376,10 +1495,28 @@ impl Run<'_> {
             }
         }
 
+        // The run's own commits so far — the schema change, the new nodes — each published the
+        // next revision. A gap is another writer's commit: what it holds is read again before
+        // any fact is planned.
+        let mut moved = false;
+        for committed in &report.committed {
+            if committed.revision == self.known + 1 {
+                self.known = committed.revision;
+            } else {
+                moved = true;
+            }
+        }
+        if moved {
+            self.refresh(transport, &mut evidence)?;
+        }
+
         // In rounds. What the run records as done changes only when a fact's group commits, so a
         // fact that depends on an earlier fact's change — the same claim, so also the same edge,
         // or the same node and property where either replaces — is planned in a later round,
         // once that fact's result is known: held if it committed, tried on its own if not.
+        // Every round is validated against the revision the run knows; when another writer
+        // committed after it, the facts not yet committed are planned again against the head.
+        let mut stale = Vec::new();
         while !pending.is_empty() {
             let mut round = Round::default();
             let mut deferred = Vec::new();
@@ -1392,11 +1529,13 @@ impl Run<'_> {
                 groups,
                 labels,
                 effects,
+                sources,
                 ..
             } = round;
-            let batch = batcher
-                .commit_with_evidence(transport, &groups, &mut evidence)
+            let (batch, pinned) = batcher
+                .commit_pinned(transport, &groups, &mut evidence, self.known)
                 .map_err(|error| report.stopped_in(error, |group| labels[group].clone()))?;
+            self.known = pinned.revision;
             let committed: BTreeSet<usize> = batch
                 .committed
                 .iter()
@@ -1423,6 +1562,21 @@ impl Run<'_> {
                 }
                 return Ok(());
             }
+            match pinned.moved {
+                None => stale.clear(),
+                Some((transaction, untried)) => {
+                    stale.push(transaction);
+                    if stale.len() > MOVED_ROUNDS {
+                        return Err(CallError::StaleRetries {
+                            transactions: stale,
+                        }
+                        .into());
+                    }
+                    deferred.extend(untried.into_iter().map(|group| sources[group].clone()));
+                    deferred.sort_by_key(|(at, _)| *at);
+                    self.refresh(transport, &mut evidence)?;
+                }
+            }
             pending = deferred;
         }
         Ok(())
@@ -1448,23 +1602,34 @@ impl Run<'_> {
             (Subject::Node(node), Predicate::Property(property)) => Some((node, property)),
             _ => None,
         };
+        // An unmarked value of a single-valued property supersedes every other value of its node
+        // and property, as a replacement does, and leaves an equal one active beside it
+        // (`story:extraction-write-integrity`, cardinality One).
+        let single = replacing.is_none()
+            && slot.is_some_and(|(_, property)| self.ontology.single_valued(property));
         // A fact waits for an earlier fact of the round only when that fact's result can change
         // how it is planned: it repeats the claim citing no evidence the earlier fact does not
         // (so it would be held by it), or it is a relation whose edge the earlier fact proposes,
-        // or it and the earlier fact change one node and property where either replaces. Any
-        // other corroboration of a claim is asserted whatever became of the earlier fact, and
-        // commits in the same round.
-        let depends = round.claimed.get(&key).is_some_and(|earlier| {
-            earlier
-                .iter()
-                .any(|(evidence, edge)| *edge || made.evidence.is_subset(evidence))
-        }) || slot.is_some_and(|slot| {
-            round
-                .touched
-                .get(&slot)
-                .is_some_and(|&replaced| replaced || replacing.is_some())
-        });
+        // or it and the earlier fact change one node and property where either replaces or
+        // supersedes, or the property is single-valued and their values differ. Any other
+        // corroboration of a claim is asserted whatever became of the earlier fact, and commits in
+        // the same round. A fact behind one that waits, on the same claim or node and property,
+        // waits too: the document's order holds.
+        let depends = round.waits(&key, slot)
+            || round.claimed.get(&key).is_some_and(|earlier| {
+                earlier
+                    .iter()
+                    .any(|(evidence, edge)| *edge || made.evidence.is_subset(evidence))
+            })
+            || slot.is_some_and(|slot| {
+                round.touched.get(&slot).is_some_and(|(replaced, objects)| {
+                    *replaced
+                        || replacing.is_some()
+                        || single && objects.iter().any(|object| *object != key.2)
+                })
+            });
         if depends {
+            round.put_off(key, slot);
             return Some(cited);
         }
 
@@ -1520,6 +1685,7 @@ impl Run<'_> {
                             .collect(),
                     );
                     round.labels.push(item);
+                    round.sources.push((at, cited));
                     round.effects.push(Effect {
                         active: Some((slot, Change::Set(vec![covering.id]))),
                         superseded,
@@ -1531,7 +1697,7 @@ impl Run<'_> {
                         .entry(key)
                         .or_default()
                         .push((made.evidence, false));
-                    round.touched.insert(slot, true);
+                    round.touched.entry(slot).or_default().0 = true;
                     return None;
                 }
                 _ => {}
@@ -1552,7 +1718,22 @@ impl Run<'_> {
                 },
             ));
         }
-        if let (Some(replacing), Some(slot)) = (replacing, slot) {
+        if let (true, Some(slot), Some(from)) = (single, slot, cited.valid_time.from) {
+            // Every active value of another object is superseded from this one's start; an
+            // equal one stays, as a corroboration does. One that starts later than this value
+            // cannot be superseded from it, and the kernel rejects the fact
+            // (`invalid-supersession`), as it rejects such a replacement.
+            let (equal, other): (Vec<AssertionId>, Vec<AssertionId>) =
+                active.iter().copied().partition(|id| self.makes(&key, *id));
+            if !other.is_empty() {
+                effect.superseded = other.iter().map(|old| (*old, from)).collect();
+                effect.active = Some((
+                    slot,
+                    Change::Set(equal.into_iter().chain([cited.id]).collect()),
+                ));
+            }
+        }
+        if let (Some(replacing), Some(_)) = (replacing, slot) {
             let refusal = match cited.valid_time.from {
                 None => Some(format!("{}: {item}", code::WITHOUT_EVIDENCE)),
                 Some(_) if active.is_empty() => {
@@ -1581,9 +1762,11 @@ impl Run<'_> {
                 });
                 return None;
             }
-            round.touched.insert(slot, true);
-        } else if let Some(slot) = slot {
-            round.touched.entry(slot).or_insert(false);
+        }
+        if let Some(slot) = slot {
+            let touched = round.touched.entry(slot).or_default();
+            touched.0 |= replacing.is_some() || !effect.superseded.is_empty();
+            touched.1.insert(key.2.clone());
         }
 
         // A relation is also an edge, for the reads that walk the graph
@@ -1599,6 +1782,7 @@ impl Run<'_> {
             _ => None,
         };
         let id = cited.id;
+        round.sources.push((at, cited.clone()));
         let mut group = vec![cited.into()];
         group.extend(effect.edge.map(|(source, relation, target)| {
             Operation::CreateEdge(EdgeDraft::new(self.root, relation, source, target))
@@ -1618,6 +1802,47 @@ impl Run<'_> {
         effect.claim = Some((key, made));
         round.effects.push(effect);
         None
+    }
+
+    /// Whether the assertion `id` makes the claim `key`: the same subject, predicate and object.
+    fn makes(&self, key: &Claim, id: AssertionId) -> bool {
+        self.claims
+            .get(key)
+            .is_some_and(|made| made.iter().any(|made| made.id == id))
+    }
+
+    /// Reads the head again after another writer committed past [`Self::known`]: the evidence,
+    /// claims, edges and active values it holds, marking each evidence id it holds committed in
+    /// `evidence`. An assertion this run committed stays the document's own (`Repeated`).
+    fn refresh<T: Transport + ?Sized>(
+        &mut self,
+        transport: &mut T,
+        evidence: &mut EvidenceSet,
+    ) -> Result<(), ApplyError> {
+        let snapshot = Reader::new(&mut *transport).snapshot(None, None)?;
+        let graph = &snapshot.graph.graph;
+        let ours: BTreeSet<AssertionId> = self
+            .claims
+            .values()
+            .flatten()
+            .filter(|made| made.reason == HeldReason::Repeated)
+            .map(|made| made.id)
+            .collect();
+        let mut claims = claims_of(graph);
+        for made in claims.values_mut().flatten() {
+            if made.reason == HeldReason::Asserted && ours.contains(&made.id) {
+                made.reason = HeldReason::Repeated;
+            }
+        }
+        self.claims = claims;
+        self.active = active_of(graph);
+        self.edges = edges_of(graph);
+        for id in graph.evidence.keys() {
+            self.held.insert(*id);
+            evidence.mark_committed(*id);
+        }
+        self.known = snapshot.root.revision;
+        Ok(())
     }
 
     /// Records what a committed group changed.

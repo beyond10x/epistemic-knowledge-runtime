@@ -488,7 +488,9 @@ fn adv2_a_stop_inside_the_facts_batch_reports_every_commit_before_it() {
 }
 
 /// After that stop, running the document again commits only what did not: facts[0] is held,
-/// facts[1] is rejected again, facts[2] commits.
+/// facts[1] is rejected again, facts[2] commits. `legal_name` is single-valued, so facts[2]
+/// supersedes facts[0]: a third run holds facts[0] as superseded and facts[2] as asserted, and
+/// commits nothing.
 #[test]
 fn adv2_a_rerun_after_a_stop_adds_only_what_did_not_commit() {
     let world = World::new("file");
@@ -514,7 +516,7 @@ fn adv2_a_rerun_after_a_stop_adds_only_what_did_not_commit() {
     assert_eq!(
         third["held"],
         serde_json::json!([
-            {"item": "facts[0]", "reason": "asserted"},
+            {"item": "facts[0]", "reason": "superseded"},
             {"item": "facts[2]", "reason": "asserted"}
         ]),
         "{third}"
