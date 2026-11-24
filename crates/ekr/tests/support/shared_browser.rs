@@ -13,8 +13,10 @@
 // Six test files include this file and each uses a part of it.
 #![allow(dead_code)]
 
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
+use std::path::PathBuf;
 use std::process::Child;
 use std::time::Duration;
 
@@ -49,6 +51,38 @@ pub(crate) fn launch(size: Option<(u32, u32)>, own: impl FnOnce() -> Child) -> B
         Some(address) => Browser::Shared(Box::new(Context::open(&address, size))),
         None => Browser::Own(own()),
     }
+}
+
+/// The variable that requires a browser of every browser case, as the forge's `CI` does.
+pub(crate) const REQUIRE: &str = "EKR_REQUIRE_BROWSER";
+
+/// The headless Chromium a case found, passed through; `None`, with which the case skips, only
+/// where no browser is required. On the forge (`CI` set) or with [`REQUIRE`] set, a case that found
+/// none fails here rather than passing without starting one (finding 39 of the EKR 0.0.42 review).
+pub(crate) fn required(found: Option<PathBuf>) -> Option<PathBuf> {
+    required_under(
+        found,
+        std::env::var_os("CI").as_deref(),
+        std::env::var_os(REQUIRE).as_deref(),
+    )
+}
+
+/// [`required`] with the values of `CI` and [`REQUIRE`] given; a value that is empty, `0` or
+/// `false` does not require.
+pub(crate) fn required_under(
+    found: Option<PathBuf>,
+    ci: Option<&OsStr>,
+    require: Option<&OsStr>,
+) -> Option<PathBuf> {
+    let set = |value: Option<&OsStr>| {
+        value.is_some_and(|value| !value.is_empty() && value != "0" && value != "false")
+    };
+    assert!(
+        found.is_some() || !(set(ci) || set(require)),
+        "no headless Chromium, and one is required here (CI or {REQUIRE} is set): set \
+         EKR_VIEW_BROWSER to one"
+    );
+    found
 }
 
 /// The shared browser's address, when the step started one.
@@ -127,6 +161,33 @@ impl Browser {
 impl Drop for Browser {
     fn drop(&mut self) {
         self.stop();
+        drove();
+    }
+}
+
+/// The environment variable that names the file in which the test step counts the browser cases
+/// that drove a browser: each such case's process appends its id and its thread's name.
+pub(crate) const CASES: &str = "EKR_TEST_BROWSER_CASES";
+
+/// Notes in [`CASES`] that this case drove a browser. A case that skipped for want of one never
+/// holds a [`Browser`], so the step tells a run whose browser cases all skipped from one that ran.
+fn drove() {
+    use std::io::Write;
+    let Some(path) = std::env::var_os(CASES).filter(|path| !path.is_empty()) else {
+        return;
+    };
+    let line = format!(
+        "{} {}\n",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("-")
+    );
+    // one short write to a file opened for appending: lines of cases that run at once stay whole
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        file.write_all(line.as_bytes()).ok();
     }
 }
 
@@ -244,6 +305,48 @@ impl Context {
         )
         .ok();
         self.socket.close(None).ok();
+    }
+}
+
+/// Waits up to `seconds` for `expression` to be `true` in a case's page, and says whether it was.
+///
+/// The page checks `expression` itself every 50 ms and answers as soon as it holds, in one
+/// `Runtime.evaluate` that `evaluate` sends (with `params`) and whose reply it returns. A case
+/// that asked every 200 ms saw a page that had settled up to 200 ms late, and asked it five times
+/// a second over the protocol. A page that navigates while it checks loses the context the check
+/// ran in; the check starts again in the new one.
+pub(crate) fn wait_in_page(
+    mut evaluate: impl FnMut(Value) -> Value,
+    expression: &str,
+    seconds: u64,
+) -> bool {
+    let until = std::time::Instant::now() + Duration::from_secs(seconds);
+    loop {
+        let left = until
+            .saturating_duration_since(std::time::Instant::now())
+            .as_millis();
+        let reply = evaluate(json!({
+            "expression": format!(
+                "new Promise(done => {{ const until = performance.now() + {left}; \
+                 const check = () => {{ let held = false; \
+                 try {{ held = ({expression}) === true; }} catch {{}} \
+                 if (held || performance.now() >= until) done(held); \
+                 else setTimeout(check, 50); }}; check(); }})"
+            ),
+            "awaitPromise": true,
+            "returnByValue": true,
+        }));
+        if let Value::Bool(held) = reply["result"]["result"]["value"] {
+            return held;
+        }
+        assert_ne!(
+            reply["result"]["exceptionDetails"]["exception"]["className"], "SyntaxError",
+            "{expression}: {reply}"
+        );
+        if std::time::Instant::now() >= until {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(50));
     }
 }
 

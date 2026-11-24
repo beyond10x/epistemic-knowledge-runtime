@@ -146,7 +146,16 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   during its 1.2 s of layout, against 3-4 s composited in software. A page that draws some
   20,000 nodes for its whole budget is the other way round (`adversary_page_stream_1`'s
   render-budget case: 27 s of CPU in its own browser, 288 s composited in software), so that case
-  starts a browser of its own (`dump_composited`).
+  starts a browser of its own (`dump_composited`). Each case that held a browser appends a line
+  to the file `EKR_TEST_BROWSER_CASES` names when it drops it; the step prints how many cases did,
+  and on the forge (`GITHUB_ACTIONS=true`) a run in which none did fails.
+- **A browser case waits on a signal, not a tick.** A harness that runs virtual time reads the
+  protocol socket between its checks and answers a paused library request as it arrives (`pump`);
+  with a 200 ms sleep there, each request held the page's clock until the next check, about 0.8 s
+  of each 1.2 s render (`the_timeline_rows_...`: 11.8 s, then 4.2 s). A wait for a page state runs
+  in the page (`shared_browser::wait_in_page`), and the page says when its layout, its camera and
+  its 3D loop are done (`__viewer.layoutRunning`, `cameraMoving`, `resting3D`). A fixed wait is
+  left only where a case checks that nothing happens within it.
 - **A seeded store is made once.** A browser case's fixture store is seeded through the `ekr`
   binary once per build and kept under `target/<profile>/ekr-test-stores/<digest>`; every case that
   asks for the same store copies it (`crates/ekr/tests/support/seeded_store.rs`; the digest covers

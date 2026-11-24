@@ -68,6 +68,42 @@ fn sextet(symbol: u8) -> Result<u32, Base64Error> {
 pub fn decode(text: &str) -> Result<Vec<u8>, Base64Error> {
     let symbols = text.as_bytes();
     let (quads, rest) = symbols.as_chunks::<4>();
+    let Some((last, body)) = quads.split_last() else {
+        return strict(symbols);
+    };
+    if !rest.is_empty() {
+        return strict(symbols);
+    }
+    // Every quad but the last holds four symbols of the alphabet and no padding, so one table
+    // read per symbol decodes it. A quad that does not is left to `strict`, which names it.
+    let mut out = Vec::with_capacity(quads.len() * 3);
+    for quad in body {
+        let [a, b, c, d] = quad.map(|symbol| SEXTETS[usize::from(symbol)]);
+        if (a | b | c | d) & OUTSIDE != 0 {
+            return strict(symbols);
+        }
+        let triple = u32::from(a) << 18 | u32::from(b) << 12 | u32::from(c) << 6 | u32::from(d);
+        out.extend_from_slice(&triple.to_be_bytes()[1..]);
+    }
+    out.extend(strict(last)?);
+    Ok(out)
+}
+
+/// The sextet of each symbol of the alphabet, and [`OUTSIDE`] for every other byte.
+const SEXTETS: [u8; 256] = {
+    let mut table = [OUTSIDE; 256];
+    let mut at = 0;
+    while at < ALPHABET.len() {
+        table[ALPHABET[at] as usize] = at as u8;
+        at += 1;
+    }
+    table
+};
+const OUTSIDE: u8 = 0x80;
+
+/// [`decode`] one quad at a time, naming the first quad that is not canonical.
+fn strict(symbols: &[u8]) -> Result<Vec<u8>, Base64Error> {
+    let (quads, rest) = symbols.as_chunks::<4>();
     if !rest.is_empty() {
         return Err(Base64Error("a length that is not a multiple of four"));
     }
@@ -183,7 +219,7 @@ impl<'de> Deserialize<'de> for Spelled {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, encode};
+    use super::{decode, encode, strict};
 
     #[test]
     fn round_trips_every_length_and_refuses_every_other_spelling() {
@@ -198,5 +234,26 @@ mod tests {
             assert!(decode(refused).is_err(), "{refused}");
         }
         assert_eq!(encode(b"\xff\xfe"), "//4=");
+    }
+
+    /// `decode` reads every quad but the last from a table and leaves a quad it cannot read to
+    /// `strict`: a refused spelling anywhere is refused for the reason `strict` gives.
+    #[test]
+    fn a_refused_spelling_after_or_between_readable_quads_is_refused_as_strict_refuses_it() {
+        for refused in [
+            "A", "AA", "AAA", "A===", "AA=A", "AB==", "AAB=", "AA==AA==", "AA-_", "AA =",
+            "A\u{e9}A",
+        ] {
+            for text in [
+                refused.to_owned(),
+                format!("QUJD{refused}"),
+                format!("QUJDQUJD{refused}"),
+                format!("QUJD{refused}QUJD"),
+            ] {
+                let read = decode(&text);
+                assert!(read.is_err(), "{text}");
+                assert_eq!(read, strict(text.as_bytes()), "{text}");
+            }
+        }
     }
 }

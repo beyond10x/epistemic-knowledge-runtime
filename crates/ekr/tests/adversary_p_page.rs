@@ -3,9 +3,9 @@
 //! Each case seeds a store derived from the unit's own `tests/fixtures/view-page/sounding`
 //! fixture through the real binary, serves it with `ekr view --port 0`, and reads the DOM a
 //! headless Chromium builds from the embedded page. The browser is driven over the DevTools
-//! protocol, which serves the page's graph libraries from `tests/fixtures/viewer-libraries/`
+//! protocol, which serves the page's graph libraries from `src/cli/viewer/libraries/`
 //! (`support/viewer_libraries.rs`). Without a local headless Chromium the browser cases say so and
-//! return.
+//! return, except where one is required (`support/shared_browser.rs`, `required`).
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -138,7 +138,12 @@ impl Drop for Server {
     }
 }
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
 fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }
@@ -256,7 +261,7 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
                 cdp.log.join("\n")
             ));
         }
-        std::thread::sleep(Duration::from_millis(200));
+        cdp.pump(Duration::from_millis(200));
     }
     Ok(cdp
         .eval("document.documentElement.outerHTML")
@@ -340,42 +345,83 @@ impl Cdp {
                 assert!(value.get("error").is_none(), "{method}: {value}");
                 return value["result"].clone();
             }
-            let params = &value["params"];
-            let text = |value: &Value| value.as_str().unwrap_or_default().to_owned();
-            match value["method"].as_str() {
-                Some("Fetch.requestPaused") => {
-                    if let Some((answer, answered)) = viewer_libraries::answer(params) {
-                        self.log.push(format!(
-                            "library {answer} {}",
-                            text(&params["request"]["url"])
-                        ));
-                        self.next += 1;
-                        self.send(&json!({"id": self.next, "method": answer, "params": answered}));
-                    }
+            self.note(&value);
+        }
+    }
+
+    /// Takes in one message that is not the reply a call waits for, a paused library request
+    /// answered from the fixtures.
+    fn note(&mut self, value: &Value) {
+        let params = &value["params"];
+        let text = |value: &Value| value.as_str().unwrap_or_default().to_owned();
+        match value["method"].as_str() {
+            Some("Fetch.requestPaused") => {
+                if let Some((answer, answered)) = viewer_libraries::answer(params) {
+                    self.log.push(format!(
+                        "library {answer} {}",
+                        text(&params["request"]["url"])
+                    ));
+                    self.next += 1;
+                    self.send(&json!({"id": self.next, "method": answer, "params": answered}));
                 }
-                Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
-                Some("Network.requestWillBeSent") => {
-                    self.log
-                        .push(format!("request {}", text(&params["request"]["url"])));
-                    self.in_flight.insert(text(&params["requestId"]));
+            }
+            Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
+            Some("Network.requestWillBeSent") => {
+                self.log
+                    .push(format!("request {}", text(&params["request"]["url"])));
+                self.in_flight.insert(text(&params["requestId"]));
+            }
+            Some("Network.loadingFinished" | "Network.loadingFailed") => {
+                self.in_flight.remove(&text(&params["requestId"]));
+            }
+            Some("Log.entryAdded") => self.log.push(format!(
+                "log.{}: {} {}",
+                text(&params["entry"]["level"]),
+                text(&params["entry"]["text"]),
+                text(&params["entry"]["url"])
+            )),
+            Some("Runtime.exceptionThrown") => {
+                self.log
+                    .push(format!("exception: {}", params["exceptionDetails"]));
+            }
+            _ if value.get("error").is_some() => {
+                self.log.push(format!("protocol error: {value}"));
+            }
+            _ => {}
+        }
+    }
+
+    /// Takes in the messages the browser sends for up to `wait`, each as it arrives, and returns
+    /// early once the virtual-time budget has run out. A paused library request is answered when
+    /// it arrives: a page whose clock waits on a request it made waits no longer than that.
+    fn pump(&mut self, wait: Duration) {
+        let deadline = Instant::now() + wait;
+        while !self.budget_expired {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            // the socket keeps a message that arrived in part, and reads on from it next time
+            self.socket.get_ref().set_read_timeout(Some(left)).unwrap();
+            let message = self.socket.read();
+            self.socket
+                .get_ref()
+                .set_read_timeout(Some(Duration::from_secs(60)))
+                .unwrap();
+            let message = match message {
+                Ok(message) => message,
+                Err(tungstenite::Error::Io(error))
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    return;
                 }
-                Some("Network.loadingFinished" | "Network.loadingFailed") => {
-                    self.in_flight.remove(&text(&params["requestId"]));
-                }
-                Some("Log.entryAdded") => self.log.push(format!(
-                    "log.{}: {} {}",
-                    text(&params["entry"]["level"]),
-                    text(&params["entry"]["text"]),
-                    text(&params["entry"]["url"])
-                )),
-                Some("Runtime.exceptionThrown") => {
-                    self.log
-                        .push(format!("exception: {}", params["exceptionDetails"]));
-                }
-                _ if value.get("error").is_some() => {
-                    self.log.push(format!("protocol error: {value}"));
-                }
-                _ => {}
+                Err(error) => panic!("the DevTools socket: {error}"),
+            };
+            if let tungstenite::Message::Text(text) = message {
+                self.note(&serde_json::from_str(&text).unwrap());
             }
         }
     }

@@ -51,12 +51,12 @@ const PAGE_ADDRESSES: [&str; 7] = [
 /// How many nodes the page draws before it asks first.
 const RENDER_BUDGET: &str = "20000";
 
-/// The only scripts the page loads from elsewhere, each pinned to one version.
+/// The only scripts the page loads, each pinned to one version and served by `ekr view` itself.
 const LIBRARIES: [&str; 4] = [
-    "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
-    "https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js",
-    "https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js",
-    "https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js",
+    "/assets/libraries/graphology@0.26.0/dist/graphology.umd.min.js",
+    "/assets/libraries/graphology-library@0.8.0/dist/graphology-library.min.js",
+    "/assets/libraries/sigma@3.0.3/dist/sigma.min.js",
+    "/assets/libraries/3d-force-graph@1.80.0/dist/3d-force-graph.min.js",
 ];
 
 fn manifest_dir() -> PathBuf {
@@ -461,8 +461,8 @@ fn absolute_literals(page: &str) -> Vec<String> {
 }
 
 /// The page with its pinned library tags and its policy line taken out, after checking that each
-/// tag is there exactly once, pinned, with a sha384 integrity and no credentials, and that the
-/// policy allows exactly those scripts, blob workers and reads from this server.
+/// tag is there exactly once, pinned, with a sha384 integrity, and that the policy allows scripts
+/// from this server and inline, blob workers and reads from this server.
 fn without_pinned_libraries(page: &str) -> String {
     let mut rest = page.to_owned();
     for url in LIBRARIES {
@@ -487,10 +487,7 @@ fn without_pinned_libraries(page: &str) -> String {
                 .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/'),
             "{url}: {digest}"
         );
-        assert!(
-            tag.ends_with("\" crossorigin=\"anonymous\" referrerpolicy=\"no-referrer\"></script>"),
-            "{tag}"
-        );
+        assert!(tag.ends_with(&format!("{digest}\"></script>")), "{tag}");
         rest.replace_range(at..end, "");
     }
     let line = rest
@@ -521,12 +518,10 @@ fn without_pinned_libraries(page: &str) -> String {
     };
     let mut scripts = sources("script-src");
     scripts.sort();
-    let mut expected: Vec<String> = LIBRARIES.iter().map(|url| (*url).to_owned()).collect();
-    expected.push("'unsafe-inline'".to_owned());
-    expected.sort();
     assert_eq!(
-        scripts, expected,
-        "script-src is exactly the pinned libraries"
+        scripts,
+        ["'self'", "'unsafe-inline'"],
+        "script-src is this server, which serves the pinned libraries, and no other host"
     );
     assert_eq!(sources("default-src"), ["'none'"], "{policy}");
     assert_eq!(sources("connect-src"), ["'self'"], "{policy}");
@@ -747,11 +742,79 @@ fn the_step_starts_its_shared_browser_unable_to_reach_the_network() {
     );
 }
 
+/// Finding 39 of the EKR 0.0.42 review: a browser case that finds no headless Chromium skips
+/// locally, and fails where a browser is required, on the forge (`CI`) or with
+/// `EKR_REQUIRE_BROWSER`; a value that is empty, `0` or `false` requires nothing.
+#[test]
+fn a_missing_browser_fails_a_case_where_one_is_required() {
+    use std::ffi::OsStr;
+    let found = Some(PathBuf::from("chromium"));
+    let fails = |ci: Option<&str>, require: Option<&str>| {
+        std::panic::catch_unwind(|| {
+            shared_browser::required_under(None, ci.map(OsStr::new), require.map(OsStr::new))
+        })
+        .is_err()
+    };
+    for (ci, require) in [
+        (Some("true"), None),
+        (None, Some("1")),
+        (Some("1"), Some("1")),
+    ] {
+        assert!(
+            fails(ci, require),
+            "CI={ci:?} {require:?}: no browser fails"
+        );
+        assert_eq!(
+            shared_browser::required_under(
+                found.clone(),
+                ci.map(OsStr::new),
+                require.map(OsStr::new)
+            ),
+            found,
+            "CI={ci:?} {require:?}: a browser found is the case's"
+        );
+    }
+    for (ci, require) in [(None, None), (Some(""), Some("0")), (Some("false"), None)] {
+        assert!(
+            !fails(ci, require),
+            "CI={ci:?} {require:?}: no browser skips"
+        );
+    }
+}
+
+/// Every test file that starts a browser finds it through `shared_browser::required`, so none of
+/// its cases passes on the forge without one.
+#[test]
+fn every_file_that_starts_a_browser_requires_one_where_the_forge_does() {
+    let headless = format!("\"--{}\"", "headless");
+    let needle = format!("shared_browser::{}(", "required");
+    let mut files = 0;
+    for entry in std::fs::read_dir(manifest_dir().join("tests")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).unwrap();
+        if source.contains(&headless) {
+            files += 1;
+            assert!(
+                source.contains(&needle),
+                "{}: starts a browser and finds it without {needle}",
+                path.display()
+            );
+        }
+    }
+    assert!(
+        files >= 6,
+        "the files that start a browser were found: {files}"
+    );
+}
+
 /// `story:browser-tests-need-no-network`: each library the page loads is committed under
-/// `tests/fixtures/viewer-libraries/` at its address's path and hashes to the `integrity` the page
-/// carries for it, read off the page's own tags, so a page that pins another version without its
-/// fixture fails here. The directory holds no script the page does not load, and each package's
-/// MIT licence is kept beside its files.
+/// `src/cli/viewer/libraries/` at its address's path under `/assets/libraries/` (the bytes
+/// `ekr view` serves there) and hashes to the `integrity` the page carries for it, read off the
+/// page's own tags, so a page that pins another version without its file fails here. The directory
+/// holds no script the page does not load, and each package's MIT licence is kept beside its files.
 #[test]
 fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
     let pinned = viewer_libraries::pinned(&page());
@@ -759,7 +822,7 @@ fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
     let root = manifest_dir().join(viewer_libraries::FIXTURES);
     for library in &pinned {
         let path = viewer_libraries::fixture_path(&library.url)
-            .unwrap_or_else(|| panic!("{}: not on {}", library.url, viewer_libraries::HOST));
+            .unwrap_or_else(|| panic!("{}: not under {}", library.url, viewer_libraries::LOCAL));
         let bytes = std::fs::read(&path).unwrap_or_else(|error| {
             panic!(
                 "{}: no fixture at {}: {error}; a library the page pins is committed there",
@@ -775,7 +838,7 @@ fn each_pinned_library_is_a_fixture_that_hashes_to_the_page_integrity() {
             path.display()
         );
         let relative = path.strip_prefix(&root).unwrap();
-        let package = root.join(relative.iter().take(2).collect::<PathBuf>());
+        let package = root.join(relative.iter().take(1).collect::<PathBuf>());
         let licence = ["LICENSE", "LICENSE.txt", "LICENSE.md"]
             .iter()
             .map(|name| package.join(name))
@@ -857,6 +920,9 @@ fn the_embedded_page_loads_only_the_pinned_libraries_by_integrity() {
             !rest.contains("cdn.jsdelivr.net"),
             "{file}: no other library address"
         );
+        // finding 26 of the EKR 0.0.42 review: the page opens with no network, so it names no
+        // address on another host
+        assert!(!page.contains("://"), "{file}: an address on another host");
     }
 }
 
@@ -954,9 +1020,14 @@ fn ekr_view_serves_each_fixture_store_the_page_its_projection_and_roles_or_none(
     }
 }
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
+fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
 /// A local headless Chromium, or `None`: `EKR_VIEW_BROWSER`, else the newest Playwright
 /// headless shell under the home directory's cache.
-fn browser() -> Option<PathBuf> {
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }
@@ -2613,8 +2684,8 @@ fn a_focus_at_three_hops_streams_nothing_the_server_refuses() {
 //
 // `Driven` starts a headless browser with a DevTools port, speaks the protocol over one WebSocket
 // (text frames only) and evaluates expressions in the page, so a case can act as a reader does, and
-// [`rendered`] can read the DOM once the page has settled. Every request to the libraries' host is
-// paused and answered from the fixtures (`support/viewer_libraries.rs`), and the host is
+// [`rendered`] can read the DOM once the page has settled. Every request for a library is
+// paused and answered from its file (`support/viewer_libraries.rs`), and their old host is
 // unresolvable for the browser, so no page a case opens reaches the network.
 
 struct Driven {
@@ -2895,7 +2966,7 @@ impl Driven {
                     self.report("the virtual-time budget ran out")
                 ));
             }
-            std::thread::sleep(Duration::from_millis(200));
+            self.pump(Duration::from_millis(200));
         }
     }
 
@@ -2987,38 +3058,77 @@ impl Driven {
             if reply["id"] == id {
                 return reply;
             }
-            if let Some(line) = log_line(&reply) {
-                self.log_push(line);
+            self.note(&reply);
+        }
+    }
+
+    /// Takes in one message that is not the reply a call waits for: an event, or the reply to an
+    /// answer a paused library request was given.
+    fn note(&mut self, reply: &Value) {
+        if let Some(line) = log_line(reply) {
+            self.log_push(line);
+        }
+        if reply.get("error").is_some() {
+            // the reply to an answer a paused library request was given
+            self.log_push(format!("protocol error: {reply}"));
+        }
+        let request = || {
+            reply["params"]["requestId"]
+                .as_str()
+                .unwrap_or("")
+                .to_owned()
+        };
+        match reply["method"].as_str() {
+            Some("Fetch.requestPaused") => self.answer_paused(&reply["params"]),
+            Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
+            Some("Network.requestWillBeSent") => {
+                self.in_flight.insert(request());
             }
-            if reply.get("error").is_some() {
-                // the reply to an answer a paused library request was given
-                self.log_push(format!("protocol error: {reply}"));
+            Some("Network.loadingFinished" | "Network.loadingFailed") => {
+                self.in_flight.remove(&request());
             }
-            let request = || {
-                reply["params"]["requestId"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_owned()
-            };
-            match reply["method"].as_str() {
-                Some("Fetch.requestPaused") => self.answer_paused(&reply["params"]),
-                Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
-                Some("Network.requestWillBeSent") => {
-                    self.in_flight.insert(request());
+            _ => {}
+        }
+        if reply["method"] == "Runtime.exceptionThrown"
+            || (reply["method"] == "Runtime.consoleAPICalled" && reply["params"]["type"] == "error")
+            || (reply["method"] == "Log.entryAdded" && reply["params"]["entry"]["level"] == "error")
+        {
+            self.errors.push(reply["params"].clone());
+        }
+    }
+
+    /// Takes in the messages the browser sends for up to `wait`, each as it arrives, and returns
+    /// early once the virtual-time budget has run out. A paused library request is answered when
+    /// it arrives: a page whose clock waits on a request it made waits no longer than that.
+    fn pump(&mut self, wait: Duration) {
+        let until = std::time::Instant::now() + wait;
+        while !self.budget_expired {
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            if self.reader.buffer().is_empty() {
+                // only the first byte of a message is waited for with a bound; the rest of it is
+                // read whole, as `receive` reads every message
+                self.reader.get_ref().set_read_timeout(Some(left)).unwrap();
+                let ready = self.reader.fill_buf().map(|bytes| !bytes.is_empty());
+                self.reader.get_ref().set_read_timeout(None).unwrap();
+                match ready {
+                    Ok(true) => {}
+                    Ok(false) => panic!("the browser closed the DevTools socket"),
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        return
+                    }
+                    Err(error) => panic!("the DevTools socket: {error}"),
                 }
-                Some("Network.loadingFinished" | "Network.loadingFailed") => {
-                    self.in_flight.remove(&request());
-                }
-                _ => {}
             }
-            if reply["method"] == "Runtime.exceptionThrown"
-                || (reply["method"] == "Runtime.consoleAPICalled"
-                    && reply["params"]["type"] == "error")
-                || (reply["method"] == "Log.entryAdded"
-                    && reply["params"]["entry"]["level"] == "error")
-            {
-                self.errors.push(reply["params"].clone());
-            }
+            let message: Value = serde_json::from_str(&self.receive()).unwrap();
+            self.note(&message);
         }
     }
 
@@ -3039,14 +3149,12 @@ impl Driven {
     /// of its own state and its console and network log go to the case's output, so a red run
     /// names what the page was doing (issue #81).
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
-        for _ in 0..seconds * 5 {
-            if self.eval(&format!(
-                "(() => {{ try {{ return {expression}; }} catch {{ return false; }} }})()"
-            )) == Value::Bool(true)
-            {
-                return true;
-            }
-            std::thread::sleep(Duration::from_millis(200));
+        if shared_browser::wait_in_page(
+            |params| self.call("Runtime.evaluate", params),
+            expression,
+            seconds,
+        ) {
+            return true;
         }
         eprintln!("{}", self.report(expression));
         false
@@ -3176,9 +3284,9 @@ fn a_library_served_with_bytes_its_integrity_does_not_name_is_refused() {
     );
     for library in LIBRARIES {
         assert!(
-            driven
-                .answered
-                .contains(&format!("Fetch.fulfillRequest {library}")),
+            driven.answered.iter().any(|line| {
+                line.starts_with("Fetch.fulfillRequest http") && line.ends_with(library)
+            }),
             "{library} was served: {:?}",
             driven.answered
         );
@@ -3211,7 +3319,10 @@ fn the_3d_view_draws_every_shown_node_and_edge_in_a_few_calls_and_none_at_rest()
         driven.wait_for(&format!("{SETTLED} && !!window.__viewer.fg"), 90),
         "the 3D view settled"
     );
-    std::thread::sleep(Duration::from_secs(1));
+    assert!(
+        driven.wait_for("window.__viewer.resting3D", 30),
+        "the 3D loop came to rest"
+    );
     let frame = driven.eval(
         "(() => { const fg = __viewer.fg, g = __viewer.graph, gl = fg.renderer().getContext();
           const iso = document.getElementById('showIsolated').checked;
@@ -3569,7 +3680,14 @@ fn compact_mode_in(dim: &str, chosen: bool) {
         "the {dim} view settled on the node"
     );
     // the camera's flight to the chosen node has ended
-    std::thread::sleep(Duration::from_millis(1500));
+    assert!(
+        driven.wait_for("!window.__viewer.cameraMoving", 30),
+        "the camera's flight ended"
+    );
+    assert!(
+        !rests || driven.wait_for("window.__viewer.resting3D", 30),
+        "the 3D loop came to rest"
+    );
     let open = driven.eval(MEASURE);
     assert!(
         width(&open, "left") > 0.0
@@ -3605,7 +3723,10 @@ fn compact_mode_in(dim: &str, chosen: bool) {
         let woke = draws_since(&mut driven, before_key, 10_000);
         assert!(woke > 0, "the 3D loop drew the resize: {woke} calls");
         eprintln!("3d: {woke} draw calls after the key");
-        std::thread::sleep(Duration::from_millis(1000));
+        assert!(
+            driven.wait_for("window.__viewer.resting3D", 30),
+            "the 3D loop came to rest"
+        );
         assert_eq!(
             draws_within(&mut driven, 1000),
             0,
@@ -3689,7 +3810,10 @@ fn compact_mode_in(dim: &str, chosen: bool) {
         let woke = driven.eval("window.__calls").as_u64().unwrap() - at;
         assert!(woke > 0, "the 3D loop drew the restores: {woke} calls");
         eprintln!("3d: {woke} draw calls for the two restores");
-        std::thread::sleep(Duration::from_millis(1000));
+        assert!(
+            driven.wait_for("window.__viewer.resting3D", 30),
+            "the 3D loop came to rest"
+        );
         assert_eq!(
             draws_within(&mut driven, 1000),
             0,

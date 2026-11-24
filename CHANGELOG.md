@@ -6,6 +6,30 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- The graph viewer and `/find` keep the address in step with the page, and the viewer opens
+  offline (story:ekr-viewer-fixes, findings 24-26 and 39 of the EKR 0.0.42 review):
+  - a revision the viewer's address names stays in it, the head's too, so a `/find` result link
+    no longer moves to a later head once opened; choosing the head in the page drops it;
+  - submitting a search on `/find` writes the query, and the chosen revision, into the address,
+    as the form's own GET does (the page is not reloaded; typing alone leaves the address);
+  - `ekr view` serves the viewer's four graph libraries (graphology 0.26.0, graphology-library
+    0.8.0, sigma 3.0.3, 3d-force-graph 1.80.0, each MIT) from the binary under
+    `/assets/libraries/`; the page loads nothing from another host, and its policy allows scripts
+    from the server only;
+  - a browser test that finds no headless Chromium fails where one is required (`CI` or
+    `EKR_REQUIRE_BROWSER` set) in all six browser test files, not only in `search_live`.
+- Event times and the change feed follow the store's active assertions
+  (story:ekr-views-history-fixes, findings 17, 22, 31 and 32 of the EKR 0.0.42 review):
+  - `ekr ocel --event-time` and `ekr process-map --event-time` date a node by the revision's
+    `Active` assertions of the selected property as well as its record, so an event time
+    `ekr apply-extraction` recorded is an event; a retracted or superseded one dates nothing;
+  - `ekr changes` (`/changes`, `changes_since`) lists an `!AttachEvidence` as `EvidenceAttached`
+    (the assertion, the entries attached) and an `!AddAlias` as `AliasAdded` (the node, its type,
+    the aliases); `ekr.views.ChangesListed` counts them as `evidence_attached` and `aliases_added`,
+    and `ekr_sdk`'s `ChangeKind` reads both;
+  - `docs/cli.md` says that the default OCEL time is historical (retracted facts included) and that
+    `--event-time` reads current values; a `since_revision` past the head stays refused as
+    documented.
 - The CLI's schema read, its output formats and the published pages say what the release does
   (story:ekr-cli-contract-fixes, findings 33, 35, 43 and 44 of the EKR 0.0.42 review):
   - `ekr ontology` prints each node type's `lifecycle` and named `operations` (arguments,
@@ -92,6 +116,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   - `ekr sample` lists the evidence attached to a fact after it was written (`!AttachEvidence`)
     beside the evidence it cites, each such entry with `attached_at`, the revision that attached
     it. Before, the judge saw only the evidence the fact was written with.
+- A read verb racing the first `ekr seed` of a SQLite store no longer answers `store-read-only`
+  (story:ekr-store-open-race-and-xtask-path). A `-wal` or `-shm` that the closing seed unlinked
+  between the look at it and the check of its permission counted as a file this process may not
+  write; a sidecar that is not there is now no obstacle, for the File store's `writer.lock`,
+  `events.jsonl` and `blobs` too. `cargo xtask search-web` builds where `CARGO_HOME` is a symlink.
+
+### Changed
+
+- The viewer's 2D layout stops within 100 ms of 800 ms of calm: it reads the node positions every
+  100 ms and compares each with the one 400 ms before. Before, it compared them every 400 ms from
+  the layout's start, and so stopped up to 400 ms later.
 
 ## [0.0.43] — 2026-11-23
 

@@ -227,7 +227,12 @@ fn front_answer(mut stream: TcpStream, upstream: &str, page: &[u8]) {
 
 // ---- the browser -------------------------------------------------------------------------------
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
 fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }
@@ -476,16 +481,11 @@ impl Driven {
     }
 
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
-        for _ in 0..seconds * 5 {
-            if self.eval(&format!(
-                "(() => {{ try {{ return {expression}; }} catch {{ return false; }} }})()"
-            )) == Value::Bool(true)
-            {
-                return true;
-            }
-            std::thread::sleep(Duration::from_millis(200));
-        }
-        false
+        shared_browser::wait_in_page(
+            |params| self.call("Runtime.evaluate", params),
+            expression,
+            seconds,
+        )
     }
 
     /// One press of `key` (with its `code`) and `modifiers` (2 Ctrl, 8 Shift), sent to whatever
