@@ -126,7 +126,11 @@ jobs:
         env:
           EKR_REQUIRE_BROWSER: "1"
           EKR_VIEW_BROWSER: /usr/bin/google-chrome
-        run: task check
+        run: |
+          mkdir -p "$RUNNER_TEMP/tests-tmp"
+          sudo mount -t tmpfs -o size=6g,mode=1777 tmpfs "$RUNNER_TEMP/tests-tmp"
+          export TMPDIR="$RUNNER_TEMP/tests-tmp"
+          task check
 
       - name: Check the documentation site
         if: steps.classify.outputs.class == 'docs-site-only'
