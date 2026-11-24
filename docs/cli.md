@@ -293,8 +293,9 @@ Explains one assertion at the head, or at the committed revision `--at N` names,
 was read at) and `links`, a list of objects, each with a `kind`. Every link is read from that one
 revision: an explanation `--at` an earlier revision lists neither the attachments nor the later
 changes made after it, so an answer pinned to a revision stays what it was. A revision the store
-does not hold is refused as `ekr.kernel.RevisionNotFound` (exit 2). The retained records a link stands for — a proposal, a commit
-receipt, an evidence payload — are named by their hash, not printed:
+does not hold is refused as `ekr.kernel.RevisionNotFound` (exit 2). The retained records a link
+stands for — a proposal, a commit receipt, an evidence payload — are named by their hash, not
+printed:
 
 | `kind` | what it is | when it appears |
 |---|---|---|
@@ -1985,7 +1986,7 @@ bound outside its range `ekr.views.LimitExceeded`, both before the store is read
 replaced at the path by one that does not open `store-replaced` ([as for `ekr view`](#replaced-store));
 a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold — for
 `changes_since` an `at`, then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
-(`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
+(`ekr.kernel.RevisionNotFound` for `resolve` and `explain`); a node or seed the
 revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`, and for
 `describe_node` without `full` a `node` that is a node type or edge type id `ekr.views.NodeIsAType`;
 a `node` or seed a supersession of the revision holds `ekr.views.NodeSuperseded`, naming the node
@@ -4066,7 +4067,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
-| `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
+| `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the revision read, the head unless `--at` names one | take the id from `ekr snapshot` |
 | `unsupported-operation` | validation issue | 0 | a `MergeEntity` in the bare `{absorbed, into}` shape, without `reason` and `evidence`, under any profile, or a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `WidenEdgeType` operation under validation profile v1 | give the `MergeEntity` a `reason` and `evidence` ([Two nodes merged into one](#two-nodes-merged-into-one)); a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
 | `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | name the node kept as `into` |
 | `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |
