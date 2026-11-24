@@ -1,0 +1,472 @@
+{
+  "format": "ekr.conformance-baseline/1",
+  "suite": "systems/ekr/conformance/cli-suite.json",
+  "suite_version": "ess-conformance/13",
+  "component": "ekr",
+  "total": 40,
+  "selected": {
+    "command": 31,
+    "entity": 9
+  },
+  "providers": {
+    "file": {
+      "executed": {
+        "command": 4,
+        "entity": 0
+      },
+      "unsupported": {
+        "ekr.cli.AbandonStage/outcome/abandoned": "the File provider admits no stage",
+        "ekr.cli.AbandonStage/outcome/abandoned-sealed": "the File provider admits no stage",
+        "ekr.cli.AbandonStage/outcome/retained-abandonment": "the File provider admits no stage",
+        "ekr.cli.AbandonStage/outcome/stage-not-found": "the File provider admits no stage",
+        "ekr.cli.AbandonStage/outcome/wrong-state": "the File provider admits no stage",
+        "ekr.cli.BeginStage/outcome/begun": "the File provider admits no stage",
+        "ekr.cli.BeginStage/outcome/copy-failed": "the File provider admits no stage",
+        "ekr.cli.BeginStage/outcome/not-seeded": "the File provider admits no stage",
+        "ekr.cli.BeginStage/outcome/unresolved-preparation": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/abandoned-meanwhile": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/already-published": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/head-moved": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/object-moved": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/published": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/retained-publication": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/stage-not-found": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/stream-moved": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/suffix-refused": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/unresolved-preparation": "the File provider admits no stage",
+        "ekr.cli.PublishStage/outcome/wrong-state": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/head-moved": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/retained-seal": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/sealed": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/stage-incomplete": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/stage-not-found": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/unresolved-preparation": "the File provider admits no stage",
+        "ekr.cli.SealStage/outcome/wrong-state": "the File provider admits no stage",
+        "ekr.store.Stage/state/Abandoned/refuses/ekr.cli.PublishStage": "the File provider admits no stage",
+        "ekr.store.Stage/state/Abandoned/refuses/ekr.cli.SealStage": "the File provider admits no stage",
+        "ekr.store.Stage/state/Begun/refuses/ekr.cli.PublishStage": "the File provider admits no stage",
+        "ekr.store.Stage/state/Published/refuses/ekr.cli.AbandonStage": "the File provider admits no stage",
+        "ekr.store.Stage/state/Published/refuses/ekr.cli.SealStage": "the File provider admits no stage",
+        "ekr.store.Stage/transition/abandon/by/ekr.cli.AbandonStage/abandoned": "the File provider admits no stage",
+        "ekr.store.Stage/transition/abandon/by/ekr.cli.AbandonStage/abandoned-sealed": "the File provider admits no stage",
+        "ekr.store.Stage/transition/publish/by/ekr.cli.PublishStage/published": "the File provider admits no stage",
+        "ekr.store.Stage/transition/seal/by/ekr.cli.SealStage/sealed": "the File provider admits no stage"
+      }
+    },
+    "sqlite": {
+      "executed": {
+        "command": 28,
+        "entity": 9
+      },
+      "unsupported": {
+        "ekr.cli.BeginStage/outcome/unsupported-provider": "the branch declares a store on the File provider",
+        "ekr.cli.PublishStage/outcome/object-moved": "no public writer of the runtime stores an object without an occurrence on the revision stream"
+      }
+    }
+  },
+  "quarantine": {
+    "ekr.cli.BeginStage/outcome/copy-failed": {
+      "reason": "The begin records the stage (StageBegun, StageIndexed) before its copy and abandons it (StageAbandoned) after the copy fails, as docs/cli.md documents; the outcome declares no event, and ess 0.36.0 refuses a refusing outcome that emits (ESS-COMMAND-004).",
+      "failed_checks": [
+        "ESS-CF-NO-EVENT no event ekr.store.StageAbandoned",
+        "ESS-CF-NO-EVENT no event ekr.store.StageBegun",
+        "ESS-CF-NO-EVENT no event ekr.store.StageIndexed"
+      ]
+    }
+  },
+  "scenarios": [
+    "ekr.cli.AbandonStage/outcome/abandoned",
+    "ekr.cli.AbandonStage/outcome/abandoned-sealed",
+    "ekr.cli.AbandonStage/outcome/retained-abandonment",
+    "ekr.cli.AbandonStage/outcome/stage-not-found",
+    "ekr.cli.AbandonStage/outcome/wrong-state",
+    "ekr.cli.BeginStage/outcome/begun",
+    "ekr.cli.BeginStage/outcome/copy-failed",
+    "ekr.cli.BeginStage/outcome/not-seeded",
+    "ekr.cli.BeginStage/outcome/unresolved-preparation",
+    "ekr.cli.BeginStage/outcome/unsupported-provider",
+    "ekr.cli.CompareStores/outcome/compared",
+    "ekr.cli.CompareStores/outcome/not-found",
+    "ekr.cli.CompareStores/outcome/not-seeded",
+    "ekr.cli.PublishStage/outcome/abandoned-meanwhile",
+    "ekr.cli.PublishStage/outcome/already-published",
+    "ekr.cli.PublishStage/outcome/head-moved",
+    "ekr.cli.PublishStage/outcome/object-moved",
+    "ekr.cli.PublishStage/outcome/published",
+    "ekr.cli.PublishStage/outcome/retained-publication",
+    "ekr.cli.PublishStage/outcome/stage-not-found",
+    "ekr.cli.PublishStage/outcome/stream-moved",
+    "ekr.cli.PublishStage/outcome/suffix-refused",
+    "ekr.cli.PublishStage/outcome/unresolved-preparation",
+    "ekr.cli.PublishStage/outcome/wrong-state",
+    "ekr.cli.SealStage/outcome/head-moved",
+    "ekr.cli.SealStage/outcome/retained-seal",
+    "ekr.cli.SealStage/outcome/sealed",
+    "ekr.cli.SealStage/outcome/stage-incomplete",
+    "ekr.cli.SealStage/outcome/stage-not-found",
+    "ekr.cli.SealStage/outcome/unresolved-preparation",
+    "ekr.cli.SealStage/outcome/wrong-state",
+    "ekr.store.Stage/state/Abandoned/refuses/ekr.cli.PublishStage",
+    "ekr.store.Stage/state/Abandoned/refuses/ekr.cli.SealStage",
+    "ekr.store.Stage/state/Begun/refuses/ekr.cli.PublishStage",
+    "ekr.store.Stage/state/Published/refuses/ekr.cli.AbandonStage",
+    "ekr.store.Stage/state/Published/refuses/ekr.cli.SealStage",
+    "ekr.store.Stage/transition/abandon/by/ekr.cli.AbandonStage/abandoned",
+    "ekr.store.Stage/transition/abandon/by/ekr.cli.AbandonStage/abandoned-sealed",
+    "ekr.store.Stage/transition/publish/by/ekr.cli.PublishStage/published",
+    "ekr.store.Stage/transition/seal/by/ekr.cli.SealStage/sealed"
+  ],
+  "step_floors": {
+    "ekr.cli.AbandonStage/outcome/abandoned": {
+      "capture_instance": 1,
+      "execute_command": 2,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 2,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.cli.AbandonStage/outcome/abandoned-sealed": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 3,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.cli.AbandonStage/outcome/retained-abandonment": {
+      "capture_command_result": 1,
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_complete_subject_unchanged": 1,
+      "expect_event": 1,
+      "expect_no_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 3,
+      "expect_replay_result": 1,
+      "expect_view": 3,
+      "query_view": 5,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.cli.AbandonStage/outcome/stage-not-found": {
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.AbandonStage/outcome/wrong-state": {
+      "capture_instance": 1,
+      "execute_command": 4,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_no_events": 1,
+      "expect_outcome": 4,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.cli.BeginStage/outcome/begun": {
+      "execute_command": 1,
+      "expect_event": 2,
+      "expect_no_event": 31,
+      "expect_outcome": 1,
+      "expect_view": 1,
+      "query_view": 1
+    },
+    "ekr.cli.BeginStage/outcome/copy-failed": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.BeginStage/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.BeginStage/outcome/unresolved-preparation": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.BeginStage/outcome/unsupported-provider": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.CompareStores/outcome/compared": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 1
+    },
+    "ekr.cli.CompareStores/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.CompareStores/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/abandoned-meanwhile": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/already-published": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/head-moved": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/object-moved": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/published": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 3,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.cli.PublishStage/outcome/retained-publication": {
+      "capture_command_result": 1,
+      "capture_instance": 1,
+      "execute_command": 4,
+      "expect_complete_subject_unchanged": 1,
+      "expect_event": 1,
+      "expect_no_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 4,
+      "expect_replay_result": 1,
+      "expect_view": 3,
+      "query_view": 5,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.cli.PublishStage/outcome/stage-not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/stream-moved": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/suffix-refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/unresolved-preparation": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.PublishStage/outcome/wrong-state": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_no_events": 1,
+      "expect_outcome": 3,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.cli.SealStage/outcome/head-moved": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.SealStage/outcome/retained-seal": {
+      "capture_command_result": 1,
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_complete_subject_unchanged": 1,
+      "expect_event": 1,
+      "expect_no_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 3,
+      "expect_replay_result": 1,
+      "expect_view": 3,
+      "query_view": 5,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.cli.SealStage/outcome/sealed": {
+      "capture_instance": 1,
+      "execute_command": 2,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 2,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.cli.SealStage/outcome/stage-incomplete": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.SealStage/outcome/stage-not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.SealStage/outcome/unresolved-preparation": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_outcome": 1
+    },
+    "ekr.cli.SealStage/outcome/wrong-state": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_event": 33,
+      "expect_no_events": 1,
+      "expect_outcome": 3,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.store.Stage/state/Abandoned/refuses/ekr.cli.PublishStage": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_events": 1,
+      "expect_outcome": 3,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.store.Stage/state/Abandoned/refuses/ekr.cli.SealStage": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_events": 1,
+      "expect_outcome": 3,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.store.Stage/state/Begun/refuses/ekr.cli.PublishStage": {
+      "capture_instance": 1,
+      "execute_command": 2,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_events": 1,
+      "expect_outcome": 2,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.store.Stage/state/Published/refuses/ekr.cli.AbandonStage": {
+      "capture_instance": 1,
+      "execute_command": 4,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_events": 1,
+      "expect_outcome": 4,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.store.Stage/state/Published/refuses/ekr.cli.SealStage": {
+      "capture_instance": 1,
+      "execute_command": 4,
+      "expect_complete_subject_unchanged": 1,
+      "expect_error": 1,
+      "expect_no_events": 1,
+      "expect_outcome": 4,
+      "expect_view": 1,
+      "query_view": 3,
+      "snapshot_complete_subject": 1
+    },
+    "ekr.store.Stage/transition/abandon/by/ekr.cli.AbandonStage/abandoned": {
+      "capture_instance": 1,
+      "execute_command": 2,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 2,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.store.Stage/transition/abandon/by/ekr.cli.AbandonStage/abandoned-sealed": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 3,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.store.Stage/transition/publish/by/ekr.cli.PublishStage/published": {
+      "capture_instance": 1,
+      "execute_command": 3,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 3,
+      "expect_view": 3,
+      "query_view": 3
+    },
+    "ekr.store.Stage/transition/seal/by/ekr.cli.SealStage/sealed": {
+      "capture_instance": 1,
+      "execute_command": 2,
+      "expect_event": 1,
+      "expect_no_event": 32,
+      "expect_outcome": 2,
+      "expect_view": 3,
+      "query_view": 3
+    }
+  }
+}

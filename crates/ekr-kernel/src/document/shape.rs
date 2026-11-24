@@ -46,7 +46,15 @@ enum Role {
     Other,
 }
 
-pub(super) fn read(text: &str, budget: &RefCell<Budget>) -> Result<Shape, Error> {
+/// The shape of the one document of `text`, and that document's loaded events.
+///
+/// A document this returns is the whole input, its loader error is none, and it nests no deeper
+/// than the profile, so its events are the ones an unbounded load of `text` yields: the typed
+/// decode reads them ([`Document::into_deserializer`]) rather than loading `text` again.
+pub(super) fn read<'input>(
+    text: &'input str,
+    budget: &RefCell<Budget>,
+) -> Result<(Shape, Document<'input>), Error> {
     // The loader stops at the first container past the profile's depth, which the walk below
     // refuses as `container_depth` without the rest of the input being read.
     let depth = budget.borrow().limits.depth;
@@ -69,7 +77,7 @@ pub(super) fn read(text: &str, budget: &RefCell<Budget>) -> Result<Shape, Error>
     if crate::yaml::next(&mut documents).is_some() {
         return Err(budget.borrow_mut().refuse(DocumentLimit::Documents));
     }
-    Ok(shape)
+    Ok((shape, document))
 }
 
 struct Traversal<'document, 'input, 'budget> {

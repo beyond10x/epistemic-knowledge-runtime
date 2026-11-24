@@ -25,9 +25,15 @@ retained. Registry cache markers and upstream CI configuration are omitted.
   parser's scan is quadratic in flow nesting depth, so a bound before loading is
   what keeps a deep nesting under an input cap cheap. Without the bound the loader
   is unchanged.
+- `observation::Document::into_deserializer` hands an observed document's event
+  tape to the default deserializer (`Deserializer::from_loaded` in `src/de.rs`,
+  the `Progress::Document` state the multi-document iterator already uses), so a
+  caller that observed a document decodes it without loading the input again.
+  It does not look for a later document; the caller reads that from `Documents`.
 - `tests/test_observation.rs` exercises the facade alongside direct decoding,
   including tags and directives, scalar categories, collection tags, alias
-  positions, multiple documents, loader errors and the depth bound.
+  positions, multiple documents, loader errors, the depth bound and typed
+  decoding of a loaded document against decoding its input.
 
 Normal Serde and `Value` decoding remain unchanged. In particular, scalar
 classification through `deserialize_any` can differ from decoding a requested

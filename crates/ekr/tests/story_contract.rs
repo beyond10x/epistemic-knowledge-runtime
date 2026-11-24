@@ -60,6 +60,12 @@
 //! crate and no `tokio`. Each eventlog crate exports a writer, and
 //! [`ekr_names_no_eventlog_item`] holds that no source of `ekr` names any path into one.
 //!
+//! Both are optional dependencies of `ekr`, behind its `conformance` feature, since review
+//! finding 42 of EKR 0.0.42: a user's locked build of the binary compiled the ESS compiler. The
+//! crate's own tests turn the feature on through a dev-dependency on `ekr` itself, and declare
+//! both crates as dev-dependencies for the test files that name them;
+//! [`a_user_build_of_ekr_compiles_no_part_of_ess`] reads the resolved tree.
+//!
 //! The same wave's binding unit read the domain documents in `ekr-core`, `ekr-graph` and
 //! `ekr-store` tests with `serde_yaml_ng`, a dev-dependency of each; nothing the runtime ships gains
 //! an edge.
@@ -229,6 +235,9 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         &[
             "assert_cmd",
             "base64",
+            "ekr",
+            "ess-conformance",
+            "ess-primitives",
             "jsonschema",
             "rusqlite",
             "tempfile",
@@ -359,6 +368,63 @@ fn external_dependencies_match_the_story() {
         "the manifests and story:workspace-crate-skeleton disagree:\n  {}",
         failures.join("\n  ")
     );
+}
+
+/// The packages `cargo tree` resolves for `ekr`'s linked tree (normal and build edges, no dev),
+/// with `features` turned on.
+fn linked_packages(features: &[&str]) -> BTreeSet<String> {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
+    let mut command = std::process::Command::new(cargo);
+    command
+        .args(["tree", "--offline", "--locked", "--edges", "normal,build"])
+        .args(["--prefix", "none", "--format", "{p}", "--manifest-path"])
+        .arg(workspace_root().join("Cargo.toml"))
+        .args(["--package", "ekr"]);
+    if !features.is_empty() {
+        command.args(["--features", &features.join(",")]);
+    }
+    let output = command.output().expect("cargo tree runs");
+    assert!(
+        output.status.success(),
+        "cargo tree failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .expect("cargo tree prints UTF-8")
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Review finding 42 of EKR 0.0.42: `cargo install --locked` of the binary, or any build of it
+/// that is not a test build, resolves `ekr` without its dev-dependencies and so without the
+/// `conformance` feature, and links no ESS crate: not the runner, not the compiler it pulls in.
+/// The conformance entry point is still there for whoever asks for it: with the feature the same
+/// tree holds the runner library.
+#[test]
+fn a_user_build_of_ekr_compiles_no_part_of_ess() {
+    let user = linked_packages(&[]);
+    assert!(
+        user.contains("ekr-kernel") && user.contains("clap"),
+        "the tree does not list ekr's own dependencies, so it is not the tree this case is about: \
+         {user:?}"
+    );
+    let ess: Vec<&String> = user
+        .iter()
+        .filter(|name| name.starts_with("ess-"))
+        .collect();
+    assert!(
+        ess.is_empty(),
+        "a user build of ekr links ESS crates: {ess:?}"
+    );
+    let conformance = linked_packages(&["conformance"]);
+    for linked in ["ess-conformance", "ess-primitives"] {
+        assert!(
+            conformance.contains(linked),
+            "the `conformance` feature does not link {linked}: {conformance:?}"
+        );
+    }
 }
 
 /// The story's "Crate dependency edges, declared now" list, against the manifests.

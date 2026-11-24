@@ -395,7 +395,7 @@ fn classified() -> Inventory {
         (
             "crates/ekr-kernel/src/document.rs",
             &[
-                ("serde_yaml_ng : : Deserializer : : from_str", 1),
+                // The typed decode reads the tape shape.rs loaded (`into_deserializer`).
                 ("serde_yaml_ng : : Error", 1),
                 // Test-only depth-cut event telemetry.
                 ("shared import crate : : yaml : : loaded", 1),
@@ -497,10 +497,6 @@ fn classified() -> Inventory {
         (
             "crates/ekr-kernel/src/checkpoint.rs",
             &[("serde_yaml_ng : : to_string", 1)],
-        ),
-        (
-            "crates/ekr-kernel/src/document/checked.rs",
-            &[("serde_yaml_ng : : Deserializer : : from_str", 2)],
         ),
     ];
     for (path, signatures) in entries {
