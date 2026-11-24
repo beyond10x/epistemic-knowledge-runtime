@@ -49,6 +49,8 @@ export EKR_SDK_TEST_EKR
 
 # One Chromium for the whole run, with the flags each case's own launch carries: no network for the
 # viewer's libraries (the cases serve them), no component update, no background networking.
+# Several cases' windows are open at once, each over another: none is throttled as hidden or in
+# the background, as a case's own browser, the only window, never was.
 browser_pid=
 stop_browser() {
     if [ -n "$browser_pid" ]; then
@@ -81,6 +83,9 @@ if [ -n "$browser" ] && [ -x "$browser" ]; then
         --disable-component-update \
         --disable-background-networking \
         --disable-extensions \
+        --disable-backgrounding-occluded-windows \
+        --disable-renderer-backgrounding \
+        --disable-background-timer-throttling \
         "--host-resolver-rules=MAP cdn.jsdelivr.net ~NOTFOUND" \
         --remote-debugging-port=0 \
         "--user-data-dir=$profile" \
