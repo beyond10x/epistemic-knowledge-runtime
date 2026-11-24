@@ -145,7 +145,8 @@ exactly that.
 | 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: ekr.views.NotSeeded: <reason>` from every verb that meets a store with no seed (the reason as before: `the lineage has no seed`, or `the store was never seeded` from a view), `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, `ekr: <name>: <reason>` for a refusal of a stage ([`ekr stage`](#ekr-stage)), or clap's usage message |
 | 3 | `publication-outcome-unknown`: the store cannot say whether a write took effect; it may have been recorded. Read `ekr head` or `ekr transactions --state Committed` before writing it again | `ekr: publication-outcome-unknown: publication outcome is unknown; resolve the exact retained occurrence` on stderr |
 
-`guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
+`guide` and `operations` print text; `example` prints a document in its own format, JSON for
+`ekr.cli-host/1`, YAML for every other; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
 `{"Node": "<id>"}` — where a YAML input writes the tag `!Node <id>`. A proposal record's
 `document_bytes` prints as one standard base64 string.
@@ -165,7 +166,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
-| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent`, `schema_version_evidence` |
+| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, each node type's lifecycle and named operations, each edge type's inverse and flags, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent`, `schema_version_evidence` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr compare` | reads | `--other <store>`, optional `--other-backend <provider>`, `--other-host <file>`, `--at <revision>`, `--other-at <revision>` | the `ekr.store-comparison/1` document: whether two stores hold the same knowledge, commit times and transaction ids aside, and per category the first differing ids with the fields that differ |
@@ -548,6 +549,31 @@ committed the verb does not fault: if a request then gets no answer it can act o
 report with what committed until then and `stopped` saying why. A fault before anything committed
 is exit 1, with nothing written.
 
+#### Partial writes
+
+The verb writes in several transactions, and a document is not applied all or nothing. Nothing is
+written when the reader refuses the document, or, with `--strict`, any fact in it. Past the
+reader, the schema change and the new nodes commit before any fact is validated, and each fact
+commits or is rejected on its own:
+
+- without `--strict`, a fact the reader refuses is skipped: `rejected` lists it with a `refusal`,
+  and the rest of the document applies. A `replaces` fact with nothing to replace is such a row
+  with or without `--strict`;
+- with or without `--strict`, a fact validation rejects (`edge-cardinality`: its subject already
+  has the one edge of that type it may have) is listed under `rejected` with the `transaction_id` and
+  `issues` of the rejected transaction. The nodes created for it and every other fact that
+  committed stay committed;
+- once something has committed, a request that gets no answer the verb can act on stops it:
+  `stopped` says why, and `committed` lists what committed until then.
+
+So after exit 0 the document applied whole only when `rejected` and `ambiguous` are empty and
+`stopped` is `null`; `committed` lists every transaction written, `held` the facts the store
+already held. Applying the same document again creates no node, evidence item or assertion it
+created before, tries each rejected fact again and records another rejected transaction for each
+one rejected again. A caller that needs the document whole or not at all applies it in an
+[`ekr stage`](#ekr-stage) (SQLite and PostgreSQL), checks the report, and publishes or abandons
+the stage.
+
 ### `ekr head`
 
 Prints the newest revision number and its root hashes. Use it for `validate --against` and to see
@@ -579,7 +605,11 @@ printed; only a new rejection in the range does.
 ### `ekr ontology`
 
 Prints the schema in force at the head, or at `--at N` as of that committed revision:
-`node_types` and `edge_types` with their ids, names, parents, endpoint types and properties, and the
+`node_types` and `edge_types` with their ids, names, parents, endpoint types and properties; each
+node type's `lifecycle` (`initial`, `states`, `transitions`, or `null`) and `operations` (by the
+key `!Invoke` names: `name`, `arguments` with their value types, `preconditions`, `transition`,
+`emits`), as the [seed](#lifecycles-and-named-operations) declared them; each edge type's
+`inverse` (its id and name, or `null`), `symmetric` and `transitive`; and the
 schema version — `schema_version` (its id), `schema_version_number` (`0` at the seed, one more per
 committed schema change), `schema_version_parent` (the version it was derived from, `null` at the
 seed) and `schema_version_evidence` (the evidence ids the schema transaction that made the version
@@ -806,8 +836,11 @@ before CLI pretty printing. A session carries the same line in that request's `s
 Repeat `--event-time TypeName.propertyName` to select event types and the `Timestamp` property
 that supplies each event's time. Selectors split at the last dot, so type names may contain dots;
 property names containing dots cannot be selected by this spelling. Names resolve in the
-requested revision, including inherited properties. Only selected types become events, and a
-node missing that property is omitted and counted in `undated_events`. A node with several
+requested revision, including inherited properties. Only selected types become events. A node's
+values of the property are those on its record and those of the revision's `Active` assertions of
+that property about it, which is how `ekr apply-extraction` records an extracted fact; a retracted or
+superseded assertion supplies none. A node with no value is omitted and counted in
+`undated_events`. A node with several
 distinct timestamps, an ambiguous name, an absent or non-Timestamp property, or two different
 properties selected for one type is refused as `ekr.views.EventTimeInvalid`; repeated identical
 selectors deduplicate. `--events` and `--event-time` cannot be combined. Without `--event-time`,
@@ -820,7 +853,11 @@ property value (a `Timestamp`, or an `Integer` of epoch milliseconds from 1,000,
 10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
 any lifecycle whose subject it is, or whose relation object it is. It is instant when it is
 timestamped or its dated facts lie within one hour. A type is an event type when it has a judged
-node and at least 60% of its judged nodes are instant.
+node and at least 60% of its judged nodes are instant. An event's time is its least
+timestamp-like property value, else its earliest dated fact. Because the dated facts include
+retracted and superseded ones, this time is historical: a node whose only early fact was
+retracted is still placed at it. For current state, name the time with `--event-time`, which reads
+only the values the revision holds current.
 `--events <type name>...` names the event types instead: exactly the node types with those names,
 a name two types share naming both; a name no node type holds is refused as
 `ekr.views.EventTypeNotFound` (exit 2), naming it.
@@ -1293,7 +1330,7 @@ option retains the admitted store for serving and is used by SDK viewer startup.
 | `GET /find[?q=<text>][&revision=N]` | an HTML search form and at most 20 matching nodes, using the same name/alias ranking as `/search`; no JavaScript or external assets required. An empty query shows the form; a missing revision returns 404 and an unavailable store returns 503, both with a useful HTML page |
 | `GET /agent-guide.md` | static Markdown connection and read-only tool guidance, including the explicitly configured MCP URL; no query parameters or store reads |
 | `GET /llms.txt` | a small Markdown agent entry following the llms.txt v2 convention, with guide and optional MCP links; no query parameters, store reads or knowledge exports |
-| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words |
+| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words. A `revision=N` the address names stays in the address, the head's too, so a pinned link does not move to a later head; a revision chosen in the page is written unless it is the head. The page's four graph libraries (graphology 0.26.0, graphology-library 0.8.0, sigma 3.0.3 and 3d-force-graph 1.80.0, each MIT-licensed) are built into the binary and served under `/assets/libraries/`, so the page opens with no network |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /healthz` | `{"healthy":true}`, process liveness with no store work, 200 |
 | `GET /readyz` | `{"ready":true}`, 200 only after admitting a seeded complete store, including seed revision zero; unavailable, unseeded or incomplete stores return 503 |
@@ -1341,7 +1378,7 @@ With browser scripting enabled, the local Rust/WebAssembly client updates just t
 revision region while you type. It waits 180 ms after input, defers composed input until committed,
 and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
 in the search field. Clearing the field or a failed read clears old results; failures retain the
-query and offer an explicit retry, with no background retry loop. Enter searches immediately.
+query and offer an explicit retry, with no background retry loop. Enter searches immediately and writes the query and the chosen revision into the address, as the form's GET does, without reloading the page; typing alone leaves the address as it is.
 Without scripting, the same GET form continues to work. Both paths use the same Rust renderer,
 ranking, bounds and revision-pinned links.
 
@@ -1537,18 +1574,24 @@ answers no group. `meta.truncated` says whether the answer left anything out.
 <a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
 every node and edge created, every assertion added, superseded or retracted, every evidence
 entry added by an `!AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)), every
-node superseded by a `!SupersedeNode` ([A node superseded by another](#a-node-superseded-by-another))
-and every node merged by a `!MergeEntity` ([Two nodes merged into one](#two-nodes-merged-into-one)).
+node superseded by a `!SupersedeNode` ([A node superseded by another](#a-node-superseded-by-another)),
+every node merged by a `!MergeEntity` ([Two nodes merged into one](#two-nodes-merged-into-one)),
+every assertion evidence was attached to by an `!AttachEvidence`
+([Evidence attached to a held assertion](#evidence-attached-to-a-held-assertion)) and every node
+given an alias by an `!AddAlias` ([operation kinds](#operation-kinds)).
 Each change carries the revision that made it and that revision's `recorded_at`, its `change`
 (`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded`, `AssertionRetracted`,
-`EvidenceAdded`, `NodeSuperseded` or `NodeMerged`), the `id` of the node, edge, assertion or
-evidence entry, the node's `type` and `name`, the edge's `type`, `source` and `target`, the
+`EvidenceAdded`, `NodeSuperseded`, `NodeMerged`, `EvidenceAttached` or `AliasAdded`), the `id`
+of the node, edge, assertion or evidence entry, the node's `type` and `name`, the edge's `type`, `source` and `target`, the
 assertion's `subject_kind` and `subject` (and `by` for a supersession), its `valid_time`, the
 evidence entry's `locator` (its source identity: the `identity` of its `!HumanStatement`, or the URL of its `!Url`) and
 `content_hash` (the address of its payload), a superseded or merged node's `target` (the node it is
 superseded by or merged into), and `evidence`: the evidence ids the assertion cites, or for a node
 or an edge those the same revision's assertions about it cite, empty for an evidence entry, and for
-a superseded or merged node those its supersession or merge rests on. The seed's own evidence is
+a superseded or merged node those its supersession or merge rests on. An `EvidenceAttached` is one
+change per assertion and revision: its `subject_kind` and `subject`, and in `evidence` the entries
+that revision attached. An `AliasAdded` is one change per node and revision: the node's `type`,
+and `aliases`, the aliases that revision gave it, ascending. The seed's own evidence is
 not a change. The changes are ordered by revision, then change kind in that order, then id:
 
 - `since_revision=N` chooses the changes of the revisions after `N`; one at or after `at` chooses
@@ -1557,7 +1600,8 @@ not a change. The changes are ordered by revision, then change kind in that orde
   included when it was;
 - `since_valid=T` chooses the assertion changes whose valid time is after `T` — an added or
   retracted assertion's `valid_from`, a supersession's `effective_from` — from every revision up
-  to `at`. A node, an edge or an evidence entry has no valid time, and is never chosen by one.
+  to `at`. A node, an edge, an evidence entry, an attachment or an alias has no valid time, and is
+  never chosen by one.
 
 `meta` echoes the since, `revision` (the revision read), `limit`, `after` and `total`; `next`,
 present while changes remain, is the next page's `after`, and `remaining` counts what is left.
