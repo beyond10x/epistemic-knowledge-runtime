@@ -52,5 +52,11 @@ filter = """
 """
 priority = 50
 
+[[profile.default.overrides]]
+filter = """
+binary_id(ekr::main) & test(/^(view_page|search_live|adversary_p_page|adversary_page_stream_1|adversary_viewer_compact|adversary_viewer_follow_ups)::/)
+"""
+priority = 40
+
 [profile.default.junit]
 path = "junit.xml"
