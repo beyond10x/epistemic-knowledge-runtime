@@ -755,8 +755,9 @@ It prints the `ekr.store-comparison/1` document (`ekr.cli.CompareStores` in
 
 `categories` lists six, in this order (one is shown above): `types`, `properties`, `nodes`,
 `edges`, `assertions` and `evidence`, then `superseded` where either store holds a
-[supersession record](#a-node-superseded-by-another). `left` and `right` count the ids each store holds there;
-`differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
+[supersession record](#a-node-superseded-by-another), then `schema_evidence` where either store's
+schema version in force [cites evidence](#6-cite-the-evidence-a-version-rests-on). `left` and
+`right` count the ids each store holds there; `differences` counts the ids that differ, and `differing` lists the first 20 of them in id order:
 `presence` is `left` or `right` for an id only one store holds, and `both` for one both hold
 differently, with `fields` naming the fields that differ. `equal` is `true` exactly when every
 category's is.
@@ -770,9 +771,11 @@ category's is.
 | `assertions` | assertion id | `subject`, `predicate`, `object`, `evidence`, `attached_evidence`, `valid_time`, `assessment`, `lifecycle` |
 | `evidence` | evidence id | `source`, `content_hash` (the payload's hash), `extracted_by`, `observed_at`, `confidence` |
 | `superseded` | superseded node id | `node` and `edges` (as `nodes` and `edges` compare them), `by`, `revision`, `reason`, `evidence`, and a merged node's `merge` lineage; listed only where either store holds a record |
+| `schema_evidence` | evidence id | that the schema version in force cites it (`schema_version_evidence` of `ekr ontology`); an id one store's version cites and the other's does not differs, with no `fields`; listed only where either store's version cites evidence |
 
 Nothing a commit's clock or its transaction decides is compared: not an assertion's
-`transaction_time`, not the schema version's id or creation time, not a revision's root. Two stores
+`transaction_time`, not the schema version's id, number or creation time, not a revision's root;
+what the version in force cites is compared, an earlier version's citations are not. Two stores
 built from the same seed and the same transaction documents at different times compare equal, on
 one provider or on two. A store never seeded is refused as `ekr.views.NotSeeded`, and a revision a
 store does not hold as `ekr.kernel.RevisionNotFound`, exit 2, the message naming which store.
@@ -1515,16 +1518,19 @@ megabytes; `/2` answers the same node in counted groups, each listing at most `l
   one thing recorded as several nodes, whose facts may sit on any of them;
 - `properties`: one group per property, named, with its `total` and its values: the record's,
   then the Active value assertions newest first, each with its `assertion`, `valid_from` and
-  `evidence`. A String longer than 2,000 bytes is cut on a character boundary and carries
+  `evidence`. Every String longer than 2,000 bytes, the value itself or one inside a List or
+  Record at any depth, is cut on a character boundary, and the value carries
   `"truncated": true`;
 - `relations`: one group per edge type and direction (`out` when the node is the source), named,
+  from the node's edges and its Active Relation assertions alike, so a relation recorded only as
+  a claim ([Relations: assertion, edge or both](#relations-assertion-edge-or-both)) is listed too,
   with `total` distinct neighbours, largest first; each lists its highest-degree neighbours from
   `after`, each with the newest Active Relation assertion between the two (the id `ekr explain`
   takes) and how many there are, and `next`, the `after` of the group's next page, while more
   remain.
 
 Ask again with `edge_type` (an edge type's id, or its name, matched exactly and else
-lowercased) and `after` set to a group's `next` to page that edge type's groups; such an answer
+lowercased; a text shaped as an id that no edge type has is matched as a name) and `after` set to a group's `next` to page that edge type's groups; such an answer
 carries no property group and no same-name list, and an `edge_type` that names no edge type
 answers no group. `meta.truncated` says whether the answer left anything out.
 
@@ -2086,8 +2092,15 @@ a store; `migrate-destination-is-source`, `migrate-destination-inside-source` an
 `migrate-destination-contains-source` for a `--to` that is `--store` (a symbolic link to it or,
 for `sqlite`, one of its side files included), lies inside it, or contains it — `--to` is resolved
 through its nearest existing directory, and nothing is created; `migrate-unresolved-preparation`
-for a decision a command elected and never published — run that command again first — and a
-`--store` that does not replay.
+for a decision a command elected and never published — run that command again first;
+`migrate-open-stage` for a store with an [`ekr stage`](#ekr-stage) still `Begun` or `Sealing`,
+naming each such stage — publish or abandon it first; and a `--store` that does not replay.
+
+A migration carries the store's own tenant: its seed, every proposal, validation, rejection,
+commit and stale decision, and every object. It does not carry stage records or a stage's
+tenant: the new store lists no stage in `ekr stage list` and refuses a stage id of the old one,
+and a published stage's revisions move as the store's revisions they became. An open stage's run
+is in its own tenant only, which is why a store that has one is refused.
 
 A migration that stops after it began writing — `migrate-verification-disagrees`, a new store
 that does not replay to the old one's state, a full disk, an interrupted process — leaves the store

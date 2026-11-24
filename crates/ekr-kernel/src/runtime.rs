@@ -596,8 +596,9 @@ impl Runtime {
     /// replayed in full and compared with it before the report is returned.
     /// # Errors
     /// `migrate-source-not-supported` for PostgreSQL sources, `migrate-destination-not-empty`,
-    /// `migrate-unresolved-preparation`, any refusal of either
-    /// store's replay, and `migrate-verification-disagrees`.
+    /// `migrate-unresolved-preparation`, `migrate-open-stage` for a store with a stage still
+    /// `Begun` or `Sealing`, any refusal of either store's replay, and
+    /// `migrate-verification-disagrees`.
     pub fn migrate_into(
         &self,
         destination: &Runtime,

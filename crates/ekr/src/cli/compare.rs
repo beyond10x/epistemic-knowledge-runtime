@@ -5,7 +5,8 @@
 //! Each store is opened as a verb that only reads opens one and read once, through the kernel's
 //! verified read ([`Runtime::read`]) at its requested revision or its head. Nothing is written to
 //! either. What is compared is the domain's: per category, entries keyed by id, each entry the
-//! JSON of the graph's own record without the fields a commit's clock or its transaction decides.
+//! JSON of the graph's own record without the fields a commit's clock or its transaction decides,
+//! and the evidence the schema version in force cites.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -130,6 +131,12 @@ pub(super) fn run(left: &VerifiedRead, right: &VerifiedRead) -> Result<Compariso
     if !(left_superseded.is_empty() && right_superseded.is_empty()) {
         categories.push(compare("superseded", &left_superseded, &right_superseded));
     }
+    // So is the eighth, the evidence the schema version in force cites: listed only where either
+    // store's version cites any, so a pair whose schema cites nothing prints as before it existed.
+    let (left_cited, right_cited) = (schema_evidence(left)?, schema_evidence(right)?);
+    if !(left_cited.is_empty() && right_cited.is_empty()) {
+        categories.push(compare("schema_evidence", &left_cited, &right_cited));
+    }
     Ok(Comparison {
         format: "ekr.store-comparison/1",
         equal: categories.iter().all(|category| category.equal),
@@ -253,6 +260,18 @@ fn superseded(read: &VerifiedRead) -> Result<Entries, Failure> {
         records.insert(key(id)?, entry);
     }
     Ok(records)
+}
+
+/// The evidence the schema version in force cites (`schema_version_evidence` of `ekr ontology`,
+/// design § 109), keyed by evidence id with nothing more to compare: an id one store's version
+/// cites and the other's does not is a difference. Review of EKR 0.0.42, finding 15: two stores
+/// whose schema changes cited different evidence compared equal.
+fn schema_evidence(read: &VerifiedRead) -> Result<Entries, Failure> {
+    let mut cited = Entries::new();
+    for id in &read.graph.ontology.version().evidence {
+        cited.insert(key(id)?, Map::new());
+    }
+    Ok(cited)
 }
 
 /// The six categories of one read, in `ekr.cli.ComparisonCategory`'s order.

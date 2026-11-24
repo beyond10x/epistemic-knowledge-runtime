@@ -9,11 +9,13 @@
 //! - `same_name`: up to `limit` other nodes whose canonical name or an alias equals one of its
 //!   own, lowercased as the search's Folded tier lowercases;
 //! - its properties, grouped by property and named: the record's values, then the Active value
-//!   assertions newest first, at most `limit` per group, a String over [`VALUE_BYTES`] cut at a
-//!   character boundary and marked `truncated`;
-//! - its edges grouped by edge type and direction, each group named and counted, listing at most
-//!   `limit` neighbours from `after`, by degree, each with the newest Active Relation assertion
-//!   between the two (the id `explain` takes) and how many there are.
+//!   assertions newest first, at most `limit` per group, every String a value holds, at any
+//!   depth of a List or Record, over [`VALUE_BYTES`] cut at a character boundary and the value
+//!   marked `truncated`;
+//! - its edges and Active Relation assertions grouped by edge type and direction, each group
+//!   named and counted, listing at most `limit` neighbours from `after`, by degree, each with the
+//!   newest Active Relation assertion between the two (the id `explain` takes) and how many there
+//!   are; a relation held only as assertions, with no edge, is a group too.
 //!
 //! With `edge_type`, only that edge type's relation groups are answered, and no property group
 //! or same-name list. The cost is the node's degree and assertions, never the revision's size,
@@ -305,12 +307,15 @@ impl Index {
     }
 
     /// The edge type `text` names: its id, else its name byte for byte, else the one edge type
-    /// whose name equals it lowercased. `None` when it names none.
+    /// whose name equals it lowercased. `None` when it names none. A text shaped as an id that no
+    /// edge type has is looked up as a name, since a name may have any shape.
     #[must_use]
     pub fn edge_type_named(&self, text: &str) -> Option<TypeId> {
         let labels = self.labels();
         if let Ok(id) = text.parse::<TypeId>() {
-            return matches!(labels.types.get(&id), Some((_, TypeKind::EdgeType))).then_some(id);
+            if matches!(labels.types.get(&id), Some((_, TypeKind::EdgeType))) {
+                return Some(id);
+            }
         }
         labels.edges_named.get(text).copied().flatten().or_else(|| {
             labels
@@ -382,7 +387,8 @@ fn newest_first(a: &&Assertion, b: &&Assertion) -> Ordering {
         .then(b.id.cmp(&a.id))
 }
 
-/// `value` with a String cut to [`VALUE_BYTES`] at a character boundary, and whether it was.
+/// `value` with every String it holds, itself or at any depth of a List or Record, cut to
+/// [`VALUE_BYTES`] at a character boundary, and whether any was.
 fn cut(value: ProjectedValue) -> (ProjectedValue, bool) {
     match value {
         ProjectedValue::String(text) if text.len() > VALUE_BYTES => {
@@ -391,6 +397,30 @@ fn cut(value: ProjectedValue) -> (ProjectedValue, bool) {
                 end -= 1;
             }
             (ProjectedValue::String(text[..end].to_owned()), true)
+        }
+        ProjectedValue::List(items) => {
+            let mut any = false;
+            let items = items
+                .into_iter()
+                .map(|item| {
+                    let (item, was_cut) = cut(item);
+                    any |= was_cut;
+                    item
+                })
+                .collect();
+            (ProjectedValue::List(items), any)
+        }
+        ProjectedValue::Record(fields) => {
+            let mut any = false;
+            let fields = fields
+                .into_iter()
+                .map(|(name, field)| {
+                    let (field, was_cut) = cut(field);
+                    any |= was_cut;
+                    (name, field)
+                })
+                .collect();
+            (ProjectedValue::Record(fields), any)
         }
         other => (other, false),
     }
@@ -613,7 +643,8 @@ impl Index {
             if let (Predicate::Relation(type_id), Subject::Node(other)) =
                 (&claim.predicate, &claim.subject)
             {
-                if let Some(other) = self.node_index.get(&other.id()) {
+                // A claim relating the node to itself is `out`, as a self-loop is.
+                if let Some(other) = self.node_index.get(&other.id()).filter(|o| **o != index) {
                     related
                         .entry((*type_id, EdgeDirection::In, *other))
                         .or_default()
@@ -622,20 +653,23 @@ impl Index {
             }
         }
 
-        // Edges by type and direction, one entry per neighbour.
+        // Edges and Relation assertions by type and direction, one entry per neighbour: a
+        // relation recorded only as assertions, with no edge, is a group too.
         let adjacent = self.adjacent(index);
         let mut groups: BTreeMap<(TypeId, EdgeDirection), Vec<u32>> = BTreeMap::new();
-        for (other, edge) in adjacent {
-            let type_id = self.edge_type[*edge as usize];
-            if wanted.is_some_and(|wanted| wanted != Some(type_id)) {
-                continue;
-            }
+        let ends = adjacent.iter().map(|(other, edge)| {
             let direction = if self.edge_source[*edge as usize] == index {
                 EdgeDirection::Out
             } else {
                 EdgeDirection::In
             };
-            groups.entry((type_id, direction)).or_default().push(*other);
+            (self.edge_type[*edge as usize], direction, *other)
+        });
+        for (type_id, direction, other) in ends.chain(related.keys().copied()) {
+            if wanted.is_some_and(|wanted| wanted != Some(type_id)) {
+                continue;
+            }
+            groups.entry((type_id, direction)).or_default().push(other);
         }
         let mut relations = Vec::with_capacity(groups.len());
         for ((type_id, direction), mut others) in groups {
