@@ -159,7 +159,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id; `--documents`, `--offset`, `--limit` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too, at most 64 KiB of each evidence record unless `--limit` says otherwise |
+| `ekr explain` | reads | an assertion id; `--at <revision>`, `--documents`, `--offset`, `--limit` | the `ekr.explanation/2` document of one revision, the head unless `--at` names one: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too, at most 64 KiB of each evidence record unless `--limit` says otherwise |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-`; `--strict` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
@@ -288,9 +288,12 @@ not.
 
 ### `ekr explain`
 
-Explains one assertion at the head, as the `ekr.explanation/2` document: `format`
-(`ekr.explanation/2`), `assertion_id`, `at` (the head revision it was read at) and `links`, a list
-of objects, each with a `kind`. The retained records a link stands for — a proposal, a commit
+Explains one assertion at the head, or at the committed revision `--at N` names, as the
+`ekr.explanation/2` document: `format` (`ekr.explanation/2`), `assertion_id`, `at` (the revision it
+was read at) and `links`, a list of objects, each with a `kind`. Every link is read from that one
+revision: an explanation `--at` an earlier revision lists neither the attachments nor the later
+changes made after it, so an answer pinned to a revision stays what it was. A revision the store
+does not hold is refused as `ekr.kernel.RevisionNotFound` (exit 2). The retained records a link stands for — a proposal, a commit
 receipt, an evidence payload — are named by their hash, not printed:
 
 | `kind` | what it is | when it appears |
@@ -347,10 +350,12 @@ history. An unknown id is refused as `ekr.kernel.AssertionNotFound`.
    relation's or a property's name there instead of fetching the ontology. `scope` echoes the
    scope.
 4. **The cap.** While the printed document is longer than 49,152 bytes (48 KiB), the longest
-   evidence `text` (the first among equals) keeps its first half, cut back to a character
-   boundary, and its link is marked `truncated: true`, with `offset` and `record_length`; read the
-   rest with `ekr.explanation/2` and `--offset`. A document with no text left to cut may stay
-   longer.
+   evidence `text` (the first among equals) keeps half its bytes, and its link is marked
+   `truncated: true`, with `offset` (its first byte in the record) and `record_length`. The half
+   kept is placed as the default window is: centred on the cited text when the text holds it, so
+   a cut never drops the statement the window was centred on, and the first half when it does
+   not; its ends move inward to character boundaries. Read the rest with `ekr.explanation/2` and
+   `--offset`. A document with no text left to cut may stay longer.
 
 `--format ekr.explanation/2`, or no `--format`, prints `ekr.explanation/2` as above, and
 `--scope` without `--format ekr.explanation/3` is a usage error (exit 2).
@@ -1121,7 +1126,10 @@ Each item carries the assertion as the projection renders it, its subject (`subj
 `subject_name` (a node's canonical name or a type's name), `predicate_name` (the property's or the
 relation's name), `object_name` (a node object's canonical name), each left out where there is
 none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
-else `base64`. An assertion about a [superseded node](#a-node-superseded-by-another) is still
+else `base64`. Evidence [attached to the assertion](#evidence-attached-to-a-held-assertion) by the
+sampled revision is listed with it, in evidence id order, each such entry with `attached_at`, the
+revision that attached it; an entry the assertion cites has no `attached_at`. So the judge reads
+the evidence [`ekr explain`](#ekr-explain) names for the same revision. An assertion about a [superseded node](#a-node-superseded-by-another) is still
 sampled: its names are the node's as its record holds them, and `subject_superseded_by` names the
 node it is superseded by (for an edge subject retired with a superseded node, that node's), and
 `object_superseded_by` the node a superseded `!Node` object is superseded by, each left out where
@@ -1949,7 +1957,7 @@ Ask for the next page with `after` set to the page's `next`.
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 200 when absent: a page ends at `limit` nodes or `edges` edges, whichever comes first), `after` (a cursor, 0 or more), `revision`, `format` (`ekr.graph-slice/2` when absent, or `ekr.graph-slice/1`) | the whole `ekr.graph-slice/2` page as one document, `next` naming the next page's `after` | `GET /expand?format=ekr.graph-slice/2`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision`, `format` (`ekr.graph-timeline/2` when absent, or `ekr.graph-timeline/1`) | the `ekr.graph-timeline/2` document | `GET /timeline?format=ekr.graph-timeline/2` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 100 when absent), `after` (a cursor, 0 or more), `format` (`ekr.graph-changes/2` when absent, or `ekr.graph-changes/1`) | the `ekr.graph-changes/2` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes?format=ekr.graph-changes/2` |
-| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`), `scope` (with /3: `cited` when absent, or `all`) | what `ekr explain <assertion> --format ekr.explanation/3 --scope cited` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents [--offset N] [--limit N] --format ekr.explanation/3 --scope cited` prints: the evidence the chain cites, at most 48 KiB in all | `ekr explain [--documents [--offset N] [--limit N]] --format ekr.explanation/3 --scope cited` |
+| `explain` | **`assertion`** (an assertion id), `at` (a committed revision, the newest when absent), `documents` (`true` or `false`, `false` when absent), and with `documents: true` `offset` (0 or more) and `limit` (1 or more, 65,536 when absent), `format` (`ekr.explanation/3` when absent, or `ekr.explanation/2`), `scope` (with /3: `cited` when absent, or `all`) | what `ekr explain <assertion> [--at N] --format ekr.explanation/3 --scope cited` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> [--at N] --documents [--offset N] [--limit N] --format ekr.explanation/3 --scope cited` prints: the evidence the chain cites, at most 48 KiB in all | `ekr explain [--at N] [--documents [--offset N] [--limit N]] --format ekr.explanation/3 --scope cited` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — `at` (a revision) and `format` (`ekr.resolution/1` when absent, or `outcome`) | what `ekr resolve --format ekr.resolution/1` prints for that reference, byte for byte | `ekr resolve [--at N] --format ekr.resolution/1` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
@@ -2596,8 +2604,9 @@ its subject, predicate, object, valid time, lifecycle and the evidence it was ad
 they are — and no supersession is needed. The attachment is a record of its own: which assertion,
 which evidence, which revision. [`ekr explain`](#ekr-explain) lists it as an `Attachment` link,
 and the evidence among its `Evidence` links, from the revision that attached it on;
-[`ekr snapshot`](#ekr-snapshot) lists it under `attachments`; [`ekr quality`](#ekr-quality)
-counts it as it counts cited evidence. A supersession does not carry it to the replacement: it
+[`ekr snapshot`](#ekr-snapshot) lists it under `attachments`; [`ekr sample`](#ekr-sample) gives it
+to the judge with `attached_at`; [`ekr quality`](#ekr-quality) counts it as it counts cited
+evidence. A supersession does not carry it to the replacement: it
 stays with the assertion it was attached to.
 
 ```yaml ekr.transaction-document/2

@@ -120,7 +120,10 @@ impl World {
             backend,
             record: record(),
         };
-        world.file("host.json", ekr_text(&["example", "ekr.cli-host/1"]).as_bytes());
+        world.file(
+            "host.json",
+            ekr_text(&["example", "ekr.cli-host/1"]).as_bytes(),
+        );
         world.file("record.txt", &world.record);
         let hash = ContentHash::of_bytes(&world.record);
         let added = format!(
@@ -252,7 +255,11 @@ fn reads_whole_evidence(backend: Backend) {
     let window = evidence(&documents);
     assert!(window.truncated, "{backend:?}");
     assert_eq!(window.offset, Some(8_056), "{backend:?}");
-    assert_eq!(window.record_length, Some(RECORD_BYTES as u64), "{backend:?}");
+    assert_eq!(
+        window.record_length,
+        Some(RECORD_BYTES as u64),
+        "{backend:?}"
+    );
     let text = window.text.as_deref().unwrap();
     assert_eq!(text.len(), DEFAULT_LIMIT, "{backend:?}");
     assert!(text.contains(CITED), "{backend:?}");
@@ -278,7 +285,10 @@ fn reads_whole_evidence(backend: Backend) {
             break;
         }
     }
-    assert!(reassembled == world.record, "{backend:?}: the ranges reassemble the record");
+    assert!(
+        reassembled == world.record,
+        "{backend:?}: the ranges reassemble the record"
+    );
 
     // A limit bounds the range.
     let first = one_shot.explain_range(assertion, 0, Some(1_000)).unwrap();

@@ -285,7 +285,10 @@ fn halving_keeps_the_cited_text(backend: &'static str) {
     let world = World::new(backend);
     let v2 = world.ok(&["explain", LEGAL, "--documents"]);
     let window = links(&v2, "Evidence")[0];
-    assert_eq!(window["offset"], 8_056, "{backend}: /2's window, as reviewed");
+    assert_eq!(
+        window["offset"], 8_056,
+        "{backend}: /2's window, as reviewed"
+    );
     assert!(window["text"].as_str().unwrap().contains(CITED));
 
     let v3 = world.ok(&[
@@ -323,7 +326,10 @@ fn halving_keeps_the_cited_text(backend: &'static str) {
 
     let mut server = Server::start(&world);
     let tool = server.explain(json!({"assertion": LEGAL, "documents": true}));
-    assert_eq!(tool, v3, "{backend}: the MCP default answers what the verb prints");
+    assert_eq!(
+        tool, v3,
+        "{backend}: the MCP default answers what the verb prints"
+    );
 }
 
 #[test]
@@ -342,14 +348,25 @@ fn explain_at_reads_that_revision(backend: &'static str) {
     let world = World::new(backend);
     let head = world.ok(&["explain", SEEDED]);
     assert_eq!(head["at"], 1, "{backend}");
-    assert_eq!(evidence_ids(&head), [SEEDED_EVIDENCE, ATTACHED], "{backend}");
+    assert_eq!(
+        evidence_ids(&head),
+        [SEEDED_EVIDENCE, ATTACHED],
+        "{backend}"
+    );
     assert_eq!(links(&head, "Attachment").len(), 1, "{backend}");
 
     let pinned = world.ok(&["explain", SEEDED, "--at", "0"]);
-    assert_eq!(pinned["at"], 0, "{backend}: the answer names the revision read");
+    assert_eq!(
+        pinned["at"], 0,
+        "{backend}: the answer names the revision read"
+    );
     assert_eq!(evidence_ids(&pinned), [SEEDED_EVIDENCE], "{backend}");
     assert!(links(&pinned, "Attachment").is_empty(), "{backend}");
-    assert_eq!(world.ok(&["explain", SEEDED, "--at", "1"]), head, "{backend}");
+    assert_eq!(
+        world.ok(&["explain", SEEDED, "--at", "1"]),
+        head,
+        "{backend}"
+    );
 
     let documents = world.ok(&["explain", SEEDED, "--at", "0", "--documents"]);
     assert_eq!(documents["at"], 0, "{backend}");
@@ -441,15 +458,7 @@ fn sample_carries_attached_evidence(backend: &'static str) {
         }
     }
 
-    let before = world.ok(&[
-        "sample",
-        "--seed",
-        "1",
-        "--size",
-        "1000",
-        "--revision",
-        "0",
-    ]);
+    let before = world.ok(&["sample", "--seed", "1", "--size", "1000", "--revision", "0"]);
     let evidence = item(&before, SEEDED)["evidence"].as_array().unwrap();
     assert_eq!(evidence.len(), 1, "{backend}: nothing was attached at 0");
     assert_eq!(evidence[0]["id"], SEEDED_EVIDENCE, "{backend}");

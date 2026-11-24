@@ -424,7 +424,12 @@ pub struct ExplainedAttachment {
 }
 
 /// An evidence link: the entry and, when the explanation was read with its documents
-/// ([`super::Reader::explain_documents`]), its retained bytes and, when they are UTF-8, their text.
+/// ([`super::Reader::explain_documents`], [`super::Reader::explain_range`]), its retained bytes
+/// and, when they are UTF-8, their text.
+///
+/// The bytes answered are bounded (64 KiB unless a limit says otherwise). When they are not the
+/// whole record, `truncated` is `true` and `offset` and `record_length` say which range of it they
+/// are; [`super::Reader::explain_range`] reads the next one from `offset` plus the bytes answered.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExplainedEvidence {
     /// The evidence entry.
@@ -436,6 +441,15 @@ pub struct ExplainedEvidence {
     /// The same bytes as text, when they are UTF-8.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// The first byte of the record answered, when the bytes answered are not the whole record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    /// The whole record's length in bytes, when the bytes answered are not the whole record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub record_length: Option<u64>,
+    /// `true` when the bytes answered are not the whole record.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub truncated: bool,
 }
 
 /// The graph root a snapshot's entities name, as `ekr snapshot` prints it.

@@ -18,7 +18,7 @@
 //! | [`Reader::snapshot`] | `snapshot` | [`Snapshot`] |
 //! | [`Reader::ontology`] | `ontology` | [`Ontology`] |
 //! | [`Reader::transactions`] | `transactions` | [`Transactions`] |
-//! | [`Reader::explain`], [`Reader::explain_documents`] | `explain` | [`Explanation`], `ekr.explanation/2` |
+//! | [`Reader::explain`], [`Reader::explain_documents`], [`Reader::explain_range`] | `explain [--documents [--offset N] [--limit N]]` | [`Explanation`], `ekr.explanation/2` |
 //! | [`Reader::quality`] | `quality` | [`StoreQuality`], `ekr.store-quality/1` |
 //! | [`Reader::rejections`] | `rejections` | [`Rejections`], `ekr.rejections/1` |
 //! | [`Reader::code_names`] | `code-names` | [`CodeNames`], `ekr.code-names/1` |
@@ -552,6 +552,29 @@ impl<T: Transport> Reader<T> {
     pub fn explain_documents(&mut self, assertion: AssertionId) -> Result<Explanation, ReadError> {
         self.read(Argv::new("explain").arg(assertion).arg("--documents"))
     }
+
+    /// `explain --documents --offset <offset> [--limit <limit>]`: [`Reader::explain_documents`]
+    /// with each evidence payload read from byte `offset`, at most `limit` bytes of it (64 KiB when
+    /// `None`). A whole record is read from offset 0, each next offset the last one plus the bytes
+    /// it answered, until it reaches [`ExplainedEvidence::record_length`].
+    ///
+    /// # Errors
+    /// [`ReadError`]; an unknown id is `ekr.kernel.AssertionNotFound`, a `limit` of 0 a usage
+    /// refusal.
+    pub fn explain_range(
+        &mut self,
+        assertion: AssertionId,
+        offset: u64,
+        limit: Option<u64>,
+    ) -> Result<Explanation, ReadError> {
+        self.read(
+            Argv::new("explain")
+                .arg(assertion)
+                .arg("--documents")
+                .flag("offset", Some(offset))
+                .flag("limit", limit),
+        )
+    }
 }
 
 /// The pages of one neighbourhood: [`Reader::expand`].
@@ -653,5 +676,18 @@ impl OneShotReader {
     /// [`ReadError`].
     pub fn explain_documents(&mut self, assertion: AssertionId) -> Result<Explanation, ReadError> {
         self.reader.explain_documents(assertion)
+    }
+
+    /// [`Reader::explain_range`], one-shot.
+    ///
+    /// # Errors
+    /// [`ReadError`].
+    pub fn explain_range(
+        &mut self,
+        assertion: AssertionId,
+        offset: u64,
+        limit: Option<u64>,
+    ) -> Result<Explanation, ReadError> {
+        self.reader.explain_range(assertion, offset, limit)
     }
 }
