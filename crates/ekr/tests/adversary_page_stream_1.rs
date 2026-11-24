@@ -683,9 +683,22 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
 /// CPU rate tells the two apart: measured that day, a stalled browser's processes used about 25
 /// clock ticks in 30 s, and a working one on a machine under `stress` as few as 7.
 fn dump(browser: &Path, url: &str, budget: u32) -> String {
+    dump_in(browser, url, budget, false)
+}
+
+/// [`dump`] in a browser of the case's own even under the test step, whose shared browser
+/// composites in software (`scripts/test-step.sh`). A page that draws some 20,000 nodes in WebGL
+/// for its whole budget composites those frames far more cheaply through SwiftShader: measured on
+/// the render-budget case, 3.2 s and 27 s of browser CPU in a browser of its own, 54 s and 288 s in
+/// a software-composited one (CI run 45332057449 killed it at 60 s).
+fn dump_composited(browser: &Path, url: &str, budget: u32) -> String {
+    dump_in(browser, url, budget, true)
+}
+
+fn dump_in(browser: &Path, url: &str, budget: u32, own: bool) -> String {
     let _one = one_browser();
     for _ in 0..DUMP_ATTEMPTS {
-        if let Some(dom) = dump_once(browser, url, budget) {
+        if let Some(dom) = dump_once(browser, url, budget, own) {
             return dom;
         }
     }
@@ -857,14 +870,14 @@ fn in_flight(from: usize) -> usize {
     taken.saturating_sub(traffic.len() - from - taken)
 }
 
-fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
+fn dump_once(browser: &Path, url: &str, budget: u32, own: bool) -> Option<String> {
     let profile = tempfile::tempdir().unwrap();
     let from = TRAFFIC
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .len();
     // `taskset` and `nice` exec the browser, so the child is the browser itself
-    let mut child = shared_browser::launch(Some((1600, 1000)), || {
+    let start_own = || {
         Command::new("taskset")
             .args(["-c", "0-3", "nice", "-n", "19"])
             .arg(browser)
@@ -888,7 +901,12 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap()
-    });
+    };
+    let mut child = if own {
+        shared_browser::Browser::Own(start_own())
+    } else {
+        shared_browser::launch(Some((1600, 1000)), start_own)
+    };
     let (port, page) = child.devtools();
     let address = page.unwrap_or_else(|| page_socket(port));
     let tcp = TcpStream::connect(("127.0.0.1", port)).unwrap();
@@ -1265,7 +1283,7 @@ fn past_the_render_budget_at_most_the_two_thousand_best_connected_keep_a_label()
     out.order = __viewer.graph.order; out.shown = shown; out.labelled = labelled;
 "##;
     let front = Front::start(&server, probe, None, Some(answer));
-    let out = probed(&dump(&browser, &front.url, 40000));
+    let out = probed(&dump_composited(&browser, &front.url, 40000));
     assert!(out["order"].as_u64().unwrap() > 20_000, "{out}");
     assert!(
         out["labelled"].as_u64().unwrap() <= 2000,

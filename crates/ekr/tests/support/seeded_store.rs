@@ -49,12 +49,16 @@ pub(crate) fn seeded(inputs: &[&[u8]], into: &Path, seed: impl FnOnce()) {
         return;
     }
     seed();
+    // One name per process and thread: `cargo test` runs a binary's cases as threads of one
+    // process, and two of them seeding the same store at once wrote into one directory.
+    let thread = format!("{:?}", std::thread::current().id());
     let building = root().join(format!(
-        "{}.building-{}",
+        "{}.building-{}-{}",
         kept.file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("store"),
-        std::process::id()
+        std::process::id(),
+        thread.trim_start_matches("ThreadId(").trim_end_matches(')')
     ));
     let _ = std::fs::remove_dir_all(&building);
     copy_tree(into, &building);
