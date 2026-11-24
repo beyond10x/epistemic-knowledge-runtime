@@ -79,6 +79,7 @@ pub fn start() -> Result<(), JsValue> {
             event.prevent_default();
             if !search.borrow().composing {
                 change(&search, true);
+                search.borrow().address();
             }
         }
     })?;
@@ -108,6 +109,17 @@ impl Search {
             active.abort();
         }
         self.generation.next()
+    }
+    /// Writes the submitted query into the address, with the chosen revision, as the form's own GET
+    /// would, without loading the page again: a reload or a copied address shows this search.
+    /// Typing alone leaves the address as it is.
+    fn address(&self) {
+        let Ok(url) = find_url(&self.input.value(), self.revision.as_deref()) else {
+            return;
+        };
+        if let Ok(history) = window().history() {
+            let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(&url));
+        }
     }
     fn message(&self, state: &str, message: &str) {
         self.region.set_text_content(Some(message));
@@ -221,21 +233,25 @@ fn begin(search: Rc<RefCell<Search>>, generation: u64, query: String) {
         }
     });
 }
-async fn read(
-    query: &str,
-    revision: Option<&str>,
-    controller: &AbortController,
-) -> Result<Element, JsValue> {
+/// The form's GET address of `query` at `revision`: `q` first, then `revision`.
+fn find_url(query: &str, revision: Option<&str>) -> Result<String, JsValue> {
     let params = web_sys::UrlSearchParams::new()?;
     params.append("q", query);
     if let Some(revision) = revision {
         params.append("revision", revision);
     }
+    Ok(format!("/find?{}", params.to_string()))
+}
+async fn read(
+    query: &str,
+    revision: Option<&str>,
+    controller: &AbortController,
+) -> Result<Element, JsValue> {
     let init = RequestInit::new();
     init.set_signal(Some(&controller.signal()));
     init.set_mode(web_sys::RequestMode::SameOrigin);
     init.set_credentials(web_sys::RequestCredentials::SameOrigin);
-    let request = Request::new_with_str_and_init(&format!("/find?{}", params.to_string()), &init)?;
+    let request = Request::new_with_str_and_init(&find_url(query, revision)?, &init)?;
     let response = JsFuture::from(window().fetch_with_request(&request))
         .await?
         .dyn_into::<Response>()?;

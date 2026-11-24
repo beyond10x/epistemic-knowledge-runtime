@@ -296,11 +296,7 @@ impl Browser {
                 paths.sort();
                 paths.pop()
             });
-        let Some(binary) = binary else {
-            assert!(
-                std::env::var_os("EKR_REQUIRE_BROWSER").is_none(),
-                "required Chromium browser absent; set EKR_VIEW_BROWSER"
-            );
+        let Some(binary) = shared_browser::required(binary) else {
             eprintln!("SKIP: Chromium absent; set EKR_VIEW_BROWSER and EKR_REQUIRE_BROWSER=1 for acceptance");
             return None;
         };
@@ -557,6 +553,26 @@ fn live_typing_preserves_focus_and_caret_without_navigation() {
         "Alxice",
         "caret must stay where typing left it"
     );
+    // Submitting writes the query into the address with the chosen revision, as the form's own GET
+    // does, so a reload shows this search (finding 25 of the EKR 0.0.42 review).
+    browser.key("Enter", 13, 0);
+    let start = Instant::now();
+    loop {
+        let frame = browser.call("Page.getFrameTree", json!({}));
+        let url = frame["frameTree"]["frame"]["url"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        if url.ends_with("/find?q=Alxice&revision=0") {
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(30),
+            "the submitted search is not in the address: {url}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(browser.query_value(), "Alxice");
 }
 
 impl Browser {
@@ -872,10 +888,18 @@ fn embedded_assets_work_without_store_and_keep_http_admission() {
     let world = World::new();
     // The viewer has not admitted the store; remove it before requesting static assets.
     std::fs::remove_file(world.dir.path().join("store")).unwrap();
-    for (path, mime) in [
+    // the viewer page's graph libraries are served here too, so the page opens offline (finding 26
+    // of the EKR 0.0.42 review)
+    let libraries = viewer_libraries::page_pinned();
+    assert_eq!(libraries.len(), 4, "{libraries:?}");
+    let mut assets = vec![
         ("/assets/search.js", "text/javascript; charset=utf-8"),
         ("/assets/search_bg.wasm", "application/wasm"),
-    ] {
+    ];
+    for library in libraries {
+        assets.push((library.url.as_str(), "text/javascript; charset=utf-8"));
+    }
+    for (path, mime) in assets {
         for (method, host, extra, expected) in [
             ("GET", world.origin.trim_start_matches("http://"), "", 200),
             ("POST", world.origin.trim_start_matches("http://"), "", 405),
@@ -908,14 +932,21 @@ fn embedded_assets_work_without_store_and_keep_http_admission() {
                     .unwrap()
                     .parse::<u16>()
                     .unwrap(),
-                expected
+                expected,
+                "{method} {path}"
             );
             if expected == 200 {
                 assert!(headers.contains(mime));
                 assert!(headers.contains("nosniff"));
                 assert!(headers.contains("no-store"));
                 let body = &bytes[end + 4..];
-                if path.ends_with(".wasm") {
+                if let Some(library) = libraries.iter().find(|library| library.url == path) {
+                    assert_eq!(
+                        viewer_libraries::integrity(body),
+                        library.integrity,
+                        "{path}: the bytes the page's integrity names"
+                    );
+                } else if path.ends_with(".wasm") {
                     assert!(body.starts_with(b"\0asm"));
                 } else {
                     assert!(std::str::from_utf8(body)

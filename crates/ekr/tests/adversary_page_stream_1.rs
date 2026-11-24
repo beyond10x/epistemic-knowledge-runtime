@@ -7,7 +7,7 @@
 //! state and writes it into a `<pre id="probe-out">` the case reads off `--dump-dom`), and forwards
 //! every other request to `ekr view` unchanged — or, where a case says so, re-frames a streamed
 //! answer into chunks of a few bytes, or answers one address itself. The page's graph libraries are
-//! served to the browser from `tests/fixtures/viewer-libraries/` (`support/viewer_libraries.rs`).
+//! served to the browser from `src/cli/viewer/libraries/` (`support/viewer_libraries.rs`).
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -640,7 +640,12 @@ fn ndjson_response(lines: &[String]) -> Vec<u8> {
 
 // ---- the browser -------------------------------------------------------------------------------
 
+/// A headless Chromium, or `None` where none is required (`shared_browser::required`).
 fn browser() -> Option<PathBuf> {
+    shared_browser::required(find_browser())
+}
+
+fn find_browser() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("EKR_VIEW_BROWSER") {
         return Some(PathBuf::from(path)).filter(|path| path.is_file());
     }
@@ -1208,6 +1213,10 @@ fn a_type_the_address_hides_stays_hidden_when_a_stream_first_draws_it() {
 /// The search's hits are a read of the revision shown. After the page moves to another revision,
 /// what the hits list must be a read of that revision: here, `entity-late` does not exist at
 /// revision 0, and `/search` of revision 0 answers no match. The page keeps listing the head's hit.
+///
+/// The page is opened at an address naming the head's revision, as `/find` links to a result
+/// (finding 24 of the EKR 0.0.42 review): the address the page writes once it has opened keeps
+/// that revision, so the link does not move to a later head; choosing the head in the page drops it.
 #[test]
 fn the_hits_listed_after_a_revision_change_are_the_new_revisions() {
     let browser = need_browser!();
@@ -1215,6 +1224,8 @@ fn the_hits_listed_after_a_revision_change_are_the_new_revisions() {
     let server = seeded.serve();
     let probe = r##"
     await until(() => window.__viewer && document.querySelector("#hits .hit"), 30000);
+    await until(() => /(^#|&)view=/.test(location.hash), 30000);
+    out.opened = location.hash;
     out.before = [...document.querySelectorAll("#hits .hit")].map(e => e.dataset.node);
     out.beforeRevision = __viewer.doc.meta.revision;
     await __viewer.goRevision(0);
@@ -1225,13 +1236,25 @@ fn the_hits_listed_after_a_revision_change_are_the_new_revisions() {
     out.afterText = document.getElementById("hits").textContent;
     const truth = await (await fetch("/search?q=entity-late&limit=25&revision=0")).json();
     out.truth = truth.matches.map(m => m.id);
+    await __viewer.goRevision(1);
+    out.headChosen = location.hash;
 "##;
     let front = Front::start(&server, probe, None, None);
     let out = probed(&dump(
         &browser,
-        &format!("{}#q=entity-late", front.url),
+        &format!("{}#revision=1&q=entity-late", front.url),
         20000,
     ));
+    let opened = out["opened"].as_str().unwrap_or_default();
+    assert!(
+        opened.contains("revision=1"),
+        "opened at the head's revision 1, the page dropped it from the address: {out}"
+    );
+    let chosen = out["headChosen"].as_str().unwrap_or_default();
+    assert!(
+        chosen.contains("view=") && !chosen.contains("revision="),
+        "the head chosen in the page follows the head: {out}"
+    );
     assert_eq!(out["before"], serde_json::json!([gid(3, 9)]), "{out}");
     assert_eq!(out["afterRevision"], 0, "{out}");
     assert_eq!(out["truth"], serde_json::json!([]), "{out}");
