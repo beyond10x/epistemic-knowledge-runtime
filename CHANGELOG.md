@@ -6,6 +6,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- Event times and the change feed follow the store's active assertions
+  (story:ekr-views-history-fixes, findings 17, 22, 31 and 32 of the EKR 0.0.42 review):
+  - `ekr ocel --event-time` and `ekr process-map --event-time` date a node by the revision's
+    `Active` assertions of the selected property as well as its record, so an event time
+    `ekr apply-extraction` recorded is an event; a retracted or superseded one dates nothing;
+  - `ekr changes` (`/changes`, `changes_since`) lists an `!AttachEvidence` as `EvidenceAttached`
+    (the assertion, the entries attached) and an `!AddAlias` as `AliasAdded` (the node, its type,
+    the aliases); `ekr.views.ChangesListed` counts them as `evidence_attached` and `aliases_added`,
+    and `ekr_sdk`'s `ChangeKind` reads both;
+  - `docs/cli.md` says that the default OCEL time is historical (retracted facts included) and that
+    `--event-time` reads current values; a `since_revision` past the head stays refused as
+    documented.
 - The CLI's schema read, its output formats and the published pages say what the release does
   (story:ekr-cli-contract-fixes, findings 33, 35, 43 and 44 of the EKR 0.0.42 review):
   - `ekr ontology` prints each node type's `lifecycle` and named `operations` (arguments,
