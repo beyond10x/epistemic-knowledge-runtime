@@ -986,6 +986,50 @@ fn commit_by_hand(world: &World, operations: Vec<ekr_sdk::document::Operation>) 
     assert_eq!(report.committed.len(), 1, "{report:?}");
 }
 
+/// A second active `legal_name` of `Globex`, `value`, committed by hand beside the one the store
+/// holds, as an unmarked fact left one before single-valued properties superseded on extraction
+/// (`story:extraction-write-integrity`): an assertion valid from `observed`, citing a new item of
+/// `payload` observed then.
+fn second_legal_name(world: &World, value: &str, payload: &[u8], observed: i64) {
+    use ekr_sdk::document::{
+        Assertion, Confidence, EvidenceAddition, EvidenceSource, Object, Operation, Predicate,
+        Subject, TemporalRange, Timestamp, Value as Said,
+    };
+    let operator: AgentId = OPERATOR.parse().unwrap();
+    let graph = world.store_json(&["snapshot"])["graph"]["graph"].clone();
+    let globex = graph["nodes"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .find(|(_, node)| node["canonical_name"] == "Globex")
+        .map(|(id, _)| id.parse().unwrap())
+        .unwrap();
+    let from = Timestamp::from_millis(observed);
+    let addition = EvidenceAddition::new(
+        EvidenceSource::human("An earlier extraction"),
+        operator,
+        from,
+        Confidence::CERTAIN,
+        payload.to_vec(),
+    );
+    let assertion = Assertion::new(
+        graph["root"]["id"].as_str().unwrap().parse().unwrap(),
+        Subject::Node(globex),
+        Predicate::Property("00000000-0000-4000-8000-000000000801".parse().unwrap()),
+        Object::Value(Said::String(value.to_owned())),
+        operator,
+    )
+    .citing(addition.evidence.id)
+    .with_valid_time(TemporalRange::since(from));
+    commit_by_hand(
+        world,
+        vec![
+            Operation::AddEvidence(Box::new(addition)),
+            Operation::AddAssertion(Box::new(assertion)),
+        ],
+    );
+}
+
 /// A claim an operator retracted or superseded is not asserted again from the evidence it cited:
 /// the report holds the fact with that reason. From evidence the claim never cited, it is
 /// asserted.
@@ -1432,19 +1476,19 @@ fn an_extracted_fact_is_valid_from_its_evidence_observed_time() {
     );
     let facts = vec![
         legal_name("Vega", "Vega Holdings", &["400"]),
-        legal_name("Lyra", "Lyra Group", &["401", "402"]),
+        legal_name("Lyra", "Lyra Group", &["441", "442"]),
         format!(
             "- !Relation\n  subject: {{node_type: Person, aliases: [Ann]}}\n  relation: CEO_OF\n  \
              object: {{node_type: Organization, aliases: [Lyra]}}\n  evidence: [{}]\n",
-            evidence_id("401")
+            evidence_id("441")
         ),
     ];
     let text = extraction(
         &facts,
         &[
             evidence_item("400", b"Vega Holdings, from its filing.", middle),
-            evidence_item("401", b"Lyra Group and its chief executive, Ann.", late),
-            evidence_item("402", b"Lyra Group, from an older register.", early),
+            evidence_item("441", b"Lyra Group and its chief executive, Ann.", late),
+            evidence_item("442", b"Lyra Group, from an older register.", early),
         ],
     );
     for backend in BACKENDS {
@@ -1733,7 +1777,7 @@ fn an_edge_the_kernel_refuses_refuses_its_fact_and_a_corroborated_relation_adds_
         );
         assert_eq!(edges(&world), seeded + 1, "{backend}");
 
-        let again = world.apply_verb(&relation("Betelgeuse", "401"));
+        let again = world.apply_verb(&relation("Betelgeuse", "441"));
         assert_eq!(
             again["rejected"],
             serde_json::json!([]),
@@ -1747,7 +1791,7 @@ fn an_edge_the_kernel_refuses_refuses_its_fact_and_a_corroborated_relation_adds_
             "{backend}: two assertions of the claim, one per source"
         );
 
-        let second = world.apply_verb(&relation("Mintaka", "402"));
+        let second = world.apply_verb(&relation("Mintaka", "442"));
         let rejected = &second["rejected"];
         assert_eq!(rejected.as_array().unwrap().len(), 1, "{backend}: {second}");
         assert_eq!(rejected[0]["item"], "facts[0]", "{backend}: {second}");
@@ -2122,12 +2166,12 @@ fn a_relation_read_twice_after_its_edge_was_refused_is_not_asserted_without_an_e
     );
     let twice = extraction(
         &[
-            ceo_of("Rigel", "Mintaka", "402"),
+            ceo_of("Rigel", "Mintaka", "442"),
             ceo_of("Rigel", "Mintaka", "403"),
         ],
         &[
             evidence_item(
-                "402",
+                "442",
                 b"Rigel runs Mintaka, says one source.",
                 1_773_273_600_000,
             ),
@@ -2193,14 +2237,14 @@ fn a_relation_read_twice_after_its_edge_was_refused_is_not_asserted_without_an_e
 fn a_fact_citing_part_of_an_earlier_claims_evidence_is_still_held() {
     let evidence = [
         evidence_item(
-            "401",
+            "441",
             b"Lyra Group, from an older register.",
             1_773_100_000_000,
         ),
-        evidence_item("402", b"Lyra Group, from its filing.", 1_773_360_000_000),
+        evidence_item("442", b"Lyra Group, from its filing.", 1_773_360_000_000),
     ];
-    let both = legal_name("Lyra", "Lyra Group", &["401", "402"]);
-    let later = legal_name("Lyra", "Lyra Group", &["402"]);
+    let both = legal_name("Lyra", "Lyra Group", &["441", "442"]);
+    let later = legal_name("Lyra", "Lyra Group", &["442"]);
     for backend in BACKENDS {
         let world = World::new(backend, false);
         let report = world.apply_verb(&extraction(&[both.clone(), later.clone()], &evidence));
@@ -2277,21 +2321,11 @@ fn on_the_sdk_path_a_relation_refused_for_its_ends_creates_no_node() {
 }
 
 /// Supersession plus a held claim: the store holds two active legal names for Globex (the second
-/// read without `replaces`). A document marks "Globex Corporation" as replacing the active value,
-/// from the evidence that already asserted it. The fact is held (`asserted`) before replacement is
-/// considered, so nothing is superseded and two values stay active, though the document says the
-/// one value replaces the others.
+/// left by an earlier release's unmarked add). A document marks "Globex Corporation" as replacing
+/// the active value, from the evidence that already asserted it. The fact is held (`asserted`), and
+/// as a replacement it still supersedes the other value, so one value stays active.
 #[test]
 fn a_held_replacement_still_leaves_one_active_value() {
-    let second = extraction(
-        &[legal_name("Globex", "Globex Inc", &["410"])],
-        // Observed before the store's value, so superseding it from 1773273600000 is valid.
-        &[evidence_item(
-            "410",
-            b"Globex Inc, says an older source.",
-            1_773_100_000_000,
-        )],
-    );
     let replacing_known = KNOWN_TYPES.replace(
         "  property: legal_name\n",
         "  property: legal_name\n  replaces: true\n",
@@ -2300,7 +2334,13 @@ fn a_held_replacement_still_leaves_one_active_value() {
     for backend in BACKENDS {
         let world = World::new(backend, false);
         world.apply_verb(KNOWN_TYPES);
-        world.apply_verb(&second);
+        // Observed before the store's value, so superseding it from 1773273600000 is valid.
+        second_legal_name(
+            &world,
+            "Globex Inc",
+            b"Globex Inc, says an older source.",
+            1_773_100_000_000,
+        );
         assert_eq!(
             active_legal_names(&world, "Globex"),
             ["\"Globex Corporation\"", "\"Globex Inc\""],
@@ -2332,11 +2372,11 @@ fn a_fact_repeating_a_rejected_facts_evidence_is_tried_not_held() {
     );
     let twice = extraction(
         &[
-            ceo_of("Rigel", "Mintaka", "402"),
-            ceo_of("Rigel", "Mintaka", "402"),
+            ceo_of("Rigel", "Mintaka", "442"),
+            ceo_of("Rigel", "Mintaka", "442"),
         ],
         &[evidence_item(
-            "402",
+            "442",
             b"Rigel runs Mintaka, says one source.",
             1_773_273_600_000,
         )],
@@ -2383,14 +2423,6 @@ fn a_fact_repeating_a_rejected_facts_evidence_is_tried_not_held() {
 /// under `rejected`: a fact has one outcome in the report.
 #[test]
 fn a_held_replacement_whose_supersession_is_rejected_is_reported_once() {
-    let newer = extraction(
-        &[legal_name("Globex", "Globex Inc", &["410"])],
-        &[evidence_item(
-            "410",
-            b"Globex Inc, says a newer source.",
-            1_775_001_600_000,
-        )],
-    );
     let replacing_known = KNOWN_TYPES.replace(
         "  property: legal_name\n",
         "  property: legal_name\n  replaces: true\n",
@@ -2399,7 +2431,13 @@ fn a_held_replacement_whose_supersession_is_rejected_is_reported_once() {
     for backend in BACKENDS {
         let world = World::new(backend, false);
         world.apply_verb(KNOWN_TYPES);
-        world.apply_verb(&newer);
+        // Left by an earlier release's unmarked add: an extraction now supersedes from it.
+        second_legal_name(
+            &world,
+            "Globex Inc",
+            b"Globex Inc, says a newer source.",
+            1_775_001_600_000,
+        );
         assert_eq!(
             active_legal_names(&world, "Globex"),
             ["\"Globex Corporation\"", "\"Globex Inc\""],

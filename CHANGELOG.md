@@ -6,6 +6,22 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- `ekr apply-extraction` and `ekr_sdk::extraction::apply` write the same state whatever the
+  batching (story:extraction-write-integrity, findings 1-4 of the EKR 0.0.42 review):
+  - an evidence item whose id the store already retains for another item (another source,
+    content hash, extractor, observed time or confidence) is refused as `duplicate-identity`
+    before any write; before, the new fact cited the retained item. The same item again is cited;
+  - each round of facts is validated against the revision the run last read or committed; when
+    another writer committed after it, the run reads the head and plans the remaining facts again,
+    so two concurrent imports of the same facts leave one assertion per claim, not two;
+  - a fact behind one put off to a later round, on the same claim or the same node and property,
+    waits too, so a batch keeps the document's order and writes what the facts one by one write;
+  - a replacement under a second alias of the store's node replaces the value an earlier fact set
+    under the first, instead of being refused as `replacement-without-active-assertion`;
+  - a `!Property` fact of a `cardinality: One` property not marked `replaces` supersedes the
+    active value of another object from its own valid time, so one value stays active; an equal
+    value stays beside it as a corroboration, and an older one is rejected
+    (`invalid-supersession`). Before, it added a second active value.
 - An application that depends on `ekr-sdk` by release tag builds it with the SDK's declared
   dependencies alone (story:sdk-standalone-build, finding 34 of the EKR 0.0.42 review). Its
   `cargo check` failed with `unresolved import serde_yaml_ng::observation`: `ekr-core` needs the

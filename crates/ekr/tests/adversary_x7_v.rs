@@ -189,6 +189,25 @@ impl World {
             })
             .collect();
         nodes.sort_by_key(ToString::to_string);
+        // A supersession names its replacement by id, which each store mints: name it by what
+        // it says.
+        let said: Vec<(String, String)> = graph["assertions"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(id, assertion)| {
+                (
+                    id.clone(),
+                    format!(
+                        "assertion of {} {} {}",
+                        renamed(&assertion["subject"], &names),
+                        renamed(&assertion["predicate"], &names),
+                        renamed(&assertion["object"], &names)
+                    ),
+                )
+            })
+            .collect();
+        names.extend(said);
         let mut assertions: Vec<Value> = graph["assertions"]
             .as_object()
             .unwrap()

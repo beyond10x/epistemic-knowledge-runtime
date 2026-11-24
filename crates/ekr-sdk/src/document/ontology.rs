@@ -473,6 +473,15 @@ impl Ontology {
         self.inherited(node_type, name).map(|property| property.id)
     }
 
+    /// Whether the node property `id` carries at most one value: its declaration says
+    /// `cardinality: One`. `false` for an id no node type declares.
+    pub(crate) fn single_valued(&self, id: PropertyId) -> bool {
+        self.node_types
+            .values()
+            .flat_map(|entry| entry.properties.values())
+            .any(|property| property.id == id && property.cardinality == Cardinality::One)
+    }
+
     /// The id of the property `name` of the edge type named `edge_type`.
     #[must_use]
     pub fn edge_property(&self, edge_type: &str, name: &str) -> Option<PropertyId> {

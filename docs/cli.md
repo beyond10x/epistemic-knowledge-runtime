@@ -424,8 +424,11 @@ fact it refuses — a code met in `facts[<index>]`, from `reference-without-iden
 `fact-evidence-unlisted` — is skipped instead: it is listed under `rejected` as `facts[<index>]`
 with the refusal `<code>: <name>`, nothing only it names (a named thing, an evidence item) is
 created or added, and the rest of the document applies. A refusal of the ontology, of an entity or
-of an evidence item still refuses the whole document. `--strict` refuses the whole document for a
-bad fact too, as the reader's first refusal in document order. Then, in order:
+of an evidence item still refuses the whole document; an evidence item whose id the store already
+retains for another item — another source, content hash or observed time — is one
+(`duplicate-identity`), since the store would cite the retained item for the document's facts. The
+same item again, as a document applied twice carries it, is cited. `--strict` refuses the whole
+document for a bad fact too, as the reader's first refusal in document order. Then, in order:
 
 1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
    (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
@@ -465,12 +468,22 @@ bad fact too, as the reader's first refusal in document order. Then, in order:
    refusal `replacement-without-active-assertion: facts[<index>]: …` — with or without `--strict`,
    since it depends on the store — and the rest of the document applies. A superseded assertion
    valid from later than the replacement is rejected by validation (`invalid-supersession`).
+   A replacement under another alias of the store's node than the earlier fact that set the value
+   used replaces that value too: earlier facts are matched by the node, not by the alias.
+   A `!Property` fact of a property declared `cardinality: One` and not marked `replaces` does the
+   same to every active assertion of its subject and property with another value; an active
+   assertion of the same value stays active beside it, as a corroboration.
    Facts are committed in rounds: a fact that depends on an earlier one — it repeats that fact's
    claim citing no evidence the earlier one does not, it is a relation whose edge the earlier one
-   proposes, or it is on the same subject and property where either replaces — is tried once that
-   one has committed or been rejected, so a fact is never planned on a change that did not commit,
-   and one repeating a rejected fact is tried and reported on its own. Any other corroboration of
-   a claim commits in the same round.
+   proposes, or it is on the same subject and property where either replaces or the property is
+   single-valued and their values differ — is tried once that one has committed or been
+   rejected, so a fact is never planned on a change that did not commit, and one repeating a
+   rejected fact is tried and reported on its own. A later fact of the same claim, or the same subject and property, waits
+   behind it, so one document writes what its facts applied one by one, in order, write. Any other
+   corroboration of a claim commits in the same round. Each round is validated against the
+   revision the verb last read or committed (`validate --against`); when another writer committed
+   after it, the commit is `Stale`, the verb reads the head again and plans the facts not yet
+   committed against it, so two writers of the same facts leave one assertion of each claim.
    A rejected transaction is split and submitted again, down to the one fact validation refuses.
    A fact is held, not asserted, when an assertion making its claim — the same subject,
    predicate and object — cites every evidence item the fact cites and holds from no later than
@@ -2868,7 +2881,7 @@ A code met in a fact, `facts[<index>]`, refuses that fact alone when
 | `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
 | `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
 | `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
-| `duplicate-identity` | two evidence items under one id |
+| `duplicate-identity` | two evidence items under one id: two of the document, or one of the document and another the store already retains under that id. The same item again, as a document applied twice carries it, is cited and not refused |
 | `extraction-evidence-kind-unsupported` | an evidence item whose `source` is neither a `!HumanStatement` nor a `!Url`, the two sources the kernel admits as evidence |
 | `evidence-payload-mismatch` | an evidence item whose `payload` does not hash to its `content_hash` (`ekr hash` prints the right one) |
 
