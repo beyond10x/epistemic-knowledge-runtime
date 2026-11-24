@@ -127,6 +127,33 @@ impl Browser {
 impl Drop for Browser {
     fn drop(&mut self) {
         self.stop();
+        drove();
+    }
+}
+
+/// The environment variable that names the file in which the test step counts the browser cases
+/// that drove a browser: each such case's process appends its id and its thread's name.
+pub(crate) const CASES: &str = "EKR_TEST_BROWSER_CASES";
+
+/// Notes in [`CASES`] that this case drove a browser. A case that skipped for want of one never
+/// holds a [`Browser`], so the step tells a run whose browser cases all skipped from one that ran.
+fn drove() {
+    use std::io::Write;
+    let Some(path) = std::env::var_os(CASES).filter(|path| !path.is_empty()) else {
+        return;
+    };
+    let line = format!(
+        "{} {}\n",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("-")
+    );
+    // one short write to a file opened for appending: lines of cases that run at once stay whole
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        file.write_all(line.as_bytes()).ok();
     }
 }
 
@@ -244,6 +271,48 @@ impl Context {
         )
         .ok();
         self.socket.close(None).ok();
+    }
+}
+
+/// Waits up to `seconds` for `expression` to be `true` in a case's page, and says whether it was.
+///
+/// The page checks `expression` itself every 50 ms and answers as soon as it holds, in one
+/// `Runtime.evaluate` that `evaluate` sends (with `params`) and whose reply it returns. A case
+/// that asked every 200 ms saw a page that had settled up to 200 ms late, and asked it five times
+/// a second over the protocol. A page that navigates while it checks loses the context the check
+/// ran in; the check starts again in the new one.
+pub(crate) fn wait_in_page(
+    mut evaluate: impl FnMut(Value) -> Value,
+    expression: &str,
+    seconds: u64,
+) -> bool {
+    let until = std::time::Instant::now() + Duration::from_secs(seconds);
+    loop {
+        let left = until
+            .saturating_duration_since(std::time::Instant::now())
+            .as_millis();
+        let reply = evaluate(json!({
+            "expression": format!(
+                "new Promise(done => {{ const until = performance.now() + {left}; \
+                 const check = () => {{ let held = false; \
+                 try {{ held = ({expression}) === true; }} catch {{}} \
+                 if (held || performance.now() >= until) done(held); \
+                 else setTimeout(check, 50); }}; check(); }})"
+            ),
+            "awaitPromise": true,
+            "returnByValue": true,
+        }));
+        if let Value::Bool(held) = reply["result"]["result"]["value"] {
+            return held;
+        }
+        assert_ne!(
+            reply["result"]["exceptionDetails"]["exception"]["className"], "SyntaxError",
+            "{expression}: {reply}"
+        );
+        if std::time::Instant::now() >= until {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(50));
     }
 }
 

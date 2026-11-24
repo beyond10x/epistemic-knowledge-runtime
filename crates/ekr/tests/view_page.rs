@@ -2895,7 +2895,7 @@ impl Driven {
                     self.report("the virtual-time budget ran out")
                 ));
             }
-            std::thread::sleep(Duration::from_millis(200));
+            self.pump(Duration::from_millis(200));
         }
     }
 
@@ -2987,38 +2987,77 @@ impl Driven {
             if reply["id"] == id {
                 return reply;
             }
-            if let Some(line) = log_line(&reply) {
-                self.log_push(line);
+            self.note(&reply);
+        }
+    }
+
+    /// Takes in one message that is not the reply a call waits for: an event, or the reply to an
+    /// answer a paused library request was given.
+    fn note(&mut self, reply: &Value) {
+        if let Some(line) = log_line(reply) {
+            self.log_push(line);
+        }
+        if reply.get("error").is_some() {
+            // the reply to an answer a paused library request was given
+            self.log_push(format!("protocol error: {reply}"));
+        }
+        let request = || {
+            reply["params"]["requestId"]
+                .as_str()
+                .unwrap_or("")
+                .to_owned()
+        };
+        match reply["method"].as_str() {
+            Some("Fetch.requestPaused") => self.answer_paused(&reply["params"]),
+            Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
+            Some("Network.requestWillBeSent") => {
+                self.in_flight.insert(request());
             }
-            if reply.get("error").is_some() {
-                // the reply to an answer a paused library request was given
-                self.log_push(format!("protocol error: {reply}"));
+            Some("Network.loadingFinished" | "Network.loadingFailed") => {
+                self.in_flight.remove(&request());
             }
-            let request = || {
-                reply["params"]["requestId"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_owned()
-            };
-            match reply["method"].as_str() {
-                Some("Fetch.requestPaused") => self.answer_paused(&reply["params"]),
-                Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
-                Some("Network.requestWillBeSent") => {
-                    self.in_flight.insert(request());
+            _ => {}
+        }
+        if reply["method"] == "Runtime.exceptionThrown"
+            || (reply["method"] == "Runtime.consoleAPICalled" && reply["params"]["type"] == "error")
+            || (reply["method"] == "Log.entryAdded" && reply["params"]["entry"]["level"] == "error")
+        {
+            self.errors.push(reply["params"].clone());
+        }
+    }
+
+    /// Takes in the messages the browser sends for up to `wait`, each as it arrives, and returns
+    /// early once the virtual-time budget has run out. A paused library request is answered when
+    /// it arrives: a page whose clock waits on a request it made waits no longer than that.
+    fn pump(&mut self, wait: Duration) {
+        let until = std::time::Instant::now() + wait;
+        while !self.budget_expired {
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            if self.reader.buffer().is_empty() {
+                // only the first byte of a message is waited for with a bound; the rest of it is
+                // read whole, as `receive` reads every message
+                self.reader.get_ref().set_read_timeout(Some(left)).unwrap();
+                let ready = self.reader.fill_buf().map(|bytes| !bytes.is_empty());
+                self.reader.get_ref().set_read_timeout(None).unwrap();
+                match ready {
+                    Ok(true) => {}
+                    Ok(false) => panic!("the browser closed the DevTools socket"),
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        return
+                    }
+                    Err(error) => panic!("the DevTools socket: {error}"),
                 }
-                Some("Network.loadingFinished" | "Network.loadingFailed") => {
-                    self.in_flight.remove(&request());
-                }
-                _ => {}
             }
-            if reply["method"] == "Runtime.exceptionThrown"
-                || (reply["method"] == "Runtime.consoleAPICalled"
-                    && reply["params"]["type"] == "error")
-                || (reply["method"] == "Log.entryAdded"
-                    && reply["params"]["entry"]["level"] == "error")
-            {
-                self.errors.push(reply["params"].clone());
-            }
+            let message: Value = serde_json::from_str(&self.receive()).unwrap();
+            self.note(&message);
         }
     }
 
@@ -3039,14 +3078,12 @@ impl Driven {
     /// of its own state and its console and network log go to the case's output, so a red run
     /// names what the page was doing (issue #81).
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
-        for _ in 0..seconds * 5 {
-            if self.eval(&format!(
-                "(() => {{ try {{ return {expression}; }} catch {{ return false; }} }})()"
-            )) == Value::Bool(true)
-            {
-                return true;
-            }
-            std::thread::sleep(Duration::from_millis(200));
+        if shared_browser::wait_in_page(
+            |params| self.call("Runtime.evaluate", params),
+            expression,
+            seconds,
+        ) {
+            return true;
         }
         eprintln!("{}", self.report(expression));
         false
@@ -3211,7 +3248,10 @@ fn the_3d_view_draws_every_shown_node_and_edge_in_a_few_calls_and_none_at_rest()
         driven.wait_for(&format!("{SETTLED} && !!window.__viewer.fg"), 90),
         "the 3D view settled"
     );
-    std::thread::sleep(Duration::from_secs(1));
+    assert!(
+        driven.wait_for("window.__viewer.resting3D", 30),
+        "the 3D loop came to rest"
+    );
     let frame = driven.eval(
         "(() => { const fg = __viewer.fg, g = __viewer.graph, gl = fg.renderer().getContext();
           const iso = document.getElementById('showIsolated').checked;
@@ -3569,7 +3609,14 @@ fn compact_mode_in(dim: &str, chosen: bool) {
         "the {dim} view settled on the node"
     );
     // the camera's flight to the chosen node has ended
-    std::thread::sleep(Duration::from_millis(1500));
+    assert!(
+        driven.wait_for("!window.__viewer.cameraMoving", 30),
+        "the camera's flight ended"
+    );
+    assert!(
+        !rests || driven.wait_for("window.__viewer.resting3D", 30),
+        "the 3D loop came to rest"
+    );
     let open = driven.eval(MEASURE);
     assert!(
         width(&open, "left") > 0.0
@@ -3605,7 +3652,10 @@ fn compact_mode_in(dim: &str, chosen: bool) {
         let woke = draws_since(&mut driven, before_key, 10_000);
         assert!(woke > 0, "the 3D loop drew the resize: {woke} calls");
         eprintln!("3d: {woke} draw calls after the key");
-        std::thread::sleep(Duration::from_millis(1000));
+        assert!(
+            driven.wait_for("window.__viewer.resting3D", 30),
+            "the 3D loop came to rest"
+        );
         assert_eq!(
             draws_within(&mut driven, 1000),
             0,
@@ -3689,7 +3739,10 @@ fn compact_mode_in(dim: &str, chosen: bool) {
         let woke = driven.eval("window.__calls").as_u64().unwrap() - at;
         assert!(woke > 0, "the 3D loop drew the restores: {woke} calls");
         eprintln!("3d: {woke} draw calls for the two restores");
-        std::thread::sleep(Duration::from_millis(1000));
+        assert!(
+            driven.wait_for("window.__viewer.resting3D", 30),
+            "the 3D loop came to rest"
+        );
         assert_eq!(
             draws_within(&mut driven, 1000),
             0,

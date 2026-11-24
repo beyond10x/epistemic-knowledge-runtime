@@ -80,6 +80,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
     beside the evidence it cites, each such entry with `attached_at`, the revision that attached
     it. Before, the judge saw only the evidence the fact was written with.
 
+### Changed
+
+- The viewer's 2D layout stops within 100 ms of 800 ms of calm: it reads the node positions every
+  100 ms and compares each with the one 400 ms before. Before, it compared them every 400 ms from
+  the layout's start, and so stopped up to 400 ms later.
+
 ## [0.0.43] — 2026-11-23
 
 ### Added

@@ -522,14 +522,12 @@ impl Driven {
     /// and the errors it reported go to the case's output, so a red run names what the page was
     /// doing.
     fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
-        for _ in 0..seconds * 5 {
-            if self.eval(&format!(
-                "(() => {{ try {{ return {expression}; }} catch {{ return false; }} }})()"
-            )) == Value::Bool(true)
-            {
-                return true;
-            }
-            std::thread::sleep(Duration::from_millis(200));
+        if shared_browser::wait_in_page(
+            |params| self.call("Runtime.evaluate", params),
+            expression,
+            seconds,
+        ) {
+            return true;
         }
         let state = self.eval(
             "(() => { const v = window.__viewer; return {

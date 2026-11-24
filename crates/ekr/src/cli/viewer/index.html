@@ -992,7 +992,7 @@ async function main() {
 
   // ---- 2D layout: ForceAtlas2 in a Web Worker (the supervisor builds the worker from a Blob) ----
   const {FA2Layout, layoutForceAtlas2} = graphologyLibrary;
-  let layout = null, layoutTimer = 0, layoutStart = 0, layoutBudget = 0, prevPos = null, calm = 0;
+  let layout = null, layoutTimer = 0, layoutStart = 0, layoutBudget = 0, track = [];
   let pending2D = false, first2D = true, pinned = false;
   const hud = $("hud");
   function makeLayout() {
@@ -1010,31 +1010,41 @@ async function main() {
     if (pinned) { graph.forEachNode((_, a) => { delete a.fixed; }); pinned = false; }
     if (!fg) hud.textContent = "";
   }
-  // runs until the mean node step falls under 0.15% of the drawing's extent, or the time budget ends
+  // every node's position at `t` ms into the layout, and the drawing's extent then
+  function positionsAt(t) {
+    const pos = new Float64Array(graph.order * 2);
+    let i = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    graph.forEachNode((_, a) => { pos[i++] = a.x; pos[i++] = a.y;
+      if (a.x < minX) minX = a.x; if (a.x > maxX) maxX = a.x; if (a.y < minY) minY = a.y; if (a.y > maxY) maxY = a.y; });
+    return {t, pos, extent: Math.hypot(maxX - minX, maxY - minY)};
+  }
+  // whether the mean node step from `a` to `b` is under 0.15% of the drawing's extent at `b`
+  function calmBetween(a, b) {
+    if (a.pos.length !== b.pos.length || !b.pos.length) return false;
+    let step = 0;
+    for (let j = 0; j < b.pos.length; j += 2) step += Math.hypot(b.pos[j] - a.pos[j], b.pos[j + 1] - a.pos[j + 1]);
+    return step / (b.pos.length / 2) < 0.0015 * b.extent;
+  }
+  // Runs until the mean node step falls under 0.15% of the drawing's extent in two 400 ms windows in a
+  // row, or the time budget ends. The positions are read every 100 ms from the start, so a layout that
+  // is calm stops within 100 ms of 800 ms of calm, not at the next of 400 ms ticks counted from the first.
   function runLayout(budgetMs) {
     if (!graph.order) return;
     if (!renderer) { pending2D = true; return; }
     if (!layout) makeLayout();
     clearInterval(layoutTimer);
-    layoutStart = performance.now(); layoutBudget = budgetMs; prevPos = null; calm = 0;
+    layoutStart = performance.now(); layoutBudget = budgetMs; track = [positionsAt(0)];
     layout.start();
     hud.textContent = "laying out… 0%";
     layoutTimer = setInterval(() => {
-      const t = performance.now() - layoutStart;
-      const pos = new Float64Array(graph.order * 2);
-      let i = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      graph.forEachNode((_, a) => { pos[i++] = a.x; pos[i++] = a.y;
-        if (a.x < minX) minX = a.x; if (a.x > maxX) maxX = a.x; if (a.y < minY) minY = a.y; if (a.y > maxY) maxY = a.y; });
-      if (prevPos && prevPos.length === pos.length) {
-        let step = 0;
-        for (let j = 0; j < pos.length; j += 2) step += Math.hypot(pos[j] - prevPos[j], pos[j + 1] - prevPos[j + 1]);
-        step /= graph.order;
-        calm = step < 0.0015 * Math.hypot(maxX - minX, maxY - minY) ? calm + 1 : 0;
-      }
-      prevPos = pos;
-      if (calm >= 2 || t > layoutBudget) { stopLayout(); return; }
-      hud.textContent = `laying out… ${Math.min(99, Math.round(100 * t / layoutBudget))}%`;
-    }, 400);
+      const now = positionsAt(performance.now() - layoutStart);
+      const older = t => track.findLast(s => s.t <= t);
+      const before = older(now.t - 400), first = before && older(before.t - 400);
+      if (first) track = track.slice(track.indexOf(first));
+      track.push(now);
+      if ((first && calmBetween(first, before) && calmBetween(before, now)) || now.t > layoutBudget) { stopLayout(); return; }
+      hud.textContent = `laying out… ${Math.min(99, Math.round(100 * now.t / layoutBudget))}%`;
+    }, 100);
   }
   const budget = () => Math.min(7000, 2500 + graph.order * 1.5);
   // first frame: types in pie sectors, hubs toward the middle of their sector (a sunflower spiral)
@@ -1110,7 +1120,7 @@ async function main() {
   const endOf = e => typeof e === "object" ? e : fgNodes.get(e);   // d3 swaps a link's ids for its node objects
 
   // the batches for the data 3d-force-graph lays out, sized to it and built again when it changes
-  let b3 = null, engine3D = false, awake3D = 0, phase3D = 0, drag3D = null;
+  let b3 = null, engine3D = false, awake3D = 0, phase3D = 0, drag3D = null, flight3D = null, paused3D = false;
   function build3D() {
     if (!b3) {
       // types past the eighth: wireframe (ring), faceted (bullseye), faceted wireframe (halo)
@@ -1240,14 +1250,14 @@ async function main() {
   const busy3D = () => engine3D || !!drag3D || !!b3?.flow.length || performance.now() < awake3D;
   function wake3D(ms = 250) {
     awake3D = Math.max(awake3D, performance.now() + ms);
-    if (fg && !covered3D()) fg.resumeAnimation();
+    if (fg && !covered3D()) { fg.resumeAnimation(); paused3D = false; }
   }
   // run by the renderer before each frame it draws
   function frame3D() {
     if (b3?.flow.length) phase3D = (phase3D + PARTICLE_SPEED) % 1;
     place3D();
     // after this frame has asked for the next one, which the pause then cancels
-    if (!busy3D()) queueMicrotask(() => { if (fg && !busy3D()) fg.pauseAnimation(); });
+    if (!busy3D()) queueMicrotask(() => { if (fg && !busy3D()) { fg.pauseAnimation(); paused3D = true; } });
   }
   function data3D() {
     // 2D positions (rescaled) seed nodes that have never been placed in 3D, so the first frame has a shape
@@ -1359,7 +1369,7 @@ async function main() {
   // edges, and a camera move otherwise. The controls wake the loop whenever they move the camera.
   function listen3D(canvas) {
     const controls = fg.controls();
-    controls.addEventListener("start", () => wake3D());
+    controls.addEventListener("start", () => { flight3D = null; wake3D(); });
     controls.addEventListener("change", () => wake3D());
     const at = ev => { const b = canvas.getBoundingClientRect(); return {x: ev.clientX - b.left, y: ev.clientY - b.top}; };
     let down = null, shown = null, queued = false, last = null;
@@ -1440,7 +1450,7 @@ async function main() {
       for (const n of fgNodes.values()) if (n.x != null) pos3D.set(n.id, {x: n.x, y: n.y, z: n.z});
       fg.pauseAnimation();
       if (b3) { drop3D(); b3 = null; }            // the scene's emptying disposes the shared geometries and materials
-      fg._destructor(); fg = null;
+      fg._destructor(); fg = null; flight3D = null; paused3D = false;
       fgNodes = new Map(); fgLinks = []; engine3D = false; drag3D = null;
     }
     const el = $("graph3d"); el.replaceChildren(); el.style.display = "none"; el.onmousemove = null;
@@ -1448,7 +1458,8 @@ async function main() {
   const fly3D = n => {
     if (!fg || !n || n.x == null) return;
     const d = Math.hypot(n.x, n.y, n.z) || 1, dist = 80 + 6 * n.a.size, r = 1 + dist / d;
-    fg.cameraPosition({x: n.x * r, y: n.y * r, z: n.z * r}, {x: n.x, y: n.y, z: n.z}, 900);
+    flight3D = {x: n.x * r, y: n.y * r, z: n.z * r};
+    fg.cameraPosition({...flight3D}, {x: n.x, y: n.y, z: n.z}, 900);
     wake3D(1000);
   };
   // the camera onto the drawn nodes `ids` names (all when null), aimed at their centre, as 3d-force-graph fits
@@ -1465,7 +1476,8 @@ async function main() {
     let vx = cam.position.x - c.x, vy = cam.position.y - c.y, vz = cam.position.z - c.z;
     const vl = Math.hypot(vx, vy, vz);
     if (vl < 1e-6) { vx = 0; vy = 0; vz = 1; } else { vx /= vl; vy /= vl; vz /= vl; }
-    fg.cameraPosition({x: c.x + vx * dist, y: c.y + vy * dist, z: c.z + vz * dist}, c, ms);
+    flight3D = {x: c.x + vx * dist, y: c.y + vy * dist, z: c.z + vz * dist};
+    fg.cameraPosition({...flight3D}, c, ms);
     wake3D(ms + 100);
   }
   window.addEventListener("resize", () => { if (fg) { const b = $("stage").getBoundingClientRect(); fg.width(b.width).height(b.height); wake3D(); } });
@@ -2603,7 +2615,7 @@ async function main() {
     if (view === "schema") renderSchema(true);
     if (view === "timeline") { hideTip(); tlRender(); } else tlHideTip();
     // the 3D loop rests while another view covers it
-    if (fg && was !== view) { if (view === "graph") wake3D(); else fg.pauseAnimation(); }
+    if (fg && was !== view) { if (view === "graph") wake3D(); else { fg.pauseAnimation(); paused3D = true; } }
   };
   $("views").addEventListener("click", ev => { const v = ev.target.closest("button")?.dataset.view; if (v) { setView(v); pushState(); } });
 
@@ -3625,7 +3637,15 @@ async function main() {
   if (dim === "3d") { $("graph").style.display = "none"; await create3D(); } else create2D();
   window.__viewer = {graph, get renderer() { return renderer; }, get camera() { return camera; }, get fg() { return fg; },
     get dim() { return dim; }, setDim, get doc() { return doc; }, goRevision,
-    get layoutRunning() { return !!layoutTimer || (!!fg && hud.textContent !== ""); }};
+    get layoutRunning() { return !!layoutTimer || (!!fg && hud.textContent !== ""); },
+    // the 3D loop has paused, and draws nothing until it is woken; the camera is still on its way to where a flight ends
+    get resting3D() { return !!fg && paused3D; },
+    get cameraMoving() {
+      if (!fg) return !!camera?.isAnimated();
+      if (!flight3D) return false;
+      const p = fg.camera().position, off = Math.hypot(p.x - flight3D.x, p.y - flight3D.y, p.z - flight3D.z);
+      return off > 1e-6 * (1 + Math.hypot(flight3D.x, flight3D.y, flight3D.z));
+    }};
   // a reload restores the navigation state; the first entry is replaced, not pushed
   if (location.hash.length > 1) await applyState(location.hash, true);
   history.replaceState(null, "", stateString());
