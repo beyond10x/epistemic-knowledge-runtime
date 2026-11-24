@@ -59,7 +59,7 @@ tasks:
   compile-fail-check:
     desc: the trybuild compile-fail cases .config/nextest.toml leaves out of the test step (each compiles crates)
     cmds:
-      - cargo nextest run --workspace --locked --ignore-default-filter -E 'not default()'
+      - cargo nextest run --workspace --locked --ignore-default-filter -E 'not default()' --test-threads 1
 
   doc-check:
     desc: rustdoc with broken intra-doc links as errors
