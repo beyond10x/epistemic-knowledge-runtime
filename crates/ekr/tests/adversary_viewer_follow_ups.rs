@@ -263,6 +263,8 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
 /// The address of the DevTools socket of the page of a browser of its own, listening on `port`.
 fn page_address(port: u16) -> String {
     let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    list.set_read_timeout(Some(shared_browser::REPLY_BOUND))
+        .unwrap();
     write!(
         list,
         "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
@@ -354,6 +356,9 @@ impl Driven {
              Sec-WebSocket-Version: 13\r\n\r\n"
         )
         .unwrap();
+        socket
+            .set_read_timeout(Some(shared_browser::REPLY_BOUND))
+            .unwrap();
         let mut reader = BufReader::new(socket.try_clone().unwrap());
         let mut status = String::new();
         reader.read_line(&mut status).unwrap();
@@ -399,24 +404,32 @@ impl Driven {
         self.socket.write_all(&frame).unwrap();
     }
 
-    fn receive(&mut self) -> String {
+    fn receive(&mut self, awaiting: &str) -> String {
         let mut message = Vec::new();
         loop {
             let mut head = [0_u8; 2];
-            self.reader.read_exact(&mut head).unwrap();
+            self.reader
+                .read_exact(&mut head)
+                .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
             let (last, opcode) = (head[0] & 0x80 != 0, head[0] & 0x0f);
             let mut length = u64::from(head[1] & 0x7f);
             if length == 126 {
                 let mut more = [0_u8; 2];
-                self.reader.read_exact(&mut more).unwrap();
+                self.reader
+                    .read_exact(&mut more)
+                    .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
                 length = u64::from(u16::from_be_bytes(more));
             } else if length == 127 {
                 let mut more = [0_u8; 8];
-                self.reader.read_exact(&mut more).unwrap();
+                self.reader
+                    .read_exact(&mut more)
+                    .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
                 length = u64::from_be_bytes(more);
             }
             let mut payload = vec![0_u8; usize::try_from(length).unwrap()];
-            self.reader.read_exact(&mut payload).unwrap();
+            self.reader
+                .read_exact(&mut payload)
+                .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
             match opcode {
                 0x8 => panic!("the browser closed the DevTools socket"),
                 0x9 => {
@@ -440,7 +453,7 @@ impl Driven {
         let id = self.next;
         self.send(&json!({"id": id, "method": method, "params": params}).to_string());
         loop {
-            let reply: Value = serde_json::from_str(&self.receive()).unwrap();
+            let reply: Value = serde_json::from_str(&self.receive(method)).unwrap();
             if reply["id"] == id {
                 return reply;
             }

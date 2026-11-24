@@ -25,8 +25,43 @@ use serde_json::{json, Value};
 /// The environment variable that names the step's browser, as `127.0.0.1:<port>`.
 pub(crate) const VARIABLE: &str = "EKR_TEST_BROWSER";
 
+/// How long a case waits for the browser to answer one protocol call, or to send the next message
+/// its harness reads: a call that gets no answer in this time fails the case, naming the call.
+pub(crate) const REPLY_BOUND: Duration = Duration::from_secs(20);
+
 /// How long one protocol call to the shared browser may take.
-const CALL_TIMEOUT: Duration = Duration::from_secs(60);
+const CALL_TIMEOUT: Duration = REPLY_BOUND;
+
+/// How long a browser case may wait in all, from its browser's launch or its first wait: under
+/// the test runner's 60 s kill (`.config/nextest.toml`), so that a case whose page never gets
+/// where it waits for fails naming that, rather than being killed with nothing said
+/// (`story:ekr-browser-case-hang`).
+pub(crate) const CASE_BOUND: Duration = Duration::from_secs(45);
+
+thread_local! {
+    /// When the case on this thread launched its browser or first waited; each case runs on a
+    /// thread of its own.
+    static CASE_START: std::cell::Cell<Option<std::time::Instant>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Fails the case whose harness read nothing from the browser's DevTools socket within
+/// [`REPLY_BOUND`] while it waited for `awaiting` (a call's method, or the rest of a message).
+pub(crate) fn unanswered(awaiting: &str, error: &std::io::Error) -> ! {
+    panic!(
+        "{awaiting}: the browser's DevTools socket sent nothing within {REPLY_BOUND:?} ({error})"
+    )
+}
+
+/// The instant by which the case on this thread must be done waiting: [`CASE_BOUND`] after its
+/// browser's launch or its first wait.
+pub(crate) fn case_deadline() -> std::time::Instant {
+    CASE_START.with(|start| {
+        let first = start.get().unwrap_or_else(std::time::Instant::now);
+        start.set(Some(first));
+        first + CASE_BOUND
+    })
+}
 
 /// A case's browser: a process of its own, or a context in the step's browser.
 pub(crate) enum Browser {
@@ -47,6 +82,7 @@ pub(crate) struct Context {
 /// fresh context of the step's browser when [`VARIABLE`] names one, else the process `own` starts.
 /// `own` is the case's launch as it stands; it runs only when there is no shared browser.
 pub(crate) fn launch(size: Option<(u32, u32)>, own: impl FnOnce() -> Child) -> Browser {
+    case_deadline();
     match shared_address() {
         Some(address) => Browser::Shared(Box::new(Context::open(&address, size))),
         None => Browser::Own(own()),
@@ -315,15 +351,39 @@ impl Context {
 /// that asked every 200 ms saw a page that had settled up to 200 ms late, and asked it five times
 /// a second over the protocol. A page that navigates while it checks loses the context the check
 /// ran in; the check starts again in the new one.
+///
+/// The page is asked for at most [`WAIT_SLICE`] at a time, so a page whose own clock stops
+/// leaves the reply waited for no longer than a protocol call's bound. No wait runs past the
+/// case's [`case_deadline`]; one cut short by it says so on the case's error output.
 pub(crate) fn wait_in_page(
     mut evaluate: impl FnMut(Value) -> Value,
     expression: &str,
     seconds: u64,
 ) -> bool {
-    let until = std::time::Instant::now() + Duration::from_secs(seconds);
+    let asked = std::time::Instant::now() + Duration::from_secs(seconds);
+    let until = asked.min(case_deadline());
+    let held = wait_until(&mut evaluate, expression, until);
+    if !held && until < asked {
+        eprintln!(
+            "waiting for {expression}: the case's bound of {CASE_BOUND:?} ended the wait before \
+             its {seconds} s"
+        );
+    }
+    held
+}
+
+/// The longest one in-page check of [`wait_in_page`] runs before it answers.
+const WAIT_SLICE: Duration = Duration::from_secs(5);
+
+fn wait_until(
+    evaluate: &mut impl FnMut(Value) -> Value,
+    expression: &str,
+    until: std::time::Instant,
+) -> bool {
     loop {
         let left = until
             .saturating_duration_since(std::time::Instant::now())
+            .min(WAIT_SLICE)
             .as_millis();
         let reply = evaluate(json!({
             "expression": format!(
@@ -336,9 +396,11 @@ pub(crate) fn wait_in_page(
             "awaitPromise": true,
             "returnByValue": true,
         }));
-        if let Value::Bool(held) = reply["result"]["result"]["value"] {
-            return held;
-        }
+        let answered = match reply["result"]["result"]["value"] {
+            Value::Bool(true) => return true,
+            Value::Bool(false) => true,
+            _ => false,
+        };
         assert_ne!(
             reply["result"]["exceptionDetails"]["exception"]["className"], "SyntaxError",
             "{expression}: {reply}"
@@ -346,7 +408,9 @@ pub(crate) fn wait_in_page(
         if std::time::Instant::now() >= until {
             return false;
         }
-        std::thread::sleep(Duration::from_millis(50));
+        if !answered {
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 }
 
@@ -380,3 +444,53 @@ fn http_get(port: u16, path: &str) -> Value {
     reader.read_exact(&mut body).unwrap();
     serde_json::from_slice(&body).unwrap_or(Value::Null)
 }
+
+/// A script a harness gives every page it runs under virtual time, before the page loads
+/// (`Page.addScriptToEvaluateOnNewDocument`): a classic Web Worker's `terminate()` takes effect
+/// once the worker has started, not before.
+///
+/// Headless Chromium holds a page's virtual clock while a worker the page created starts, and a
+/// worker terminated before it has started now and then never lets go: the clock stands for good
+/// with nothing in flight (`story:ekr-browser-case-hang`). The page's 2D layout spawns its
+/// ForceAtlas2 worker each time a layout starts, and a streamed expansion stops and starts the
+/// layout batch by batch, so a worker is often terminated at the virtual instant it was made.
+/// Measured with 4 to 8 cases at a time on 4 CPUs: 1 to 5 % of the runs of
+/// `adversary_page_stream_1::store_text_...` stood still, each at the instant a worker was made
+/// and terminated, and the whole page made no frame; with `terminate()` a no-op, or with this
+/// guard, none of 880 runs did. A worker's first statement here posts a mark the guard takes in;
+/// until it has, a `terminate()` is held.
+pub(crate) const WORKER_GUARD: &str = r#"(() => {
+  const Native = window.Worker;
+  if (!Native) return;
+  const revoke = URL.revokeObjectURL.bind(URL), loading = new Map(), MARK = "ekr-worker-started";
+  // a script address a starting worker still has to load is revoked once every such worker has
+  URL.revokeObjectURL = url => { if (loading.has(url)) loading.get(url).revoked = true; else revoke(url); };
+  const Guarded = function Worker(url, options) {
+    if (options && options.type === "module") return new Native(url, options);
+    const target = new URL(url, location.href).href;
+    const boot = URL.createObjectURL(new Blob(
+      ["postMessage(" + JSON.stringify(MARK) + "); importScripts(" + JSON.stringify(target) + ");"],
+      {type: "text/javascript"}));
+    const entry = loading.get(target) || {starting: 0, revoked: false};
+    entry.starting += 1;
+    loading.set(target, entry);
+    const worker = new Native(boot, options), end = Native.prototype.terminate.bind(worker);
+    let started = false, ending = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      revoke(boot);
+      entry.starting -= 1;
+      if (!entry.starting) { loading.delete(target); if (entry.revoked) revoke(target); }
+      if (ending) end();
+    };
+    worker.addEventListener("message", event => {
+      if (!started && event.data === MARK) { event.stopImmediatePropagation(); start(); }
+    });
+    worker.addEventListener("error", start);
+    worker.terminate = () => { if (started) end(); else ending = true; };
+    return worker;
+  };
+  Guarded.prototype = Native.prototype;
+  window.Worker = Guarded;
+})();"#;

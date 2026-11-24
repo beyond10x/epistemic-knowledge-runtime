@@ -156,6 +156,12 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   in the page (`shared_browser::wait_in_page`), and the page says when its layout, its camera and
   its 3D loop are done (`__viewer.layoutRunning`, `cameraMoving`, `resting3D`). A fixed wait is
   left only where a case checks that nothing happens within it.
+- **A browser case ends in seconds or fails naming what it waited for.** Every wait of a browser
+  harness ends by the case's bound, 45 s from its browser's launch (`shared_browser::case_deadline`),
+  and every protocol read by 20 s (`REPLY_BOUND`); either failure names the call, the condition or
+  where the page's virtual clock stood, before the runner's 60 s kill. A page run under virtual
+  time gets `shared_browser::WORKER_GUARD`: Chromium left the clock standing for good when the
+  layout's worker was terminated before it started (CI run 45394513513 waited 60 s on one).
 - **A seeded store is made once.** A browser case's fixture store is seeded through the `ekr`
   binary once per build and kept under `target/<profile>/ekr-test-stores/<digest>`; every case that
   asks for the same store copies it (`crates/ekr/tests/support/seeded_store.rs`; the digest covers

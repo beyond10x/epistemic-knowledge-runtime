@@ -152,13 +152,18 @@ impl Server {
     fn get(&self, path: &str) -> Value {
         let address = self.address();
         let mut stream = TcpStream::connect(&address).unwrap();
+        stream
+            .set_read_timeout(Some(shared_browser::REPLY_BOUND))
+            .unwrap();
         write!(
             stream,
             "GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
         )
         .unwrap();
         let mut raw = Vec::new();
-        stream.read_to_end(&mut raw).unwrap();
+        stream
+            .read_to_end(&mut raw)
+            .unwrap_or_else(|error| panic!("ekr view's answer to GET {path}: {error}"));
         let end = find(&raw, b"\r\n\r\n").unwrap();
         serde_json::from_slice(&raw[end + 4..]).unwrap()
     }
@@ -674,19 +679,16 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
 }
 
 /// The DOM after `budget` ms of virtual time, as `--dump-dom --virtual-time-budget` writes it.
-/// Headless Chromium's virtual time now and then stalls with nothing loading and nothing running
-/// (seen twice in about twenty runs of these cases, and not tied to any one of them), so a stalled
-/// run is ended and tried again, up to [`DUMP_ATTEMPTS`] runs.
 ///
-/// A stall is told by the page's own state, not by how long the run takes (issue #81). The run is
-/// driven over the DevTools protocol under the same virtual-time policy `--virtual-time-budget`
-/// sets, and the page's clock (`performance.now()`, which reads virtual time) is watched: a run is
-/// stalled once that clock has not moved for [`STALL_WINDOW`] while no request is in flight at the
-/// front server. A slow run on a loaded machine (a CI runner, a gate at load 30–45) keeps moving
-/// its clock and is waited for up to [`DUMP_CEILING`]. The two-minute kill this replaces cut such
-/// runs short, and on 2026-10-06 a CI run failed on two of them in a row. Neither "no CPU" nor a
-/// CPU rate tells the two apart: measured that day, a stalled browser's processes used about 25
-/// clock ticks in 30 s, and a working one on a machine under `stress` as few as 7.
+/// The run is driven over the DevTools protocol under the same virtual-time policy
+/// `--virtual-time-budget` sets, and the page's clock (`performance.now()`, which reads virtual
+/// time) is watched (issue #81). The page is given [`shared_browser::WORKER_GUARD`]: a Web Worker
+/// terminated before it had started held the clock for good now and then, the stall these runs
+/// used to wait out (`story:ekr-browser-case-hang`). A run whose clock still stands for
+/// [`STALL_WINDOW`] with no request in flight at the front server is ended and tried again, up to
+/// [`DUMP_ATTEMPTS`] runs; a slow run on a loaded machine keeps moving its clock. No run goes past
+/// the case's bound ([`shared_browser::case_deadline`]): one that would fails the case, naming
+/// where the clock stood and what the page had requested.
 fn dump(browser: &Path, url: &str, budget: u32) -> String {
     dump_in(browser, url, budget, false)
 }
@@ -701,9 +703,14 @@ fn dump_composited(browser: &Path, url: &str, budget: u32) -> String {
 }
 
 fn dump_in(browser: &Path, url: &str, budget: u32, own: bool) -> String {
+    dump_until(browser, url, budget, own, shared_browser::case_deadline())
+}
+
+/// [`dump_in`], every run ended by `deadline`.
+fn dump_until(browser: &Path, url: &str, budget: u32, own: bool, deadline: Instant) -> String {
     let _one = one_browser();
     for _ in 0..DUMP_ATTEMPTS {
-        if let Some(dom) = dump_once(browser, url, budget, own) {
+        if let Some(dom) = dump_once(browser, url, budget, own, deadline) {
             return dom;
         }
     }
@@ -714,9 +721,7 @@ fn dump_in(browser: &Path, url: &str, budget: u32, own: bool) -> String {
 const DUMP_ATTEMPTS: usize = 3;
 /// How long the page's virtual clock may stand still, with nothing in flight, before the run is
 /// taken for stalled.
-const STALL_WINDOW: Duration = Duration::from_secs(30);
-/// The longest one run may take while its clock keeps moving.
-const DUMP_CEILING: Duration = Duration::from_secs(600);
+const STALL_WINDOW: Duration = Duration::from_secs(20);
 
 /// One DevTools protocol connection to a page, the events it has seen kept in order.
 struct Cdp {
@@ -827,7 +832,7 @@ impl Cdp {
             let message = self.socket.read();
             self.socket
                 .get_ref()
-                .set_read_timeout(Some(Duration::from_secs(60)))
+                .set_read_timeout(Some(shared_browser::REPLY_BOUND))
                 .unwrap();
             let message = match message {
                 Ok(message) => message,
@@ -864,7 +869,7 @@ fn page_socket(port: u16) -> String {
     let start = Instant::now();
     loop {
         let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
-        list.set_read_timeout(Some(Duration::from_secs(30)))
+        list.set_read_timeout(Some(shared_browser::REPLY_BOUND))
             .unwrap();
         write!(
             list,
@@ -899,7 +904,7 @@ fn page_socket(port: u16) -> String {
             return address.to_owned();
         }
         assert!(
-            start.elapsed() < Duration::from_secs(60),
+            start.elapsed() < shared_browser::REPLY_BOUND,
             "the browser listed no page target: {targets}"
         );
         std::thread::sleep(Duration::from_millis(50));
@@ -919,7 +924,13 @@ fn in_flight(from: usize) -> usize {
     taken.saturating_sub(traffic.len() - from - taken)
 }
 
-fn dump_once(browser: &Path, url: &str, budget: u32, own: bool) -> Option<String> {
+fn dump_once(
+    browser: &Path,
+    url: &str,
+    budget: u32,
+    own: bool,
+    deadline: Instant,
+) -> Option<String> {
     let profile = tempfile::tempdir().unwrap();
     let from = TRAFFIC
         .lock()
@@ -959,7 +970,8 @@ fn dump_once(browser: &Path, url: &str, budget: u32, own: bool) -> Option<String
     let (port, page) = child.devtools();
     let address = page.unwrap_or_else(|| page_socket(port));
     let tcp = TcpStream::connect(("127.0.0.1", port)).unwrap();
-    tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
+    tcp.set_read_timeout(Some(shared_browser::REPLY_BOUND))
+        .unwrap();
     let (socket, _) = tungstenite::client(address, tcp).unwrap();
     let mut cdp = Cdp {
         socket,
@@ -973,6 +985,11 @@ fn dump_once(browser: &Path, url: &str, budget: u32, own: bool) -> Option<String
     let ran = (|| -> Result<Result<String, String>, String> {
         cdp.call("Runtime.enable", serde_json::json!({}))?;
         cdp.call("Log.enable", serde_json::json!({}))?;
+        cdp.call("Page.enable", serde_json::json!({}))?;
+        cdp.call(
+            "Page.addScriptToEvaluateOnNewDocument",
+            serde_json::json!({ "source": shared_browser::WORKER_GUARD }),
+        )?;
         viewer_libraries::serve(|method, params| cdp.call(method, params))?;
         cdp.call("Page.navigate", serde_json::json!({ "url": url }))?;
         cdp.call(
@@ -1002,13 +1019,17 @@ fn dump_once(browser: &Path, url: &str, budget: u32, own: bool) -> Option<String
                     start.elapsed()
                 )));
             }
-            if start.elapsed() >= DUMP_CEILING {
-                return Ok(Err(format!(
-                    "the page's virtual clock was at {clock} ms of {budget} after {DUMP_CEILING:?}"
-                )));
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "the page's virtual clock stood at {clock} ms of the {budget} ms the run waits for when the case's bound ended the run, {:?} into it, with {} request(s) in flight at the front server",
+                    start.elapsed(),
+                    in_flight(from)
+                ));
             }
             cdp.pump(
-                Duration::from_millis(200),
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(Duration::from_millis(200)),
                 "Emulation.virtualTimeBudgetExpired",
             )?;
         }
@@ -1654,4 +1675,49 @@ fn a_stream_cut_before_its_end_line_is_failed_and_keeps_what_arrived() {
     let out = probed(&dump(&browser, &front.url, 20000));
     assert!(out["stream"].as_str().unwrap().contains("failed"), "{out}");
     assert_eq!(out["drawn"], serde_json::json!([true, true]), "{out}");
+}
+
+// ---- the harness: a run that never settles -----------------------------------------------------
+
+/// A page whose virtual clock never reaches the run's budget fails the case by the case's bound,
+/// naming where the clock stood and the request it waited on, rather than running into the test
+/// runner's 60 s kill with nothing said (`story:ekr-browser-case-hang`). The page asks for an
+/// address the front server takes and never answers, so its clock waits for good with a request
+/// in flight; the bound here is a few seconds, in place of the case's 45.
+#[test]
+fn a_run_whose_page_never_settles_fails_by_its_bound_naming_what_it_waited_for() {
+    let browser = need_browser!();
+    let seeded = two_revisions();
+    let server = seeded.serve();
+    let answer: Answer = Box::new(|target, _stream| {
+        if !target.starts_with("/never") {
+            return false;
+        }
+        std::thread::sleep(Duration::from_secs(30));
+        true
+    });
+    let front = Front::start(
+        &server,
+        r#"await fetch("/never"); out.answered = true;"#,
+        None,
+        Some(answer),
+    );
+    let bound = Duration::from_secs(5);
+    let started = Instant::now();
+    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        dump_until(&browser, &front.url, 8000, false, started + bound)
+    }))
+    .expect_err("a page whose request is never answered never reaches its budget");
+    let message = failed.downcast_ref::<String>().cloned().unwrap_or_default();
+    assert!(
+        started.elapsed() < bound + shared_browser::REPLY_BOUND,
+        "the run ended {:?} after it started, past its bound of {bound:?}",
+        started.elapsed()
+    );
+    assert!(
+        message.contains("the case's bound ended the run")
+            && message.contains("with 1 request(s) in flight at the front server")
+            && message.contains("request  /never"),
+        "{message}"
+    );
 }

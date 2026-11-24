@@ -1110,6 +1110,7 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
             .unwrap()
     });
     let mut driven = Driven::connect(child, profile, one, viewer_libraries::fixture);
+    driven.guard_workers();
     viewer_libraries::serve(|method, params| driven.call(method, params));
     driven.call("Page.navigate", serde_json::json!({ "url": url }));
     driven.settle(SETTLE_BUDGET)?;
@@ -2549,6 +2550,7 @@ fn shoot(browser: &Path, url: &str, file: &Path, millis: u32, real: bool) {
             .unwrap(),
     );
     let mut driven = Driven::connect(child, profile, one, viewer_libraries::fixture);
+    driven.guard_workers();
     viewer_libraries::serve(|method, params| driven.call(method, params));
     driven.call("Page.navigate", serde_json::json!({ "url": url }));
     if real {
@@ -2713,10 +2715,7 @@ struct Driven {
 
 /// How long the page's virtual clock may stand still, with no request in flight, before
 /// [`Driven::settle`] takes the run for stalled.
-const STALL_WINDOW: Duration = Duration::from_secs(30);
-
-/// The longest [`Driven::settle`] waits while the page's virtual clock keeps moving.
-const SETTLE_CEILING: Duration = Duration::from_secs(600);
+const STALL_WINDOW: Duration = Duration::from_secs(20);
 
 /// The bytes a harness serves for a library address, or `None` to fail the request.
 type Served = fn(&str) -> Option<Vec<u8>>;
@@ -2901,6 +2900,9 @@ impl Driven {
              Sec-WebSocket-Version: 13\r\n\r\n"
         )
         .unwrap();
+        socket
+            .set_read_timeout(Some(shared_browser::REPLY_BOUND))
+            .unwrap();
         let mut reader = BufReader::new(socket.try_clone().unwrap());
         let mut status = String::new();
         reader.read_line(&mut status).unwrap();
@@ -2932,18 +2934,30 @@ impl Driven {
         driven
     }
 
+    /// Gives the page [`shared_browser::WORKER_GUARD`] before it loads: a page run under virtual
+    /// time ([`Driven::settle`]) whose worker was terminated before it started could stand still for
+    /// good (`story:ekr-browser-case-hang`).
+    fn guard_workers(&mut self) {
+        self.call("Page.enable", serde_json::json!({}));
+        self.call(
+            "Page.addScriptToEvaluateOnNewDocument",
+            serde_json::json!({ "source": shared_browser::WORKER_GUARD }),
+        );
+    }
+
     /// Runs `budget` ms of virtual time under the policy `--virtual-time-budget` sets: the page's
     /// clock waits while a request is in flight. Returns once the budget has run out, or says why
     /// the run is taken for stalled: the page's clock (`performance.now()`, which reads virtual
-    /// time) stood still for [`STALL_WINDOW`] with no request in flight, or kept moving past
-    /// [`SETTLE_CEILING`]. A slow run on a loaded machine keeps moving its clock.
+    /// time) stood still for [`STALL_WINDOW`] with no request in flight. A slow run on a loaded
+    /// machine keeps moving its clock. A run the case's bound ([`shared_browser::case_deadline`])
+    /// ends fails the case, naming where the clock stood.
     fn settle(&mut self, budget: u32) -> Result<(), String> {
         self.budget_expired = false;
         self.call(
             "Emulation.setVirtualTimePolicy",
             serde_json::json!({"policy": "pauseIfNetworkFetchesPending", "budget": budget}),
         );
-        let start = std::time::Instant::now();
+        let (start, deadline) = (std::time::Instant::now(), shared_browser::case_deadline());
         let (mut clock, mut moved) = (Value::Null, std::time::Instant::now());
         loop {
             if self.budget_expired {
@@ -2960,13 +2974,21 @@ impl Driven {
                     self.report("the virtual-time budget ran out")
                 ));
             }
-            if start.elapsed() >= SETTLE_CEILING {
-                return Err(format!(
-                    "the page's virtual clock was at {clock} ms of {budget} after {SETTLE_CEILING:?}\n{}",
-                    self.report("the virtual-time budget ran out")
-                ));
+            if std::time::Instant::now() >= deadline {
+                let (flying, report) = (
+                    self.in_flight.len(),
+                    self.report("the virtual-time budget ran out"),
+                );
+                panic!(
+                    "the page's virtual clock stood at {clock} ms of {budget} when the case's bound ended the run, {:?} into it, with {flying} request(s) in flight\n{report}",
+                    start.elapsed()
+                );
             }
-            self.pump(Duration::from_millis(200));
+            self.pump(
+                deadline
+                    .saturating_duration_since(std::time::Instant::now())
+                    .min(Duration::from_millis(200)),
+            );
         }
     }
 
@@ -3013,24 +3035,32 @@ impl Driven {
     }
 
     /// The next whole message: frames joined up to the final one, pings answered.
-    fn receive(&mut self) -> String {
+    fn receive(&mut self, awaiting: &str) -> String {
         let mut message = Vec::new();
         loop {
             let mut head = [0_u8; 2];
-            self.reader.read_exact(&mut head).unwrap();
+            self.reader
+                .read_exact(&mut head)
+                .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
             let (last, opcode) = (head[0] & 0x80 != 0, head[0] & 0x0f);
             let mut length = u64::from(head[1] & 0x7f);
             if length == 126 {
                 let mut more = [0_u8; 2];
-                self.reader.read_exact(&mut more).unwrap();
+                self.reader
+                    .read_exact(&mut more)
+                    .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
                 length = u64::from(u16::from_be_bytes(more));
             } else if length == 127 {
                 let mut more = [0_u8; 8];
-                self.reader.read_exact(&mut more).unwrap();
+                self.reader
+                    .read_exact(&mut more)
+                    .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
                 length = u64::from_be_bytes(more);
             }
             let mut payload = vec![0_u8; usize::try_from(length).unwrap()];
-            self.reader.read_exact(&mut payload).unwrap();
+            self.reader
+                .read_exact(&mut payload)
+                .unwrap_or_else(|error| shared_browser::unanswered(awaiting, &error));
             match opcode {
                 0x8 => panic!("the browser closed the DevTools socket"),
                 0x9 => {
@@ -3054,7 +3084,7 @@ impl Driven {
         let id = self.next;
         self.send(&serde_json::json!({"id": id, "method": method, "params": params}).to_string());
         loop {
-            let reply: Value = serde_json::from_str(&self.receive()).unwrap();
+            let reply: Value = serde_json::from_str(&self.receive(method)).unwrap();
             if reply["id"] == id {
                 return reply;
             }
@@ -3081,7 +3111,13 @@ impl Driven {
         match reply["method"].as_str() {
             Some("Fetch.requestPaused") => self.answer_paused(&reply["params"]),
             Some("Emulation.virtualTimeBudgetExpired") => self.budget_expired = true,
-            Some("Network.requestWillBeSent") => {
+            // a worker's script read from a `blob:` address is never reported finished
+            Some("Network.requestWillBeSent")
+                if !reply["params"]["request"]["url"]
+                    .as_str()
+                    .unwrap_or("")
+                    .starts_with("blob:") =>
+            {
                 self.in_flight.insert(request());
             }
             Some("Network.loadingFinished" | "Network.loadingFailed") => {
@@ -3112,7 +3148,10 @@ impl Driven {
                 // read whole, as `receive` reads every message
                 self.reader.get_ref().set_read_timeout(Some(left)).unwrap();
                 let ready = self.reader.fill_buf().map(|bytes| !bytes.is_empty());
-                self.reader.get_ref().set_read_timeout(None).unwrap();
+                self.reader
+                    .get_ref()
+                    .set_read_timeout(Some(shared_browser::REPLY_BOUND))
+                    .unwrap();
                 match ready {
                     Ok(true) => {}
                     Ok(false) => panic!("the browser closed the DevTools socket"),
@@ -3127,7 +3166,8 @@ impl Driven {
                     Err(error) => panic!("the DevTools socket: {error}"),
                 }
             }
-            let message: Value = serde_json::from_str(&self.receive()).unwrap();
+            let message: Value =
+                serde_json::from_str(&self.receive("the rest of a message")).unwrap();
             self.note(&message);
         }
     }
