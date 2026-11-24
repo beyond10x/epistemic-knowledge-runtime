@@ -293,9 +293,9 @@ fn test_builds_carry_no_debug_info_and_the_runner_holds_the_budgets() {
     );
     let manifest = read(&root.join("Cargo.toml"));
     assert!(
-        manifest.contains("[profile.test]\nopt-level = 1\n"),
-        "test builds compile the workspace at opt-level 1: the checkpoint cases replay a history at \
-         every step and ran past 60 s at opt-level 0"
+        manifest.contains("[profile.test]\nopt-level = 2\n"),
+        "test builds compile the workspace at opt-level 2: the checkpoint, conformance and view \
+         cases are bound by the CPU, and ran past 60 s at opt-level 0"
     );
     let nextest = read(&root.join(".config/nextest.toml"));
     assert!(
