@@ -368,7 +368,7 @@ fn every_compile_fail_case_runs_outside_the_test_step() {
     );
     assert!(
         taskfile.contains(
-            "      - cargo nextest run --workspace --locked --ignore-default-filter -E 'not default()'\n"
+            "      - cargo nextest run --workspace --locked --ignore-default-filter -E 'not default()' --test-threads 1\n"
         ),
         "task compile-fail-check runs what the default filter leaves out"
     );
