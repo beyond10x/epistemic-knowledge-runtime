@@ -184,7 +184,9 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   targets; the test step does not build them. `task compile-fail-check` runs the four trybuild
   compile-fail cases (one in `ekr-kernel`, three in `ekr-graph`; 23-38 s each on CI, since each
   compiles crates), which `.config/nextest.toml`'s `default-filter` leaves out of the step;
-  `gate_layout` fails on a trybuild case the filter does not name.
+  `gate_layout` fails on a trybuild case the filter does not name. It runs them one at a time
+  (`--test-threads 1`): four at once on a 4-CPU runner took 30-52 s each, and two ran past 60 s on
+  a slow runner (CI run 45327905624).
 
 ### One integration-test binary per crate
 
