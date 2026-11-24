@@ -9,8 +9,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use ekr::conformance::{KernelTarget, Provider};
+use ekr::conformance::{KernelTarget, Lineages, Provider};
 use ess_conformance::report::Status;
 use ess_conformance::target::{
     ConformanceTarget, EventObservationRequest, ExternalOutcomeControl, ImplementationIdentity,
@@ -751,12 +752,14 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
         ),
     ];
     // One clean run and one per defect, each over its own provider roots, on their own threads.
+    // They share one set of lineages: each seed and revision 1 is established once between them.
+    let lineages = Lineages::new(&work.path().join("lineages"));
     let (clean, faulted) = std::thread::scope(|scope| {
-        let (admitted, work) = (&admitted, work.path());
+        let (admitted, work, lineages) = (&admitted, work.path(), &lineages);
         let clean = scope.spawn(move || {
             statuses(&execute(
                 admitted,
-                &kernel_target(Provider::File, &work.join("clean")),
+                &kernel_target(Provider::File, &work.join("clean")).sharing(Arc::clone(lineages)),
             ))
         });
         let faulted: Vec<_> = matrix
@@ -764,7 +767,8 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
             .map(|(defect, _)| {
                 let defect = *defect;
                 scope.spawn(move || {
-                    let inner = kernel_target(Provider::File, &work.join(format!("{defect:?}")));
+                    let inner = kernel_target(Provider::File, &work.join(format!("{defect:?}")))
+                        .sharing(Arc::clone(lineages));
                     statuses(&execute(
                         admitted,
                         &Defective {
