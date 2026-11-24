@@ -13,8 +13,10 @@
 // Six test files include this file and each uses a part of it.
 #![allow(dead_code)]
 
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
+use std::path::PathBuf;
 use std::process::Child;
 use std::time::Duration;
 
@@ -49,6 +51,38 @@ pub(crate) fn launch(size: Option<(u32, u32)>, own: impl FnOnce() -> Child) -> B
         Some(address) => Browser::Shared(Box::new(Context::open(&address, size))),
         None => Browser::Own(own()),
     }
+}
+
+/// The variable that requires a browser of every browser case, as the forge's `CI` does.
+pub(crate) const REQUIRE: &str = "EKR_REQUIRE_BROWSER";
+
+/// The headless Chromium a case found, passed through; `None`, with which the case skips, only
+/// where no browser is required. On the forge (`CI` set) or with [`REQUIRE`] set, a case that found
+/// none fails here rather than passing without starting one (finding 39 of the EKR 0.0.42 review).
+pub(crate) fn required(found: Option<PathBuf>) -> Option<PathBuf> {
+    required_under(
+        found,
+        std::env::var_os("CI").as_deref(),
+        std::env::var_os(REQUIRE).as_deref(),
+    )
+}
+
+/// [`required`] with the values of `CI` and [`REQUIRE`] given; a value that is empty, `0` or
+/// `false` does not require.
+pub(crate) fn required_under(
+    found: Option<PathBuf>,
+    ci: Option<&OsStr>,
+    require: Option<&OsStr>,
+) -> Option<PathBuf> {
+    let set = |value: Option<&OsStr>| {
+        value.is_some_and(|value| !value.is_empty() && value != "0" && value != "false")
+    };
+    assert!(
+        found.is_some() || !(set(ci) || set(require)),
+        "no headless Chromium, and one is required here (CI or {REQUIRE} is set): set \
+         EKR_VIEW_BROWSER to one"
+    );
+    found
 }
 
 /// The shared browser's address, when the step started one.

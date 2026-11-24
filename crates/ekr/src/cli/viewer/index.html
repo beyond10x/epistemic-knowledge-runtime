@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'">
-<script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js" integrity="sha384-YdXPUVLFDJ3oITK7LFAPRyzkOcDK06bb7KRaE8GiQyGLsrvHaLS9Ej/lELMC7aCE" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js" integrity="sha384-JfW8ehTxF6vKpm17Oz+cpaluYzFMvm6YfXgwbw5Hxzrn0rR6WR+0DDDWPEIv9CtK" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js" integrity="sha384-2BM4IWUXdUSofkFc94Y1PY8U+cZYLJjB+EqQAoA2vfFGBvZK8aVaxEhICqCY4rlq" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js" integrity="sha384-Y7bC2PBKu8ujxtvo5+Z61OeGdSVRzFsYWBK4i5dnL/U6aFDTodk61qOUkTfInaxS" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'">
+<script src="/assets/libraries/graphology@0.26.0/dist/graphology.umd.min.js" integrity="sha384-YdXPUVLFDJ3oITK7LFAPRyzkOcDK06bb7KRaE8GiQyGLsrvHaLS9Ej/lELMC7aCE"></script>
+<script src="/assets/libraries/graphology-library@0.8.0/dist/graphology-library.min.js" integrity="sha384-JfW8ehTxF6vKpm17Oz+cpaluYzFMvm6YfXgwbw5Hxzrn0rR6WR+0DDDWPEIv9CtK"></script>
+<script src="/assets/libraries/sigma@3.0.3/dist/sigma.min.js" integrity="sha384-2BM4IWUXdUSofkFc94Y1PY8U+cZYLJjB+EqQAoA2vfFGBvZK8aVaxEhICqCY4rlq"></script>
+<script src="/assets/libraries/3d-force-graph@1.80.0/dist/3d-force-graph.min.js" integrity="sha384-Y7bC2PBKu8ujxtvo5+Z61OeGdSVRzFsYWBK4i5dnL/U6aFDTodk61qOUkTfInaxS"></script>
 <title>ekr · knowledge graph</title>
 <style>
   :root {
@@ -752,6 +752,9 @@ async function main() {
     return Data.overview(null);
   });
   if (refused) $("error").textContent = refused;
+  // a revision the address names stays in the address, the head's too, so a link to it does not move
+  // to a later head; choosing a revision in the page names it unless it is the head
+  let heldRevision = asked != null && !refused;
   const tname = t => doc.names.type.get(t) ?? t;
   const ename = t => t === CO ? CO : doc.names.edgeType.get(t) ?? doc.names.type.get(t) ?? t;
   // a property as type `t` has it; an id types define differently is named only through the type that has it,
@@ -2295,6 +2298,7 @@ async function main() {
     try {
       const next = await Data.overview(n === m.head ? null : n);
       if (!next) return;                // a later load superseded this one
+      heldRevision = false;
       doc = next; render();
       if (focused) openNode(focused, false);
       if (push) pushState();
@@ -2456,7 +2460,7 @@ async function main() {
   };
   function stateString() {
     const p = new URLSearchParams();
-    if (doc.meta.revision !== doc.meta.head) p.set("revision", String(doc.meta.revision));
+    if (heldRevision || doc.meta.revision !== doc.meta.head) p.set("revision", String(doc.meta.revision));
     p.set("view", dim);
     const compact = foldParam();
     if (compact) p.set("compact", compact);
@@ -2488,6 +2492,7 @@ async function main() {
     try {
       stopPlay();
       setFolds(...foldsFrom(hash, !first));
+      heldRevision = revFromHash(hash) != null && revFromHash(hash) <= doc.meta.head;
       const want = Math.min(revFromHash(hash) ?? doc.meta.head, doc.meta.head);
       if (want !== doc.meta.revision) {
         const next = await Data.overview(want === doc.meta.head ? null : want);

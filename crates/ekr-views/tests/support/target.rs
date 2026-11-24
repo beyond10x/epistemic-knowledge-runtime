@@ -444,6 +444,8 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
         ("evidence_added", summary.evidence_added),
         ("nodes_superseded", summary.nodes_superseded),
         ("nodes_merged", summary.nodes_merged),
+        ("evidence_attached", summary.evidence_attached),
+        ("aliases_added", summary.aliases_added),
     ])?;
     if let Some(first) = summary.first_revision {
         fields.push(("first_revision", integer(first)?));
