@@ -6,6 +6,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- The CLI's schema read, its output formats and the published pages say what the release does
+  (story:ekr-cli-contract-fixes, findings 33, 35, 43 and 44 of the EKR 0.0.42 review):
+  - `ekr ontology` prints each node type's `lifecycle` and named `operations` (arguments,
+    transition, preconditions, emitted events) and each edge type's `inverse`, `symmetric` and
+    `transitive`; `ekr_sdk::read::Ontology` reads them (`OntologyLifecycle`, `OntologyOperation`,
+    `OntologyTransition`) and reads an older `ekr`'s output as before;
+  - `README.md` and `docs/cli.md` name the output of the bootstrap verbs: `ekr guide` and
+    `ekr operations` print text, `ekr example` JSON for `ekr.cli-host/1` and YAML for every other
+    format;
+  - `docs/cli.md` § Partial writes says when `ekr apply-extraction` writes part of a document and
+    which report fields say so; `README.md` no longer promises a document applies whole;
+  - the public site names the workspace version as the current release, written in when the site
+    is built; it named 0.0.41 after 0.0.42 shipped.
 - `ekr.node-detail/2` (`ekr describe --format ekr.node-detail/2`, `/node/<id>`, MCP
   `describe_node`) answers what the store holds (story:ekr-views-detail-fixes, findings 27, 28
   and 30 of the EKR 0.0.42 review):

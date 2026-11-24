@@ -49,10 +49,11 @@ pub use checks::{
 };
 pub use kernel::{
     ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction,
-    NamedType, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty,
-    OntologyValueType, RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment,
-    SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotMergeLineage,
-    SnapshotNode, SnapshotPredicate, SnapshotRewrittenAssertion, SnapshotRoot, SnapshotSubject,
+    NamedType, Ontology, OntologyCardinality, OntologyEdgeType, OntologyLifecycle,
+    OntologyNodeType, OntologyOperation, OntologyProperty, OntologyTransition, OntologyValueType,
+    RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge,
+    SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotMergeLineage, SnapshotNode,
+    SnapshotPredicate, SnapshotRewrittenAssertion, SnapshotRoot, SnapshotSubject,
     SnapshotSupersededNode, TransactionState, Transactions, ValidTime,
 };
 pub use ocel::{
