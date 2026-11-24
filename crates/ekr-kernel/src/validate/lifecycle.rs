@@ -115,7 +115,15 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
         let Some(replacement) = claims.get(&change.by) else {
             continue;
         };
+        // The replacement is active before this transaction: one the graph holds active, or one
+        // this transaction adds. One an earlier transaction closed is not a replacement, however
+        // its valid time reads (`docs/cli.md`, Supersession); one this transaction supersedes in
+        // turn is, so a chain of supersessions commits in one transaction.
+        let active_before = original.get(&change.by).is_some_and(|before| {
+            before.active && matches!(before.lifecycle, AssertionLifecycle::Active)
+        });
         let valid = change.assertion != change.by
+            && active_before
             && old
                 .range
                 .from
