@@ -730,6 +730,8 @@ fn the_step_starts_its_shared_browser_unable_to_reach_the_network() {
         "headless",
         "disable-component-update",
         "disable-background-networking",
+        // the step's budget: SwiftShader compositing cost about three times the CPU per page load
+        "disable-gpu-compositing",
     ] {
         let flag = format!("        --{flag} \\\n");
         assert!(

@@ -9,8 +9,8 @@
 #   3. Runs every test under cargo-nextest, one process per test (.config/nextest.toml): a test
 #      over 60 s is killed and fails, and the run is stopped at the step's budget.
 #   4. Runs the doc tests, which nextest does not run.
-#   5. Prints the ten slowest tests, the browser cases' share and the run time against the budget
-#      of 120 s.
+#   5. Prints the ten slowest tests, the browser cases' share, how busy the CPUs were and the run
+#      time against the budget of 120 s.
 #
 # Exits non-zero when a build, a test or a doc test failed. Running longer than the budget fails
 # the step once `enforced` is 1 (AGENTS.md, "The gate"): it is set with the change that brings the
@@ -52,7 +52,10 @@ export EKR_SDK_TEST_EKR
 # One Chromium for the whole run, with the flags each case's own launch carries: no network for the
 # viewer's libraries (the cases serve them), no component update, no background networking.
 # Several cases' windows are open at once, each over another: none is throttled as hidden or in
-# the background, as a case's own browser, the only window, never was.
+# the background, as a case's own browser, the only window, never was. The pages' WebGL still
+# draws through SwiftShader, but the browser composites its windows in software: composited
+# through SwiftShader, a 1600x1000 window cost 13-14 s of CPU per page load of the sounding store
+# (its 1.2 s of layout at 60 frames a second), and 3-4 s composited in software.
 browser_pid=
 stop_browser() {
     if [ -n "$browser_pid" ]; then
@@ -88,6 +91,7 @@ if [ -n "$browser" ] && [ -x "$browser" ]; then
         --disable-backgrounding-occluded-windows \
         --disable-renderer-backgrounding \
         --disable-background-timer-throttling \
+        --disable-gpu-compositing \
         "--host-resolver-rules=MAP cdn.jsdelivr.net ~NOTFOUND" \
         --remote-debugging-port=0 \
         "--user-data-dir=$profile" \
@@ -120,8 +124,15 @@ else
     echo "test step: no headless Chromium (EKR_VIEW_BROWSER unset, none under ~/.cache/ms-playwright); each browser case starts its own or skips"
 fi
 
+# The CPUs' clock ticks so far, all and idle (/proc/stat): how busy the tests kept the machine.
+cpu_ticks() {
+    awk '/^cpu / { total = 0; for (i = 2; i <= NF; i++) total += $i; print total, $5 + $6; exit }' \
+        /proc/stat 2>/dev/null
+}
+cpu_before=$(cpu_ticks)
 cargo nextest run --workspace --locked --no-fail-fast
 tests=$?
+cpu_after=$(cpu_ticks)
 stop_browser
 cargo test --workspace --locked --doc
 docs=$?
@@ -169,6 +180,12 @@ build_time=$((built - started))
 run_time=$((finished - built))
 echo
 echo "test step: build ${build_time} s; tests and doc tests ${run_time} s against a budget of ${budget} s"
+if [ -n "$cpu_before" ] && [ -n "$cpu_after" ]; then
+    echo "$cpu_before $cpu_after" | awk -v cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null)" '{
+        total = $3 - $1; idle = $4 - $2
+        if (total > 0) printf "test step: the %s CPUs were busy %.0f %% of the nextest run\n", cpus, 100 * (total - idle) / total
+    }'
+fi
 echo "test step: the test build's directory holds $(du -sm "$target/debug" 2>/dev/null | cut -f1) MiB ($target/debug)"
 over=0
 if [ "$run_time" -gt "$budget" ]; then
