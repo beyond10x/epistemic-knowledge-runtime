@@ -320,6 +320,60 @@ fn test_builds_carry_no_debug_info_and_the_runner_holds_the_budgets() {
     assert!(step.contains("cargo test --workspace --locked --doc"));
 }
 
+/// `story:ekr-test-step-budget`: a trybuild case compiles crates inside the test (23-38 s each on
+/// CI runs 45260269611 and 45297797215), so `.config/nextest.toml`'s `default-filter` leaves every
+/// one out of the test step and `task compile-fail-check`, part of `task check`, runs them. A new
+/// trybuild case that the filter does not name fails here.
+#[test]
+fn every_compile_fail_case_runs_outside_the_test_step() {
+    let root = workspace_root();
+    let nextest = read(&root.join(".config/nextest.toml"));
+    let filter = nextest
+        .split("default-filter = ")
+        .nth(1)
+        .expect(".config/nextest.toml has a default filter");
+    // put together here, so that this file's own text does not count as a case
+    let needle = format!("{}::TestCases::new", "trybuild");
+    let mut cases = Vec::new();
+    for entry in std::fs::read_dir(root.join("crates")).unwrap() {
+        let crate_dir = entry.unwrap().path();
+        let tests = crate_dir.join("tests");
+        if !tests.is_dir() {
+            continue;
+        }
+        let name = crate_dir.file_name().unwrap().to_str().unwrap().to_owned();
+        for stem in rust_stems(&tests) {
+            let source = read(&tests.join(format!("{stem}.rs")));
+            for (at, _) in source.match_indices(&needle) {
+                let before = &source[..at];
+                let case = before
+                    .rfind("\nfn ")
+                    .and_then(|start| before[start + 4..].split('(').next())
+                    .unwrap_or_else(|| panic!("{stem}.rs: a trybuild case outside a function"));
+                cases.push(format!("(binary_id({name}::main) & test(={stem}::{case}))"));
+            }
+        }
+    }
+    assert!(cases.len() >= 4, "the trybuild cases were found: {cases:?}");
+    for case in &cases {
+        assert!(
+            filter.contains(case.as_str()),
+            ".config/nextest.toml's default-filter leaves out {case}"
+        );
+    }
+    let taskfile = read(&root.join("Taskfile.yml"));
+    assert!(
+        taskfile.contains("      - task: compile-fail-check\n"),
+        "task check runs task compile-fail-check"
+    );
+    assert!(
+        taskfile.contains(
+            "      - cargo nextest run --workspace --locked --ignore-default-filter -E 'not default()'\n"
+        ),
+        "task compile-fail-check runs what the default filter leaves out"
+    );
+}
+
 /// `story:sdk-standalone-build`: Cargo applies only the root workspace's `[patch]`, so a crate
 /// this workspace selects through one is missing for an application that depends on `ekr-sdk`
 /// by release tag. The gate builds the SDK from a workspace of its own, outside the test step.

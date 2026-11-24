@@ -17,6 +17,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+#[path = "support/shared_browser.rs"]
+mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
 mod viewer_libraries;
 
@@ -189,21 +191,11 @@ fn rendered(browser: &Path, url: &str) -> String {
     panic!("the browser stalled {RENDER_ATTEMPTS} times on {url}");
 }
 
-/// A browser, killed when this is dropped.
-struct Running(Child);
-
-impl Drop for Running {
-    fn drop(&mut self) {
-        self.0.kill().ok();
-        self.0.wait().ok();
-    }
-}
-
 fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
     let _one = one_browser();
     let profile = tempfile::tempdir().unwrap();
     // `taskset` and `nice` exec the browser, so the child is the browser itself
-    let mut child = Running(
+    let mut child = shared_browser::launch(None, || {
         Command::new("taskset")
             .args(["-c", "0-1", "nice", "-n", "19"])
             .arg(browser)
@@ -225,26 +217,12 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .spawn()
-            .unwrap(),
-    );
-    let mut lines = BufReader::new(child.0.stderr.take().unwrap());
-    let port: u16 = loop {
-        let mut line = String::new();
-        assert!(
-            lines.read_line(&mut line).unwrap() > 0,
-            "the browser printed no DevTools address"
-        );
-        if let Some(rest) = line
-            .trim()
-            .strip_prefix("DevTools listening on ws://127.0.0.1:")
-        {
-            break rest.split('/').next().unwrap().parse().unwrap();
-        }
-    };
-    std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
+            .unwrap()
+    });
+    let (port, page) = child.devtools();
     let tcp = TcpStream::connect(("127.0.0.1", port)).unwrap();
     tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
-    let (socket, _) = tungstenite::client(page_socket(port), tcp).unwrap();
+    let (socket, _) = tungstenite::client(page.unwrap_or_else(|| page_socket(port)), tcp).unwrap();
     let mut cdp = Cdp {
         socket,
         next: 0,

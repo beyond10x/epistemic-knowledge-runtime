@@ -21,6 +21,8 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+#[path = "support/shared_browser.rs"]
+mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
 mod viewer_libraries;
 
@@ -243,9 +245,43 @@ fn one_browser() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
+/// The address of the DevTools socket of the page of a browser of its own, listening on `port`.
+fn page_address(port: u16) -> String {
+    let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    write!(
+        list,
+        "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut listed = BufReader::new(list);
+    let mut length = 0;
+    loop {
+        let mut line = String::new();
+        listed.read_line(&mut line).unwrap();
+        if line == "\r\n" || line.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = line.split_once(':') {
+            if name.eq_ignore_ascii_case("content-length") {
+                length = value.trim().parse().unwrap();
+            }
+        }
+    }
+    let mut body = vec![0_u8; length];
+    listed.read_exact(&mut body).unwrap();
+    let targets: Value = serde_json::from_slice(&body).unwrap();
+    let target = targets
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|target| target["type"] == "page")
+        .expect("a page target");
+    target["webSocketDebuggerUrl"].as_str().unwrap().to_owned()
+}
+
 /// The `Driven` harness of `view_page.rs`, copied (it is private to that file).
 struct Driven {
-    child: Child,
+    child: shared_browser::Browser,
     socket: TcpStream,
     reader: BufReader<TcpStream>,
     next: u64,
@@ -276,58 +312,24 @@ impl Driven {
         ];
         args.extend(flags.iter().map(|flag| (*flag).to_owned()));
         args.push("about:blank".to_owned());
-        let mut child = Command::new(browser)
-            .args(&args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut lines = BufReader::new(child.stderr.take().unwrap());
-        let port: u16 = loop {
-            let mut line = String::new();
-            assert!(
-                lines.read_line(&mut line).unwrap() > 0,
-                "no DevTools address"
-            );
-            if let Some(rest) = line
-                .trim()
-                .strip_prefix("DevTools listening on ws://127.0.0.1:")
-            {
-                break rest.split('/').next().unwrap().parse().unwrap();
-            }
+        let own = || {
+            Command::new(browser)
+                .args(&args)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap()
         };
-        std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
-        let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
-        write!(
-            list,
-            "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
-        )
-        .unwrap();
-        let mut listed = BufReader::new(list);
-        let mut length = 0;
-        loop {
-            let mut line = String::new();
-            listed.read_line(&mut line).unwrap();
-            if line == "\r\n" || line.is_empty() {
-                break;
-            }
-            if let Some((name, value)) = line.split_once(':') {
-                if name.eq_ignore_ascii_case("content-length") {
-                    length = value.trim().parse().unwrap();
-                }
-            }
-        }
-        let mut body = vec![0_u8; length];
-        listed.read_exact(&mut body).unwrap();
-        let targets: Value = serde_json::from_slice(&body).unwrap();
-        let target = targets
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|target| target["type"] == "page")
-            .expect("a page target");
-        let address = target["webSocketDebuggerUrl"].as_str().unwrap();
+        // Flags of the browser need a browser of its own; without any, the case takes a context of
+        // the test step's browser when it started one (`support/shared_browser.rs`).
+        let mut child = if flags.is_empty() {
+            shared_browser::launch(Some(size), own)
+        } else {
+            shared_browser::Browser::Own(own())
+        };
+        let (port, page) = child.devtools();
+        let address = page.unwrap_or_else(|| page_address(port));
         let path = &address[address.find("/devtools/").unwrap()..];
         let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(
@@ -541,8 +543,7 @@ impl Driven {
 
 impl Drop for Driven {
     fn drop(&mut self) {
-        self.child.kill().ok();
-        self.child.wait().ok();
+        self.child.stop();
     }
 }
 

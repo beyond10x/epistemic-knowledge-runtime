@@ -375,6 +375,12 @@ fn pick_who(rng: &mut Lcg) -> Who {
 /// (fewer than `REPLAY_CHECKPOINT_COMMITS` commits and fewer than
 /// `REPLAY_CHECKPOINT_BYTES` bytes of documents after it, design § 99.5); and where no validation after the
 /// checkpoint names a revision before it, a fresh open replays nothing from the seed.
+///
+/// The full replay each step is compared with is a long-lived handle that admits no checkpoint
+/// (`set_full_replay`): it reaches each step's answers from the seed and the events alone,
+/// continuing the replay it has made, so a step costs the events since the last step rather than
+/// the whole history again. A replay begun at the seed by a fresh handle checks that handle
+/// whenever a new checkpoint is written and after the last step.
 fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path();
@@ -393,6 +399,8 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
     // Both session handles read before anything else is written, as a session's first verb does.
     world.a.head().unwrap();
     world.b.head().unwrap();
+    let replay = open_in_full(path, file, profile);
+    replay.head().unwrap();
     let mut rng = Lcg(seed_value);
     let mut head: u64 = 0;
     let mut commits = 0;
@@ -401,6 +409,8 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
     let mut checkpoint_at: u64 = 0;
     // Whether a validation after the newest checkpoint names a revision before its head.
     let mut early = false;
+    // Whether a checkpoint was written since the long-lived replay was last checked.
+    let mut checkpoint_written = false;
     for step in 0..36_u64 {
         let action = rng.next(100);
         let how = format!("file={file} {profile:?} seed={seed_value} step={step} action={action}");
@@ -520,9 +530,18 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
                 newest_checkpoint = newest["checkpoint_hash"].clone();
                 checkpoint_at = checkpoint_revision(path, file, newest);
                 early = false;
+                checkpoint_written = true;
             }
         }
-        let truth = answers(&open_in_full(path, file, profile));
+        let truth = answers(&replay);
+        if checkpoint_written {
+            checkpoint_written = false;
+            assert_eq!(
+                answers(&open_in_full(path, file, profile)),
+                truth,
+                "{how}: a replay from the seed by a fresh handle"
+            );
+        }
         assert_eq!(
             truth.0.unwrap().revision,
             RevisionNumber::new(head),
@@ -563,6 +582,11 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
             );
         }
     }
+    assert_eq!(
+        answers(&open_in_full(path, file, profile)),
+        answers(&replay),
+        "file={file} {profile:?} seed={seed_value}: a replay from the seed by a fresh handle after the last step"
+    );
     let written = pointers(&open(path, file, profile));
     let checkpoints = (1..written.len())
         .filter(|&i| written[i]["checkpoint_hash"] != written[i - 1]["checkpoint_hash"])

@@ -7,6 +7,8 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 use tungstenite::{Message, WebSocket};
 
+#[path = "support/shared_browser.rs"]
+mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
 mod viewer_libraries;
 
@@ -86,14 +88,6 @@ impl Drop for World {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
-    }
-}
-
-struct Running(Child);
-impl Drop for Running {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
     }
 }
 
@@ -231,7 +225,7 @@ fn the_devtools_port_is_read_once_written_not_when_the_file_appears() {
 }
 
 struct Browser {
-    _child: Running,
+    _child: shared_browser::Browser,
     _dir: tempfile::TempDir,
     _serial: std::sync::MutexGuard<'static, ()>,
     socket: WebSocket<TcpStream>,
@@ -311,9 +305,13 @@ impl Browser {
             return None;
         };
         let dir = tempfile::tempdir().unwrap();
-        let child = Running(
-            Command::new("taskset")
-                .args(["-c", "0-1", "nice", "-n", "19"])
+        // A browser of its own even under the test step: these cases type into the focused field
+        // (`Input.insertText`), and in the shared browser another case's new window can take the
+        // focus between the field's focus and the typing (CI run 45300454015).
+        // No longer pinned to two cores: the cases run in parallel, no more one at a time.
+        let child = shared_browser::Browser::Own({
+            Command::new("nice")
+                .args(["-n", "19"])
                 .arg(binary)
                 .args([
                     "--headless",
@@ -330,8 +328,8 @@ impl Browser {
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()
-                .unwrap(),
-        );
+                .unwrap()
+        });
         let port = announced_port(dir.path());
         let url = page_target(port);
         let tcp = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
@@ -683,7 +681,7 @@ fn cancellation_waits_past_responses_and_unrelated_or_uncanceled_failures() {
         .unwrap();
     let (socket, _) = tungstenite::client(format!("ws://{address}/"), stream).unwrap();
     // Reuse the process-owning struct without launching a browser for this protocol-only case.
-    let child = Running(
+    let child = shared_browser::Browser::Own(
         Command::new(std::env::current_exe().unwrap())
             .arg("--list")
             .stdout(Stdio::null())

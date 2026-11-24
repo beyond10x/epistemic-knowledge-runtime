@@ -20,6 +20,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+#[path = "support/shared_browser.rs"]
+mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
 mod viewer_libraries;
 
@@ -857,45 +859,33 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .len();
     // `taskset` and `nice` exec the browser, so the child is the browser itself
-    let mut child = Command::new("taskset")
-        .args(["-c", "0-3", "nice", "-n", "19"])
-        .arg(browser)
-        .args([
-            "--headless",
-            "--use-angle=swiftshader",
-            "--enable-unsafe-swiftshader",
-            "--no-sandbox",
-            "--no-first-run",
-            "--disable-component-update",
-            "--disable-background-networking",
-            "--disable-extensions",
-            viewer_libraries::UNRESOLVABLE,
-            "--window-size=1600,1000",
-            "--remote-debugging-port=0",
-            &format!("--user-data-dir={}", profile.path().display()),
-            "about:blank",
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let mut lines = BufReader::new(child.stderr.take().unwrap());
-    let port: u16 = loop {
-        let mut line = String::new();
-        assert!(
-            lines.read_line(&mut line).unwrap() > 0,
-            "the browser printed no DevTools address"
-        );
-        if let Some(rest) = line
-            .trim()
-            .strip_prefix("DevTools listening on ws://127.0.0.1:")
-        {
-            break rest.split('/').next().unwrap().parse().unwrap();
-        }
-    };
-    std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
-    let address = page_socket(port);
+    let mut child = shared_browser::launch(Some((1600, 1000)), || {
+        Command::new("taskset")
+            .args(["-c", "0-3", "nice", "-n", "19"])
+            .arg(browser)
+            .args([
+                "--headless",
+                "--use-angle=swiftshader",
+                "--enable-unsafe-swiftshader",
+                "--no-sandbox",
+                "--no-first-run",
+                "--disable-component-update",
+                "--disable-background-networking",
+                "--disable-extensions",
+                viewer_libraries::UNRESOLVABLE,
+                "--window-size=1600,1000",
+                "--remote-debugging-port=0",
+                &format!("--user-data-dir={}", profile.path().display()),
+                "about:blank",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    });
+    let (port, page) = child.devtools();
+    let address = page.unwrap_or_else(|| page_socket(port));
     let tcp = TcpStream::connect(("127.0.0.1", port)).unwrap();
     tcp.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
     let (socket, _) = tungstenite::client(address, tcp).unwrap();
@@ -948,8 +938,7 @@ fn dump_once(browser: &Path, url: &str, budget: u32) -> Option<String> {
             std::thread::sleep(Duration::from_millis(200));
         }
     })();
-    child.kill().ok();
-    child.wait().ok();
+    child.stop();
     // what the run requested and the page logged
     let log = || {
         let traffic = TRAFFIC

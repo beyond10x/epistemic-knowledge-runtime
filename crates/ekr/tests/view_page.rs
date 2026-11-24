@@ -28,6 +28,8 @@ use ekr_views::{
 };
 use serde_json::Value;
 
+#[path = "support/shared_browser.rs"]
+mod shared_browser;
 #[path = "support/viewer_libraries.rs"]
 mod viewer_libraries;
 
@@ -686,6 +688,42 @@ fn the_launch_guard_names_a_launch_that_is_not_served_the_pinned_libraries() {
     }
 }
 
+/// `story:browser-tests-one-chromium`: the one Chromium the test step starts for every browser case
+/// carries what each case's own launch carries so that it reaches no network: the libraries' host
+/// unresolvable, no component update, no background networking. The step names it in the variable
+/// the cases read. The needles are put together here, so that this file's own text does not count
+/// as a launch for the guard above.
+#[test]
+fn the_step_starts_its_shared_browser_unable_to_reach_the_network() {
+    let step = std::fs::read_to_string(manifest_dir().join("../../scripts/test-step.sh")).unwrap();
+    // by a glob import: the path to the flag in this file's text counts as a launch's for the guard
+    let unresolvable = {
+        use viewer_libraries::*;
+        format!("\"{UNRESOLVABLE}\"")
+    };
+    assert!(
+        step.contains(&unresolvable),
+        "scripts/test-step.sh starts its browser with {unresolvable}"
+    );
+    for flag in [
+        "headless",
+        "disable-component-update",
+        "disable-background-networking",
+    ] {
+        let flag = format!("        --{flag} \\\n");
+        assert!(
+            step.contains(&flag),
+            "scripts/test-step.sh starts its browser with {flag:?}"
+        );
+    }
+    let named = format!("    export {}\n", shared_browser::VARIABLE);
+    assert!(
+        step.contains(&named),
+        "scripts/test-step.sh names its browser in {}",
+        shared_browser::VARIABLE
+    );
+}
+
 /// `story:browser-tests-need-no-network`: each library the page loads is committed under
 /// `tests/fixtures/viewer-libraries/` at its address's path and hashes to the `integrity` the page
 /// carries for it, read off the page's own tags, so a page that pins another version without its
@@ -951,29 +989,32 @@ fn rendered_once(browser: &Path, url: &str) -> Result<String, String> {
     let one = one_browser();
     let profile = tempfile::tempdir().unwrap();
     // Two cores at the lowest priority: the machine is shared. `taskset` and `nice` exec the
-    // browser, so the child is the browser itself.
-    let child = Command::new("taskset")
-        .args(["-c", "0-1", "nice", "-n", "19"])
-        .arg(browser)
-        .args([
-            "--headless",
-            "--use-angle=swiftshader",
-            "--enable-unsafe-swiftshader",
-            "--no-sandbox",
-            "--no-first-run",
-            "--disable-component-update",
-            "--disable-background-networking",
-            "--disable-extensions",
-            viewer_libraries::UNRESOLVABLE,
-            "--remote-debugging-port=0",
-            &format!("--user-data-dir={}", profile.path().display()),
-            "about:blank",
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+    // browser, so the child is the browser itself. Under the test step the case takes a context of
+    // the step's browser instead (`support/shared_browser.rs`).
+    let child = shared_browser::launch(None, || {
+        Command::new("taskset")
+            .args(["-c", "0-1", "nice", "-n", "19"])
+            .arg(browser)
+            .args([
+                "--headless",
+                "--use-angle=swiftshader",
+                "--enable-unsafe-swiftshader",
+                "--no-sandbox",
+                "--no-first-run",
+                "--disable-component-update",
+                "--disable-background-networking",
+                "--disable-extensions",
+                viewer_libraries::UNRESOLVABLE,
+                "--remote-debugging-port=0",
+                &format!("--user-data-dir={}", profile.path().display()),
+                "about:blank",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    });
     let mut driven = Driven::connect(child, profile, one, viewer_libraries::fixture);
     viewer_libraries::serve(|method, params| driven.call(method, params));
     driven.call("Page.navigate", serde_json::json!({ "url": url }));
@@ -2388,28 +2429,31 @@ const STAR: (usize, usize, usize, usize, usize) = (2, 1, 801, 800, 1);
 fn shoot(browser: &Path, url: &str, file: &Path, millis: u32, real: bool) {
     let one = one_browser();
     let profile = tempfile::tempdir().unwrap();
-    let child = Command::new(browser)
-        .args([
-            "--headless",
-            "--use-angle=swiftshader",
-            "--enable-unsafe-swiftshader",
-            "--no-sandbox",
-            "--no-first-run",
-            "--disable-component-update",
-            "--disable-background-networking",
-            "--disable-extensions",
-            viewer_libraries::UNRESOLVABLE,
-            "--hide-scrollbars",
-            "--window-size=1600,1000",
-            "--remote-debugging-port=0",
-            &format!("--user-data-dir={}", profile.path().display()),
-            "about:blank",
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+    // A browser of its own even under the test step: `--hide-scrollbars` is a flag of the browser.
+    let child = shared_browser::Browser::Own(
+        Command::new(browser)
+            .args([
+                "--headless",
+                "--use-angle=swiftshader",
+                "--enable-unsafe-swiftshader",
+                "--no-sandbox",
+                "--no-first-run",
+                "--disable-component-update",
+                "--disable-background-networking",
+                "--disable-extensions",
+                viewer_libraries::UNRESOLVABLE,
+                "--hide-scrollbars",
+                "--window-size=1600,1000",
+                "--remote-debugging-port=0",
+                &format!("--user-data-dir={}", profile.path().display()),
+                "about:blank",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
     let mut driven = Driven::connect(child, profile, one, viewer_libraries::fixture);
     viewer_libraries::serve(|method, params| driven.call(method, params));
     driven.call("Page.navigate", serde_json::json!({ "url": url }));
@@ -2551,7 +2595,7 @@ fn a_focus_at_three_hops_streams_nothing_the_server_refuses() {
 // unresolvable for the browser, so no page a case opens reaches the network.
 
 struct Driven {
-    child: Child,
+    child: shared_browser::Browser,
     socket: TcpStream,
     reader: BufReader<TcpStream>,
     next: u64,
@@ -2714,27 +2758,29 @@ impl Driven {
     fn launch_with(browser: &Path, url: &str, size: (u32, u32), served: Served) -> Self {
         let one = one_browser();
         let profile = tempfile::tempdir().unwrap();
-        let child = Command::new(browser)
-            .args([
-                "--headless",
-                "--use-angle=swiftshader",
-                "--enable-unsafe-swiftshader",
-                "--no-sandbox",
-                "--no-first-run",
-                "--disable-component-update",
-                "--disable-background-networking",
-                "--disable-extensions",
-                viewer_libraries::UNRESOLVABLE,
-                &format!("--window-size={},{}", size.0, size.1),
-                "--remote-debugging-port=0",
-                &format!("--user-data-dir={}", profile.path().display()),
-                "about:blank",
-            ])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+        let child = shared_browser::launch(Some(size), || {
+            Command::new(browser)
+                .args([
+                    "--headless",
+                    "--use-angle=swiftshader",
+                    "--enable-unsafe-swiftshader",
+                    "--no-sandbox",
+                    "--no-first-run",
+                    "--disable-component-update",
+                    "--disable-background-networking",
+                    "--disable-extensions",
+                    viewer_libraries::UNRESOLVABLE,
+                    &format!("--window-size={},{}", size.0, size.1),
+                    "--remote-debugging-port=0",
+                    &format!("--user-data-dir={}", profile.path().display()),
+                    "about:blank",
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap()
+        });
         let mut driven = Self::connect(child, profile, one, served);
         viewer_libraries::serve(|method, params| driven.call(method, params));
         driven.call("Page.navigate", serde_json::json!({ "url": url }));
@@ -2745,27 +2791,13 @@ impl Driven {
     /// `--remote-debugging-port=0` and its standard error piped, with its console, log and network
     /// events enabled. Nothing is served until the caller has the libraries served.
     fn connect(
-        mut child: Child,
+        mut child: shared_browser::Browser,
         profile: tempfile::TempDir,
         one: std::sync::MutexGuard<'static, ()>,
         served: Served,
     ) -> Self {
-        let mut lines = BufReader::new(child.stderr.take().unwrap());
-        let port: u16 = loop {
-            let mut line = String::new();
-            assert!(
-                lines.read_line(&mut line).unwrap() > 0,
-                "the browser printed no DevTools address"
-            );
-            if let Some(rest) = line
-                .trim()
-                .strip_prefix("DevTools listening on ws://127.0.0.1:")
-            {
-                break rest.split('/').next().unwrap().parse().unwrap();
-            }
-        };
-        std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
-        let address = page_socket(port);
+        let (port, page) = child.devtools();
+        let address = page.unwrap_or_else(|| page_socket(port));
         let path = &address[address.find("/devtools/").unwrap()..];
         let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(
@@ -3071,8 +3103,7 @@ impl Driven {
 
 impl Drop for Driven {
     fn drop(&mut self) {
-        self.child.kill().ok();
-        self.child.wait().ok();
+        self.child.stop();
     }
 }
 
@@ -3458,6 +3489,18 @@ const COUNT_DRAWS: &str =
   for (const f of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
     const own = gl[f].bind(gl); gl[f] = (...a) => { window.__calls++; return own(...a); }; } })()";
 
+/// The draw calls since the count stood at `at`, once there is one, or after `millis` ms with none.
+fn draws_since(driven: &mut Driven, at: u64, millis: u32) -> u64 {
+    driven
+        .eval(&format!(
+            "new Promise(done => {{ const start = performance.now(); const tick = () => {{ \
+             const drawn = window.__calls - {at}; \
+             if (drawn > 0 || performance.now() - start > {millis}) done(drawn); else setTimeout(tick, 20); }}; tick(); }})"
+        ))
+        .as_u64()
+        .unwrap()
+}
+
 fn draws_within(driven: &mut Driven, millis: u32) -> u64 {
     driven
         .eval(&format!(
@@ -3526,11 +3569,19 @@ fn compact_mode_in(dim: &str, chosen: bool) {
     }
 
     // the key collapses both
+    let before_key = if rests {
+        driven.eval("window.__calls").as_u64().unwrap()
+    } else {
+        0
+    };
     driven.key("c");
     if rests {
-        let woke = draws_within(&mut driven, 400);
+        // Counted from before the key, and waited for: with other cases drawing beside it on a
+        // shared machine the first frame of the resize can come later than any fixed window
+        // (CI runs 45297797215 and 45303320618 saw none in 400 ms).
+        let woke = draws_since(&mut driven, before_key, 10_000);
         assert!(woke > 0, "the 3D loop drew the resize: {woke} calls");
-        eprintln!("3d: {woke} draw calls in the 400 ms after the key");
+        eprintln!("3d: {woke} draw calls after the key");
         std::thread::sleep(Duration::from_millis(1000));
         assert_eq!(
             draws_within(&mut driven, 1000),
