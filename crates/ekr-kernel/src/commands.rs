@@ -198,7 +198,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ProposalRecordV1, CommitError> {
         let document = crate::TransactionDocument::read(reader)?;
-        self.propose(document.bytes(), actor, now)
+        let state = self.read_state()?;
+        self.propose_document(&state, &document, actor, now)
     }
     pub(crate) fn read_state(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
         Ok(self.replayed_state()?.1)
@@ -263,6 +264,18 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     ) -> Result<ProposalRecordV1, CommitError> {
         let state = self.read_state()?;
         let parsed = crate::TransactionDocument::parse(bytes)?;
+        self.propose_document(&state, &parsed, actor, now)
+    }
+    /// [`Self::propose`] of a document already parsed from the submitted bytes, against `state`,
+    /// the verified state read before it: the document is not parsed again.
+    fn propose_document(
+        &self,
+        state: &ReplayState,
+        parsed: &crate::TransactionDocument,
+        actor: AgentId,
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<ProposalRecordV1, CommitError> {
+        let bytes = parsed.bytes();
         let id = parsed.transaction().id;
         if !self.authority.anchor.agents.contains_key(&actor)
             || !replay::attributed(parsed.transaction(), actor)
@@ -287,7 +300,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         } else {
             let at = now();
             let record =
-                replay::proposal(bytes, actor, EventId::mint(), at, &self.authority.anchor)?;
+                replay::proposal(parsed, actor, EventId::mint(), at, &self.authority.anchor)?;
             let decision = publication(
                 record.event_id,
                 RevisionPayload::TransactionProposed {
