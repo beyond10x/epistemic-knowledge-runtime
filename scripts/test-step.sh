@@ -162,6 +162,7 @@ build_time=$((built - started))
 run_time=$((finished - built))
 echo
 echo "test step: build ${build_time} s; tests and doc tests ${run_time} s against a budget of ${budget} s"
+echo "test step: the test build's directory holds $(du -sm "$target/debug" 2>/dev/null | cut -f1) MiB ($target/debug)"
 over=0
 if [ "$run_time" -gt "$budget" ]; then
     echo "test step: over the budget by $((run_time - budget)) s (AGENTS.md, \"The gate\")" >&2

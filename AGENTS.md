@@ -132,10 +132,15 @@ fast). It builds every test target once, runs every test under cargo-nextest (0.
 slowest tests from nextest's JUnit report, and prints the step's run time against its budget.
 
 - **One process per test.** nextest starts each test in a process of its own, so a test that
-  relied on being alone in its binary still is. A file-wide `static` mutex holds one process only:
-  the six browser files (`view_page`, `search_live`, `adversary_p_page`, `adversary_page_stream_1`,
-  `adversary_viewer_compact`, `adversary_viewer_follow_ups`) are the nextest test group `browser`,
-  one test at a time, which is what their mutexes did while each was a binary run after the other.
+  relied on being alone in its binary still is. A file-wide `static` mutex holds one process only.
+- **One Chromium per run.** The step starts one headless Chromium and names it in
+  `EKR_TEST_BROWSER`; each case of the six browser files (`view_page`, `search_live`,
+  `adversary_p_page`, `adversary_page_stream_1`, `adversary_viewer_compact`,
+  `adversary_viewer_follow_ups`) opens a browser context of its own in it
+  (`crates/ekr/tests/support/shared_browser.rs`), so they run in parallel like any other test.
+  Without the variable (`cargo test -p ekr` alone) a case starts its own browser. Before
+  (`story:browser-tests-one-chromium`), every case started a Chromium and the files ran one case
+  at a time: 470 s of the 498.6 s step on CI run 45260269611.
 - **A test over 60 s is killed and fails** (`slow-timeout`, `terminate-after = 1`). Split a test
   that loops over providers, profiles or seeds into one test per case; do not raise the limit.
 - **The step's budget is 120 s** of tests and doc tests, the build not counted (the step prints
@@ -156,7 +161,10 @@ slowest tests from nextest's JUnit report, and prints the step's run time agains
   dependencies stay at 3). At opt-level 0 the checkpoint cases, which replay a growing history at
   every step, ran past 60 s on CI (PR 109's first run: 8 killed, 7 more at 52-59 s).
 - **Compile-only work is its own task.** `task bench-check` type-checks the `bench`-feature
-  targets; the test step does not build them.
+  targets; the test step does not build them. `task compile-fail-check` runs the trybuild
+  compile-fail cases (`validation::only_the_kernel_constructs_a_validated_transaction`, 38 s on CI:
+  it compiles a crate per case), which `.config/nextest.toml`'s `default-filter` leaves out of the
+  step.
 
 ### One integration-test binary per crate
 

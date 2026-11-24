@@ -688,6 +688,42 @@ fn the_launch_guard_names_a_launch_that_is_not_served_the_pinned_libraries() {
     }
 }
 
+/// `story:browser-tests-one-chromium`: the one Chromium the test step starts for every browser case
+/// carries what each case's own launch carries so that it reaches no network: the libraries' host
+/// unresolvable, no component update, no background networking. The step names it in the variable
+/// the cases read. The needles are put together here, so that this file's own text does not count
+/// as a launch for the guard above.
+#[test]
+fn the_step_starts_its_shared_browser_unable_to_reach_the_network() {
+    let step = std::fs::read_to_string(manifest_dir().join("../../scripts/test-step.sh")).unwrap();
+    // by a glob import: the path to the flag in this file's text counts as a launch's for the guard
+    let unresolvable = {
+        use viewer_libraries::*;
+        format!("\"{UNRESOLVABLE}\"")
+    };
+    assert!(
+        step.contains(&unresolvable),
+        "scripts/test-step.sh starts its browser with {unresolvable}"
+    );
+    for flag in [
+        "headless",
+        "disable-component-update",
+        "disable-background-networking",
+    ] {
+        let flag = format!("        --{flag} \\\n");
+        assert!(
+            step.contains(&flag),
+            "scripts/test-step.sh starts its browser with {flag:?}"
+        );
+    }
+    let named = format!("    export {}\n", shared_browser::VARIABLE);
+    assert!(
+        step.contains(&named),
+        "scripts/test-step.sh names its browser in {}",
+        shared_browser::VARIABLE
+    );
+}
+
 /// `story:browser-tests-need-no-network`: each library the page loads is committed under
 /// `tests/fixtures/viewer-libraries/` at its address's path and hashes to the `integrity` the page
 /// carries for it, read off the page's own tags, so a page that pins another version without its

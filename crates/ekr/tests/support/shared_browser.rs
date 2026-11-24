@@ -194,6 +194,17 @@ impl Context {
 
     /// One protocol call; events and other answers read meanwhile are passed over.
     fn call(&mut self, session: Option<&str>, method: &str, params: Value) -> Value {
+        self.try_call(session, method, params)
+            .unwrap_or_else(|error| panic!("{method} to the shared browser: {error}"))
+    }
+
+    /// [`Context::call`], its failure returned rather than raised.
+    fn try_call(
+        &mut self,
+        session: Option<&str>,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, String> {
         self.next += 1;
         let id = self.next;
         let mut message = json!({"id": id, "method": method, "params": params});
@@ -202,39 +213,36 @@ impl Context {
         }
         self.socket
             .send(tungstenite::Message::Text(message.to_string().into()))
-            .unwrap_or_else(|error| panic!("{method} to the shared browser: {error}"));
+            .map_err(|error| error.to_string())?;
         loop {
-            let read = self
-                .socket
-                .read()
-                .unwrap_or_else(|error| panic!("{method} to the shared browser: {error}"));
-            let tungstenite::Message::Text(text) = read else {
+            let tungstenite::Message::Text(text) =
+                self.socket.read().map_err(|error| error.to_string())?
+            else {
                 continue;
             };
             let answer: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
             if answer["id"] == id {
-                assert!(
-                    answer.get("error").is_none(),
-                    "{method} to the shared browser: {answer}"
-                );
-                return answer["result"].clone();
+                if let Some(error) = answer.get("error") {
+                    return Err(error.to_string());
+                }
+                return Ok(answer["result"].clone());
             }
         }
     }
 
+    /// Disposes the case's context; it never panics, since it runs on drop, and a case that
+    /// failed may drop it while unwinding. A browser already gone has nothing to dispose.
     fn close(&mut self) {
         if self.context.is_empty() {
             return;
         }
         let context = std::mem::take(&mut self.context);
-        // A case that ends while the browser is gone has nothing to dispose.
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.call(
-                None,
-                "Target.disposeBrowserContext",
-                json!({ "browserContextId": context }),
-            );
-        }));
+        self.try_call(
+            None,
+            "Target.disposeBrowserContext",
+            json!({ "browserContextId": context }),
+        )
+        .ok();
         self.socket.close(None).ok();
     }
 }
